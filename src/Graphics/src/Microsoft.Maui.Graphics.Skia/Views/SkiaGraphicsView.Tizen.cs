@@ -1,9 +1,9 @@
-﻿using System.Graphics;
-using System.Graphics.Skia;
+﻿using Microsoft.Maui.Graphics;
+using Microsoft.Maui.Graphics.Skia;
 using SkiaSharp.Views.Tizen;
 using ElmSharp;
 
-namespace System.Graphics.Skia.Views
+namespace Microsoft.Maui.Graphics.Skia.Views
 {
     public class SkiaGraphicsView : SKCanvasView
     {
