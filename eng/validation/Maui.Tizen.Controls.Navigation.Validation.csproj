@@ -1,0 +1,78 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Wave C compile-verification lane.
+
+    WHY THIS EXISTS
+    The repository's shipping target framework is net11.0-tizen11.0, which cannot be
+    restored anywhere because Samsung has not published
+    samsung.net.sdk.tizen.manifest-11.0.100 (eng/baselines.json > target.workloadManifest).
+    Without a second lane, none of the migrated Wave C code would ever see a C# compiler,
+    and "it compiles" would be an unverified claim.
+
+    This project compiles the EXACT SAME source files (via Sources.props) against
+    net9.0-tizen7.0 - the repository's own declared behaviourBaseline - using the already
+    published Samsung workload and the last published Tizen-capable MAUI packages.
+
+    WHAT THIS IS NOT
+    This is not a neutral fallback and does not violate the Directory.Build.props rule.
+    net9.0-tizen7.0 is a real Tizen target framework producing real Tizen assemblies.
+    The rule exists to prevent a plain `net11.0` build masking Tizen breakage; compiling
+    against real TizenFX reference assemblies is the opposite of that.
+
+    It is also compile-only: nothing is packed or published from here.
+
+    HOW TO RUN
+      ./eng/validation/run-validation-lane.sh
+
+    which pins the SDK via eng/validation/global.json and passes
+    -p:EnableTizenValidationLane=true.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-tizen7.0</TargetFramework>
+    <RootNamespace>Microsoft.Maui.Platforms.Tizen</RootNamespace>
+    <AssemblyName>Microsoft.Maui.Platforms.Tizen.Navigation.Validation</AssemblyName>
+    <UseMaui>true</UseMaui>
+    <SkipValidateMauiImplicitPackageReferences>true</SkipValidateMauiImplicitPackageReferences>
+    <!--
+      Explicitly NOT a Tizen package project: IsTizenProject would make
+      Directory.Build.targets overwrite TargetFramework with net11.0-tizen11.0 and apply the
+      workload gate, which is exactly what this lane exists to work around.
+    -->
+    <IsTizenProject>false</IsTizenProject>
+    <IsPackable>false</IsPackable>
+    <IsPublishable>false</IsPublishable>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <!-- Analyzer packages shipped for net11 are not consumable from this band. -->
+    <RunAnalyzers>false</RunAnalyzers>
+  </PropertyGroup>
+
+  <!--
+    Opt-in. A developer or CI agent without the Tizen workload should get a clear skip,
+    not a wall of restore errors from a project they never asked to build.
+  -->
+  <Target Name="_MauiTizenValidationLaneGate"
+          BeforeTargets="_CheckForInvalidConfigurationAndPlatform;CollectPackageReferences"
+          Condition="'$(EnableTizenValidationLane)' != 'true'">
+    <Error Code="MAUITIZEN1002"
+           Text="The Wave C validation lane is opt-in. Run ./eng/validation/run-validation-lane.sh, or pass -p:EnableTizenValidationLane=true with an SDK that has the 'tizen' and 'maui-tizen' workloads installed." />
+  </Target>
+
+  <PropertyGroup>
+    <MauiTizenNavigationSourceRoot>$(MSBuildThisFileDirectory)../../src/Maui.Tizen.Controls.Navigation/</MauiTizenNavigationSourceRoot>
+  </PropertyGroup>
+
+  <Import Project="$(MauiTizenNavigationSourceRoot)Sources.props" />
+
+  <ItemGroup>
+    <!-- CPM disables UseMaui implicit packages, so we add them explicitly.
+         Override CPM versions to match the installed workload (9.0.120). -->
+    <PackageReference Include="Microsoft.Maui.Controls" VersionOverride="9.0.120" />
+    <PackageReference Include="Microsoft.Maui.Core" VersionOverride="9.0.120" />
+    <PackageReference Include="Microsoft.Maui.Essentials" VersionOverride="9.0.120" />
+    <PackageReference Include="Tizen.UIExtensions.NUI" />
+  </ItemGroup>
+
+</Project>

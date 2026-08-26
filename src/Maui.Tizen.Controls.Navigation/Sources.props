@@ -1,0 +1,60 @@
+<Project>
+
+  <!--
+    Single source-of-truth compile list for the Wave C (navigation / advanced controls)
+    migration.
+
+    It is imported by BOTH:
+
+      * src/Maui.Tizen.Controls.Navigation/Maui.Tizen.Controls.Navigation.csproj
+        - the shipping project, net11.0-tizen11.0, currently gated because the Samsung
+          .NET 11 workload does not exist (eng/baselines.json > target.workloadManifest).
+
+      * eng/validation/Maui.Tizen.Controls.Navigation.Validation.csproj
+        - an opt-in compile-only lane on net9.0-tizen7.0, the repository's declared
+          behaviourBaseline. It exists so this code is verified by a real C# compiler
+          against real Tizen and real MAUI reference assemblies today.
+
+    The validation lane is NOT a neutral fallback. net9.0-tizen7.0 is a genuine Tizen
+    target framework producing genuine Tizen assemblies; it just pins the older, already
+    published Samsung workload. Directory.Build.props forbids neutral fallbacks, and this
+    does not introduce one.
+  -->
+
+  <PropertyGroup>
+    <MauiTizenNavigationSourceRoot Condition="'$(MauiTizenNavigationSourceRoot)' == ''">$(MSBuildThisFileDirectory)</MauiTizenNavigationSourceRoot>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Analysis">
+    <!--
+      Directory.Build.props already enables nullable for the repository, but both consuming
+      projects set it explicitly here so the shared compile list cannot be pulled into a
+      context where the annotations silently become warnings.
+    -->
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <!--
+      The ported sources are a platform backend, not a documented public API surface yet.
+      Documentation comments are tracked separately; suppressing CS1591 here keeps
+      TreatWarningsAsErrors meaningful for real defects instead of drowning it.
+    -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(MauiTizenNavigationSourceRoot)Adapters/**/*.cs" />
+    <Compile Include="$(MauiTizenNavigationSourceRoot)Handlers/**/*.cs" />
+    <Compile Include="$(MauiTizenNavigationSourceRoot)Platform/**/*.cs" />
+    <Compile Include="$(MauiTizenNavigationSourceRoot)Parity/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The parity manifest is embedded so that the mapper parity test can assert against
+      the exact artifact that ships, rather than a copy that can drift.
+    -->
+    <EmbeddedResource Include="$(MauiTizenNavigationSourceRoot)Parity/MapperParity.json"
+                      LogicalName="Maui.Tizen.Controls.Navigation.MapperParity.json" />
+  </ItemGroup>
+
+</Project>
