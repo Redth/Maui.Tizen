@@ -91,8 +91,13 @@ if actual != expected:
 
 band = baselines["target"]["sdkBand"]
 gj = json.load(open("global.json"))
-if not gj["sdk"]["version"].startswith(band.rsplit('.', 1)[0]):
-    sys.exit(f"global.json SDK '{gj['sdk']['version']}' does not match declared band '{band}'")
+sdk = gj["sdk"]["version"]
+if not sdk.startswith(band):
+    sys.exit(f"global.json SDK '{sdk}' is not in the declared band '{band}'")
+if sdk == band:
+    sys.exit(
+        f"global.json SDK '{sdk}' is a bare band, not a resolvable SDK version. "
+        "actions/setup-dotnet cannot install it. Pin a concrete version within the band.")
 PY
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,19 @@
 {
+  "$comment": [
+    "Pinned to a concrete SDK version, not the bare band '11.0.100-preview.7'.",
+    "",
+    "A band is not a resolvable SDK version: actions/setup-dotnet@v5 looks the value up",
+    "verbatim and fails with 'Could not find .NET Core SDK with version = 11.0.100-preview.7'.",
+    "(v4 happened to tolerate it, which is how this slipped through initially.)",
+    "",
+    "rollForward:latestFeature still allows newer 11.0.1xx SDKs, so pinning the concrete",
+    "version costs nothing while keeping CI and local installs reproducible.",
+    "",
+    "The band itself is recorded in eng/baselines.json > target.sdkBand, and CI checks",
+    "that this version belongs to it."
+  ],
   "sdk": {
-    "version": "11.0.100-preview.7",
+    "version": "11.0.100-preview.7.26381.103",
     "rollForward": "latestFeature",
     "allowPrerelease": true
   }
