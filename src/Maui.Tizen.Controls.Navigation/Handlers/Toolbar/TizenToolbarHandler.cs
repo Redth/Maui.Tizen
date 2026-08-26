@@ -126,7 +126,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public static void MapIconColor(TizenToolbarHandler handler, Toolbar toolbar)
 			=> handler.PlatformView.UpdateBarIconColor(toolbar.IconColor);
 
-		/// <summary>No-op: Tizen's toolbar icon has no separate enabled state.</summary>
+		/// <summary>
+		/// No-op: Tizen's toolbar icon has no separate enabled state.
+		/// </summary>
 		/// <remarks>
 		/// The in-tree backend simply had no mapping, which meant a silent miss. Declaring it as an
 		/// explicit no-op keeps <c>Parity/MapperParity.json</c> honest and gives the source tests
@@ -136,7 +138,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 		}
 
-		/// <summary>No-op: Tizen has no dynamic overflow concept; overflow is always dynamic.</summary>
+		/// <summary>
+		/// No-op: Tizen has no dynamic overflow concept; overflow is always dynamic.
+		/// </summary>
 		public static void MapDynamicOverflowEnabled(TizenToolbarHandler handler, Toolbar toolbar)
 		{
 		}

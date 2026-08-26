@@ -14,7 +14,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 	/// </remarks>
 	public static class ItemSelectionState
 	{
-		/// <summary>Moves <paramref name="view"/> into the selected or normal visual state.</summary>
+		/// <summary>
+		/// Moves <paramref name="view"/> into the selected or normal visual state.
+		/// </summary>
 		public static void SetItemSelected(VisualElement? view, bool selected)
 		{
 			if (view is null)
@@ -27,7 +29,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 				selected ? VisualStateManager.CommonStates.Selected : VisualStateManager.CommonStates.Normal);
 		}
 
-		/// <summary>Moves <paramref name="view"/> into or out of the focused visual state.</summary>
+		/// <summary>
+		/// Moves <paramref name="view"/> into or out of the focused visual state.
+		/// </summary>
 		public static void SetItemFocused(VisualElement? view, bool focused)
 		{
 			if (view is null)

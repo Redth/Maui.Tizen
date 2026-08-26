@@ -18,7 +18,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		GColor? _titleColor;
 		GColor? _unselectedColor;
 
-		/// <summary>Gets or sets the foreground/accent color.</summary>
+		/// <summary>
+		/// Gets or sets the foreground/accent color.
+		/// </summary>
 		public GColor? ForegroundColor
 		{
 			get => _foregroundColor;
@@ -32,7 +34,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			}
 		}
 
-		/// <summary>Gets or sets the background color.</summary>
+		/// <summary>
+		/// Gets or sets the background color.
+		/// </summary>
 		public GColor? BackgroundColor
 		{
 			get => _backgroundColor;
@@ -46,7 +50,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			}
 		}
 
-		/// <summary>Gets or sets the selected/title color.</summary>
+		/// <summary>
+		/// Gets or sets the selected/title color.
+		/// </summary>
 		public GColor? TitleColor
 		{
 			get => _titleColor;
@@ -60,7 +66,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			}
 		}
 
-		/// <summary>Gets or sets the unselected item color.</summary>
+		/// <summary>
+		/// Gets or sets the unselected item color.
+		/// </summary>
 		public GColor? UnselectedColor
 		{
 			get => _unselectedColor;

@@ -93,12 +93,17 @@ public static class WaveBSource
 			{
 				foreach (var variable in field.Declaration.Variables)
 				{
-					var target = variable.Identifier.Text switch
-					{
-						"Mapper" => property,
-						"CommandMapper" => command,
-						_ => null,
-					};
+					// Suffix rather than exact match: handlers that shadow a generic base mapper
+					// have to give the field a distinct name (CarouselViewMapper,
+					// ItemsViewCommandMapper, ...), and an exact "Mapper" match silently reported
+					// those handlers as having no mapper coverage at all - which then showed up as
+					// dozens of fictitious parity gaps. CommandMapper is tested first because a
+					// name ending in "CommandMapper" also ends in "Mapper".
+					var name = variable.Identifier.Text;
+					var target =
+						name.EndsWith("CommandMapper", StringComparison.Ordinal) ? command
+						: name.EndsWith("Mapper", StringComparison.Ordinal) ? property
+						: null;
 
 					if (target is null || variable.Initializer?.Value is not BaseObjectCreationExpressionSyntax creation)
 					{

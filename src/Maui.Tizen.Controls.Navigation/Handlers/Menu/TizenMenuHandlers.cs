@@ -28,10 +28,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// </remarks>
 	public static class TizenMenuSupport
 	{
-		/// <summary>Always <see langword="false"/>: Tizen NUI has no menu bar.</summary>
+		/// <summary>
+		/// Always <see langword="false"/>: Tizen NUI has no menu bar.
+		/// </summary>
 		public static bool IsMenuBarSupported => false;
 
-		/// <summary>Always <see langword="false"/>: Tizen NUI has no context menu primitive.</summary>
+		/// <summary>
+		/// Always <see langword="false"/>: Tizen NUI has no context menu primitive.
+		/// </summary>
 		public static bool IsMenuFlyoutSupported => false;
 
 		/// <summary>
@@ -44,7 +48,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		};
 	}
 
-	/// <summary>Tizen handler for <see cref="IMenuBar"/>. Renders nothing; see <see cref="TizenMenuSupport"/>.</summary>
+	/// <summary>
+	/// Tizen handler for <see cref="IMenuBar"/>. Renders nothing; see <see cref="TizenMenuSupport"/>.
+	/// </summary>
 	public partial class TizenMenuBarHandler : ElementHandler<IMenuBar, NView>, IMenuBarHandler
 	{
 		public static IPropertyMapper<IMenuBar, TizenMenuBarHandler> Mapper =
@@ -71,7 +77,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override NView CreatePlatformElement() => TizenMenuSupport.CreateInertPlatformView();
 
-		/// <summary>Unsupported: there is no menu bar to enable or disable.</summary>
+		/// <summary>
+		/// Unsupported: there is no menu bar to enable or disable.
+		/// </summary>
 		public static void MapIsEnabled(TizenMenuBarHandler handler, IMenuBar view)
 		{
 		}
@@ -93,7 +101,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 	}
 
-	/// <summary>Tizen handler for <see cref="IMenuBarItem"/>. Renders nothing; see <see cref="TizenMenuSupport"/>.</summary>
+	/// <summary>
+	/// Tizen handler for <see cref="IMenuBarItem"/>. Renders nothing; see <see cref="TizenMenuSupport"/>.
+	/// </summary>
 	public partial class TizenMenuBarItemHandler : ElementHandler<IMenuBarItem, NView>, IMenuBarItemHandler
 	{
 		public static IPropertyMapper<IMenuBarItem, TizenMenuBarItemHandler> Mapper =
@@ -121,12 +131,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override NView CreatePlatformElement() => TizenMenuSupport.CreateInertPlatformView();
 
-		/// <summary>Unsupported: there is no menu bar item to label.</summary>
+		/// <summary>
+		/// Unsupported: there is no menu bar item to label.
+		/// </summary>
 		public static void MapText(TizenMenuBarItemHandler handler, IMenuBarItem view)
 		{
 		}
 
-		/// <summary>Unsupported: there is no menu bar item to enable or disable.</summary>
+		/// <summary>
+		/// Unsupported: there is no menu bar item to enable or disable.
+		/// </summary>
 		public static void MapIsEnabled(TizenMenuBarItemHandler handler, IMenuBarItem view)
 		{
 		}
@@ -148,7 +162,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 	}
 
-	/// <summary>Tizen handler for <see cref="IMenuFlyout"/>. Renders nothing; see <see cref="TizenMenuSupport"/>.</summary>
+	/// <summary>
+	/// Tizen handler for <see cref="IMenuFlyout"/>. Renders nothing; see <see cref="TizenMenuSupport"/>.
+	/// </summary>
 	public partial class TizenMenuFlyoutHandler : ElementHandler<IMenuFlyout, NView>, IMenuFlyoutHandler
 	{
 		public static IPropertyMapper<IMenuFlyout, TizenMenuFlyoutHandler> Mapper =
@@ -189,7 +205,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 	}
 
-	/// <summary>Tizen handler for <see cref="IMenuFlyoutItem"/>. Renders nothing; see <see cref="TizenMenuSupport"/>.</summary>
+	/// <summary>
+	/// Tizen handler for <see cref="IMenuFlyoutItem"/>. Renders nothing; see <see cref="TizenMenuSupport"/>.
+	/// </summary>
 	public partial class TizenMenuFlyoutItemHandler : ElementHandler<IMenuFlyoutItem, NView>, IMenuFlyoutItemHandler
 	{
 		public static IPropertyMapper<IMenuFlyoutItem, TizenMenuFlyoutItemHandler> Mapper =
@@ -215,18 +233,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override NView CreatePlatformElement() => TizenMenuSupport.CreateInertPlatformView();
 
-		/// <summary>Unsupported: there is no menu flyout item to label.</summary>
+		/// <summary>
+		/// Unsupported: there is no menu flyout item to label.
+		/// </summary>
 		public static void MapText(TizenMenuFlyoutItemHandler handler, IMenuFlyoutItem view)
 		{
 		}
 
-		/// <summary>Unsupported: there is no menu flyout item to enable or disable.</summary>
+		/// <summary>
+		/// Unsupported: there is no menu flyout item to enable or disable.
+		/// </summary>
 		public static void MapIsEnabled(TizenMenuFlyoutItemHandler handler, IMenuFlyoutItem view)
 		{
 		}
 	}
 
-	/// <summary>Tizen handler for <see cref="IMenuFlyoutSubItem"/>. Renders nothing; see <see cref="TizenMenuSupport"/>.</summary>
+	/// <summary>
+	/// Tizen handler for <see cref="IMenuFlyoutSubItem"/>. Renders nothing; see <see cref="TizenMenuSupport"/>.
+	/// </summary>
 	public partial class TizenMenuFlyoutSubItemHandler : ElementHandler<IMenuFlyoutSubItem, NView>, IMenuFlyoutSubItemHandler
 	{
 		public static IPropertyMapper<IMenuFlyoutSubItem, TizenMenuFlyoutSubItemHandler> Mapper =
@@ -251,7 +275,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override NView CreatePlatformElement() => TizenMenuSupport.CreateInertPlatformView();
 
-		/// <summary>Unsupported: there is no submenu to label.</summary>
+		/// <summary>
+		/// Unsupported: there is no submenu to label.
+		/// </summary>
 		public static void MapText(TizenMenuFlyoutSubItemHandler handler, IMenuFlyoutSubItem view)
 		{
 		}
@@ -273,7 +299,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 	}
 
-	/// <summary>Tizen handler for <see cref="IMenuFlyoutSeparator"/>. Renders nothing; see <see cref="TizenMenuSupport"/>.</summary>
+	/// <summary>
+	/// Tizen handler for <see cref="IMenuFlyoutSeparator"/>. Renders nothing; see <see cref="TizenMenuSupport"/>.
+	/// </summary>
 	public partial class TizenMenuFlyoutSeparatorHandler : ElementHandler<IMenuFlyoutSeparator, NView>, IMenuFlyoutSeparatorHandler
 	{
 		public static IPropertyMapper<IMenuFlyoutSeparator, TizenMenuFlyoutSeparatorHandler> Mapper =

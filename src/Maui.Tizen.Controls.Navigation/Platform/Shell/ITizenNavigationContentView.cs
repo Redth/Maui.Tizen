@@ -7,13 +7,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 	/// </summary>
 	public interface ITizenNavigationContentView
 	{
-		/// <summary>Gets the underlying platform view.</summary>
+		/// <summary>
+		/// Gets the underlying platform view.
+		/// </summary>
 		NView? TargetView { get; }
 
-		/// <summary>Gets or sets the title view (toolbar) area.</summary>
+		/// <summary>
+		/// Gets or sets the title view (toolbar) area.
+		/// </summary>
 		NView? TitleView { get; set; }
 
-		/// <summary>Gets or sets the main content area.</summary>
+		/// <summary>
+		/// Gets or sets the main content area.
+		/// </summary>
 		NView? Content { get; set; }
 	}
 }

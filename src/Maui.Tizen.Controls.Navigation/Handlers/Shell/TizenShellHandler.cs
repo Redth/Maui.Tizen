@@ -130,27 +130,37 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			handler.PlatformView.UpdateFlyoutContent(view.FlyoutContent);
 		}
 
-		/// <summary>No-op: Tizen does not support FlowDirection on Shell flyout.</summary>
+		/// <summary>
+		/// No-op: Tizen does not support FlowDirection on Shell flyout.
+		/// </summary>
 		public static void MapFlowDirection(TizenShellHandler handler, Shell view)
 		{
 		}
 
-		/// <summary>No-op: Tizen does not support FlyoutBackgroundImage.</summary>
+		/// <summary>
+		/// No-op: Tizen does not support FlyoutBackgroundImage.
+		/// </summary>
 		public static void MapFlyoutBackgroundImage(TizenShellHandler handler, Shell view)
 		{
 		}
 
-		/// <summary>No-op: Tizen does not support FlyoutBackgroundImageAspect.</summary>
+		/// <summary>
+		/// No-op: Tizen does not support FlyoutBackgroundImageAspect.
+		/// </summary>
 		public static void MapFlyoutBackgroundImageAspect(TizenShellHandler handler, Shell view)
 		{
 		}
 
-		/// <summary>No-op: Tizen does not support FlyoutVerticalScrollMode.</summary>
+		/// <summary>
+		/// No-op: Tizen does not support FlyoutVerticalScrollMode.
+		/// </summary>
 		public static void MapFlyoutVerticalScrollMode(TizenShellHandler handler, Shell view)
 		{
 		}
 
-		/// <summary>No-op: Tizen does not support custom FlyoutIcon.</summary>
+		/// <summary>
+		/// No-op: Tizen does not support custom FlyoutIcon.
+		/// </summary>
 		public static void MapFlyoutIcon(TizenShellHandler handler, Shell view)
 		{
 		}

@@ -31,11 +31,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 		// Weak keys so a discarded toolbar does not pin Tizen state for the life of the process.
 		static readonly ConditionalWeakTable<IToolbar, StrongBox<bool>> s_state = new();
 
-		/// <summary>Gets whether the drawer toggle should be shown for <paramref name="toolbar"/>.</summary>
+		/// <summary>
+		/// Gets whether the drawer toggle should be shown for <paramref name="toolbar"/>.
+		/// </summary>
 		public static bool GetDrawerToggleVisible(IToolbar? toolbar)
 			=> toolbar is not null && s_state.TryGetValue(toolbar, out StrongBox<bool>? box) && box.Value;
 
-		/// <summary>Sets whether the drawer toggle should be shown for <paramref name="toolbar"/>.</summary>
+		/// <summary>
+		/// Sets whether the drawer toggle should be shown for <paramref name="toolbar"/>.
+		/// </summary>
 		public static void SetDrawerToggleVisible(IToolbar? toolbar, bool visible)
 		{
 			if (toolbar is null)

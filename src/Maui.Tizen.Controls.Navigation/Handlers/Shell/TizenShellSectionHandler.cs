@@ -166,7 +166,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			(VirtualView as IStackNavigation).RequestNavigation(new NavigationRequest(pageStack, animated));
 		}
 
-		/// <summary>No-op: Top tab bar appearance is handled in the shell section view.</summary>
+		/// <summary>
+		/// No-op: Top tab bar appearance is handled in the shell section view.
+		/// </summary>
 		void IAppearanceObserver.OnAppearanceChanged(ShellAppearance appearance)
 		{
 			// Top tab bar appearance is handled in the shell section view

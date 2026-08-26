@@ -150,6 +150,19 @@ from nuget.org by hand, since Samsung does not ship it through the in-box worklo
   navigation animation and Shell lazy content creation are **unverified at runtime**.
 - API differences between MAUI 9.0.120 and the net11 package set are not covered by this lane.
 
+## Coverage at a glance
+
+20 migrated handlers, 54 supported mappings and 30 documented no-ops. Full detail in
+[`docs/wave-c-mapper-parity.md`](../wave-c-mapper-parity.md).
+
+While generating it, Wave C also fixed a latent bug in the shared Roslyn parser Wave B introduced:
+it only recognised mapper fields named exactly `Mapper` / `CommandMapper`. Handlers that shadow a
+generic base mapper must give the field a distinct name (`CarouselViewMapper`,
+`ItemsViewCommandMapper`, ...), and those were being reported as having **no** mapper coverage at
+all - which surfaced as dozens of fictitious parity gaps. The parser now matches on suffix.
+`docs/wave-b-mapper-parity.json` is regenerated as part of that fix and legitimately reports more
+coverage than before; it is a correction, not drift.
+
 ## Testing
 
 Wave C adds `WaveCSource`, `WaveCSourceIntegrityTests` and `WaveCMapperParityTests` to the existing

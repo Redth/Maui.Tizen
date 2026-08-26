@@ -29,10 +29,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 	/// </remarks>
 	public static class UpstreamApiRequests
 	{
-		/// <summary>The only Wave C dependency with no published equivalent at all.</summary>
+		/// <summary>
+		/// The only Wave C dependency with no published equivalent at all.
+		/// </summary>
 		public const string ToolbarDrawerToggleVisible = "MAUI-TIZEN-API-0009";
 
-		/// <summary>All tracked requests.</summary>
+		/// <summary>
+		/// All tracked requests.
+		/// </summary>
 		public static IReadOnlyList<UpstreamApiRequest> All { get; } = new UpstreamApiRequest[]
 		{
 			new(
