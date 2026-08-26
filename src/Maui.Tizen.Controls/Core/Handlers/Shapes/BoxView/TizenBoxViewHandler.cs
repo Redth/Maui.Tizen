@@ -7,7 +7,6 @@
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui;
 using Microsoft.Maui.Controls.Handlers;
-using Microsoft.Maui.Platform;
 
 using Microsoft.Maui.Platforms.Tizen;
 

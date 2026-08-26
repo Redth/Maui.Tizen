@@ -7,7 +7,6 @@
 using Microsoft.Maui.Controls.Shapes;
 using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Handlers;
-using Microsoft.Maui.Platform;
 using Microsoft.Maui;
 using Microsoft.Maui.Controls.Handlers;
 
@@ -18,13 +17,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// <summary>Tizen handler for <see cref="RoundRectangle"/>.</summary>
 	public class TizenRoundRectangleHandler : TizenShapeViewHandler
 	{
-		public static IPropertyMapper<RoundRectangle, TizenRoundRectangleHandler> Mapper =
+		public static new IPropertyMapper<RoundRectangle, TizenRoundRectangleHandler> Mapper =
 			new PropertyMapper<RoundRectangle, TizenRoundRectangleHandler>(TizenShapeViewHandler.Mapper)
 			{
 				[nameof(RoundRectangle.CornerRadius)] = MapCornerRadius,
 			};
 
-		public static CommandMapper<RoundRectangle, TizenRoundRectangleHandler> CommandMapper =
+		public static new CommandMapper<RoundRectangle, TizenRoundRectangleHandler> CommandMapper =
 			new(TizenShapeViewHandler.CommandMapper)
 			{
 			};

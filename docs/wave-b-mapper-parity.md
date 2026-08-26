@@ -76,12 +76,14 @@ cannot silently grow.
 | `TizenRefreshViewHandler` | `IsRefreshEnabled` | Tizen's `RefreshLayout` cannot disable the pull gesture while leaving the control enabled. Disabling the whole view via `IsEnabled` still works. |
 | `TizenSwipeItemMenuItemHandler` | `CharacterSpacing` | The swipe menu button renders its label through a fixed style with no per-character tracking. |
 | `TizenSwipeItemMenuItemHandler` | `Font` | The swipe menu button does not expose the font family/size/slant of its embedded label. |
-| `TizenSwipeItemMenuItemHandler` | `IconColor` | The icon is a plain image view with no tint/colour-filter API. Upstream left this mapper unimplemented; it is now explicit. |
 | `TizenSwipeViewHandler` | `LeftItems`, `TopItems`, `RightItems`, `BottomItems` | `MauiSwipeView` reads the item collections directly from the virtual view when a swipe begins, so there is no native state to push on change. |
 
 ## Other unsupported native behaviour
 
-- **`TizenFontImageSourceService`** returns an empty `MauiImageSource`: Tizen has no glyph
+- **`ISwipeItemMenuItem.IconColor` does not exist in MAUI 11.** A mapper had been written for it on
+  the assumption that it did; compiling against the real assemblies proved otherwise and it was
+  removed.
+- **`TizenFontImageSourceService`** returns an empty `TizenImageSource`: Tizen has no glyph
   rasterisation path wired up, so font images render blank rather than throwing. Behaviour is
   unchanged from upstream.
 - **Border strokes do not render at all** while containers are unavailable (see the table above).

@@ -6,7 +6,6 @@
 // exists in Microsoft.Maui.Core.
 
 using System.Threading.Tasks;
-using Microsoft.Maui.Platform;
 using Tizen.UIExtensions.NUI;
 using TColor = Tizen.UIExtensions.Common.Color;
 using Microsoft.Maui;
@@ -29,7 +28,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(ISwipeItemMenuItem.Background)] = MapBackground,
 				[nameof(ISwipeItemMenuItem.Visibility)] = MapVisibility,
 				[nameof(IImageSourcePart.Source)] = MapSource,
-				[nameof(ISwipeItemMenuItem.IconColor)] = MapIconColor,
 			};
 
 		public static CommandMapper<ISwipeItemMenuItem, TizenSwipeItemMenuItemHandler> CommandMapper =
@@ -90,7 +88,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 			handler.PlatformView.UpdateBackground(handler.VirtualView.Background);
 
-			var textColor = handler.VirtualView.GetTextColor()?.ToPlatform() ?? TColor.Default;
+			var textColor = handler.VirtualView.TextColor.ToTizenCommonColor();
 			if (textColor != TColor.Default)
 			{
 				handler.PlatformView.TextColor = textColor;
@@ -108,22 +106,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				handler.PlatformView.Hide();
 			}
 
-			var swipeView = handler.PlatformView.GetParentOfType<MauiSwipeView>();
+			var swipeView = handler.PlatformView.GetParentOfType<TizenSwipeViewGroup>();
 			swipeView?.UpdateIsVisibleSwipeItem(view);
 		}
 
 		public static void MapSource(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view) =>
 			_ = MapSourceAsync(handler, view);
 
-		/// <summary>
-		/// Intentional no-op. The Tizen swipe menu button renders its icon through a plain image view
-		/// with no tint/colour-filter API, so <see cref="ISwipeItemMenuItem.IconColor"/> cannot be
-		/// applied natively. This matches the upstream Tizen backend, which left the mapper
-		/// unimplemented. See docs/wave-b-mapper-parity.md.
-		/// </summary>
-		public static void MapIconColor(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view)
-		{
-		}
 
 		public static Task MapSourceAsync(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view)
 		{

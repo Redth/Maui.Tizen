@@ -6,7 +6,6 @@
 // exists in Microsoft.Maui.Core.
 
 using System;
-using Microsoft.Maui.Platform;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
@@ -29,7 +28,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			{
 			};
 
-		IPlatformViewHandler? _contentHandler;
+		ITizenPlatformViewHandler? _contentHandler;
 
 		public TizenSwipeItemViewHandler()
 			: base(Mapper, CommandMapper)
@@ -91,8 +90,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 			if (VirtualView.PresentedContent is IView view)
 			{
-				PlatformView.Children.Add(view.ToPlatform(MauiContext));
-				if (view.Handler is IPlatformViewHandler thandler)
+				PlatformView.Children.Add(view.ToPlatformView(MauiContext));
+				if (view.Handler is ITizenPlatformViewHandler thandler)
 				{
 					_contentHandler = thandler;
 				}
@@ -105,7 +104,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 			handler.PlatformView.UpdateVisibility(view);
 
-			var swipeView = handler.PlatformView.GetParentOfType<MauiSwipeView>();
+			var swipeView = handler.PlatformView.GetParentOfType<TizenSwipeViewGroup>();
 			swipeView?.UpdateIsVisibleSwipeItem(view);
 		}
 	}

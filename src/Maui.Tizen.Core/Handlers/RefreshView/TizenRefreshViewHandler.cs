@@ -6,7 +6,6 @@
 // exists in Microsoft.Maui.Core.
 
 using System;
-using Microsoft.Maui.Platform;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
@@ -15,7 +14,7 @@ using Microsoft.Maui.Platforms.Tizen;
 namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="IRefreshView"/>.</summary>
-	public class TizenRefreshViewHandler : TizenViewHandler<IRefreshView, MauiRefreshLayout>
+	public class TizenRefreshViewHandler : TizenViewHandler<IRefreshView, TizenRefreshLayout>
 	{
 		public static IPropertyMapper<IRefreshView, TizenRefreshViewHandler> Mapper =
 			new PropertyMapper<IRefreshView, TizenRefreshViewHandler>(ViewMapper)
@@ -47,15 +46,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 		}
 
-		protected override MauiRefreshLayout CreatePlatformView() => new MauiRefreshLayout();
+		protected override TizenRefreshLayout CreatePlatformView() => new TizenRefreshLayout();
 
-		protected override void ConnectHandler(MauiRefreshLayout platformView)
+		protected override void ConnectHandler(TizenRefreshLayout platformView)
 		{
 			base.ConnectHandler(platformView);
 			platformView.Refreshing += OnRefreshing;
 		}
 
-		protected override void DisconnectHandler(MauiRefreshLayout platformView)
+		protected override void DisconnectHandler(TizenRefreshLayout platformView)
 		{
 			platformView.Refreshing -= OnRefreshing;
 			platformView.Content = null;

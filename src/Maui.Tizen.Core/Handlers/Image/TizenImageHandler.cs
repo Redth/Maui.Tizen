@@ -6,7 +6,6 @@
 // exists in Microsoft.Maui.Core.
 
 using System.Threading.Tasks;
-using Microsoft.Maui.Platform;
 using Tizen.UIExtensions.NUI;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;

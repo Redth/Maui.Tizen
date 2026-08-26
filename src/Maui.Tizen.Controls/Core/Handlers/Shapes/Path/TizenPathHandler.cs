@@ -7,7 +7,6 @@
 using Microsoft.Maui.Controls.Shapes;
 using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Handlers;
-using Microsoft.Maui.Platform;
 using Microsoft.Maui;
 using Microsoft.Maui.Controls.Handlers;
 
@@ -18,14 +17,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// <summary>Tizen handler for <see cref="Path"/>.</summary>
 	public class TizenPathHandler : TizenShapeViewHandler
 	{
-		public static IPropertyMapper<Path, TizenPathHandler> Mapper =
+		public static new IPropertyMapper<Path, TizenPathHandler> Mapper =
 			new PropertyMapper<Path, TizenPathHandler>(TizenShapeViewHandler.Mapper)
 			{
 				[nameof(Path.Data)] = MapData,
 				[nameof(Path.RenderTransform)] = MapRenderTransform,
 			};
 
-		public static CommandMapper<Path, TizenPathHandler> CommandMapper =
+		public static new CommandMapper<Path, TizenPathHandler> CommandMapper =
 			new(TizenShapeViewHandler.CommandMapper)
 			{
 			};

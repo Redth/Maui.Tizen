@@ -47,6 +47,8 @@
     <PackageDownload Include="$(TizenReferencePackId)" Version="[$(TizenReferencePackVersion)]" />
     <PackageDownload Include="Tizen.UIExtensions.NUI" Version="[$(TizenUIExtensionsPackageVersion)]" />
     <PackageReference Include="Microsoft.Maui.Graphics" />
+    <!-- Wave B's Controls shape handlers bind to Microsoft.Maui.Controls.Shapes types. -->
+    <PackageReference Include="Microsoft.Maui.Controls" />
   </ItemGroup>
 
   <Target Name="_AddTizenReferenceAssemblies" BeforeTargets="ResolveAssemblyReferences">
@@ -75,6 +77,8 @@
     <Compile Include="@(MauiTizenHandlerCompile)" LinkBase="Backend" />
     <Compile Include="@(MauiTizenPlatformCompile)" LinkBase="Backend" />
     <Compile Include="@(MauiTizenSampleCompile)" LinkBase="Sample" />
+    <Compile Include="@(MauiTizenWaveBCompile)" LinkBase="WaveB" />
+    <Compile Include="@(MauiTizenWaveBControlsCompile)" LinkBase="WaveBControls" />
   </ItemGroup>
 
 </Project>

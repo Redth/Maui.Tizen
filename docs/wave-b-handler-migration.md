@@ -34,6 +34,9 @@ directly:
   on the platform view, and border strokes — which upstream drew on the container `WrapperView` —
   consequently do not render. That is recorded as unsupported rather than quietly dropped.
 - `ContentViewHandler` is **not** part of Wave B: the core slice owns it.
+- Image source services follow Wave A's `ITizenImageSourceService` / `TizenImageSource` contract.
+  Wave A registers the file and stream services and explicitly leaves URI and font to this
+  workstream, which `TizenWaveBImageSourceServices` now completes.
 - `IPlatformViewHandler` is replaced by core's **`ITizenPlatformViewHandler`**, and
   `ContentViewGroup` by **`TizenContentViewGroup`**.
 
@@ -139,34 +142,76 @@ abstractions. Confirmed by reflection against `Microsoft.Maui.Core` 11.0.0-previ
 |---|---|---|
 | `ViewHandler.SetupContainer`, `NeedsContainer`, `ContainerView`, `PlatformArrange` | Yes | MAUI package |
 | `ViewHandler<,>.CreatePlatformView` | Yes | MAUI package |
-| `IPlatformViewHandler` | **No** | Resolved: core supplies `ITizenPlatformViewHandler` |
+| `IPlatformViewHandler` | **No** | Resolved: core supplies `ITizenPlatformViewHandler`, used throughout Wave B |
 | `ContentViewGroup`, `MauiScrollView`, and the other `Platform/Tizen` helpers | **No** | this repository (already imported) |
 
 Wave B references `IPlatformViewHandler` throughout, exactly as upstream did. Until core supplies
 it, the backend has an unresolved symbol independent of the SDK blockers above.
 
-## Remaining work before Wave B can compile
+## Wave B is compiled, not just parsed
 
-The core slice compiles its sources three ways from one explicit list in
-`eng/Maui.Tizen.Core.Sources.props`: the real Tizen product, a ref-pack lane that type-checks against
-the real TizenFX API15 assemblies with no workload, and a unit-test lane that runs against host
-stubs. Wave B is **not yet wired into those lanes**, and that is the next step rather than a
-finished one. It requires, per handler and per native helper:
+Every Wave B product source is listed in `eng/Maui.Tizen.Core.Sources.props` and compiled by
+`tests/Maui.Tizen.Core.RefPackCompile` against the **real TizenFX API15 reference assemblies** with
+`TIZEN` defined. The lane builds clean with zero warnings.
 
-1. wrapping every `Tizen.NUI` / `Tizen.UIExtensions` call site in `#if TIZEN`;
-2. host stubs for the Wave B platform views (`MauiScrollView`, `MauiShapeView`, `MauiSwipeView`,
-   `MauiPageControl`, `MauiRefreshLayout`, `MauiImageButton`, `PlatformTouchGraphicsView`);
-3. adding the files to an explicit source list, since the foundation's raw import shares these
-   directories and globbing would sweep it in.
+Sources are listed explicitly, never globbed: the foundation's raw unmodified import shares these
+directories, and globbing would sweep in the public `Microsoft.Maui.Platform.WrapperView`, whose
+full name collides with neutral MAUI.
 
-Until then Wave B is verified structurally (see above) but not type-checked. `MauiSwipeView` alone is
-~1,000 lines of unmodified upstream code, so this is a substantial piece of work and is called out
-here rather than being implied as done.
+### Platform views renamed out of the colliding namespace
 
-One naming risk for core to settle: `Microsoft.Maui.Platform.WrapperView` **also exists in MAUI 11**,
-and this repository's imported `Platform/Tizen/WrapperView.cs` declares the same full name. Within
-this assembly ours wins, but consumers referencing both could hit ambiguity if both are public. That
-is a Platform-layer decision and is deliberately not resolved by Wave B.
+The raw imports declare public types in `Microsoft.Maui.Platform`. Each Wave B view is compiled as a
+renamed copy under `Microsoft.Maui.Platforms.Tizen`; the raw file stays beside it for provenance and
+is never compiled.
+
+| Raw import (not compiled) | Compiled as |
+|---|---|
+| `WrapperView` | `TizenWrapperView` |
+| `MauiScrollView` | `TizenScrollViewGroup` |
+| `MauiShapeView` | `TizenShapeView` |
+| `MauiSwipeView` | `TizenSwipeViewGroup` |
+| `MauiPageControl` | `TizenPageControl` |
+| `MauiRefreshLayout` | `TizenRefreshLayout` |
+| `MauiImageButton` | `TizenImageButtonView` |
+| `PlatformTouchGraphicsView` | `TizenTouchGraphicsView` |
+| `MauiDrawable` | `TizenDrawable` |
+
+`EmittedTypeTests` reads the produced assembly metadata (not source text, and without loading the
+assembly, which would need Tizen.NUI) and fails if `Microsoft.Maui.Platform.WrapperView` or
+`IPlatformViewHandler` is defined *or referenced*, or if anything at all lands in the
+`Microsoft.Maui.Platform` namespace.
+
+### What compiling actually caught
+
+None of these were visible to Roslyn parsing or reflection parity — they are the direct payoff of
+the compile lane:
+
+- **`SkiaGraphicsView` is in `Tizen.UIExtensions.NUI.GraphicsView`**, not
+  `Microsoft.Maui.Graphics.Skia.Views` as the imported sources assume.
+- **`PointCollection` is in `Microsoft.Maui.Controls`**, not `Microsoft.Maui.Controls.Shapes`.
+- **`ISwipeItemMenuItem` has no `IconColor`.** A mapper had been added for it; the property does not
+  exist in MAUI 11. Removed.
+- **The namespace `Microsoft.Maui.Platforms.Tizen` ends in `.Tizen`**, so an unqualified
+  `Tizen.NUI.X` binds to *our own* namespace. Every such reference is now `global::`-qualified.
+- **`GetTextColor()`, `RectF.ContainsAny`, `SwipeViewExtensions.SwipeThreshold`,
+  `SwipeViewExtensions.SwipeItemWidth` and `SwipeDirectionHelper` are internal to MAUI**, so an
+  out-of-repo backend cannot call them.
+
+### MAUI internals reproduced locally
+
+`TizenSwipeMetrics` reproduces the swipe threshold, default item width and direction calculation
+because `SwipeViewExtensions` and `SwipeDirectionHelper` are `internal` to `Microsoft.Maui.Core`.
+The values are small and stable; the alternative was dropping SwipeView from the port. Similarly
+`TizenWaveBViewExtensions` supplies `ContainsAny`, visibility, parent-walking and the `float`
+density overloads that the core slice does not expose.
+
+### Not compiled, and why
+
+`MauiClipperView` is the one Wave B source excluded from the lane. Its draw callback takes a
+`SkiaSharp.Views.Tizen.SKPaintSurfaceEventArgs`, and SkiaSharp.Views publishes **tizen-only**
+assets, so the type cannot be resolved on any host TFM. `TizenWrapperView` therefore records the
+clip on its drawable but drives no native clipper, documented in place. The raw import is retained
+for whoever restores it once a Tizen-targeting lane exists.
 
 ## Deliberately out of scope
 

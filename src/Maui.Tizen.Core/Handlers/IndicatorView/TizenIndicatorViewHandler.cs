@@ -5,7 +5,6 @@
 // handler that owns its own mappers. It is deliberately NOT named IndicatorViewHandler, which still
 // exists in Microsoft.Maui.Core.
 
-using Microsoft.Maui.Platform;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
@@ -18,7 +17,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// Appearance properties (size, colours, shape) have no incremental native API on the Tizen page
 	/// control, so they rebuild the indicator set via <c>ResetIndicators</c>.
 	/// </remarks>
-	public class TizenIndicatorViewHandler : TizenViewHandler<IIndicatorView, MauiPageControl>
+	public class TizenIndicatorViewHandler : TizenViewHandler<IIndicatorView, TizenPageControl>
 	{
 		public static IPropertyMapper<IIndicatorView, TizenIndicatorViewHandler> Mapper =
 			new PropertyMapper<IIndicatorView, TizenIndicatorViewHandler>(ViewMapper)
@@ -53,7 +52,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 		}
 
-		protected override MauiPageControl CreatePlatformView() => new MauiPageControl(VirtualView);
+		protected override TizenPageControl CreatePlatformView() => new TizenPageControl(VirtualView);
 
 		public static void MapCount(TizenIndicatorViewHandler handler, IIndicatorView indicator) => handler.PlatformView.UpdateCount();
 

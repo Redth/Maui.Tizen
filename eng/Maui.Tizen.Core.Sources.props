@@ -17,6 +17,7 @@
   <PropertyGroup>
     <MauiTizenCoreDir Condition="'$(MauiTizenCoreDir)' == ''">$(MSBuildThisFileDirectory)../src/Maui.Tizen.Core/</MauiTizenCoreDir>
     <MauiTizenSampleDir Condition="'$(MauiTizenSampleDir)' == ''">$(MSBuildThisFileDirectory)../samples/Maui.Tizen.Sample/</MauiTizenSampleDir>
+    <MauiTizenControlsDir Condition="'$(MauiTizenControlsDir)' == ''">$(MSBuildThisFileDirectory)../src/Maui.Tizen.Controls/</MauiTizenControlsDir>
   </PropertyGroup>
 
   <!--
@@ -33,6 +34,11 @@
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)LifecycleEvents/TizenLifecycleEventExtensions.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Hosting/TizenHandlerCollectionExtensions.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Hosting/TizenMauiAppBuilderExtensions.cs" />
+
+    <!-- Wave A: registration, fonts and image-source contracts (no NUI dependency). -->
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Hosting/TizenControlHandlerCollectionExtensions.cs" />
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenModalHost.cs" />
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Fonts/TizenFontManager.cs" />
   </ItemGroup>
 
   <!--
@@ -49,6 +55,26 @@
     <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenPageHandler.cs" />
     <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenLayoutHandler.cs" />
     <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenLabelHandler.cs" />
+
+    <!--
+      Wave A handlers: common view behaviour is inherited from TizenViewHandler<,>, so these only
+      add each control's own mappings. Every NUI call inside them is `#if TIZEN`-guarded, so the
+      unit test project compiles and executes their mappers against the host stand-ins.
+    -->
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenActivityIndicatorHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenButtonHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenCheckBoxHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenDatePickerHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenEditorHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenEntryHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenPickerHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenProgressBarHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenRadioButtonHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenSearchBarHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenSliderHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenStepperHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenSwitchHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenTimePickerHandler.cs" />
   </ItemGroup>
 
   <!-- Sources that can only ever compile with real TizenFX present. -->
@@ -62,6 +88,34 @@
     <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenCoreApplicationExtensions.cs" />
     <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)LifecycleEvents/TizenLifecycle.cs" />
     <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)LifecycleEvents/TizenLifecycleBuilderExtensions.cs" />
+
+    <!--
+      Wave A platform views and property mappings. These are Tizen-only by construction, so they
+      carry no `#if TIZEN` guards - they are simply absent from the host lane, which is why the
+      handlers that call them guard every call site instead.
+    -->
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenColorExtensions.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenControlViews.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenDateTimePicker.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenPickerView.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenSearchBarView.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenStepperView.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenTaskExtensions.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenTextExtensions.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenActivityIndicatorExtensions.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenButtonExtensions.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenCheckBoxExtensions.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenDatePickerExtensions.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenEditorExtensions.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenEntryExtensions.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenPickerExtensions.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenProgressBarExtensions.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenSliderExtensions.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenSwitchExtensions.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenTimePickerExtensions.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)ImageSources/ITizenImageSourceService.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)ImageSources/TizenImageSource.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)ImageSources/TizenImageSourceServices.cs" />
   </ItemGroup>
 
   <!--
@@ -74,6 +128,65 @@
     <MauiTizenSampleCompile Include="$(MauiTizenSampleDir)SampleApplication.cs" />
     <MauiTizenSampleCompile Include="$(MauiTizenSampleDir)MauiProgram.cs" />
     <MauiTizenSampleCompile Include="$(MauiTizenSampleDir)Platforms/Tizen/Main.cs" />
+  </ItemGroup>
+
+  <!--
+    Wave B: content/container, image, shape, graphics, scroll, refresh, swipe and indicator
+    rendering. Every file here touches Tizen.NUI or Tizen.UIExtensions directly, so unlike the core
+    slice's handlers these cannot compile against host stubs; they are type-checked by the ref-pack
+    lane against the real TizenFX API15 assemblies.
+
+    Listed explicitly, like everything else here, because the raw unmodified dotnet/maui import
+    shares these directories and globbing would sweep it in - including the public
+    Microsoft.Maui.Platform.WrapperView, whose full name collides with neutral MAUI.
+  -->
+  <ItemGroup Label="Wave B platform sources">
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenWaveBInterop.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenAspectExtensions.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenImageViewExtensions.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenScrollViewExtensions.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenScrollViewGroup.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenRefreshLayout.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenImageButtonView.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenDrawable.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenPaintExtensions.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenGraphicsDrawExtensions.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenGraphicsViewExtensions.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenTouchGraphicsView.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenShapeView.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenShapeViewExtensions.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenWrapperView.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenStrokeExtensions.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenPageControl.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenSwipeViewGroup.cs" />
+  </ItemGroup>
+
+  <ItemGroup Label="Wave B image sources">
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)ImageSources/TizenWaveBImageSourceServices.cs" />
+  </ItemGroup>
+
+  <ItemGroup Label="Wave B handler sources">
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Handlers/ScrollView/TizenScrollViewHandler.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Handlers/Border/TizenBorderHandler.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Handlers/Image/TizenImageHandler.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Handlers/ImageButton/TizenImageButtonHandler.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Handlers/GraphicsView/TizenGraphicsViewHandler.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Handlers/ShapeView/TizenShapeViewHandler.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Handlers/RefreshView/TizenRefreshViewHandler.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Handlers/SwipeView/TizenSwipeViewHandler.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Handlers/SwipeItemView/TizenSwipeItemViewHandler.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Handlers/SwipeItemMenuItem/TizenSwipeItemMenuItemHandler.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Handlers/IndicatorView/TizenIndicatorViewHandler.cs" />
+  </ItemGroup>
+
+  <ItemGroup Label="Wave B Controls shape handlers">
+    <MauiTizenWaveBControlsCompile Include="$(MauiTizenControlsDir)Core/Handlers/Shapes/BoxView/TizenBoxViewHandler.cs" />
+    <MauiTizenWaveBControlsCompile Include="$(MauiTizenControlsDir)Core/Handlers/Shapes/Line/TizenLineHandler.cs" />
+    <MauiTizenWaveBControlsCompile Include="$(MauiTizenControlsDir)Core/Handlers/Shapes/Path/TizenPathHandler.cs" />
+    <MauiTizenWaveBControlsCompile Include="$(MauiTizenControlsDir)Core/Handlers/Shapes/Polygon/TizenPolygonHandler.cs" />
+    <MauiTizenWaveBControlsCompile Include="$(MauiTizenControlsDir)Core/Handlers/Shapes/Polyline/TizenPolylineHandler.cs" />
+    <MauiTizenWaveBControlsCompile Include="$(MauiTizenControlsDir)Core/Handlers/Shapes/Rectangle/TizenRectangleHandler.cs" />
+    <MauiTizenWaveBControlsCompile Include="$(MauiTizenControlsDir)Core/Handlers/Shapes/RoundRectangle/TizenRoundRectangleHandler.cs" />
   </ItemGroup>
 
 </Project>

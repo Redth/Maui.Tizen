@@ -22,49 +22,49 @@
           "Key": "Shape",
           "Method": "MapStrokeShape",
           "Status": "NoOp",
-          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.Shape\u0022/\u003E on the container WrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
+          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.Shape\u0022/\u003E on the container TizenWrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
         },
         {
           "Key": "Stroke",
           "Method": "MapStroke",
           "Status": "NoOp",
-          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.Stroke\u0022/\u003E on the container WrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
+          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.Stroke\u0022/\u003E on the container TizenWrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
         },
         {
           "Key": "StrokeThickness",
           "Method": "MapStrokeThickness",
           "Status": "NoOp",
-          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.StrokeThickness\u0022/\u003E on the container WrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
+          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.StrokeThickness\u0022/\u003E on the container TizenWrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
         },
         {
           "Key": "StrokeLineCap",
           "Method": "MapStrokeLineCap",
           "Status": "NoOp",
-          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.StrokeLineCap\u0022/\u003E on the container WrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
+          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.StrokeLineCap\u0022/\u003E on the container TizenWrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
         },
         {
           "Key": "StrokeLineJoin",
           "Method": "MapStrokeLineJoin",
           "Status": "NoOp",
-          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.StrokeLineJoin\u0022/\u003E on the container WrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
+          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.StrokeLineJoin\u0022/\u003E on the container TizenWrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
         },
         {
           "Key": "StrokeDashPattern",
           "Method": "MapStrokeDashPattern",
           "Status": "NoOp",
-          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.StrokeDashPattern\u0022/\u003E on the container WrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
+          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.StrokeDashPattern\u0022/\u003E on the container TizenWrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
         },
         {
           "Key": "StrokeDashOffset",
           "Method": "MapStrokeDashOffset",
           "Status": "NoOp",
-          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.StrokeDashOffset\u0022/\u003E on the container WrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
+          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.StrokeDashOffset\u0022/\u003E on the container TizenWrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
         },
         {
           "Key": "StrokeMiterLimit",
           "Method": "MapStrokeMiterLimit",
           "Status": "NoOp",
-          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.StrokeMiterLimit\u0022/\u003E on the container WrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
+          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.StrokeMiterLimit\u0022/\u003E on the container TizenWrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
         }
       ],
       "CommandMappers": [],
@@ -80,23 +80,23 @@
     },
     {
       "Handler": "TizenFileImageSourceService",
-      "BaseType": "TizenImageSourceService",
-      "File": "src/Maui.Tizen.Core/ImageSources/FileImageSourceService/TizenFileImageSourceService.cs",
+      "BaseType": "ITizenImageSourceService",
+      "File": "src/Maui.Tizen.Core/ImageSources/TizenImageSourceServices.cs",
       "PropertyMappers": [],
       "CommandMappers": [],
       "UncoveredNeutralKeys": []
     },
     {
       "Handler": "TizenFontImageSourceService",
-      "BaseType": "TizenImageSourceService",
-      "File": "src/Maui.Tizen.Core/ImageSources/FontImageSourceService/TizenFontImageSourceService.cs",
+      "BaseType": "ITizenImageSourceService",
+      "File": "src/Maui.Tizen.Core/ImageSources/TizenWaveBImageSourceServices.cs",
       "PropertyMappers": [],
       "CommandMappers": [],
       "UncoveredNeutralKeys": []
     },
     {
       "Handler": "TizenGraphicsViewHandler",
-      "BaseType": "TizenViewHandler\u003CIGraphicsView, PlatformTouchGraphicsView\u003E",
+      "BaseType": "TizenViewHandler\u003CIGraphicsView, TizenTouchGraphicsView\u003E",
       "File": "src/Maui.Tizen.Core/Handlers/GraphicsView/TizenGraphicsViewHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.GraphicsViewHandler",
       "PropertyMappers": [
@@ -127,7 +127,7 @@
     },
     {
       "Handler": "TizenImageButtonHandler",
-      "BaseType": "TizenViewHandler\u003CIImageButton, MauiImageButton\u003E",
+      "BaseType": "TizenViewHandler\u003CIImageButton, TizenImageButtonView\u003E",
       "File": "src/Maui.Tizen.Core/Handlers/ImageButton/TizenImageButtonHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.ImageButtonHandler",
       "PropertyMappers": [
@@ -202,9 +202,17 @@
       "UncoveredNeutralKeys": []
     },
     {
-      "Handler": "TizenImageSourceService",
-      "BaseType": "ITizenImageSourceService",
-      "File": "src/Maui.Tizen.Core/ImageSources/ITizenImageSourceService.cs",
+      "Handler": "TizenImageSource",
+      "BaseType": "IDisposable",
+      "File": "src/Maui.Tizen.Core/ImageSources/TizenImageSource.cs",
+      "PropertyMappers": [],
+      "CommandMappers": [],
+      "UncoveredNeutralKeys": []
+    },
+    {
+      "Handler": "TizenImageSourceServiceCollectionExtensions",
+      "BaseType": "",
+      "File": "src/Maui.Tizen.Core/ImageSources/TizenImageSourceServices.cs",
       "PropertyMappers": [],
       "CommandMappers": [],
       "UncoveredNeutralKeys": []
@@ -218,8 +226,16 @@
       "UncoveredNeutralKeys": []
     },
     {
+      "Handler": "TizenImageSourceServiceResult",
+      "BaseType": "IImageSourceServiceResult\u003CTizenImageSource\u003E",
+      "File": "src/Maui.Tizen.Core/ImageSources/TizenImageSourceServices.cs",
+      "PropertyMappers": [],
+      "CommandMappers": [],
+      "UncoveredNeutralKeys": []
+    },
+    {
       "Handler": "TizenIndicatorViewHandler",
-      "BaseType": "TizenViewHandler\u003CIIndicatorView, MauiPageControl\u003E",
+      "BaseType": "TizenViewHandler\u003CIIndicatorView, TizenPageControl\u003E",
       "File": "src/Maui.Tizen.Core/Handlers/IndicatorView/TizenIndicatorViewHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.IndicatorViewHandler",
       "PropertyMappers": [
@@ -379,7 +395,7 @@
     },
     {
       "Handler": "TizenRefreshViewHandler",
-      "BaseType": "TizenViewHandler\u003CIRefreshView, MauiRefreshLayout\u003E",
+      "BaseType": "TizenViewHandler\u003CIRefreshView, TizenRefreshLayout\u003E",
       "File": "src/Maui.Tizen.Core/Handlers/RefreshView/TizenRefreshViewHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.RefreshViewHandler",
       "PropertyMappers": [
@@ -466,7 +482,7 @@
     },
     {
       "Handler": "TizenShapeViewHandler",
-      "BaseType": "TizenViewHandler\u003CIShapeView, MauiShapeView\u003E",
+      "BaseType": "TizenViewHandler\u003CIShapeView, TizenShapeView\u003E",
       "File": "src/Maui.Tizen.Core/Handlers/ShapeView/TizenShapeViewHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.ShapeViewHandler",
       "PropertyMappers": [
@@ -526,8 +542,8 @@
     },
     {
       "Handler": "TizenStreamImageSourceService",
-      "BaseType": "TizenImageSourceService",
-      "File": "src/Maui.Tizen.Core/ImageSources/StreamImageSourceService/TizenStreamImageSourceService.cs",
+      "BaseType": "ITizenImageSourceService",
+      "File": "src/Maui.Tizen.Core/ImageSources/TizenImageSourceServices.cs",
       "PropertyMappers": [],
       "CommandMappers": [],
       "UncoveredNeutralKeys": []
@@ -574,16 +590,12 @@
           "Key": "Source",
           "Method": "MapSource",
           "Status": "Supported"
-        },
-        {
-          "Key": "IconColor",
-          "Method": "MapIconColor",
-          "Status": "NoOp",
-          "Reason": "Intentional no-op. The Tizen swipe menu button renders its icon through a plain image view with no tint/colour-filter API, so \u003Csee cref=\u0022ISwipeItemMenuItem.IconColor\u0022/\u003E cannot be applied natively. This matches the upstream Tizen backend, which left the mapper unimplemented. See docs/wave-b-mapper-parity.md."
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [
+        "IconColor"
+      ]
     },
     {
       "Handler": "TizenSwipeItemViewHandler",
@@ -607,7 +619,7 @@
     },
     {
       "Handler": "TizenSwipeViewHandler",
-      "BaseType": "TizenViewHandler\u003CISwipeView, MauiSwipeView\u003E",
+      "BaseType": "TizenViewHandler\u003CISwipeView, TizenSwipeViewGroup\u003E",
       "File": "src/Maui.Tizen.Core/Handlers/SwipeView/TizenSwipeViewHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.SwipeViewHandler",
       "PropertyMappers": [
@@ -625,25 +637,25 @@
           "Key": "LeftItems",
           "Method": "MapLeftItems",
           "Status": "NoOp",
-          "Reason": "The four item-collection mappers are intentional no-ops. MauiSwipeView reads the item collections directly from the virtual view when a swipe gesture begins, so there is no native state to push on change. See docs/wave-b-mapper-parity.md. Intentional no-op. MauiSwipeView reads \u003Csee cref=\u0022ISwipeView.LeftItems\u0022/\u003E directly from the virtual view when a swipe begins, so there is no native state to push on change."
+          "Reason": "The four item-collection mappers are intentional no-ops. TizenSwipeViewGroup reads the item collections directly from the virtual view when a swipe gesture begins, so there is no native state to push on change. See docs/wave-b-mapper-parity.md. Intentional no-op. TizenSwipeViewGroup reads \u003Csee cref=\u0022ISwipeView.LeftItems\u0022/\u003E directly from the virtual view when a swipe begins, so there is no native state to push on change."
         },
         {
           "Key": "TopItems",
           "Method": "MapTopItems",
           "Status": "NoOp",
-          "Reason": "Intentional no-op. MauiSwipeView reads \u003Csee cref=\u0022ISwipeView.TopItems\u0022/\u003E directly from the virtual view when a swipe begins, so there is no native state to push on change."
+          "Reason": "Intentional no-op. TizenSwipeViewGroup reads \u003Csee cref=\u0022ISwipeView.TopItems\u0022/\u003E directly from the virtual view when a swipe begins, so there is no native state to push on change."
         },
         {
           "Key": "RightItems",
           "Method": "MapRightItems",
           "Status": "NoOp",
-          "Reason": "Intentional no-op. MauiSwipeView reads \u003Csee cref=\u0022ISwipeView.RightItems\u0022/\u003E directly from the virtual view when a swipe begins, so there is no native state to push on change."
+          "Reason": "Intentional no-op. TizenSwipeViewGroup reads \u003Csee cref=\u0022ISwipeView.RightItems\u0022/\u003E directly from the virtual view when a swipe begins, so there is no native state to push on change."
         },
         {
           "Key": "BottomItems",
           "Method": "MapBottomItems",
           "Status": "NoOp",
-          "Reason": "Intentional no-op. MauiSwipeView reads \u003Csee cref=\u0022ISwipeView.BottomItems\u0022/\u003E directly from the virtual view when a swipe begins, so there is no native state to push on change."
+          "Reason": "Intentional no-op. TizenSwipeViewGroup reads \u003Csee cref=\u0022ISwipeView.BottomItems\u0022/\u003E directly from the virtual view when a swipe begins, so there is no native state to push on change."
         },
         {
           "Key": "IsEnabled",
@@ -667,8 +679,16 @@
     },
     {
       "Handler": "TizenUriImageSourceService",
-      "BaseType": "TizenImageSourceService",
-      "File": "src/Maui.Tizen.Core/ImageSources/UriImageSourceService/TizenUriImageSourceService.cs",
+      "BaseType": "ITizenImageSourceService",
+      "File": "src/Maui.Tizen.Core/ImageSources/TizenWaveBImageSourceServices.cs",
+      "PropertyMappers": [],
+      "CommandMappers": [],
+      "UncoveredNeutralKeys": []
+    },
+    {
+      "Handler": "TizenWaveBImageSourceServiceCollectionExtensions",
+      "BaseType": "",
+      "File": "src/Maui.Tizen.Core/ImageSources/TizenWaveBImageSourceServices.cs",
       "PropertyMappers": [],
       "CommandMappers": [],
       "UncoveredNeutralKeys": []

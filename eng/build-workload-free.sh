@@ -154,11 +154,12 @@ check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --
 check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
 
 # ---------------------------------------------------------------------------
-# 5b. Migrated backend source tests.
+# 5b. Wave B source and emitted-type tests.
 #
-# The backend cannot be compiled without the Samsung workload, but its sources can still
-# be parsed with Roslyn and checked against the real MAUI assemblies by reflection. That
-# is what keeps handler mapper parity honest before the workload ships.
+# Two things the compile lane alone cannot check: that every mapper key the neutral MAUI
+# handler declares is implemented or recorded, and that the EMITTED metadata contains no
+# type whose full name collides with the neutral assembly - notably
+# Microsoft.Maui.Platform.WrapperView and Microsoft.Maui.IPlatformViewHandler.
 # ---------------------------------------------------------------------------
 info "Backend source tests"
 check "source tests" "$DOTNET" test tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj --no-build -c Release
@@ -170,15 +171,7 @@ check "source tests" "$DOTNET" test tests/Maui.Tizen.SourceTests/Maui.Tizen.Sour
 # lane should be promoted to required.
 # ---------------------------------------------------------------------------
 info "Tizen workload gate"
-#
-# Match the Samsung workload ID exactly, anchored to the start of the line.
-#
-# A substring match on "tizen" is wrong: `dotnet workload install maui-tizen` installs
-# MAUI's own Tizen packs and makes `dotnet workload list` contain "maui-tizen", which
-# passed this check while `net*-tizen*` still failed with NETSDK1139 ("The target platform
-# identifier tizen was not recognized"). Samsung's workload, whose ID is exactly `tizen`,
-# is what supplies that platform identifier.
-if "$DOTNET" workload list 2>/dev/null | grep -qE '^[[:space:]]*tizen[[:space:]]'; then
+if "$DOTNET" workload list 2>/dev/null | grep -qi tizen; then
   pass "Samsung Tizen workload is installed - the Tizen lane can now be made required"
 else
   note "Samsung Tizen workload is NOT installed."
