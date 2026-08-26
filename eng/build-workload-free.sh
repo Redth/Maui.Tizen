@@ -125,7 +125,6 @@ info "Workload-independent projects"
 WORKLOAD_FREE_PROJECTS=(
   "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj"
   "tests/UnitTests/Maui.Tizen.UnitTests.csproj"
-<<<<<<< HEAD
 
   # Verification lanes for the ported backend slice. Neither is a Tizen artifact:
   #
@@ -140,10 +139,10 @@ WORKLOAD_FREE_PROJECTS=(
   #                               so it cannot become a neutral fallback for the product.
   "tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj"
   "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj"
-=======
+
+  # Foundation-owned probes.
   "eng/tests/PublicApiOptIn/PublicApiOptIn.csproj"
   "eng/tests/PackReadmeProbe/PackReadmeProbe.csproj"
->>>>>>> origin/redth-tizen-foundation-import
 )
 BUILD_OK=1
 for proj in "${WORKLOAD_FREE_PROJECTS[@]}"; do
