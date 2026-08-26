@@ -25,6 +25,21 @@
   <Folder Name="/tests/">
     <Project Path="tests/UnitTests/Maui.Tizen.UnitTests.csproj" />
     <Project Path="eng/tests/PackageGraphProbe/PackageGraphProbe.csproj" />
+    <Project Path="tests/TestUtils/Maui.Tizen.TestUtils/Maui.Tizen.TestUtils.csproj" />
+    <Project Path="tests/Maui.Tizen.Validation.Tests/Maui.Tizen.Validation.Tests.csproj" />
+    <Project Path="tests/Maui.Tizen.Build.Tests/Maui.Tizen.Build.Tests.csproj" />
+    <Project Path="tests/Maui.Tizen.Conventions.Tests/Maui.Tizen.Conventions.Tests.csproj" />
+    <Project Path="tests/Maui.Tizen.DevFlow.Tests/Maui.Tizen.DevFlow.Tests.csproj" />
+    <Project Path="tests/Maui.Tizen.Consumer.Tests/Maui.Tizen.Consumer.Tests.csproj" />
+  </Folder>
+
+  <Folder Name="/src/Diagnostics/">
+    <!--
+      Maui.Tizen.DevFlow.Agent.Shared builds on the host lane. Its Tizen-targeted sibling is
+      listed for navigability but cannot be built until the Samsung workload ships.
+    -->
+    <Project Path="src/Diagnostics/Maui.Tizen.DevFlow.Agent.Shared/Maui.Tizen.DevFlow.Agent.Shared.csproj" />
+    <Project Path="src/Diagnostics/Maui.Tizen.DevFlow.Agent/Maui.Tizen.DevFlow.Agent.csproj" />
   </Folder>
 
   <Folder Name="/eng/">
@@ -35,6 +50,10 @@
     <File Path="eng/import/normalize-layout.sh" />
     <File Path="eng/manifests/source-disposition.schema.json" />
     <File Path="eng/targets/TizenPackage.props" />
+    <File Path="eng/validation/run-hosted-validation.sh" />
+    <File Path="eng/validation/scripts/tizen-device-lane.sh" />
+    <File Path="eng/validation/profiles/tizen-profiles.json" />
+    <File Path="eng/validation/consumers/sherpa-smoke-contract.json" />
   </Folder>
 
   <Folder Name="/docs/">

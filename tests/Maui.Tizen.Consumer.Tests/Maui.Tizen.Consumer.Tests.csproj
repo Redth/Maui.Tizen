@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsValidationTestProject>true</IsValidationTestProject>
+    <RootNamespace>Maui.Tizen.Consumer.Tests</RootNamespace>
+  </PropertyGroup>
+
+</Project>

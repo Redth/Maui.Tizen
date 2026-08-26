@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Tizen-targeted half of the DevFlow agent.
+
+    THIS PROJECT CANNOT BE BUILT ON ANY RUNNER TODAY. The Samsung workload manifest
+    'samsung.net.sdk.tizen.manifest-11.0.100' is not published (eng/baselines.json >
+    target.workloadManifest.status == "unavailable"), so net11.0-tizen11.0 fails restore with
+    NETSDK1139. It is excluded from the workload-free lane and built only when the Tizen gate
+    lifts.
+
+    The consequence is deliberate and worth stating plainly: the code in this project has NOT
+    been verified by a compiler. Everything that could be moved somewhere compilable was moved
+    into Maui.Tizen.DevFlow.Agent.Shared, and the DevFlow override signatures used here are
+    pinned by DevFlowContractTests, which fails on the hosted lane if maui-labs changes them.
+
+    See docs/validation/devflow.md and docs/validation/blockers.md.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>$(MauiTizenTargetFramework)</TargetFramework>
+    <IsTizenProject>true</IsTizenProject>
+    <RootNamespace>Maui.Tizen.DevFlow.Agent</RootNamespace>
+    <AssemblyName>Maui.Tizen.DevFlow.Agent</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+
+    <!--
+      Opt out of central transitive pinning for this project only.
+
+      DevFlow resolves SkiaSharp >= 3.119.2 while Directory.Packages.props centrally pins
+      3.116.1 for the product graph, and transitive pinning turns that into a hard NU1109
+      downgrade error. Raising the central pin to satisfy a debug-only diagnostics package
+      would let a tool dependency dictate the version the shipping Graphics assemblies build
+      against, which is backwards.
+
+      DevFlow is referenced only by diagnostics projects and never by a shipping package, so
+      letting it resolve its own graph here has no effect on what Maui.Tizen publishes.
+    -->
+    <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <UseMaui>true</UseMaui>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Maui.Tizen.DevFlow.Agent.Shared/Maui.Tizen.DevFlow.Agent.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.DevFlow.Agent.Core" />
+  </ItemGroup>
+
+</Project>
