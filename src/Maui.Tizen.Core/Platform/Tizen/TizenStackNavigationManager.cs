@@ -152,10 +152,79 @@ namespace Microsoft.Maui.Platforms.Tizen
 				await PlatformNavigation.Push(GetNavigationItem(page), page == top && animated).ConfigureAwait(true);
 		}
 
+		/// <summary>
+		/// Called after each navigation completes, with the stack that is now current.
+		/// </summary>
+		/// <remarks>
+		/// Overridable so a handler can observe completion - to sync a toolbar's back button, for
+		/// instance - without re-implementing <see cref="RequestNavigation"/>. Always call the base
+		/// implementation, which is what notifies the cross-platform navigation view.
+		/// </remarks>
+		/// <param name="stack">The navigation stack that is now current.</param>
+		protected virtual void OnNavigationFinished(IReadOnlyList<IView> stack) =>
+			NavigationView?.NavigationFinished(stack);
+
+		/// <summary>
+		/// Creates the platform page wrapper for a cross-platform page.
+		/// </summary>
+		/// <remarks>
+		/// Overridable so a handler can decorate the page - attaching a per-page title view, for
+		/// example. The base implementation realises the page's platform view, sizes it to fill the
+		/// parent, and caches both the wrapper and the page's handler so
+		/// <see cref="OnPageRemoved"/> can dispose it later.
+		/// </remarks>
+		/// <param name="page">The cross-platform page.</param>
+		/// <returns>The platform page wrapper.</returns>
+		protected virtual TizenNaviPage CreateNavigationItem(IView page)
+		{
+			ArgumentNullException.ThrowIfNull(page);
+
+			var mauiContext = MauiContext
+				?? throw new InvalidOperationException(
+					$"{nameof(MauiContext)} is not set. Call {nameof(Connect)} before navigating.");
+
+			var content = page.ToPlatformView(mauiContext);
+			content.WidthSpecification = LayoutParamPolicies.MatchParent;
+			content.HeightSpecification = LayoutParamPolicies.MatchParent;
+
+			return new TizenNaviPage
+			{
+				Content = content,
+				WidthSpecification = LayoutParamPolicies.MatchParent,
+				HeightSpecification = LayoutParamPolicies.MatchParent,
+			};
+		}
+
+		/// <summary>
+		/// Called when a page leaves the stack, after it has been popped from the platform stack.
+		/// </summary>
+		/// <remarks>
+		/// The base implementation drops the cached wrapper and disposes the page's handler. That
+		/// disposal is load-bearing - popping only unparents the native view, so without it the
+		/// page keeps its whole child handler graph alive. An override that does not call base
+		/// will leak.
+		/// </remarks>
+		/// <param name="page">The page leaving the stack.</param>
+		protected virtual void OnPageRemoved(IView page)
+		{
+			ArgumentNullException.ThrowIfNull(page);
+
+			_pageMap.Remove(page);
+
+			if (_handlerMap.TryGetValue(page, out var handler))
+			{
+				(handler as ITizenPlatformViewHandler)?.Dispose();
+				_handlerMap.Remove(page);
+			}
+		}
+
+		/// <summary>Gets the toolbar currently attached, if any.</summary>
+		protected TizenToolbarView? Toolbar => _toolbar;
+
 		void Finish(List<IView> stack)
 		{
 			_navigationStack = stack;
-			NavigationView?.NavigationFinished(stack);
+			OnNavigationFinished(stack);
 		}
 
 		void SyncBackStackToNavigationStack(List<IView> newStack)
@@ -206,44 +275,21 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 		}
 
+		void ReleasePage(IView page) => OnPageRemoved(page);
+
 		/// <summary>
-		/// Drops a page's cached navigation item and disposes its handler.
+		/// Gets, creating and caching if needed, the platform wrapper for a page.
 		/// </summary>
-		/// <remarks>
-		/// Disposing the handler is load-bearing: popping only unparents the native view, leaving
-		/// the handler holding it plus its whole child handler graph, so the page would leak.
-		/// </remarks>
-		/// <param name="page">The page leaving the stack.</param>
-		void ReleasePage(IView page)
+		/// <param name="page">The cross-platform page.</param>
+		/// <returns>The platform page wrapper.</returns>
+		protected TizenNaviPage GetNavigationItem(IView page)
 		{
-			_pageMap.Remove(page);
+			ArgumentNullException.ThrowIfNull(page);
 
-			if (_handlerMap.TryGetValue(page, out var handler))
-			{
-				(handler as ITizenPlatformViewHandler)?.Dispose();
-				_handlerMap.Remove(page);
-			}
-		}
-
-		TizenNaviPage GetNavigationItem(IView page)
-		{
 			if (_pageMap.TryGetValue(page, out var existing))
 				return existing;
 
-			var mauiContext = MauiContext
-				?? throw new InvalidOperationException(
-					$"{nameof(MauiContext)} is not set. Call {nameof(Connect)} before navigating.");
-
-			var content = page.ToPlatformView(mauiContext);
-			content.WidthSpecification = LayoutParamPolicies.MatchParent;
-			content.HeightSpecification = LayoutParamPolicies.MatchParent;
-
-			var naviPage = new TizenNaviPage
-			{
-				Content = content,
-				WidthSpecification = LayoutParamPolicies.MatchParent,
-				HeightSpecification = LayoutParamPolicies.MatchParent,
-			};
+			var naviPage = CreateNavigationItem(page);
 
 			_pageMap[page] = naviPage;
 			_handlerMap[page] = page.Handler;

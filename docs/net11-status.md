@@ -324,10 +324,19 @@ the raw imported originals to stay uncompiled.
 | `Platform/Tizen/MauiToolbar.cs` | `TizenToolbarView` | `Microsoft.Maui.Platform.MauiToolbar` exists in MAUI's Tizen build |
 | (same file) `IToolbarContainer` | `ITizenToolbarContainer` | same |
 | `Platform/Tizen/StackNavigationManager.cs` | `TizenStackNavigationManager` | `Microsoft.Maui.Platform.StackNavigationManager` exists in MAUI's Tizen build |
-| `Platform/Tizen/NaviPage.cs` | `TizenNaviPage` | `Microsoft.Maui.NaviPage` sits in the **neutral** namespace - the highest-risk collision of the three |
+| `Platform/Tizen/NaviPage.cs` | `TizenNaviPage` | `Microsoft.Maui.NaviPage` sits in the **neutral** namespace - the highest-risk collision |
+| `Platform/Tizen/MauiFlyoutView.cs` | `TizenFlyoutView` | `Microsoft.Maui.Platform.MauiFlyoutView` exists in MAUI's Tizen build |
+| `Platform/Tizen/MauiTVFlyoutView.cs` | `TizenTVFlyoutView` | same |
+| `Platform/Tizen/FlyoutViewExtensions.cs` | `TizenFlyoutViewExtensions` + `TizenFlyoutBehaviorExtensions` | same; the `ToPlatform(FlyoutBehavior)` overload became `ToTizenDrawerBehavior` to avoid ambiguity with MAUI's large `ToPlatform` family |
+| `Platform/Tizen/ToolbarExtensions.cs` | instance methods on `TizenToolbarView` | same |
 
 `NaviPage` was not in the assigned list; it came in because `StackNavigationManager` cannot compile
 without it. Porting it was the only way to avoid compiling the raw original.
+
+`ToolbarExtensions.UpdateTitle` / `UpdateMenuButton` became **instance methods** on
+`TizenToolbarView` rather than extension methods. They only ever applied to that one type, and as
+extensions they would have been ambiguous at any call site that also imported MAUI's
+`Microsoft.Maui.Platform`.
 
 All three are type-checked against real TizenFX by the reference-pack lane and pinned by
 `CorePlatformPrimitiveTests`, which also asserts that no Wave C handler has leaked into this

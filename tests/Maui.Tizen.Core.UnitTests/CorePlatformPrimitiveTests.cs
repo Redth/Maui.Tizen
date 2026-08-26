@@ -47,6 +47,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[InlineData("Platform/Tizen/TizenToolbarView.cs")]
 		[InlineData("Platform/Tizen/TizenStackNavigationManager.cs")]
 		[InlineData("Platform/Tizen/TizenNaviPage.cs")]
+		[InlineData("Platform/Tizen/TizenFlyoutView.cs")]
+		[InlineData("Platform/Tizen/TizenFlyoutViewExtensions.cs")]
 		public void PrimitiveSourceExists(string relativePath) =>
 			Assert.True(
 				File.Exists(Path.Combine(RepositoryRoot, "src/Maui.Tizen.Core", relativePath)),
@@ -56,6 +58,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[InlineData("TizenToolbarView.cs")]
 		[InlineData("TizenStackNavigationManager.cs")]
 		[InlineData("TizenNaviPage.cs")]
+		[InlineData("TizenFlyoutView.cs")]
+		[InlineData("TizenFlyoutViewExtensions.cs")]
 		public void PrimitiveIsCompiledByTheProductAndRefPackLanes(string fileName)
 		{
 			// Sources are listed explicitly rather than globbed, so a new file that is never added
@@ -68,6 +72,10 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[InlineData("Microsoft.Maui.Platforms.Tizen.ITizenToolbarContainer")]
 		[InlineData("Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager")]
 		[InlineData("Microsoft.Maui.Platforms.Tizen.TizenNaviPage")]
+		[InlineData("Microsoft.Maui.Platforms.Tizen.TizenFlyoutView")]
+		[InlineData("Microsoft.Maui.Platforms.Tizen.TizenTVFlyoutView")]
+		[InlineData("Microsoft.Maui.Platforms.Tizen.TizenFlyoutViewExtensions")]
+		[InlineData("Microsoft.Maui.Platforms.Tizen.TizenFlyoutBehaviorExtensions")]
 		public void PrimitiveIsDeclaredInThePublicApiBaseline(string typeName) =>
 			Assert.Contains(ProductBaseline, e => e.Contains(typeName, StringComparison.Ordinal));
 
@@ -82,6 +90,17 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[InlineData("Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.Connect(")]
 		[InlineData("Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.Disconnect() -> void")]
 		[InlineData("Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.RequestNavigation(")]
+		// Toolbar title/menu, which Wave C's toolbar handler maps.
+		[InlineData("Microsoft.Maui.Platforms.Tizen.TizenToolbarView.UpdateTitle(")]
+		[InlineData("Microsoft.Maui.Platforms.Tizen.TizenToolbarView.UpdateMenuButton(")]
+		// The full DrawerView surface Wave C's flyout handler maps.
+		[InlineData("TizenFlyoutViewExtensions.UpdateFlyout(")]
+		[InlineData("TizenFlyoutViewExtensions.UpdateDetail(")]
+		[InlineData("TizenFlyoutViewExtensions.UpdateIsPresented(")]
+		[InlineData("TizenFlyoutViewExtensions.UpdateFlyoutBehavior(")]
+		[InlineData("TizenFlyoutViewExtensions.UpdateFlyoutWidth(")]
+		[InlineData("TizenFlyoutViewExtensions.UpdateIsGestureEnabled(")]
+		[InlineData("TizenFlyoutBehaviorExtensions.ToTizenDrawerBehavior(")]
 		public void WaveCFacingMemberIsPublished(string signatureFragment)
 		{
 			// These are the exact members Wave C codes against. Pinning them here means a rename
@@ -93,6 +112,10 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[InlineData("MauiToolbar.cs")]
 		[InlineData("StackNavigationManager.cs")]
 		[InlineData("NaviPage.cs")]
+		[InlineData("MauiFlyoutView.cs")]
+		[InlineData("MauiTVFlyoutView.cs")]
+		[InlineData("FlyoutViewExtensions.cs")]
+		[InlineData("ToolbarExtensions.cs")]
 		public void SupersededImportedSourceIsNotCompiled(string fileName)
 		{
 			// The whole point of owning these types: the raw imported originals must stay
@@ -118,6 +141,9 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				"class MauiToolbar",
 				"class StackNavigationManager",
 				"class NaviPage",
+				"class MauiFlyoutView",
+				"class MauiTVFlyoutView",
+				"class FlyoutViewExtensions",
 			})
 			{
 				foreach (var file in new[]
@@ -125,12 +151,44 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 					"Platform/Tizen/TizenToolbarView.cs",
 					"Platform/Tizen/TizenStackNavigationManager.cs",
 					"Platform/Tizen/TizenNaviPage.cs",
+					"Platform/Tizen/TizenFlyoutView.cs",
+					"Platform/Tizen/TizenFlyoutViewExtensions.cs",
 				})
 				{
 					var text = File.ReadAllText(Path.Combine(RepositoryRoot, "src/Maui.Tizen.Core", file));
 					Assert.DoesNotContain(forbidden, text, StringComparison.Ordinal);
 				}
 			}
+		}
+
+		[Theory]
+		[InlineData("OnNavigationFinished")]
+		[InlineData("CreateNavigationItem")]
+		[InlineData("OnPageRemoved")]
+		[InlineData("InitializeStack")]
+		public void NavigationManagerExposesTheOverrideSeamWaveCNeeds(string member)
+		{
+			// Wave C derives from TizenStackNavigationManager rather than re-implementing it, so
+			// these seams are contract. Losing one silently forces a fork of the navigation logic.
+			var text = File.ReadAllText(Path.Combine(
+				RepositoryRoot, "src/Maui.Tizen.Core/Platform/Tizen/TizenStackNavigationManager.cs"));
+
+			Assert.Contains($"protected virtual", text, StringComparison.Ordinal);
+			Assert.Contains(member, text, StringComparison.Ordinal);
+		}
+
+		[Theory]
+		[InlineData("TizenFlyoutView")]
+		[InlineData("TizenTVFlyoutView")]
+		public void FlyoutViewForwardsToolbarToItsContent(string typeName)
+		{
+			// A flyout's toolbar belongs to the detail page, so both drawers must be pass-through
+			// toolbar containers rather than hosting the toolbar themselves.
+			var text = File.ReadAllText(Path.Combine(
+				RepositoryRoot, "src/Maui.Tizen.Core/Platform/Tizen/TizenFlyoutView.cs"));
+
+			Assert.Contains($"class {typeName}", text, StringComparison.Ordinal);
+			Assert.Contains("ITizenToolbarContainer", text, StringComparison.Ordinal);
 		}
 
 		[Fact]
@@ -149,7 +207,10 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var handlerDir = Path.Combine(RepositoryRoot, "src/Maui.Tizen.Core/Handlers");
 			var compiledHandlers = SourcesProps;
 
-			foreach (var waveC in new[] { "TizenToolbarHandler", "TizenNavigationViewHandler", "TizenShellHandler" })
+			foreach (var waveC in new[]
+			{
+				"TizenToolbarHandler", "TizenNavigationViewHandler", "TizenShellHandler", "TizenFlyoutViewHandler",
+			})
 			{
 				Assert.False(
 					File.Exists(Path.Combine(handlerDir, $"{waveC}.cs")),

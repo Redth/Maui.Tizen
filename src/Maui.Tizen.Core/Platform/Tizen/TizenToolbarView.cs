@@ -1,9 +1,13 @@
 using System;
+using Microsoft.Maui;
 using Tizen.NUI.BaseComponents;
+using Tizen.UIExtensions.Common.GraphicsView;
 using Tizen.UIExtensions.NUI;
 using NColor = Tizen.NUI.Color;
 using NShadow = Tizen.NUI.Shadow;
+using MaterialIconButton = Tizen.UIExtensions.NUI.GraphicsView.MaterialIconButton;
 using NVector2 = Tizen.NUI.Vector2;
+using TColor = Tizen.UIExtensions.Common.Color;
 
 namespace Microsoft.Maui.Platforms.Tizen
 {
@@ -67,6 +71,46 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		/// <summary>Raises <see cref="IconPressed"/>.</summary>
 		public void SendIconPressed() => IconPressed?.Invoke(this, EventArgs.Empty);
+
+		/// <summary>Applies <see cref="IToolbar.Title"/>.</summary>
+		/// <remarks>
+		/// Ported from <c>Microsoft.Maui.Platform.ToolbarExtensions.UpdateTitle</c>. Declared as an
+		/// instance method rather than an extension so it is unambiguous at the call site even if a
+		/// consumer also has MAUI's <c>ToolbarExtensions</c> in scope.
+		/// </remarks>
+		/// <param name="toolbar">The cross-platform toolbar.</param>
+		public void UpdateTitle(IToolbar toolbar)
+		{
+			ArgumentNullException.ThrowIfNull(toolbar);
+
+			Title = toolbar.Title ?? string.Empty;
+		}
+
+		/// <summary>
+		/// Installs the menu icon button, wired to raise <see cref="IconPressed"/>.
+		/// </summary>
+		/// <remarks>
+		/// Ported from <c>ToolbarExtensions.UpdateMenuButton</c>. The icon colour is chosen from the
+		/// toolbar background's grayscale value so it stays legible on either a light or dark bar.
+		/// </remarks>
+		/// <param name="toolbar">The cross-platform toolbar.</param>
+		public void UpdateMenuButton(IToolbar toolbar)
+		{
+			var button = new MaterialIconButton
+			{
+				Icon = MaterialIcons.Menu,
+				Color = GetAccentColor(),
+			};
+
+			button.Clicked += (_, _) => SendIconPressed();
+			Icon = button;
+		}
+
+		TColor GetAccentColor()
+		{
+			var grayscale = (BackgroundColor.R + BackgroundColor.G + BackgroundColor.B) / 3.0f;
+			return grayscale > 0.5 ? TColor.Black : TColor.White;
+		}
 	}
 
 	/// <summary>

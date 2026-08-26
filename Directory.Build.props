@@ -66,8 +66,24 @@
           allowlist (MSB4186).
 
       Item globs DO work inside a target, so that is where detection lives.
+
+      BAND RESTRICTION. The glob is scoped to $(TizenWorkloadBandPattern) rather than
+      matching any band, because an unrestricted `sdk-manifests/*/samsung.net.sdk.tizen/`
+      treats a Samsung workload installed for .NET 9 or .NET 10 as satisfying net11 - the
+      build would then proceed past the gate and fail much later with an unrelated-looking
+      error about missing Tizen reference packs.
+
+      The pattern is `11.0.*` rather than the exact band from eng/baselines.json
+      (11.0.100-preview.7), and that looseness is deliberate: this very SDK
+      (11.0.100-preview.7.26381.103) ships manifests under BOTH 11.0.100-preview.6 and
+      11.0.100-preview.7, so band directories demonstrably drift within a feature line.
+      Pinning the exact preview segment would report "workload missing" on a machine where
+      it is correctly installed - the same false-negative class this detection has already
+      been fixed for once. Matching the .NET 11 line excludes the wrong-major case the
+      review identified while tolerating preview drift.
     -->
     <_TizenWorkloadManifestRoot>$(NetCoreRoot)sdk-manifests/</_TizenWorkloadManifestRoot>
+    <TizenWorkloadBandPattern Condition="'$(TizenWorkloadBandPattern)' == ''">$(DotNetVersion).*</TizenWorkloadBandPattern>
   </PropertyGroup>
 
   <PropertyGroup Label="Language and analysis">

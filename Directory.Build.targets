@@ -23,17 +23,21 @@
     layout-agnostic mechanism available, and they only work inside a target. See the
     Workload detection comment in Directory.Build.props for why the alternatives fail.
 
-    Matches both known manifest layouts under any SDK feature band:
-      sdk-manifests/<band>/samsung.net.sdk.tizen/<version>/WorkloadManifest.json   (current)
-      sdk-manifests/<band>/samsung.net.sdk.tizen/WorkloadManifest.json             (legacy)
+    Matches both known manifest layouts, but only within the current .NET feature line
+    ($(TizenWorkloadBandPattern), e.g. 11.0.*):
+      sdk-manifests/11.0.*/samsung.net.sdk.tizen/<version>/WorkloadManifest.json   (current)
+      sdk-manifests/11.0.*/samsung.net.sdk.tizen/WorkloadManifest.json             (legacy)
+
+    A Samsung workload installed under an older band (9.0.100, 10.0.100) does NOT satisfy
+    net11 and must not lift the gate.
 
     Skipped entirely when TizenWorkloadAvailable was set explicitly, so CI and tests can
     pin the answer.
   -->
   <Target Name="_DetectTizenWorkload" Condition="'$(TizenWorkloadAvailable)' == ''">
     <ItemGroup Condition="Exists('$(_TizenWorkloadManifestRoot)')">
-      <_TizenWorkloadManifest Include="$(_TizenWorkloadManifestRoot)*/samsung.net.sdk.tizen/*/WorkloadManifest.json" />
-      <_TizenWorkloadManifest Include="$(_TizenWorkloadManifestRoot)*/samsung.net.sdk.tizen/WorkloadManifest.json" />
+      <_TizenWorkloadManifest Include="$(_TizenWorkloadManifestRoot)$(TizenWorkloadBandPattern)/samsung.net.sdk.tizen/*/WorkloadManifest.json" />
+      <_TizenWorkloadManifest Include="$(_TizenWorkloadManifestRoot)$(TizenWorkloadBandPattern)/samsung.net.sdk.tizen/WorkloadManifest.json" />
     </ItemGroup>
     <PropertyGroup>
       <TizenWorkloadAvailable Condition="'@(_TizenWorkloadManifest)' != ''">true</TizenWorkloadAvailable>

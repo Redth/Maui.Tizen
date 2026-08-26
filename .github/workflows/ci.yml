@@ -143,13 +143,19 @@ jobs:
           # A probe that can never succeed is worse than no probe: it reports "blocked"
           # forever and would keep reporting it for weeks after the gate actually lifts.
           #
-          # So we ask the question that has a real answer — has Samsung published an
-          # 11.0.100-band manifest package? Both ID spellings are checked because NuGet
-          # IDs are case-insensitive and the band carries the preview segment.
+          # So we ask the question that has a real answer — has Samsung published a
+          # manifest package for this SDK band?
+          #
+          # Two IDs are probed, both DERIVED from eng/baselines.json rather than hardcoded:
+          # the full band (11.0.100-preview.7) and the feature band with the preview
+          # segment stripped (11.0.100), since Samsung may publish against either. NuGet
+          # IDs are case-insensitive, so the lowercase flat-container form covers both
+          # spellings.
           BAND="$(python3 -c "import json;print(json.load(open('eng/baselines.json'))['target']['sdkBand'])")"
+          FEATURE_BAND="${BAND%%-*}"
 
           FOUND=false
-          for id in "samsung.net.sdk.tizen.manifest-${BAND}" "samsung.net.sdk.tizen.manifest-11.0.100"; do
+          for id in "samsung.net.sdk.tizen.manifest-${BAND}" "samsung.net.sdk.tizen.manifest-${FEATURE_BAND}"; do
             code="$(curl -s -o /dev/null -w '%{http_code}' "https://api.nuget.org/v3-flatcontainer/${id}/index.json")"
             echo "  ${id} -> HTTP ${code}"
             if [ "$code" = "200" ]; then FOUND=true; PUBLISHED_ID="$id"; fi
