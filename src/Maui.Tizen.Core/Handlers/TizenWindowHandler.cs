@@ -77,7 +77,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 #if TIZEN
 			var platformContent = window.Content!.ToPlatformView(mauiContext);
-			handler.PlatformView.SetMainContent(platformContent);
+			handler.PlatformView.SetMainContent(platformContent, window.Content);
 #else
 			_ = window.Content;
 #endif

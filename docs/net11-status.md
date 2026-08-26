@@ -285,7 +285,23 @@ these handlers. Wiring that up belongs with the `Maui.Tizen.Controls` layer.
 **Everything else.** All other handlers (button, entry, image, scroll view, web view, navigation,
 shell, ...) remain raw imported sources and are not yet ported.
 
-## 6. What is wired for a real device
+## 6. Additional MAUI API gaps found during review
+
+* **`MauiContextExtensions.InitializeScopedServices` is a public method on an `internal` class.**
+  A backend cannot run `IMauiInitializeScopedService` implementations when it creates a window
+  scope, which is required - MAUI's own dispatcher registers one. Ported as
+  `TizenMauiContextExtensions.InitializeTizenScopedServices`.
+* **`ViewHandler.ViewMapper` is unusable as a base for an out-of-repo backend.** Off-platform it is
+  compiled with `PlatformView` aliased to `object` and dispatches to the `Standard` no-op
+  extensions, so chaining it yields *no behaviour at all* for every generic `IView` property while
+  still reporting every key as present. This backend therefore owns `TizenViewMappers.ViewMapper`,
+  and its tests assert behaviour rather than key presence.
+* **`PublicApiAnalyzers` baselines are attached by directory convention.** The imported
+  `Microsoft.Maui.*` baselines describe a different assembly; see
+  `src/Maui.Tizen.Core/PublicAPI/slice/README.md` for how they are scoped and what remains
+  suppressed until the workload ships.
+
+## 7. What is wired for a real device
 
 Recorded explicitly because none of it can be executed by the host lanes, so it rests on comparison
 against the dotnet/maui reference rather than on a passing test:
@@ -298,5 +314,12 @@ against the dotnet/maui reference rather than on a passing test:
   geometry rather than trying to move or resize the window, which Tizen does not permit.
 * **Content replacement** - `SetMainContent` removes the previous content before adding the new
   one, so re-assigning `IWindow.Content` does not stack views.
-* **Page background** - a null `Paint` is a no-op, so the page's opaque white default survives the
-  first mapper pass.
+* **Page background** - a null `Paint` is a no-op for a page, so its opaque white default survives
+  the first mapper pass, while an ordinary view's background *is* cleared on transition to null so
+  a stale colour cannot persist.
+* **Window lifecycle** - `TizenWindowLifecycleBridge` maps `CoreApplication`'s
+  `OnCreate`/`OnResume`/`OnPause`/`OnTerminate` onto `IWindow.Created`/`Activated`/`Deactivated`/
+  `Stopped`/`Resumed`/`Destroying`, keeping activate/deactivate balanced.
+* **Window scope** - `MakeWindowScope` runs registered `IMauiInitializeScopedService` instances.
+* **Content replacement** - the previous content's *handler* is disconnected and disposed, not just
+  its native view unparented.

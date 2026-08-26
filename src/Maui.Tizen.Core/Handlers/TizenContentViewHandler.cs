@@ -18,7 +18,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>Property mapper for <see cref="IContentView"/> on Tizen.</summary>
 		public static readonly IPropertyMapper<IContentView, ITizenContentViewHandler> Mapper =
-			new PropertyMapper<IContentView, ITizenContentViewHandler>(ViewHandler.ViewMapper)
+			new PropertyMapper<IContentView, ITizenContentViewHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(IContentView.Background)] = MapBackground,
 				[nameof(IContentView.Content)] = MapContent,
@@ -26,7 +26,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>Command mapper for <see cref="IContentView"/> on Tizen.</summary>
 		public static readonly CommandMapper<IContentView, ITizenContentViewHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+			new(TizenViewMappers.ViewCommandMapper);
 
 		/// <summary>Initializes a new instance of the <see cref="TizenContentViewHandler"/> class.</summary>
 		public TizenContentViewHandler()

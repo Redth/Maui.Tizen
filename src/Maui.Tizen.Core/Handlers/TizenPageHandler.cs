@@ -74,7 +74,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				handler.PlatformView.UpdateBackgroundColor(TColor.Transparent);
 			}
 
-			handler.PlatformView?.UpdateBackground(page);
+			// clearWhenNull:false on purpose - a page is created opaque white and this mapper runs
+			// immediately, so clearing on a null background would repaint every page transparent.
+			handler.PlatformView?.UpdateBackground(page, clearWhenNull: false);
 #endif
 		}
 

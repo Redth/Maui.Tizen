@@ -22,7 +22,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>Property mapper for <see cref="ILayout"/> on Tizen.</summary>
 		public static readonly IPropertyMapper<ILayout, ITizenLayoutHandler> Mapper =
-			new PropertyMapper<ILayout, ITizenLayoutHandler>(ViewHandler.ViewMapper)
+			new PropertyMapper<ILayout, ITizenLayoutHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(ILayout.Background)] = MapBackground,
 				[nameof(ILayout.ClipsToBounds)] = MapClipsToBounds,
@@ -31,7 +31,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>Command mapper for <see cref="ILayout"/> on Tizen.</summary>
 		public static readonly CommandMapper<ILayout, ITizenLayoutHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper)
+			new(TizenViewMappers.ViewCommandMapper)
 			{
 				[nameof(ITizenLayoutHandler.Add)] = MapAdd,
 				[nameof(ITizenLayoutHandler.Remove)] = MapRemove,

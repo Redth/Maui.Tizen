@@ -18,7 +18,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	{
 		/// <summary>Property mapper for <see cref="ILabel"/> on Tizen.</summary>
 		public static readonly IPropertyMapper<ILabel, ITizenLabelHandler> Mapper =
-			new PropertyMapper<ILabel, ITizenLabelHandler>(ViewHandler.ViewMapper)
+			new PropertyMapper<ILabel, ITizenLabelHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(ILabel.Background)] = MapBackground,
 				[nameof(ILabel.Opacity)] = MapOpacity,
@@ -36,7 +36,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>Command mapper for <see cref="ILabel"/> on Tizen.</summary>
 		public static readonly CommandMapper<ILabel, ITizenLabelHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+			new(TizenViewMappers.ViewCommandMapper);
 
 		/// <summary>Initializes a new instance of the <see cref="TizenLabelHandler"/> class.</summary>
 		public TizenLabelHandler()

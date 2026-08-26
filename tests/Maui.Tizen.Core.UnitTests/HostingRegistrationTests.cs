@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui;
@@ -17,9 +18,9 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 {
 	public class HostingRegistrationTests
 	{
-		static MauiApp BuildApp(Action<MauiAppBuilder>? configure = null)
+		static MauiApp BuildApp(Action<MauiAppBuilder>? configure = null, bool useDefaults = false)
 		{
-			var builder = MauiApp.CreateBuilder(useDefaults: false);
+			var builder = MauiApp.CreateBuilder(useDefaults);
 			builder.UseMauiAppTizen<StubApplication>();
 			configure?.Invoke(builder);
 			return builder.Build();
@@ -179,7 +180,139 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(typeof(TizenLabelHandler), handlers.GetHandlerType(typeof(ILabel)));
 		}
 
-		sealed class StubApplication : IApplication
+		// ------------------------------------------------------------------------------------
+		// useDefaults: true
+		//
+		// This is what a real app gets - MauiApp.CreateBuilder() defaults to true, and the sample
+		// uses it. MAUI's own ConfigureDispatching/ConfigureAnimations run FIRST and register
+		// neutral implementations, so any TryAdd in ConfigureTizen is a silent no-op and the Tizen
+		// services never win. The whole suite above ran with useDefaults:false and could not see
+		// that, which is exactly how the bug survived.
+		// ------------------------------------------------------------------------------------
+
+		[Theory]
+		[InlineData(false)]
+		[InlineData(true)]
+		public void DispatcherProviderIsTheTizenProviderRegardlessOfDefaults(bool useDefaults)
+		{
+			using var app = BuildApp(useDefaults: useDefaults);
+
+			var provider = app.Services.GetService<IDispatcherProvider>();
+
+			Assert.IsType<TizenDispatcherProvider>(provider);
+		}
+
+		[Theory]
+		[InlineData(false)]
+		[InlineData(true)]
+		public void TickerIsTheTizenTickerRegardlessOfDefaults(bool useDefaults)
+		{
+			using var app = BuildApp(useDefaults: useDefaults);
+			using var scope = app.Services.CreateScope();
+
+			Assert.IsType<TizenTicker>(scope.ServiceProvider.GetService<ITicker>());
+		}
+
+		[Theory]
+		[InlineData(false)]
+		[InlineData(true)]
+		public void AnimationManagerResolvesAndUsesTheTizenTicker(bool useDefaults)
+		{
+			using var app = BuildApp(useDefaults: useDefaults);
+			using var scope = app.Services.CreateScope();
+
+			var manager = scope.ServiceProvider.GetService<IAnimationManager>();
+
+			Assert.NotNull(manager);
+			Assert.IsType<TizenTicker>(manager!.Ticker);
+		}
+
+		[Theory]
+		[InlineData(false)]
+		[InlineData(true)]
+		public void DispatcherResolvesNonNullOnAThreadWithASynchronizationContext(bool useDefaults)
+		{
+			using var app = BuildApp(useDefaults: useDefaults);
+
+			IDispatcher? dispatcher = null;
+			Exception? failure = null;
+
+			// A SynchronizationContext stands in for the NUI main loop; without one there is
+			// legitimately no dispatcher to hand out.
+			var thread = new Thread(() =>
+			{
+				SynchronizationContext.SetSynchronizationContext(new SynchronizationContext());
+				try
+				{
+					using var scope = app.Services.CreateScope();
+					dispatcher = scope.ServiceProvider.GetService<IDispatcher>();
+				}
+				catch (Exception ex)
+				{
+					failure = ex;
+				}
+			});
+
+			thread.Start();
+			thread.Join();
+
+			Assert.Null(failure);
+			Assert.NotNull(dispatcher);
+			Assert.IsType<TizenDispatcher>(dispatcher);
+		}
+
+		[Theory]
+		[InlineData(false)]
+		[InlineData(true)]
+		public void StaticDispatcherProviderIsPublishedForTheMainThreadBridge(bool useDefaults)
+		{
+			// MainThread resolves through the STATIC DispatcherProvider.Current, not through DI.
+			// Replacing only the DI registration would leave MainThread on the neutral provider,
+			// which has no dispatcher for the NUI main loop and fails silently.
+			using var app = BuildApp(useDefaults: useDefaults);
+
+			var thread = new Thread(() =>
+			{
+				SynchronizationContext.SetSynchronizationContext(new SynchronizationContext());
+				using var scope = app.Services.CreateScope();
+				_ = scope.ServiceProvider.GetService<IDispatcher>();
+			});
+
+			thread.Start();
+			thread.Join();
+
+			Assert.IsType<TizenDispatcherProvider>(DispatcherProvider.Current);
+		}
+
+		[Theory]
+		[InlineData(false)]
+		[InlineData(true)]
+		public void HandlersAreRegisteredRegardlessOfDefaults(bool useDefaults)
+		{
+			using var app = BuildApp(useDefaults: useDefaults);
+
+			var handlers = app.Services.GetRequiredService<IMauiHandlersFactory>();
+
+			Assert.Equal(typeof(TizenLabelHandler), handlers.GetHandlerType(typeof(ILabel)));
+			Assert.Equal(typeof(TizenLayoutHandler), handlers.GetHandlerType(typeof(ILayout)));
+		}
+
+		[Fact]
+		public void UserRegisteredApplicationStillWinsUnderDefaults()
+		{
+			// IApplication stays on TryAdd on purpose: a host that registers its own instance
+			// before calling UseMauiAppTizen should keep it. Platform services are the opposite.
+			var expected = new StubApplication();
+			var builder = MauiApp.CreateBuilder(useDefaults: true);
+			builder.Services.AddSingleton<IApplication>(expected);
+			builder.UseMauiAppTizen<StubApplication>();
+
+			using var app = builder.Build();
+
+			Assert.Same(expected, app.Services.GetRequiredService<IApplication>());
+		}
+
+		internal sealed class StubApplication : IApplication
 		{
 			public IReadOnlyList<IWindow> Windows { get; } = Array.Empty<IWindow>();
 
