@@ -11,11 +11,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// <summary>
 	/// The Tizen handler for <see cref="IStepper"/>.
 	/// </summary>
-	public class TizenStepperHandler : TizenViewHandler<IStepper, TizenStepperView>
+	public class TizenStepperHandler : TizenViewHandler<IStepper, TizenStepperView>, IStepperHandler
 	{
 		/// <summary>The complete property mapper for <see cref="IStepper"/>.</summary>
-		public static readonly IPropertyMapper<IStepper, TizenStepperHandler> Mapper =
-			new PropertyMapper<IStepper, TizenStepperHandler>(TizenViewMappers.ViewMapper)
+		public static readonly IPropertyMapper<IStepper, IStepperHandler> Mapper =
+			new PropertyMapper<IStepper, IStepperHandler>(TizenHandlerMappers.Chain(StepperHandler.Mapper))
 			{
 				[nameof(IStepper.Minimum)] = MapMinimum,
 				[nameof(IStepper.Maximum)] = MapMaximum,
@@ -29,8 +29,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// input, so focusing it would appear to do nothing. The request is forwarded to whichever
 		/// button can take it.
 		/// </remarks>
-		public static readonly CommandMapper<IStepper, TizenStepperHandler> CommandMapper =
-			new(TizenViewMappers.ViewCommandMapper)
+		public static readonly CommandMapper<IStepper, IStepperHandler> CommandMapper =
+			new CommandMapper<IStepper, IStepperHandler>(TizenHandlerMappers.ChainCommands(StepperHandler.CommandMapper))
 			{
 				[nameof(IView.Focus)] = MapFocus,
 				[nameof(IView.Unfocus)] = MapUnfocus,
@@ -40,12 +40,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <param name="handler">The handler.</param>
 		/// <param name="stepper">The stepper.</param>
 		/// <param name="args">The <see cref="FocusRequest"/>.</param>
-		public static void MapFocus(TizenStepperHandler handler, IStepper stepper, object? args)
+		public static void MapFocus(IStepperHandler handler, IStepper stepper, object? args)
 		{
 			if (args is not FocusRequest request)
 				return;
 #if TIZEN
-			request.TrySetResult(handler.PlatformView?.FocusButton() ?? false);
+			request.TrySetResult(Platform(handler)?.FocusButton() ?? false);
 #else
 			request.TrySetResult(false);
 #endif
@@ -60,6 +60,33 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
 		{
 		}
+
+		IStepper IStepperHandler.VirtualView => VirtualView;
+
+		/// <remarks>
+		/// <see cref="IStepperHandler"/> types this as <see cref="object"/>. MAUI ships no Tizen asset,
+		/// so this backend resolves the neutral <c>net11.0</c> assembly on every target framework
+		/// and the interface is implementable without the per-platform alias mismatch that would
+		/// otherwise occur.
+		/// </remarks>
+		object IStepperHandler.PlatformView => PlatformView;
+
+		/// <summary>
+		/// The typed platform view for a mapping.
+		/// </summary>
+		/// <remarks>
+		/// <see cref="IStepperHandler"/> types <c>PlatformView</c> as <see cref="object"/>, because MAUI's
+		/// neutral assembly has no Tizen alias. Mappings therefore narrow it here rather than at
+		/// every call site.
+		/// </remarks>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The platform view, or <see langword="null"/> if it is not yet created.</returns>
+		static TizenStepperView? Platform(IStepperHandler handler) => handler.PlatformView as TizenStepperView;
+
+		/// <summary>The concrete handler, for mappings that need its own state.</summary>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The concrete handler.</returns>
+		static TizenStepperHandler AsHandler(IStepperHandler handler) => (TizenStepperHandler)handler;
 
 		protected override TizenStepperView CreatePlatformView() => new();
 
@@ -94,31 +121,31 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// when the new minimum exceeded the old maximum. See
 		/// <see cref="TizenStepperView.Apply"/>.
 		/// </remarks>
-		public static void MapMinimum(TizenStepperHandler handler, IStepper stepper)
+		public static void MapMinimum(IStepperHandler handler, IStepper stepper)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateRange(stepper);
+			Platform(handler)?.UpdateRange(stepper);
 #endif
 		}
 
-		public static void MapMaximum(TizenStepperHandler handler, IStepper stepper)
+		public static void MapMaximum(IStepperHandler handler, IStepper stepper)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateRange(stepper);
+			Platform(handler)?.UpdateRange(stepper);
 #endif
 		}
 
-		public static void MapInterval(TizenStepperHandler handler, IStepper stepper)
+		public static void MapInterval(IStepperHandler handler, IStepper stepper)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateRange(stepper);
+			Platform(handler)?.UpdateRange(stepper);
 #endif
 		}
 
-		public static void MapValue(TizenStepperHandler handler, IStepper stepper)
+		public static void MapValue(IStepperHandler handler, IStepper stepper)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateRange(stepper);
+			Platform(handler)?.UpdateRange(stepper);
 #endif
 		}
 
@@ -126,10 +153,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <param name="handler">The handler.</param>
 		/// <param name="stepper">The stepper.</param>
 		/// <param name="args">Unused.</param>
-		public static void MapUnfocus(TizenStepperHandler handler, IStepper stepper, object? args)
+		public static void MapUnfocus(IStepperHandler handler, IStepper stepper, object? args)
 		{
 #if TIZEN
-			handler.PlatformView?.UnfocusButton();
+			Platform(handler)?.UnfocusButton();
 #endif
 		}
 

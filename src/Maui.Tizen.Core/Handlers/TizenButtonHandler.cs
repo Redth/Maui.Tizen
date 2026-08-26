@@ -5,6 +5,7 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
+using Microsoft.Maui.Platform;
 using Microsoft.Maui.Platforms.Tizen;
 
 namespace Microsoft.Maui.Platforms.Tizen.Handlers
@@ -12,7 +13,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// <summary>
 	/// The Tizen handler for <see cref="IButton"/>.
 	/// </summary>
-	public class TizenButtonHandler : TizenViewHandler<IButton, TizenButtonView>
+	public class TizenButtonHandler : TizenViewHandler<IButton, TizenButtonView>, IButtonHandler, IImageSourcePartSetter
 	{
 		/// <summary>The complete property mapper for <see cref="IButton"/>.</summary>
 		/// <remarks>
@@ -20,8 +21,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <see cref="ITextButton"/> and <c>Source</c> from <see cref="IImageButton"/>; a button
 		/// may implement either, both, or neither, so the mappings are defensive about the cast.
 		/// </remarks>
-		public static readonly IPropertyMapper<IButton, TizenButtonHandler> Mapper =
-			new PropertyMapper<IButton, TizenButtonHandler>(TizenViewMappers.ViewMapper)
+		public static readonly IPropertyMapper<IButton, IButtonHandler> Mapper =
+			new PropertyMapper<IButton, IButtonHandler>(TizenHandlerMappers.Chain(ButtonHandler.Mapper))
 			{
 				[nameof(IText.Text)] = MapText,
 				[nameof(ITextStyle.TextColor)] = MapTextColor,
@@ -35,8 +36,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		/// <summary>The complete command mapper for <see cref="IButton"/>.</summary>
-		public static readonly CommandMapper<IButton, TizenButtonHandler> CommandMapper =
-			new(TizenViewMappers.ViewCommandMapper);
+		public static readonly CommandMapper<IButton, IButtonHandler> CommandMapper =
+			new CommandMapper<IButton, IButtonHandler>(TizenHandlerMappers.ChainCommands(ButtonHandler.CommandMapper));
 
 #if TIZEN
 		readonly TizenImageLoader<TizenImageSource> _iconLoader = new();
@@ -52,6 +53,68 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
 		{
 		}
+
+		IButton IButtonHandler.VirtualView => VirtualView;
+
+		/// <remarks>
+		/// <see cref="IButtonHandler"/> types this as <see cref="object"/>. MAUI ships no Tizen asset,
+		/// so this backend resolves the neutral <c>net11.0</c> assembly on every target framework
+		/// and the interface is implementable without the per-platform alias mismatch that would
+		/// otherwise occur.
+		/// </remarks>
+		object IButtonHandler.PlatformView => PlatformView;
+
+		/// <summary>
+		/// MAUI's image-source loader for this button.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// Required by <see cref="IButtonHandler"/>. <c>ImageSourcePartLoader</c> became public in
+		/// MAUI 11, which is precisely what unblocked implementing the real interface.
+		/// </para>
+		/// <para>
+		/// It is exposed so callers that go through MAUI's own plumbing work, but the icon
+		/// mapping does <em>not</em> route through it. <c>ImageSourcePartLoader</c> offers no
+		/// supersession, source or view identity check, failure clearing, or disposal of the
+		/// previous native result; <see cref="TizenImageLoader{TImage}"/> provides all of those
+		/// and owns the actual load. Both paths converge on
+		/// <see cref="SetImageSource(object?)"/>, so they cannot disagree about what is applied.
+		/// </para>
+		/// </remarks>
+		public ImageSourcePartLoader ImageSourceLoader =>
+			_imageSourceLoader ??= new ImageSourcePartLoader(this);
+
+		ImageSourcePartLoader? _imageSourceLoader;
+
+		IElementHandler IImageSourcePartSetter.Handler => this;
+
+		IImageSourcePart? IImageSourcePartSetter.ImageSourcePart => VirtualView as IImageSourcePart;
+
+		/// <summary>Applies a resolved platform image to the button's icon.</summary>
+		/// <param name="platformImage">The resolved image, or <see langword="null"/> to clear.</param>
+		public void SetImageSource(object? platformImage)
+		{
+#if TIZEN
+			PlatformView?.UpdateImageSource(platformImage as TizenImageSource);
+#endif
+		}
+
+		/// <summary>
+		/// The typed platform view for a mapping.
+		/// </summary>
+		/// <remarks>
+		/// <see cref="IButtonHandler"/> types <c>PlatformView</c> as <see cref="object"/>, because MAUI's
+		/// neutral assembly has no Tizen alias. Mappings therefore narrow it here rather than at
+		/// every call site.
+		/// </remarks>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The platform view, or <see langword="null"/> if it is not yet created.</returns>
+		static TizenButtonView? Platform(IButtonHandler handler) => handler.PlatformView as TizenButtonView;
+
+		/// <summary>The concrete handler, for mappings that need its own state.</summary>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The concrete handler.</returns>
+		static TizenButtonHandler AsHandler(IButtonHandler handler) => (TizenButtonHandler)handler;
 
 		protected override TizenButtonView CreatePlatformView()
 		{
@@ -85,67 +148,67 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			base.DisconnectHandler(platformView);
 		}
 
-		public static void MapText(TizenButtonHandler handler, IButton button)
+		public static void MapText(IButtonHandler handler, IButton button)
 		{
 #if TIZEN
 			if (button is IText text)
-				handler.PlatformView?.UpdateText(text);
+				Platform(handler)?.UpdateText(text);
 #endif
 		}
 
-		public static void MapTextColor(TizenButtonHandler handler, IButton button)
+		public static void MapTextColor(IButtonHandler handler, IButton button)
 		{
 #if TIZEN
 			if (button is ITextStyle textStyle)
-				handler.PlatformView?.UpdateTextColor(textStyle);
+				Platform(handler)?.UpdateTextColor(textStyle);
 #endif
 		}
 
-		public static void MapCharacterSpacing(TizenButtonHandler handler, IButton button)
+		public static void MapCharacterSpacing(IButtonHandler handler, IButton button)
 		{
 #if TIZEN
 			if (button is ITextStyle textStyle)
-				handler.PlatformView?.UpdateCharacterSpacing(textStyle);
+				Platform(handler)?.UpdateCharacterSpacing(textStyle);
 #endif
 		}
 
-		public static void MapFont(TizenButtonHandler handler, IButton button)
+		public static void MapFont(IButtonHandler handler, IButton button)
 		{
 #if TIZEN
 			if (button is ITextStyle textStyle)
-				handler.PlatformView?.UpdateTizenFont(textStyle, handler.GetService<IFontManager>());
+				Platform(handler)?.UpdateTizenFont(textStyle, handler.GetService<IFontManager>());
 #endif
 		}
 
-		public static void MapPadding(TizenButtonHandler handler, IButton button)
+		public static void MapPadding(IButtonHandler handler, IButton button)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdatePadding(button);
+			Platform(handler)?.UpdatePadding(button);
 #endif
 		}
 
-		public static void MapStrokeColor(TizenButtonHandler handler, IButton button)
+		public static void MapStrokeColor(IButtonHandler handler, IButton button)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateStrokeColor(button);
+			Platform(handler)?.UpdateStrokeColor(button);
 #endif
 		}
 
-		public static void MapStrokeThickness(TizenButtonHandler handler, IButton button)
+		public static void MapStrokeThickness(IButtonHandler handler, IButton button)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateStrokeThickness(button);
+			Platform(handler)?.UpdateStrokeThickness(button);
 #endif
 		}
 
-		public static void MapCornerRadius(TizenButtonHandler handler, IButton button)
+		public static void MapCornerRadius(IButtonHandler handler, IButton button)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateCornerRadius(button);
+			Platform(handler)?.UpdateCornerRadius(button);
 #endif
 		}
 
-		public static void MapImageSource(TizenButtonHandler handler, IButton button)
+		public static void MapImageSource(IButtonHandler handler, IButton button)
 		{
 #if TIZEN
 			MapImageSourceAsync(handler, button).FireAndForget(handler);
@@ -168,7 +231,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// icon is touched.
 		/// </para>
 		/// </remarks>
-		public static Task MapImageSourceAsync(TizenButtonHandler handler, IButton button)
+		public static Task MapImageSourceAsync(IButtonHandler handler, IButton button)
 		{
 			ArgumentNullException.ThrowIfNull(handler);
 
@@ -176,17 +239,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			var provider = handler.GetService<IImageSourceServiceProvider>();
 
 			// Capture the view this load is for, so a reconnect can be detected on completion.
-			var target = handler.PlatformView;
+			var target = Platform(handler);
 
-			return handler._iconLoader.LoadAsync(
+			return AsHandler(handler)._iconLoader.LoadAsync(
 				source,
 				(imageSource, token) => provider is null
 					? Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(null)
 					: provider.GetTizenImageAsync(imageSource, token),
 				// The load completes on a thread-pool thread; NUI must only be touched on the
 				// main loop, so the application is marshalled back.
-				image => handler.DispatchIfRequired(() => handler.PlatformView?.UpdateImageSource(image)),
-				() => target is not null && ReferenceEquals(handler.PlatformView, target));
+				image => handler.DispatchIfRequired(() => Platform(handler)?.UpdateImageSource(image)),
+				() => target is not null && ReferenceEquals(Platform(handler), target));
 		}
 #endif
 

@@ -18,15 +18,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// <remarks>
 	/// Presented as a read-only entry that opens <see cref="TizenDateTimePicker"/>.
 	/// </remarks>
-	public class TizenTimePickerHandler : TizenViewHandler<ITimePicker, TizenPickerView>
+	public class TizenTimePickerHandler : TizenViewHandler<ITimePicker, TizenPickerView>, ITimePickerHandler
 	{
 #if TIZEN
 		bool _isOpen;
 #endif
 
 		/// <summary>The complete property mapper for <see cref="ITimePicker"/>.</summary>
-		public static readonly IPropertyMapper<ITimePicker, TizenTimePickerHandler> Mapper =
-			new PropertyMapper<ITimePicker, TizenTimePickerHandler>(TizenViewMappers.ViewMapper)
+		public static readonly IPropertyMapper<ITimePicker, ITimePickerHandler> Mapper =
+			new PropertyMapper<ITimePicker, ITimePickerHandler>(TizenHandlerMappers.Chain(TimePickerHandler.Mapper))
 			{
 				[nameof(ITimePicker.Format)] = MapFormat,
 				[nameof(ITimePicker.Time)] = MapTime,
@@ -37,8 +37,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		/// <summary>The complete command mapper for <see cref="ITimePicker"/>.</summary>
-		public static readonly CommandMapper<ITimePicker, TizenTimePickerHandler> CommandMapper =
-			new(TizenViewMappers.ViewCommandMapper);
+		public static readonly CommandMapper<ITimePicker, ITimePickerHandler> CommandMapper =
+			new CommandMapper<ITimePicker, ITimePickerHandler>(TizenHandlerMappers.ChainCommands(TimePickerHandler.CommandMapper));
 
 		public TizenTimePickerHandler()
 			: base(Mapper, CommandMapper)
@@ -49,6 +49,33 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
 		{
 		}
+
+		ITimePicker ITimePickerHandler.VirtualView => VirtualView;
+
+		/// <remarks>
+		/// <see cref="ITimePickerHandler"/> types this as <see cref="object"/>. MAUI ships no Tizen asset,
+		/// so this backend resolves the neutral <c>net11.0</c> assembly on every target framework
+		/// and the interface is implementable without the per-platform alias mismatch that would
+		/// otherwise occur.
+		/// </remarks>
+		object ITimePickerHandler.PlatformView => PlatformView;
+
+		/// <summary>
+		/// The typed platform view for a mapping.
+		/// </summary>
+		/// <remarks>
+		/// <see cref="ITimePickerHandler"/> types <c>PlatformView</c> as <see cref="object"/>, because MAUI's
+		/// neutral assembly has no Tizen alias. Mappings therefore narrow it here rather than at
+		/// every call site.
+		/// </remarks>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The platform view, or <see langword="null"/> if it is not yet created.</returns>
+		static TizenPickerView? Platform(ITimePickerHandler handler) => handler.PlatformView as TizenPickerView;
+
+		/// <summary>The concrete handler, for mappings that need its own state.</summary>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The concrete handler.</returns>
+		static TizenTimePickerHandler AsHandler(ITimePickerHandler handler) => (TizenTimePickerHandler)handler;
 
 		protected override TizenPickerView CreatePlatformView() => new TizenPickerView();
 
@@ -73,38 +100,38 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			base.DisconnectHandler(platformView);
 		}
 
-		public static void MapFormat(TizenTimePickerHandler handler, ITimePicker timePicker)
+		public static void MapFormat(ITimePickerHandler handler, ITimePicker timePicker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateFormat(timePicker);
+			Platform(handler)?.UpdateFormat(timePicker);
 #endif
 		}
 
-		public static void MapTime(TizenTimePickerHandler handler, ITimePicker timePicker)
+		public static void MapTime(ITimePickerHandler handler, ITimePicker timePicker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateTime(timePicker);
+			Platform(handler)?.UpdateTime(timePicker);
 #endif
 		}
 
-		public static void MapFont(TizenTimePickerHandler handler, ITimePicker timePicker)
+		public static void MapFont(ITimePickerHandler handler, ITimePicker timePicker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateTizenFont(timePicker, handler.GetService<IFontManager>());
+			Platform(handler)?.UpdateTizenFont(timePicker, handler.GetService<IFontManager>());
 #endif
 		}
 
-		public static void MapTextColor(TizenTimePickerHandler handler, ITimePicker timePicker)
+		public static void MapTextColor(ITimePickerHandler handler, ITimePicker timePicker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateTextColor(timePicker);
+			Platform(handler)?.UpdateTextColor(timePicker);
 #endif
 		}
 
-		public static void MapCharacterSpacing(TizenTimePickerHandler handler, ITimePicker timePicker)
+		public static void MapCharacterSpacing(ITimePickerHandler handler, ITimePicker timePicker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateCharacterSpacing(timePicker);
+			Platform(handler)?.UpdateCharacterSpacing(timePicker);
 #endif
 		}
 
@@ -113,7 +140,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <c>IsOpen</c> is internal to <c>ITimePicker</c>, so an out-of-tree backend cannot
 		/// read it. Deliberate no-op; the key is present so the mapper stays complete.
 		/// </remarks>
-		public static void MapIsOpen(TizenTimePickerHandler handler, ITimePicker timePicker)
+		public static void MapIsOpen(ITimePickerHandler handler, ITimePicker timePicker)
 		{
 		}
 

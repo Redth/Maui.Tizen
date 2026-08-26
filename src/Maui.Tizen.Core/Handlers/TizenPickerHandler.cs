@@ -19,15 +19,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// Tizen has no drop-down control, so the picker is a read-only entry that opens an action
 	/// sheet listing the items.
 	/// </remarks>
-	public class TizenPickerHandler : TizenViewHandler<IPicker, TizenPickerView>
+	public class TizenPickerHandler : TizenViewHandler<IPicker, TizenPickerView>, IPickerHandler
 	{
 #if TIZEN
 		bool _isOpen;
 #endif
 
 		/// <summary>The complete property mapper for <see cref="IPicker"/>.</summary>
-		public static readonly IPropertyMapper<IPicker, TizenPickerHandler> Mapper =
-			new PropertyMapper<IPicker, TizenPickerHandler>(TizenViewMappers.ViewMapper)
+		public static readonly IPropertyMapper<IPicker, IPickerHandler> Mapper =
+			new PropertyMapper<IPicker, IPickerHandler>(TizenHandlerMappers.Chain(PickerHandler.Mapper))
 			{
 				["Items"] = MapItems,
 				[nameof(IPicker.Title)] = MapTitle,
@@ -42,8 +42,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		/// <summary>The complete command mapper for <see cref="IPicker"/>.</summary>
-		public static readonly CommandMapper<IPicker, TizenPickerHandler> CommandMapper =
-			new(TizenViewMappers.ViewCommandMapper);
+		public static readonly CommandMapper<IPicker, IPickerHandler> CommandMapper =
+			new CommandMapper<IPicker, IPickerHandler>(TizenHandlerMappers.ChainCommands(PickerHandler.CommandMapper));
 
 		public TizenPickerHandler()
 			: base(Mapper, CommandMapper)
@@ -54,6 +54,33 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
 		{
 		}
+
+		IPicker IPickerHandler.VirtualView => VirtualView;
+
+		/// <remarks>
+		/// <see cref="IPickerHandler"/> types this as <see cref="object"/>. MAUI ships no Tizen asset,
+		/// so this backend resolves the neutral <c>net11.0</c> assembly on every target framework
+		/// and the interface is implementable without the per-platform alias mismatch that would
+		/// otherwise occur.
+		/// </remarks>
+		object IPickerHandler.PlatformView => PlatformView;
+
+		/// <summary>
+		/// The typed platform view for a mapping.
+		/// </summary>
+		/// <remarks>
+		/// <see cref="IPickerHandler"/> types <c>PlatformView</c> as <see cref="object"/>, because MAUI's
+		/// neutral assembly has no Tizen alias. Mappings therefore narrow it here rather than at
+		/// every call site.
+		/// </remarks>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The platform view, or <see langword="null"/> if it is not yet created.</returns>
+		static TizenPickerView? Platform(IPickerHandler handler) => handler.PlatformView as TizenPickerView;
+
+		/// <summary>The concrete handler, for mappings that need its own state.</summary>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The concrete handler.</returns>
+		static TizenPickerHandler AsHandler(IPickerHandler handler) => (TizenPickerHandler)handler;
 
 		protected override TizenPickerView CreatePlatformView() => new TizenPickerView();
 
@@ -79,66 +106,66 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		/// <summary>Re-renders the displayed text after the item collection changed.</summary>
-		public static void MapItems(TizenPickerHandler handler, IPicker picker)
+		public static void MapItems(IPickerHandler handler, IPicker picker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdatePicker(picker);
+			Platform(handler)?.UpdatePicker(picker);
 #endif
 		}
 
-		public static void MapTitle(TizenPickerHandler handler, IPicker picker)
+		public static void MapTitle(IPickerHandler handler, IPicker picker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateTitle(picker);
+			Platform(handler)?.UpdateTitle(picker);
 #endif
 		}
 
-		public static void MapTitleColor(TizenPickerHandler handler, IPicker picker)
+		public static void MapTitleColor(IPickerHandler handler, IPicker picker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateTitleColor(picker);
+			Platform(handler)?.UpdateTitleColor(picker);
 #endif
 		}
 
-		public static void MapSelectedIndex(TizenPickerHandler handler, IPicker picker)
+		public static void MapSelectedIndex(IPickerHandler handler, IPicker picker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateSelectedIndex(picker);
+			Platform(handler)?.UpdateSelectedIndex(picker);
 #endif
 		}
 
-		public static void MapTextColor(TizenPickerHandler handler, IPicker picker)
+		public static void MapTextColor(IPickerHandler handler, IPicker picker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateTextColor(picker);
+			Platform(handler)?.UpdateTextColor(picker);
 #endif
 		}
 
-		public static void MapFont(TizenPickerHandler handler, IPicker picker)
+		public static void MapFont(IPickerHandler handler, IPicker picker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateTizenFont(picker, handler.GetService<IFontManager>());
+			Platform(handler)?.UpdateTizenFont(picker, handler.GetService<IFontManager>());
 #endif
 		}
 
-		public static void MapCharacterSpacing(TizenPickerHandler handler, IPicker picker)
+		public static void MapCharacterSpacing(IPickerHandler handler, IPicker picker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateCharacterSpacing(picker);
+			Platform(handler)?.UpdateCharacterSpacing(picker);
 #endif
 		}
 
-		public static void MapHorizontalTextAlignment(TizenPickerHandler handler, IPicker picker)
+		public static void MapHorizontalTextAlignment(IPickerHandler handler, IPicker picker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateHorizontalTextAlignment(picker);
+			Platform(handler)?.UpdateHorizontalTextAlignment(picker);
 #endif
 		}
 
-		public static void MapVerticalTextAlignment(TizenPickerHandler handler, IPicker picker)
+		public static void MapVerticalTextAlignment(IPickerHandler handler, IPicker picker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateVerticalTextAlignment(picker);
+			Platform(handler)?.UpdateVerticalTextAlignment(picker);
 #endif
 		}
 
@@ -150,7 +177,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// has no programmatic dismiss, so even a readable value could only be honoured in one
 		/// direction. Deliberate no-op - see docs/wave-a-handlers.md.
 		/// </remarks>
-		public static void MapIsOpen(TizenPickerHandler handler, IPicker picker)
+		public static void MapIsOpen(IPickerHandler handler, IPicker picker)
 		{
 		}
 

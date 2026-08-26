@@ -41,18 +41,36 @@ builder.ConfigureImageSources(sources => sources.AddTizenImageSources());
 `AddTizenControlHandlers` is separate from the core slice's `AddTizenHandlers` so a host can
 adopt either half independently while the migration is in flight.
 
-## Mapper chaining
+## Handler identity and mapper composition
 
-Every handler chains **`TizenViewMappers.ViewMapper`**, the Tizen-owned base mapper from the core
-slice - never MAUI's neutral `ViewHandler.ViewMapper`.
+Each handler implements **MAUI's real handler interface** - `IButtonHandler`, `IEntryHandler`,
+`ISearchBarHandler` and so on - not a backend-only `ITizen*Handler`. That is what makes the
+backend substitutable for MAUI's own handler: Controls' remapped mappings hard-cast the handler to
+the interface they were declared against, so a backend-only interface would throw
+`InvalidCastException` the moment a chained mapping ran.
 
-This is not a style choice. The neutral mapper is compiled for a non-platform target framework
-where `PlatformView` is aliased to `object` and its bodies are the `Standard` no-ops. Chaining it
-registers every key while applying *nothing*: size, visibility, enabled state, opacity, transforms
-and input transparency would all silently do nothing, and a key-presence test would still pass.
-Wave A shipped that defect initially; it is now pinned from both directions -
-`ControlMapperParityTests.MapperChainsFromTizenViewMapper` asserts the chain's source, and
-`ControlMapperBehaviorTests` asserts that each mapping actually reaches the platform view.
+This is possible because **MAUI ships no Tizen asset**. `Microsoft.Maui.Core` publishes
+`net11.0`, `-android`, `-ios`, `-maccatalyst` and `-windows`; a `net11.0-tizen11.0` project
+therefore resolves the neutral `net11.0` assembly, where every handler interface types
+`PlatformView` as `object`. The per-TFM alias mismatch that would otherwise cause CS9333 simply
+does not arise, so the interfaces can be implemented explicitly. `ImageSourcePartLoader` also
+became public in MAUI 11, which is what unblocked `IButtonHandler` specifically.
+
+Each mapper is then composed in three layers, lowest precedence first:
+
+1. **MAUI's static `XHandler.Mapper`**, chained. This is what carries Controls' `RemapForControls`
+   additions - `FormattedText`, `TextType`, `LineBreakMode`, `MaxLines`, `TextTransform`,
+   `CheckBox.Color` and the accessibility keys. Chaining is *live* rather than a snapshot, so a
+   mapper built before the remap still picks it up.
+2. **The Tizen view mappings**, re-applied over the top. Chaining MAUI's mapper also inherits its
+   *bodies*, which in the neutral assembly are the `Standard` no-ops. Without this layer every
+   common view property would resolve and do nothing.
+3. **The handler's own keys**, which must win - `Entry.Background` re-evaluates the container
+   before painting, so its override has to sit above the generic implementation.
+
+`TizenHandlerMappers.Chain` builds layers 1-2; the handler's initializer supplies layer 3.
+`TizenHandlerMapperTests` pins all of it, including that every chained mapping dispatches without
+a cast failure.
 
 ## Mapper completeness
 
@@ -169,9 +187,23 @@ Two gaps in MAUI's public surface shaped this wave. Both are additions to the li
    itself.
 
 2. **`ImageSourcePaint` is `internal`.** MAUI models an image background with an internal paint
-   type, so a backend cannot detect one. `IView.Background` carrying an image therefore renders
-   nothing rather than the image. `TizenPlatformExtensions.UpdateBackgroundImageSourceAsync`
-   exists and works; it simply cannot be reached from the `Background` mapping.
+   type, so a backend cannot detect one. `IView.Background` carrying an image therefore flattens
+   through `Paint.ToColor()` and the image never renders. The code to apply one exists and works;
+   it simply cannot be reached from the `Background` mapping.
+
+   The gap is worked around by degrading honestly - falling through to the colour path - and
+   deliberately **not** by reflecting over the internal type, which would bind this backend to
+   MAUI implementation detail and break silently on any servicing update.
+
+   Tracked upstream by [dotnet/maui#37864](https://github.com/dotnet/maui/pull/37864), which adds
+   a public read-only `IImageSourcePaint`. Once a package contains it the adoption is an
+   image-first pattern match on `IImageSourcePaint.ImageSource`, matched *before* the solid/
+   `ToColor` fallback, with no reflection and no internal types.
+   `UpstreamGapExpiryTests.ImageSourcePaintIsStillInternal` asserts the gap still exists and
+   **fails when the contract ships**, so the workaround cannot outlive its justification.
+
+Note that blocker 1 was re-examined against MAUI 26426.4 and still holds, while the old CS9333
+objection to implementing MAUI's handler interfaces does **not** - see "Handler identity" above.
 
 Also worth recording: `IFontManager` and `IImageSourceService` are marker-only in the neutral
 assembly — the members that actually resolve a font or load an image exist solely in each
@@ -188,7 +220,18 @@ workload-free lanes the core slice established:
 | Lane | What it proves | Status |
 |---|---|---|
 | `tests/Maui.Tizen.Core.RefPackCompile` | Every `#if TIZEN` branch type-checks against the real `Samsung.Tizen.Ref.API15` reference assemblies. | passing |
-| `tests/Maui.Tizen.Core.UnitTests` | Mappers, command dispatch, DI registration, the naming/collision rules, and the platform-independent logic extracted from the handlers - stepper bounds, image-load lifecycle, selection normalisation, dispatching - are executed against host stand-ins. | passing |
+| `tests/Maui.Tizen.Core.UnitTests` | Mapper composition and Controls parity, command dispatch, DI registration, the naming/collision rules, and the platform-independent logic extracted from the handlers - stepper bounds, image-load lifecycle, selection normalisation, dispatching - are executed against host stand-ins. | passing |
+
+Parity is measured **against MAUI Controls, not Core alone**. The test project references
+`Microsoft.Maui.Controls.Core` and forces each control's static constructor before reading any
+mapper, because `RemapForControls` mutates MAUI's static mappers in place. Measuring before that
+has happened would report a parity the backend does not actually have.
+
+`docs/mapper-parity-matrix.md` distinguishes three states rather than two: `tizen` (the backend
+supplies an implementation), `inherited` (the key resolves through MAUI's chain but its body is
+the off-platform no-op, so nothing happens on Tizen) and `excluded`. That distinction is the whole
+point of generating it - chaining makes every key *resolve*, so a table reporting mere presence
+would show total parity while most properties did nothing.
 
 Several pieces of logic were deliberately extracted out of the NUI-typed classes
 (`TizenStepperRange`, `TizenImageLoader<T>`, `TizenTextSelection`, `TizenDispatchExtensions`)

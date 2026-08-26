@@ -11,11 +11,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// <summary>
 	/// The Tizen handler for <see cref="IEditor"/>.
 	/// </summary>
-	public class TizenEditorHandler : TizenViewHandler<IEditor, TizenEditorView>
+	public class TizenEditorHandler : TizenViewHandler<IEditor, TizenEditorView>, IEditorHandler
 	{
 		/// <summary>The complete property mapper for <see cref="IEditor"/>.</summary>
-		public static readonly IPropertyMapper<IEditor, TizenEditorHandler> Mapper =
-			new PropertyMapper<IEditor, TizenEditorHandler>(TizenViewMappers.ViewMapper)
+		public static readonly IPropertyMapper<IEditor, IEditorHandler> Mapper =
+			new PropertyMapper<IEditor, IEditorHandler>(TizenHandlerMappers.Chain(EditorHandler.Mapper))
 			{
 				[nameof(IEditor.Background)] = MapBackground,
 				[nameof(IEditor.Text)] = MapText,
@@ -36,8 +36,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		/// <summary>The complete command mapper for <see cref="IEditor"/>.</summary>
-		public static readonly CommandMapper<IEditor, TizenEditorHandler> CommandMapper =
-			new(TizenViewMappers.ViewCommandMapper);
+		public static readonly CommandMapper<IEditor, IEditorHandler> CommandMapper =
+			new CommandMapper<IEditor, IEditorHandler>(TizenHandlerMappers.ChainCommands(EditorHandler.CommandMapper));
 
 		public TizenEditorHandler()
 			: base(Mapper, CommandMapper)
@@ -50,6 +50,33 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		/// <remarks>See <see cref="TizenEntryHandler.CreatePlatformView"/> for <c>FocusableInTouch</c>.</remarks>
+		IEditor IEditorHandler.VirtualView => VirtualView;
+
+		/// <remarks>
+		/// <see cref="IEditorHandler"/> types this as <see cref="object"/>. MAUI ships no Tizen asset,
+		/// so this backend resolves the neutral <c>net11.0</c> assembly on every target framework
+		/// and the interface is implementable without the per-platform alias mismatch that would
+		/// otherwise occur.
+		/// </remarks>
+		object IEditorHandler.PlatformView => PlatformView;
+
+		/// <summary>
+		/// The typed platform view for a mapping.
+		/// </summary>
+		/// <remarks>
+		/// <see cref="IEditorHandler"/> types <c>PlatformView</c> as <see cref="object"/>, because MAUI's
+		/// neutral assembly has no Tizen alias. Mappings therefore narrow it here rather than at
+		/// every call site.
+		/// </remarks>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The platform view, or <see langword="null"/> if it is not yet created.</returns>
+		static TizenEditorView? Platform(IEditorHandler handler) => handler.PlatformView as TizenEditorView;
+
+		/// <summary>The concrete handler, for mappings that need its own state.</summary>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The concrete handler.</returns>
+		static TizenEditorHandler AsHandler(IEditorHandler handler) => (TizenEditorHandler)handler;
+
 		protected override TizenEditorView CreatePlatformView()
 		{
 #if TIZEN
@@ -86,117 +113,117 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			base.DisconnectHandler(platformView);
 		}
 
-#if TIZEN
 		/// <remarks>See <see cref="TizenEntryHandler.MapBackground"/>.</remarks>
-		public static void MapBackground(TizenEditorHandler handler, IEditor editor)
+		public static void MapBackground(IEditorHandler handler, IEditor editor)
 		{
+#if TIZEN
 			handler.UpdateValue(nameof(IViewHandler.ContainerView));
-			handler.PlatformView?.UpdateBackground(editor.Background);
-		}
-#endif
-
-		public static void MapText(TizenEditorHandler handler, IEditor editor)
-		{
-#if TIZEN
-			handler.PlatformView?.UpdateText(editor);
+			Platform(handler)?.UpdateBackground(editor.Background);
 #endif
 		}
 
-		public static void MapTextColor(TizenEditorHandler handler, IEditor editor)
+		public static void MapText(IEditorHandler handler, IEditor editor)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateTextColor(editor);
+			Platform(handler)?.UpdateText(editor);
 #endif
 		}
 
-		public static void MapPlaceholder(TizenEditorHandler handler, IEditor editor)
+		public static void MapTextColor(IEditorHandler handler, IEditor editor)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdatePlaceholder(editor);
+			Platform(handler)?.UpdateTextColor(editor);
 #endif
 		}
 
-		public static void MapPlaceholderColor(TizenEditorHandler handler, IEditor editor)
+		public static void MapPlaceholder(IEditorHandler handler, IEditor editor)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdatePlaceholderColor(editor);
+			Platform(handler)?.UpdatePlaceholder(editor);
 #endif
 		}
 
-		public static void MapCharacterSpacing(TizenEditorHandler handler, IEditor editor)
+		public static void MapPlaceholderColor(IEditorHandler handler, IEditor editor)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateCharacterSpacing(editor);
+			Platform(handler)?.UpdatePlaceholderColor(editor);
 #endif
 		}
 
-		public static void MapMaxLength(TizenEditorHandler handler, IEditor editor)
+		public static void MapCharacterSpacing(IEditorHandler handler, IEditor editor)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateMaxLength(editor);
+			Platform(handler)?.UpdateCharacterSpacing(editor);
 #endif
 		}
 
-		public static void MapIsReadOnly(TizenEditorHandler handler, IEditor editor)
+		public static void MapMaxLength(IEditorHandler handler, IEditor editor)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateIsReadOnly(editor);
+			Platform(handler)?.UpdateMaxLength(editor);
 #endif
 		}
 
-		public static void MapIsTextPredictionEnabled(TizenEditorHandler handler, IEditor editor)
+		public static void MapIsReadOnly(IEditorHandler handler, IEditor editor)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateIsTextPredictionEnabled(editor);
+			Platform(handler)?.UpdateIsReadOnly(editor);
 #endif
 		}
 
-		public static void MapIsSpellCheckEnabled(TizenEditorHandler handler, IEditor editor)
+		public static void MapIsTextPredictionEnabled(IEditorHandler handler, IEditor editor)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateIsSpellCheckEnabled(editor);
+			Platform(handler)?.UpdateIsTextPredictionEnabled(editor);
 #endif
 		}
 
-		public static void MapFont(TizenEditorHandler handler, IEditor editor)
+		public static void MapIsSpellCheckEnabled(IEditorHandler handler, IEditor editor)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateTizenFont(editor, handler.GetService<IFontManager>());
+			Platform(handler)?.UpdateIsSpellCheckEnabled(editor);
 #endif
 		}
 
-		public static void MapHorizontalTextAlignment(TizenEditorHandler handler, IEditor editor)
+		public static void MapFont(IEditorHandler handler, IEditor editor)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateHorizontalTextAlignment(editor);
+			Platform(handler)?.UpdateTizenFont(editor, handler.GetService<IFontManager>());
 #endif
 		}
 
-		public static void MapVerticalTextAlignment(TizenEditorHandler handler, IEditor editor)
+		public static void MapHorizontalTextAlignment(IEditorHandler handler, IEditor editor)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateVerticalTextAlignment(editor);
+			Platform(handler)?.UpdateHorizontalTextAlignment(editor);
 #endif
 		}
 
-		public static void MapKeyboard(TizenEditorHandler handler, IEditor editor)
+		public static void MapVerticalTextAlignment(IEditorHandler handler, IEditor editor)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateKeyboard(editor);
+			Platform(handler)?.UpdateVerticalTextAlignment(editor);
 #endif
 		}
 
-		public static void MapCursorPosition(TizenEditorHandler handler, IEditor editor)
+		public static void MapKeyboard(IEditorHandler handler, IEditor editor)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateCursorPosition(editor);
+			Platform(handler)?.UpdateKeyboard(editor);
 #endif
 		}
 
-		public static void MapSelectionLength(TizenEditorHandler handler, IEditor editor)
+		public static void MapCursorPosition(IEditorHandler handler, IEditor editor)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateSelectionLength(editor);
+			Platform(handler)?.UpdateCursorPosition(editor);
+#endif
+		}
+
+		public static void MapSelectionLength(IEditorHandler handler, IEditor editor)
+		{
+#if TIZEN
+			Platform(handler)?.UpdateSelectionLength(editor);
 #endif
 		}
 

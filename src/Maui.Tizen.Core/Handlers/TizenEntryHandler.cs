@@ -11,11 +11,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// <summary>
 	/// The Tizen handler for <see cref="IEntry"/>.
 	/// </summary>
-	public class TizenEntryHandler : TizenViewHandler<IEntry, TizenEntryView>
+	public class TizenEntryHandler : TizenViewHandler<IEntry, TizenEntryView>, IEntryHandler
 	{
 		/// <summary>The complete property mapper for <see cref="IEntry"/>.</summary>
-		public static readonly IPropertyMapper<IEntry, TizenEntryHandler> Mapper =
-			new PropertyMapper<IEntry, TizenEntryHandler>(TizenViewMappers.ViewMapper)
+		public static readonly IPropertyMapper<IEntry, IEntryHandler> Mapper =
+			new PropertyMapper<IEntry, IEntryHandler>(TizenHandlerMappers.Chain(EntryHandler.Mapper))
 			{
 				[nameof(IEntry.Background)] = MapBackground,
 				[nameof(IEntry.Text)] = MapText,
@@ -39,8 +39,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		/// <summary>The complete command mapper for <see cref="IEntry"/>.</summary>
-		public static readonly CommandMapper<IEntry, TizenEntryHandler> CommandMapper =
-			new(TizenViewMappers.ViewCommandMapper);
+		public static readonly CommandMapper<IEntry, IEntryHandler> CommandMapper =
+			new CommandMapper<IEntry, IEntryHandler>(TizenHandlerMappers.ChainCommands(EntryHandler.CommandMapper));
 
 		public TizenEntryHandler()
 			: base(Mapper, CommandMapper)
@@ -57,6 +57,33 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// entry takes focus from the remote/keyboard but not from a tap, so tapping the field
 		/// on a touch device would not raise the IME.
 		/// </remarks>
+		IEntry IEntryHandler.VirtualView => VirtualView;
+
+		/// <remarks>
+		/// <see cref="IEntryHandler"/> types this as <see cref="object"/>. MAUI ships no Tizen asset,
+		/// so this backend resolves the neutral <c>net11.0</c> assembly on every target framework
+		/// and the interface is implementable without the per-platform alias mismatch that would
+		/// otherwise occur.
+		/// </remarks>
+		object IEntryHandler.PlatformView => PlatformView;
+
+		/// <summary>
+		/// The typed platform view for a mapping.
+		/// </summary>
+		/// <remarks>
+		/// <see cref="IEntryHandler"/> types <c>PlatformView</c> as <see cref="object"/>, because MAUI's
+		/// neutral assembly has no Tizen alias. Mappings therefore narrow it here rather than at
+		/// every call site.
+		/// </remarks>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The platform view, or <see langword="null"/> if it is not yet created.</returns>
+		static TizenEntryView? Platform(IEntryHandler handler) => handler.PlatformView as TizenEntryView;
+
+		/// <summary>The concrete handler, for mappings that need its own state.</summary>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The concrete handler.</returns>
+		static TizenEntryHandler AsHandler(IEntryHandler handler) => (TizenEntryHandler)handler;
+
 		protected override TizenEntryView CreatePlatformView()
 		{
 #if TIZEN
@@ -93,142 +120,142 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			base.DisconnectHandler(platformView);
 		}
 
-#if TIZEN
 		/// <remarks>
 		/// An entry paints its own background, so the container has to be re-evaluated before
 		/// the paint is applied or a gradient would be written to a wrapper that does not exist
 		/// yet.
 		/// </remarks>
-		public static void MapBackground(TizenEntryHandler handler, IEntry entry)
+		public static void MapBackground(IEntryHandler handler, IEntry entry)
 		{
+#if TIZEN
 			handler.UpdateValue(nameof(IViewHandler.ContainerView));
-			handler.PlatformView?.UpdateBackground(entry.Background);
-		}
-#endif
-
-		public static void MapText(TizenEntryHandler handler, IEntry entry)
-		{
-#if TIZEN
-			handler.PlatformView?.UpdateText(entry);
+			Platform(handler)?.UpdateBackground(entry.Background);
 #endif
 		}
 
-		public static void MapTextColor(TizenEntryHandler handler, IEntry entry)
+		public static void MapText(IEntryHandler handler, IEntry entry)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateTextColor(entry);
+			Platform(handler)?.UpdateText(entry);
 #endif
 		}
 
-		public static void MapIsPassword(TizenEntryHandler handler, IEntry entry)
+		public static void MapTextColor(IEntryHandler handler, IEntry entry)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateIsPassword(entry);
+			Platform(handler)?.UpdateTextColor(entry);
 #endif
 		}
 
-		public static void MapHorizontalTextAlignment(TizenEntryHandler handler, IEntry entry)
+		public static void MapIsPassword(IEntryHandler handler, IEntry entry)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateHorizontalTextAlignment(entry);
+			Platform(handler)?.UpdateIsPassword(entry);
 #endif
 		}
 
-		public static void MapVerticalTextAlignment(TizenEntryHandler handler, IEntry entry)
+		public static void MapHorizontalTextAlignment(IEntryHandler handler, IEntry entry)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateVerticalTextAlignment(entry);
+			Platform(handler)?.UpdateHorizontalTextAlignment(entry);
 #endif
 		}
 
-		public static void MapIsTextPredictionEnabled(TizenEntryHandler handler, IEntry entry)
+		public static void MapVerticalTextAlignment(IEntryHandler handler, IEntry entry)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateIsTextPredictionEnabled(entry);
+			Platform(handler)?.UpdateVerticalTextAlignment(entry);
 #endif
 		}
 
-		public static void MapIsSpellCheckEnabled(TizenEntryHandler handler, IEntry entry)
+		public static void MapIsTextPredictionEnabled(IEntryHandler handler, IEntry entry)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateIsSpellCheckEnabled(entry);
+			Platform(handler)?.UpdateIsTextPredictionEnabled(entry);
 #endif
 		}
 
-		public static void MapMaxLength(TizenEntryHandler handler, IEntry entry)
+		public static void MapIsSpellCheckEnabled(IEntryHandler handler, IEntry entry)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateMaxLength(entry);
+			Platform(handler)?.UpdateIsSpellCheckEnabled(entry);
 #endif
 		}
 
-		public static void MapPlaceholder(TizenEntryHandler handler, IEntry entry)
+		public static void MapMaxLength(IEntryHandler handler, IEntry entry)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdatePlaceholder(entry);
+			Platform(handler)?.UpdateMaxLength(entry);
 #endif
 		}
 
-		public static void MapPlaceholderColor(TizenEntryHandler handler, IEntry entry)
+		public static void MapPlaceholder(IEntryHandler handler, IEntry entry)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdatePlaceholderColor(entry);
+			Platform(handler)?.UpdatePlaceholder(entry);
 #endif
 		}
 
-		public static void MapFont(TizenEntryHandler handler, IEntry entry)
+		public static void MapPlaceholderColor(IEntryHandler handler, IEntry entry)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateTizenFont(entry, handler.GetService<IFontManager>());
+			Platform(handler)?.UpdatePlaceholderColor(entry);
 #endif
 		}
 
-		public static void MapIsReadOnly(TizenEntryHandler handler, IEntry entry)
+		public static void MapFont(IEntryHandler handler, IEntry entry)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateIsReadOnly(entry);
+			Platform(handler)?.UpdateTizenFont(entry, handler.GetService<IFontManager>());
 #endif
 		}
 
-		public static void MapKeyboard(TizenEntryHandler handler, IEntry entry)
+		public static void MapIsReadOnly(IEntryHandler handler, IEntry entry)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateKeyboard(entry);
+			Platform(handler)?.UpdateIsReadOnly(entry);
 #endif
 		}
 
-		public static void MapReturnType(TizenEntryHandler handler, IEntry entry)
+		public static void MapKeyboard(IEntryHandler handler, IEntry entry)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateReturnType(entry);
+			Platform(handler)?.UpdateKeyboard(entry);
 #endif
 		}
 
-		public static void MapCharacterSpacing(TizenEntryHandler handler, IEntry entry)
+		public static void MapReturnType(IEntryHandler handler, IEntry entry)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateCharacterSpacing(entry);
+			Platform(handler)?.UpdateReturnType(entry);
 #endif
 		}
 
-		public static void MapCursorPosition(TizenEntryHandler handler, IEntry entry)
+		public static void MapCharacterSpacing(IEntryHandler handler, IEntry entry)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateCursorPosition(entry);
+			Platform(handler)?.UpdateCharacterSpacing(entry);
 #endif
 		}
 
-		public static void MapSelectionLength(TizenEntryHandler handler, IEntry entry)
+		public static void MapCursorPosition(IEntryHandler handler, IEntry entry)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateSelectionLength(entry);
+			Platform(handler)?.UpdateCursorPosition(entry);
 #endif
 		}
 
-		public static void MapClearButtonVisibility(TizenEntryHandler handler, IEntry entry)
+		public static void MapSelectionLength(IEntryHandler handler, IEntry entry)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateClearButtonVisibility(entry);
+			Platform(handler)?.UpdateSelectionLength(entry);
+#endif
+		}
+
+		public static void MapClearButtonVisibility(IEntryHandler handler, IEntry entry)
+		{
+#if TIZEN
+			Platform(handler)?.UpdateClearButtonVisibility(entry);
 #endif
 		}
 

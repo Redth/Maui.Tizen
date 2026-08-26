@@ -47,8 +47,14 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		public static IEnumerable<object[]> TestData() => All.Select(h => new object[] { h });
 
 		/// <summary>Reads the keys of a public static property mapper field.</summary>
+		/// <remarks>
+		/// Controls' static remaps are forced first, so every read reflects the mapper an
+		/// application actually gets rather than the pre-remap Core-only one.
+		/// </remarks>
 		public static IReadOnlySet<string> GetMapperKeys(Type handlerType, string fieldName = "Mapper")
 		{
+			ControlsRemap.Force();
+
 			var field = handlerType.GetField(fieldName, BindingFlags.Public | BindingFlags.Static)
 				?? throw new InvalidOperationException($"{handlerType.Name} has no public static '{fieldName}' field.");
 
@@ -68,6 +74,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		/// </remarks>
 		public static IReadOnlySet<string> GetNeutralMapperKeys(string neutralHandlerName)
 		{
+			ControlsRemap.Force();
+
 			var handlerType = typeof(IView).Assembly.GetType($"Microsoft.Maui.Handlers.{neutralHandlerName}")
 				?? throw new InvalidOperationException($"Microsoft.Maui.Handlers.{neutralHandlerName} was not found.");
 

@@ -12,11 +12,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// <summary>
 	/// The Tizen handler for <see cref="ISlider"/>.
 	/// </summary>
-	public class TizenSliderHandler : TizenViewHandler<ISlider, TizenSliderView>
+	public class TizenSliderHandler : TizenViewHandler<ISlider, TizenSliderView>, ISliderHandler
 	{
 		/// <summary>The complete property mapper for <see cref="ISlider"/>.</summary>
-		public static readonly IPropertyMapper<ISlider, TizenSliderHandler> Mapper =
-			new PropertyMapper<ISlider, TizenSliderHandler>(TizenViewMappers.ViewMapper)
+		public static readonly IPropertyMapper<ISlider, ISliderHandler> Mapper =
+			new PropertyMapper<ISlider, ISliderHandler>(TizenHandlerMappers.Chain(SliderHandler.Mapper))
 			{
 				[nameof(ISlider.Minimum)] = MapMinimum,
 				[nameof(ISlider.Maximum)] = MapMaximum,
@@ -28,8 +28,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		/// <summary>The complete command mapper for <see cref="ISlider"/>.</summary>
-		public static readonly CommandMapper<ISlider, TizenSliderHandler> CommandMapper =
-			new(TizenViewMappers.ViewCommandMapper);
+		public static readonly CommandMapper<ISlider, ISliderHandler> CommandMapper =
+			new CommandMapper<ISlider, ISliderHandler>(TizenHandlerMappers.ChainCommands(SliderHandler.CommandMapper));
 
 #if TIZEN
 		readonly TizenImageLoader<TizenImageSource> _thumbLoader = new();
@@ -45,6 +45,33 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
 		{
 		}
+
+		ISlider ISliderHandler.VirtualView => VirtualView;
+
+		/// <remarks>
+		/// <see cref="ISliderHandler"/> types this as <see cref="object"/>. MAUI ships no Tizen asset,
+		/// so this backend resolves the neutral <c>net11.0</c> assembly on every target framework
+		/// and the interface is implementable without the per-platform alias mismatch that would
+		/// otherwise occur.
+		/// </remarks>
+		object ISliderHandler.PlatformView => PlatformView;
+
+		/// <summary>
+		/// The typed platform view for a mapping.
+		/// </summary>
+		/// <remarks>
+		/// <see cref="ISliderHandler"/> types <c>PlatformView</c> as <see cref="object"/>, because MAUI's
+		/// neutral assembly has no Tizen alias. Mappings therefore narrow it here rather than at
+		/// every call site.
+		/// </remarks>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The platform view, or <see langword="null"/> if it is not yet created.</returns>
+		static TizenSliderView? Platform(ISliderHandler handler) => handler.PlatformView as TizenSliderView;
+
+		/// <summary>The concrete handler, for mappings that need its own state.</summary>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The concrete handler.</returns>
+		static TizenSliderHandler AsHandler(ISliderHandler handler) => (TizenSliderHandler)handler;
 
 		protected override TizenSliderView CreatePlatformView()
 		{
@@ -80,45 +107,45 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			base.DisconnectHandler(platformView);
 		}
 
-		public static void MapMinimum(TizenSliderHandler handler, ISlider slider)
+		public static void MapMinimum(ISliderHandler handler, ISlider slider)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateMinimum(slider);
+			Platform(handler)?.UpdateMinimum(slider);
 #endif
 		}
 
-		public static void MapMaximum(TizenSliderHandler handler, ISlider slider)
+		public static void MapMaximum(ISliderHandler handler, ISlider slider)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateMaximum(slider);
+			Platform(handler)?.UpdateMaximum(slider);
 #endif
 		}
 
-		public static void MapValue(TizenSliderHandler handler, ISlider slider)
+		public static void MapValue(ISliderHandler handler, ISlider slider)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateValue(slider);
+			Platform(handler)?.UpdateValue(slider);
 #endif
 		}
 
-		public static void MapMinimumTrackColor(TizenSliderHandler handler, ISlider slider)
+		public static void MapMinimumTrackColor(ISliderHandler handler, ISlider slider)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateMinimumTrackColor(slider);
+			Platform(handler)?.UpdateMinimumTrackColor(slider);
 #endif
 		}
 
-		public static void MapMaximumTrackColor(TizenSliderHandler handler, ISlider slider)
+		public static void MapMaximumTrackColor(ISliderHandler handler, ISlider slider)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateMaximumTrackColor(slider);
+			Platform(handler)?.UpdateMaximumTrackColor(slider);
 #endif
 		}
 
-		public static void MapThumbColor(TizenSliderHandler handler, ISlider slider)
+		public static void MapThumbColor(ISliderHandler handler, ISlider slider)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateThumbColor(slider);
+			Platform(handler)?.UpdateThumbColor(slider);
 #endif
 		}
 
@@ -129,7 +156,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// marshalled back to the main loop, because the load completes on a thread-pool thread
 		/// and NUI is not thread-safe.
 		/// </remarks>
-		public static void MapThumbImageSource(TizenSliderHandler handler, ISlider slider)
+		public static void MapThumbImageSource(ISliderHandler handler, ISlider slider)
 		{
 #if TIZEN
 			MapThumbImageSourceAsync(handler, slider).FireAndForget(handler);
@@ -149,20 +176,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <param name="handler">The handler.</param>
 		/// <param name="slider">The slider.</param>
 		/// <returns>A task that completes when the image has been applied or cleared.</returns>
-		public static Task MapThumbImageSourceAsync(TizenSliderHandler handler, ISlider slider)
+		public static Task MapThumbImageSourceAsync(ISliderHandler handler, ISlider slider)
 		{
 			ArgumentNullException.ThrowIfNull(handler);
 
 			var provider = handler.GetService<IImageSourceServiceProvider>();
-			var target = handler.PlatformView;
+			var target = Platform(handler);
 
-			return handler._thumbLoader.LoadAsync(
+			return AsHandler(handler)._thumbLoader.LoadAsync(
 				slider.ThumbImageSource,
 				(imageSource, token) => provider is null
 					? Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(null)
 					: provider.GetTizenImageAsync(imageSource, token),
-				image => handler.DispatchIfRequired(() => handler.PlatformView?.UpdateThumbImageSource(image)),
-				() => target is not null && ReferenceEquals(handler.PlatformView, target));
+				image => handler.DispatchIfRequired(() => Platform(handler)?.UpdateThumbImageSource(image)),
+				() => target is not null && ReferenceEquals(Platform(handler), target));
 		}
 #endif
 

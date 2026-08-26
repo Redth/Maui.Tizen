@@ -11,11 +11,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// <summary>
 	/// The Tizen handler for <see cref="ISwitch"/>.
 	/// </summary>
-	public class TizenSwitchHandler : TizenViewHandler<ISwitch, TizenSwitchView>
+	public class TizenSwitchHandler : TizenViewHandler<ISwitch, TizenSwitchView>, ISwitchHandler
 	{
 		/// <summary>The complete property mapper for <see cref="ISwitch"/>.</summary>
-		public static readonly IPropertyMapper<ISwitch, TizenSwitchHandler> Mapper =
-			new PropertyMapper<ISwitch, TizenSwitchHandler>(TizenViewMappers.ViewMapper)
+		public static readonly IPropertyMapper<ISwitch, ISwitchHandler> Mapper =
+			new PropertyMapper<ISwitch, ISwitchHandler>(TizenHandlerMappers.Chain(SwitchHandler.Mapper))
 			{
 				[nameof(ISwitch.IsOn)] = MapIsOn,
 				[nameof(ISwitch.TrackColor)] = MapTrackColor,
@@ -23,8 +23,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		/// <summary>The complete command mapper for <see cref="ISwitch"/>.</summary>
-		public static readonly CommandMapper<ISwitch, TizenSwitchHandler> CommandMapper =
-			new(TizenViewMappers.ViewCommandMapper);
+		public static readonly CommandMapper<ISwitch, ISwitchHandler> CommandMapper =
+			new CommandMapper<ISwitch, ISwitchHandler>(TizenHandlerMappers.ChainCommands(SwitchHandler.CommandMapper));
 
 		public TizenSwitchHandler()
 			: base(Mapper, CommandMapper)
@@ -35,6 +35,33 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
 		{
 		}
+
+		ISwitch ISwitchHandler.VirtualView => VirtualView;
+
+		/// <remarks>
+		/// <see cref="ISwitchHandler"/> types this as <see cref="object"/>. MAUI ships no Tizen asset,
+		/// so this backend resolves the neutral <c>net11.0</c> assembly on every target framework
+		/// and the interface is implementable without the per-platform alias mismatch that would
+		/// otherwise occur.
+		/// </remarks>
+		object ISwitchHandler.PlatformView => PlatformView;
+
+		/// <summary>
+		/// The typed platform view for a mapping.
+		/// </summary>
+		/// <remarks>
+		/// <see cref="ISwitchHandler"/> types <c>PlatformView</c> as <see cref="object"/>, because MAUI's
+		/// neutral assembly has no Tizen alias. Mappings therefore narrow it here rather than at
+		/// every call site.
+		/// </remarks>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The platform view, or <see langword="null"/> if it is not yet created.</returns>
+		static TizenSwitchView? Platform(ISwitchHandler handler) => handler.PlatformView as TizenSwitchView;
+
+		/// <summary>The concrete handler, for mappings that need its own state.</summary>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The concrete handler.</returns>
+		static TizenSwitchHandler AsHandler(ISwitchHandler handler) => (TizenSwitchHandler)handler;
 
 		protected override TizenSwitchView CreatePlatformView()
 		{
@@ -62,24 +89,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			base.DisconnectHandler(platformView);
 		}
 
-		public static void MapIsOn(TizenSwitchHandler handler, ISwitch view)
+		public static void MapIsOn(ISwitchHandler handler, ISwitch view)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateIsOn(view);
+			Platform(handler)?.UpdateIsOn(view);
 #endif
 		}
 
-		public static void MapTrackColor(TizenSwitchHandler handler, ISwitch view)
+		public static void MapTrackColor(ISwitchHandler handler, ISwitch view)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateTrackColor(view);
+			Platform(handler)?.UpdateTrackColor(view);
 #endif
 		}
 
-		public static void MapThumbColor(TizenSwitchHandler handler, ISwitch view)
+		public static void MapThumbColor(ISwitchHandler handler, ISwitch view)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateThumbColor(view);
+			Platform(handler)?.UpdateThumbColor(view);
 #endif
 		}
 

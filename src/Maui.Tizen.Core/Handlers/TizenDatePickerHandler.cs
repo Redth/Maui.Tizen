@@ -18,15 +18,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// <remarks>
 	/// Presented as a read-only entry that opens <see cref="TizenDateTimePicker"/>.
 	/// </remarks>
-	public class TizenDatePickerHandler : TizenViewHandler<IDatePicker, TizenPickerView>
+	public class TizenDatePickerHandler : TizenViewHandler<IDatePicker, TizenPickerView>, IDatePickerHandler
 	{
 #if TIZEN
 		bool _isOpen;
 #endif
 
 		/// <summary>The complete property mapper for <see cref="IDatePicker"/>.</summary>
-		public static readonly IPropertyMapper<IDatePicker, TizenDatePickerHandler> Mapper =
-			new PropertyMapper<IDatePicker, TizenDatePickerHandler>(TizenViewMappers.ViewMapper)
+		public static readonly IPropertyMapper<IDatePicker, IDatePickerHandler> Mapper =
+			new PropertyMapper<IDatePicker, IDatePickerHandler>(TizenHandlerMappers.Chain(DatePickerHandler.Mapper))
 			{
 				[nameof(IDatePicker.Format)] = MapFormat,
 				[nameof(IDatePicker.Date)] = MapDate,
@@ -39,8 +39,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		/// <summary>The complete command mapper for <see cref="IDatePicker"/>.</summary>
-		public static readonly CommandMapper<IDatePicker, TizenDatePickerHandler> CommandMapper =
-			new(TizenViewMappers.ViewCommandMapper);
+		public static readonly CommandMapper<IDatePicker, IDatePickerHandler> CommandMapper =
+			new CommandMapper<IDatePicker, IDatePickerHandler>(TizenHandlerMappers.ChainCommands(DatePickerHandler.CommandMapper));
 
 		public TizenDatePickerHandler()
 			: base(Mapper, CommandMapper)
@@ -51,6 +51,33 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
 		{
 		}
+
+		IDatePicker IDatePickerHandler.VirtualView => VirtualView;
+
+		/// <remarks>
+		/// <see cref="IDatePickerHandler"/> types this as <see cref="object"/>. MAUI ships no Tizen asset,
+		/// so this backend resolves the neutral <c>net11.0</c> assembly on every target framework
+		/// and the interface is implementable without the per-platform alias mismatch that would
+		/// otherwise occur.
+		/// </remarks>
+		object IDatePickerHandler.PlatformView => PlatformView;
+
+		/// <summary>
+		/// The typed platform view for a mapping.
+		/// </summary>
+		/// <remarks>
+		/// <see cref="IDatePickerHandler"/> types <c>PlatformView</c> as <see cref="object"/>, because MAUI's
+		/// neutral assembly has no Tizen alias. Mappings therefore narrow it here rather than at
+		/// every call site.
+		/// </remarks>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The platform view, or <see langword="null"/> if it is not yet created.</returns>
+		static TizenPickerView? Platform(IDatePickerHandler handler) => handler.PlatformView as TizenPickerView;
+
+		/// <summary>The concrete handler, for mappings that need its own state.</summary>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The concrete handler.</returns>
+		static TizenDatePickerHandler AsHandler(IDatePickerHandler handler) => (TizenDatePickerHandler)handler;
 
 		protected override TizenPickerView CreatePlatformView() => new TizenPickerView();
 
@@ -75,17 +102,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			base.DisconnectHandler(platformView);
 		}
 
-		public static void MapFormat(TizenDatePickerHandler handler, IDatePicker datePicker)
+		public static void MapFormat(IDatePickerHandler handler, IDatePicker datePicker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateFormat(datePicker);
+			Platform(handler)?.UpdateFormat(datePicker);
 #endif
 		}
 
-		public static void MapDate(TizenDatePickerHandler handler, IDatePicker datePicker)
+		public static void MapDate(IDatePickerHandler handler, IDatePicker datePicker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateDate(datePicker);
+			Platform(handler)?.UpdateDate(datePicker);
 #endif
 		}
 
@@ -97,40 +124,40 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// range, so the bound is enforced by clamping instead: on display here, and again when
 		/// the dialog's result is accepted. That makes the limit real rather than advisory.
 		/// </remarks>
-		public static void MapMinimumDate(TizenDatePickerHandler handler, IDatePicker datePicker)
+		public static void MapMinimumDate(IDatePickerHandler handler, IDatePicker datePicker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateDate(datePicker);
+			Platform(handler)?.UpdateDate(datePicker);
 #endif
 		}
 
 		/// <summary>Re-renders the date so it reflects a changed upper bound.</summary>
 		/// <remarks>See <see cref="MapMinimumDate"/>.</remarks>
-		public static void MapMaximumDate(TizenDatePickerHandler handler, IDatePicker datePicker)
+		public static void MapMaximumDate(IDatePickerHandler handler, IDatePicker datePicker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateDate(datePicker);
+			Platform(handler)?.UpdateDate(datePicker);
 #endif
 		}
 
-		public static void MapFont(TizenDatePickerHandler handler, IDatePicker datePicker)
+		public static void MapFont(IDatePickerHandler handler, IDatePicker datePicker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateTizenFont(datePicker, handler.GetService<IFontManager>());
+			Platform(handler)?.UpdateTizenFont(datePicker, handler.GetService<IFontManager>());
 #endif
 		}
 
-		public static void MapTextColor(TizenDatePickerHandler handler, IDatePicker datePicker)
+		public static void MapTextColor(IDatePickerHandler handler, IDatePicker datePicker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateTextColor(datePicker);
+			Platform(handler)?.UpdateTextColor(datePicker);
 #endif
 		}
 
-		public static void MapCharacterSpacing(TizenDatePickerHandler handler, IDatePicker datePicker)
+		public static void MapCharacterSpacing(IDatePickerHandler handler, IDatePicker datePicker)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateCharacterSpacing(datePicker);
+			Platform(handler)?.UpdateCharacterSpacing(datePicker);
 #endif
 		}
 
@@ -139,7 +166,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <c>IsOpen</c> is internal to <c>IDatePicker</c>, so an out-of-tree backend cannot
 		/// read it. Deliberate no-op; the key is present so the mapper stays complete.
 		/// </remarks>
-		public static void MapIsOpen(TizenDatePickerHandler handler, IDatePicker datePicker)
+		public static void MapIsOpen(IDatePickerHandler handler, IDatePicker datePicker)
 		{
 		}
 
