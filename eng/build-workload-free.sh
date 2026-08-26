@@ -38,16 +38,20 @@ info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 note() { printf '\033[1;33m  GATE\033[0m %s\n' "$*"; }
 
 FAILURES=0
+# check <label> <command...> — runs the command, reports, and returns its status so
+# callers can branch (e.g. to skip tests after a failed build).
 check() {
   local label="$1"; shift
   if "$@" >/tmp/mt-check.$$ 2>&1; then
     pass "$label"
-  else
-    fail "$label"
-    sed 's/^/        /' /tmp/mt-check.$$ | tail -30
-    FAILURES=$((FAILURES + 1))
+    rm -f /tmp/mt-check.$$
+    return 0
   fi
+  fail "$label"
+  sed 's/^/        /' /tmp/mt-check.$$ | tail -30
+  FAILURES=$((FAILURES + 1))
   rm -f /tmp/mt-check.$$
+  return 1
 }
 
 info "SDK"
@@ -122,7 +126,7 @@ WORKLOAD_FREE_PROJECTS=(
   "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj"
   "tests/UnitTests/Maui.Tizen.UnitTests.csproj"
 
-  # Verification lanes for the ported backend slice. None is a Tizen artifact:
+  # Verification lanes for the ported backend slice. Neither is a Tizen artifact:
   #
   #   Maui.Tizen.Core.UnitTests   compiles the backend against inert stand-ins for Tizen.NUI
   #                               and EXECUTES tests for the workload-independent behaviour
@@ -135,61 +139,97 @@ WORKLOAD_FREE_PROJECTS=(
   #                               so it cannot become a neutral fallback for the product.
   #
   #   Maui.Tizen.Controls.UnitTests   source-includes the NUI-free half of the Controls
-  #                               platform layer (alerts, modal coordination, gestures) and
-  #                               EXECUTES it. See the project file for why source inclusion
-  #                               rather than a ProjectReference.
+  #                               platform layer (alerts, modal coordination and navigation,
+  #                               gestures) and EXECUTES it. See the project file for why
+  #                               source inclusion rather than a ProjectReference.
   "tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj"
   "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj"
   "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj"
 )
+BUILD_OK=1
 for proj in "${WORKLOAD_FREE_PROJECTS[@]}"; do
   check "restore $(basename "$proj")" "$DOTNET" restore "$proj"
-  check "build   $(basename "$proj")" "$DOTNET" build "$proj" --no-restore -c Release
+  if check "build   $(basename "$proj")" "$DOTNET" build "$proj" --no-restore -c Release; then
+    :
+  else
+    BUILD_OK=0
+  fi
 done
 
 # ---------------------------------------------------------------------------
-# 5. Tests that can run without the workload.
+# 4b. Package graph probe.
 #
-# tests/UnitTests checks that the migration scaffolding is internally consistent.
+# The real consumers of these packages are the net11.0-tizen11.0 projects, and they
+# cannot restore at all - the workload gate fires before Restore. Without this probe a
+# broken version pin stays invisible until the Samsung workload ships.
 #
-# tests/Controls.UnitTests goes further: the Controls platform layer is written so that
-# alert routing, modal coordination and gesture translation sit behind Tizen-owned
-# contracts, with the NUI implementations isolated under Core/Platform/Nui. Those neutral
-# sources are compiled into the test assembly and exercised for real, so the behaviour is
-# not waiting on Samsung either.
+# It already earned its place: Microsoft.AspNetCore.Components.WebView was pinned to
+# MAUI's version stamp, which does not exist for that package.
 # ---------------------------------------------------------------------------
-info "Tests"
-check "repository invariant tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
-check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
-check "controls platform tests" "$DOTNET" test tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj --no-build -c Release
+info "Package graph"
+check "restore package graph probe" "$DOTNET" restore eng/tests/PackageGraphProbe/PackageGraphProbe.csproj
+
+# ---------------------------------------------------------------------------
+# 5. Repository invariant tests.
+#
+# These are the only tests that can meaningfully run before the workload ships: they
+# check that the migration scaffolding is internally consistent rather than testing
+# Tizen behaviour that nobody can execute yet.
+#
+# Skipped when the build failed. `dotnet test --no-build` against missing or stale
+# output produces pages of cascading errors that bury the actual first failure.
+# ---------------------------------------------------------------------------
+info "Repository invariant tests"
+if [[ $BUILD_OK -eq 1 ]]; then
+  check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
+  check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
+  check "controls platform tests" "$DOTNET" test tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj --no-build -c Release
+else
+  fail "unit tests skipped - a preceding build failed (running --no-build now would only add cascading noise)"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# ---------------------------------------------------------------------------
+# 5. Workload detection regressions.
+#
+# Detection decides whether anything in this repository can build, and it has been wrong
+# in both directions during development. These fixtures pin the behaviour.
+# ---------------------------------------------------------------------------
+info "Workload detection regressions"
+if DOTNET="$DOTNET" "$REPO_ROOT/eng/tests/test-workload-detection.sh"; then
+  :
+else
+  fail "workload detection regressions failed"
+  FAILURES=$((FAILURES + 1))
+fi
 
 # ---------------------------------------------------------------------------
 # 6. Report the Tizen gate explicitly.
 #
 # Reported, never silently skipped. If this ever starts saying "available", the Tizen
 # lane should be promoted to required.
+#
+# This asks MSBuild rather than parsing `dotnet workload list`. There is one detection
+# implementation (the _DetectTizenWorkload target) so there is one thing to get right -
+# and the previous shell probe, `dotnet workload list | grep -qi tizen`, matched an
+# unrelated `maui-tizen` workload by substring and would have reported the gate as lifted
+# while Samsung's workload was still absent.
 # ---------------------------------------------------------------------------
 info "Tizen workload gate"
-#
-# Detect the SAMSUNG platform workload, not just any workload whose id contains "tizen".
-#
-# `dotnet workload list | grep -i tizen` also matches MAUI's own `maui-tizen` workload,
-# which is a different thing: it provides the MAUI packs, not the `tizen` target platform
-# identifier. A machine with `maui-tizen` installed but no Samsung SDK still cannot build
-# net11.0-tizen11.0 - it fails with NETSDK1139 ("the target platform identifier tizen was
-# not recognized"). Reporting that machine as ready would promote the Tizen lane to
-# required and break CI.
-#
-# This mirrors the probe in Directory.Build.props, which looks for the manifest directly.
-if "$DOTNET" workload list 2>/dev/null | grep -qE '^\s*samsung\.net\.sdk\.tizen|^\s*tizen\s' ||
-   find "$("$DOTNET" --list-sdks >/dev/null 2>&1 && dirname "$(command -v "$DOTNET")")/sdk-manifests" \
-        -maxdepth 2 -name samsung.net.sdk.tizen -type d 2>/dev/null | grep -q .; then
+WORKLOAD_STATE="$("$DOTNET" msbuild src/Maui.Tizen.Core/Maui.Tizen.Core.csproj \
+  -t:ReportTizenWorkload -nologo -v:m 2>/dev/null \
+  | grep -oE 'TizenWorkloadAvailable=[a-z]+' | head -1 | cut -d= -f2 || true)"
+
+if [[ "$WORKLOAD_STATE" == "true" ]]; then
   pass "Samsung Tizen workload is installed - the Tizen lane can now be made required"
-else
+elif [[ "$WORKLOAD_STATE" == "false" ]]; then
   note "Samsung Tizen workload is NOT installed."
   note "  net11.0-tizen11.0 cannot be restored or built until Samsung publishes"
-  note "  'samsung.net.sdk.tizen.manifest-11.0.100'. This is expected; see docs/migration.md."
-  note "  (MAUI's own 'maui-tizen' workload is not the same thing and is not sufficient.)"
+  note "  an 11.0.100-band 'Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7' manifest."
+  note "  This is expected; see docs/migration.md."
+else
+  fail "could not determine workload state (ReportTizenWorkload returned '${WORKLOAD_STATE:-<empty>}')"
+  FAILURES=$((FAILURES + 1))
 fi
 
 echo

@@ -43,6 +43,26 @@ bands exist, and the newest `Samsung.Tizen.Sdk` is `10.0.128`.
 Consequence: the `net11.0-tizen11.0` target framework cannot be resolved by the SDK at all, so
 neither `Maui.Tizen.Core` nor `Maui.Tizen.Sample` can restore, build, package or deploy.
 
+Measured on SDK `11.0.100-preview.7.26381.103`, with the gate deliberately overridden:
+
+```
+$ dotnet build src/Maui.Tizen.Core -p:TizenWorkloadAvailable=true
+error NETSDK1013: The TargetFramework value 'net11.0-tizen11.0' was not recognized.
+```
+
+Note that MAUI's own `maui-tizen` workload **does** exist in this band and reports as installed:
+
+```
+maui-tizen   11.0.0-preview.7.26406.9/11.0.100-preview.7   SDK 11.0.100-preview.7
+```
+
+but it is an empty shim - its manifest entry is `{"extends": ["maui-blazor"]}` with no packs, and
+it no longer references Samsung's workload at all. Installing it therefore does nothing for this
+repository. `~/.dotnet11/sdk-manifests/11.0.100/` contains no `samsung.*` manifest.
+
+Two things follow: the gate is genuinely external, and `maui-tizen` being present must not be
+mistaken for the Tizen SDK being present - see B3.
+
 Modelled as an explicit gate (`MAUITIZEN0001`) in both projects. Override with
 `-p:TizenWorkloadAvailable=true` once the workload is installed.
 
@@ -74,22 +94,37 @@ dependencies, with no API surface change expected - so bumping the one property 
 
 **Owner: Tizen.UIExtensions maintainers.**
 
-### B3 - No public MAUI package contains the required API floor
+### B3 - `eng/build-workload-free.sh` will mis-report the gate once MAUI's workload is installed
+
+```bash
+if "$DOTNET" workload list 2>/dev/null | grep -qi tizen; then
+  pass "Samsung Tizen workload is installed - the Tizen lane can now be made required"
+```
+
+`grep -qi tizen` also matches MAUI's own **`maui-tizen`** workload id, which - per B1 - exists in
+the 11.0.100 band as an empty shim that provides nothing. On a developer machine with the MAUI
+workload installed the script announces that the Tizen lane can be promoted to required, while
+`dotnet build src/Maui.Tizen.Core` still fails with `MAUITIZEN0001`. Reproduced locally.
+
+CI currently reports correctly only because its agents have no workloads installed at all, so this
+is latent rather than active.
+
+The MSBuild-side detection in `Directory.Build.props` is correct - it probes for the
+`samsung.net.sdk.tizen/WorkloadManifest.json` file - so nothing builds that should not; only the
+script's advisory line is wrong. Suggested fix: match the manifest id rather than a substring, e.g.
+`grep -qE '^\s*samsung\.net\.sdk\.tizen'`, or reuse the same file probe.
+
+Foundation-owned; flagged rather than changed here.
+
+### B4 - No public MAUI package contains the required API floor (resolved via the dev feed)
 
 dotnet/maui#36657 (`0b3bb76d2d`) merged 2026-08-18. The newest .NET 11 MAUI build on nuget.org is
 `11.0.0-preview.7.26406.9`, which predates it.
 
 Resolved, not blocked: the repository consumes `11.0.0-preview.7.26418.3` from the `dotnet11` dnceng
-feed, pinned in `eng/Maui.props` and mapped in `NuGet.config` via `packageSourceMapping`. The frozen
-source baseline (`ee4d06cde6`) is later than that package, so a newer coherent dev build can be
-dropped into the one property when available.
-
-### B4 - `eng/build-workload-free.sh` mis-detects the workload
-
-The gate section of the script reports "Samsung Tizen workload is installed" on a machine where it
-demonstrably is not (`dotnet build src/Maui.Tizen.Core` still fails with `MAUITIZEN0001`). The
-MSBuild-side detection in `Directory.Build.props` is correct; only the shell script's report is
-wrong, so nothing builds that should not. Foundation-owned; flagged rather than changed here.
+feed, pinned centrally in `Directory.Packages.props` and mapped in `nuget.config` via
+`packageSourceMapping`. The frozen source baseline (`ee4d06cde6`) is later than that package, so a
+newer coherent dev build can be dropped in without touching anything else.
 
 ### B5 - Runtime packs
 
@@ -229,9 +264,34 @@ registered through `IFontRegistrar` will not be resolved until this is addressed
 
 ## 5. Not in this slice
 
-Controls-level remapping (`Layout.RemapForControls` and friends) appends to MAUI's *static*
+**Modal navigation.** dotnet/maui's `WindowExtensions.Initialize` creates a per-window
+`NavigationStack` and routes window content through it. This backend ports the orientation
+registration and the hardware back-key wiring from that method, but not the modal stack: window
+content is parented directly and replaced in place. `GetModalStack` / `IToolbarContainer` and
+anything built on them are therefore absent.
+
+**Container-backed decoration.** See G1 - gradient/image backgrounds, clip and shadow are not
+rendered, because the container hook is not reachable from outside MAUI.
+
+**Controls-level remapping.** `Layout.RemapForControls` and friends append to MAUI's *static*
 `LayoutHandler.Mapper`, not to this backend's mappers, so Controls-specific mappings do not reach
 these handlers. Wiring that up belongs with the `Maui.Tizen.Controls` layer.
 
-All other handlers (button, entry, image, scroll view, web view, navigation, shell, ...) remain as
-raw imported sources and are not yet ported.
+**Everything else.** All other handlers (button, entry, image, scroll view, web view, navigation,
+shell, ...) remain raw imported sources and are not yet ported.
+
+## 6. What is wired for a real device
+
+Recorded explicitly because none of it can be executed by the host lanes, so it rests on comparison
+against the dotnet/maui reference rather than on a passing test:
+
+* Hardware **back key** - `InitializePlatformWindow` subscribes to `Window.KeyEvent` and routes a
+  decline key to `IWindow.BackButtonClicked()`; if the cross-platform window does not handle it, the
+  registered close-request handler runs `CoreApplication.Exit()`.
+* **Rotation** - all four orientations are registered on the platform window.
+* **Window frame** - `UpdateX/Y/Width/Height` call `IWindow.FrameChanged` with the real device
+  geometry rather than trying to move or resize the window, which Tizen does not permit.
+* **Content replacement** - `SetMainContent` removes the previous content before adding the new
+  one, so re-assigning `IWindow.Content` does not stack views.
+* **Page background** - a null `Paint` is a no-op, so the page's opaque white default survives the
+  first mapper pass.

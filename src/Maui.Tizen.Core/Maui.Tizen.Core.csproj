@@ -8,8 +8,19 @@
     <RootNamespace>Microsoft.Maui</RootNamespace>
     <Description>Tizen platform implementation for .NET MAUI core: handlers, platform views, lifecycle, fonts, and image sources.</Description>
 
-    <UseMaui>true</UseMaui>
-    <SingleProject>true</SingleProject>
+    <!--
+      Deliberately NOT UseMaui/SingleProject.
+
+      This is a class library that consumes Microsoft.Maui.Core as a NuGet package; it is not an
+      application head. Setting UseMaui=true here makes the SDK require the `maui` workload to be
+      installed before it will even restore, which fails on any machine that has the .NET SDK but
+      not the MAUI workload - CI included - with NETSDK1147 rather than this repository's own
+      MAUITIZEN0001. That converts an explanatory external gate into a confusing one, and it hid
+      the gate entirely from eng/tests/test-workload-detection.sh.
+
+      UseMaui and SingleProject belong on the application head; see
+      samples/Maui.Tizen.Sample/Maui.Tizen.Sample.csproj.
+    -->
   </PropertyGroup>
 
   <ItemGroup>

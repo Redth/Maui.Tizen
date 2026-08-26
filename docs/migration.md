@@ -19,7 +19,7 @@ Phases 2 onward are **blocked on an external dependency** — see below.
 
 > **`net11.0-tizen11.0` cannot be restored or built by anyone today.**
 
-The workload manifest `samsung.net.sdk.tizen.manifest-11.0.100` has not been published to
+The workload manifest `Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7` has not been published to
 nuget.org. Only the `9.0.100` and `10.0.100` bands exist, and the newest
 `Samsung.Tizen.Sdk` is `10.0.128`.
 
@@ -50,10 +50,41 @@ working.
 
 ### When the gate lifts
 
-1. The `tizen-workload-gate` job starts succeeding and builds `Maui.Tizen.slnx`.
-2. Promote that job to a required check.
-3. Regenerate API baselines against a real Tizen build.
-4. Begin Phase 2.
+1. The `tizen-workload-gate` job's feed probe starts finding an `11.0.100`-band manifest.
+2. Install through Samsung's supported installer / local manifest path — **not** public
+   workload search. The Samsung manifest is third-party and side-loaded, so
+   `dotnet workload install tizen` cannot discover it on a clean runner.
+3. Promote that job to a required check and build the Tizen projects for real.
+4. Regenerate API baselines against a real Tizen build.
+5. Begin Phase 2.
+
+### Target contract provenance
+
+The `tizen11.0` / API15 contract is **verified from Samsung workload PR #310**, not
+inferred:
+
+| Item | Value |
+|---|---|
+| Target framework | `net11.0-tizen11.0` |
+| Reference pack | `Samsung.Tizen.Ref.API15` 15.0.0.19396 (TizenFX API15) |
+| `tizen-manifest.xml` | api-version 11 |
+| SDK band | 11.0.100-preview.7 |
+
+No API16 or new reference pack is required — API15 is sufficient.
+
+### Dependency advisories
+
+The repository audits NuGet dependencies at level `low` with warnings-as-errors, because
+this code ships to Tizen devices where patching is slow. The cost is that a newly
+published advisory against an existing dependency would otherwise turn an unrelated PR red
+with no warning.
+
+The scheduled [`dependency-audit`](../.github/workflows/dependency-audit.yml) workflow
+moves that discovery out of band: it runs weekly and files an issue rather than ambushing
+whoever opens the next PR. Resolution order is bump the package, bump the transitive
+dependency explicitly, then — only if no patched version exists — add a
+`NuGetAuditSuppress` entry with a written justification and a re-review date. Lowering
+`NuGetAuditLevel` is not an option; it converts one known problem into an unknown number.
 
 ## Baselines
 
@@ -98,10 +129,31 @@ enforces this.
 
 | Category | Count | Baseline |
 |---|---|---|
-| Tizen-named files | 338 | `net11.0` |
-| Shared files with `#if TIZEN` | 136 | `net11.0` |
+| Tizen-named files | 314 | `net11.0` (`ee4d06cde6`) |
+| Shared files with `#if TIZEN` | 135 | `net11.0` |
 | `PublicAPI/net-tizen` baselines | 18 | `net11.0` |
-| Compatibility Tizen files | 70 | `9.0.120` only |
+| Tizen-named files present at `9.0.120` but **absent** at the net11.0 pin | 87 | `9.0.120` only |
+
+The 87 files that exist only at `9.0.120` break down as:
+
+| Path | Count | Note |
+|---|---|---|
+| `src/Compatibility/**` | 70 | Core 48, Material 17, Maps 5 — the old top-level Xamarin.Forms compatibility stack |
+| `src/Controls/docs/…TizenSpecific/*.xml` | 9 | API documentation XML |
+| `src/Templates/**/Platforms/Tizen/**` | 7 | Template platform assets |
+| `src/Essentials/**` | 1 | `AppleSignInAuthenticator.netstandard.android.tvos.watchos.uwp.tizen.macos.cs` |
+
+> **Do not confuse the two "Compatibility" locations.**
+> `src/Controls/src/Core/Compatibility/**` — the legacy renderer shim (`FrameRenderer`,
+> `ViewRenderer`, ListView/TableView adapters) — is **still present on `net11.0`** with an
+> identical 11-file Tizen set at both refs, and was imported normally. Only the top-level
+> `src/Compatibility/**` was removed.
+
+> **Counting note.** These are **blob** counts. The GitHub tree API returns `tree`
+> (directory) entries alongside blobs, so filtering on "path contains tizen" without also
+> filtering `type == blob` inflates every figure — it yields 76 for `src/Compatibility`
+> and 102 overall by counting `Tizen/` directories as if they were files. The manifest is
+> per-file, so blobs are the correct unit.
 
 ## Known open decisions
 
@@ -109,7 +161,8 @@ enforces this.
 |---|---|
 | **Compatibility layer** | .NET MAUI 11 drops it. Audit each of the 70 files; `move` only what net11 Tizen handlers genuinely require, `exclude` the rest. Expected outcome: the package is deleted entirely. |
 | **Graphics** | `Microsoft.Maui.Graphics` is upstreamed from its own repository and carries one Tizen view here. Likely `keep-upstream` — contribute the view back rather than shipping a package. |
-| **Build.Tasks** | The imported Tizen tasks depend on shared Resizetizer types (`ILogger`, `ResizeImageInfo`, `ResizedImageInfo`) whose filenames contain no "tizen" and were therefore correctly excluded by the import filter. Either vendor them here, or ship these tasks inside `Microsoft.Maui.Resizetizer` upstream. |
+| **Build.Tasks** | The imported Tizen tasks depend on shared Resizetizer types (`ILogger`, `ResizeImageInfo`, `ResizedImageInfo`) whose filenames contain no "tizen" and were therefore correctly excluded by the import filter. Either vendor them here, or ship these tasks inside `Microsoft.Maui.Resizetizer` upstream. **Also unresolved:** these tasks use SkiaSharp for splash/icon generation, so enabling them raises real runtime and native-asset packaging questions (which SkiaSharp native assets ship, and how they reach a Tizen build). That is deliberately *not* papered over in the foundation — it is part of enabling the project, not of scaffolding it. |
+| **Documentation warnings** | `CS1591` is suppressed in `TizenPackage.props` while projects compile nothing. The inherited sources are not uniformly documented, so flipping a project to compile would otherwise fail on hundreds of missing-comment errors under warnings-as-errors. Remove the suppression per project as its documentation is completed. |
 | **`Tizen.UIExtensions`** | Needs republishing to drop its .NET 6-era `Microsoft.Maui.Graphics` dependencies. No API surface change expected. |
 
 ## The import

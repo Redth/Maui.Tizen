@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [ main ]
+  # Deliberately unrestricted: stacked PRs target the foundation branch rather than
+  # main, and a `branches: [ main ]` filter here silently gives them zero checks -
+  # which is worse than a failing check, because nothing signals that anything is wrong.
   pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 permissions:
@@ -125,27 +127,44 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Probe for the Samsung Tizen workload
+      - name: Probe for the Samsung Tizen workload manifest
         id: probe
         run: |
-          set +e
-          dotnet workload install tizen --skip-manifest-update 2>workload.log
-          status=$?
-          set -e
+          set -euo pipefail
 
-          {
-            echo "## Tizen workload gate"
-            echo
-          } >> "$GITHUB_STEP_SUMMARY"
+          # Deliberately NOT `dotnet workload install tizen`.
+          #
+          # The Samsung workload is third-party and side-loaded: its manifest is not
+          # discoverable through the SDK's public workload search on a clean runner, so
+          # `dotnet workload install tizen` cannot succeed here regardless of whether
+          # Samsung has shipped. And `--skip-manifest-update` guarantees failure outright,
+          # because the manifest is precisely what the runner does not yet have.
+          #
+          # A probe that can never succeed is worse than no probe: it reports "blocked"
+          # forever and would keep reporting it for weeks after the gate actually lifts.
+          #
+          # So we ask the question that has a real answer — has Samsung published an
+          # 11.0.100-band manifest package? Both ID spellings are checked because NuGet
+          # IDs are case-insensitive and the band carries the preview segment.
+          BAND="$(python3 -c "import json;print(json.load(open('eng/baselines.json'))['target']['sdkBand'])")"
 
-          if [ $status -eq 0 ]; then
+          FOUND=false
+          for id in "samsung.net.sdk.tizen.manifest-${BAND}" "samsung.net.sdk.tizen.manifest-11.0.100"; do
+            code="$(curl -s -o /dev/null -w '%{http_code}' "https://api.nuget.org/v3-flatcontainer/${id}/index.json")"
+            echo "  ${id} -> HTTP ${code}"
+            if [ "$code" = "200" ]; then FOUND=true; PUBLISHED_ID="$id"; fi
+          done
+
+          { echo "## Tizen workload gate"; echo; } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$FOUND" = "true" ]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
             {
-              echo ":white_check_mark: **The Samsung Tizen workload installed successfully.**"
+              echo ":white_check_mark: **Samsung has published \`${PUBLISHED_ID}\` — the gate has lifted.**"
               echo
-              echo "This gate has lifted. Next steps:"
-              echo "1. Promote this job to a required check."
-              echo "2. Build the \`net11.0-tizen11.0\` projects for real."
+              echo "Next steps:"
+              echo "1. Install the workload through Samsung's supported installer / local manifest path."
+              echo "2. Promote this job to a required check and build the \`net11.0-tizen11.0\` projects."
               echo "3. Regenerate the API baselines against a real Tizen build."
             } >> "$GITHUB_STEP_SUMMARY"
           else
@@ -153,22 +172,20 @@ jobs:
             {
               echo ":hourglass: **Blocked on an external dependency — this is expected.**"
               echo
-              echo "The workload manifest \`samsung.net.sdk.tizen.manifest-11.0.100\` has not been"
-              echo "published. Only the \`9.0.100\` and \`10.0.100\` bands exist on nuget.org."
+              echo "No \`11.0.100\`-band Samsung workload manifest is published. Only the"
+              echo "\`9.0.100\` and \`10.0.100\` bands exist on nuget.org."
               echo
-              echo "Until Samsung publishes it, \`net11.0-tizen11.0\` cannot be restored or built"
-              echo "by anyone. See \`docs/migration.md\`."
-              echo
-              echo "<details><summary>Workload install output</summary>"
-              echo
-              echo '```'
-              tail -30 workload.log || true
-              echo '```'
-              echo
-              echo "</details>"
+              echo "Until then, \`net11.0-tizen11.0\` cannot be restored or built by anyone."
+              echo "See \`docs/migration.md\` and \`eng/baselines.json\`."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Build Tizen projects
         if: steps.probe.outputs.available == 'true'
-        run: dotnet build Maui.Tizen.slnx -c Release
+        # Installation goes through Samsung's supported side-load path rather than public
+        # workload search; this step is a placeholder that will fail loudly and visibly
+        # the first time the gate lifts, which is the point at which a human should wire
+        # up the real installer.
+        run: |
+          echo "::notice::Samsung manifest is published. Wire up the supported Samsung installer / local manifest path, then build."
+          exit 1

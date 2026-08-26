@@ -115,15 +115,41 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.NotNull(TizenWindowHandler.CommandMapper.GetCommand(nameof(IWindow.RequestDisplayDensity)));
 
 		[Fact]
-		public void HandlersUseTheirOwnMapperByDefault()
+		public void HandlerMappersAreNotMauisOwn()
 		{
-			// Guards against a handler accidentally being constructed with MAUI's mapper.
-			Assert.NotNull(new TizenLabelHandler());
-			Assert.NotNull(new TizenLayoutHandler());
-			Assert.NotNull(new TizenContentViewHandler());
-			Assert.NotNull(new TizenPageHandler());
-			Assert.NotNull(new TizenWindowHandler());
-			Assert.NotNull(new TizenApplicationHandler());
+			// This backend must not reuse MAUI's static mappers: theirs dispatch to MAUI's Tizen
+			// Map* implementations, which live in an assembly this package deliberately does not
+			// depend on.
+			Assert.NotSame(Microsoft.Maui.Handlers.LabelHandler.Mapper, TizenLabelHandler.Mapper);
+			Assert.NotSame(Microsoft.Maui.Handlers.LayoutHandler.Mapper, TizenLayoutHandler.Mapper);
+			Assert.NotSame(Microsoft.Maui.Handlers.ContentViewHandler.Mapper, TizenContentViewHandler.Mapper);
+			Assert.NotSame(Microsoft.Maui.Handlers.PageHandler.Mapper, TizenPageHandler.PageMapper);
+			Assert.NotSame(Microsoft.Maui.Handlers.WindowHandler.Mapper, TizenWindowHandler.Mapper);
+			Assert.NotSame(Microsoft.Maui.Handlers.ApplicationHandler.Mapper, TizenApplicationHandler.Mapper);
+
+			Assert.NotSame(Microsoft.Maui.Handlers.LayoutHandler.CommandMapper, TizenLayoutHandler.CommandMapper);
+			Assert.NotSame(Microsoft.Maui.Handlers.ApplicationHandler.CommandMapper, TizenApplicationHandler.CommandMapper);
+		}
+
+		[Fact]
+		public void DefaultConstructedHandlerDispatchesThroughThisBackendsMapper()
+		{
+			// A real regression guard, not a smoke test.
+			//
+			// MAUI's LabelHandler.Mapper is a PropertyMapper<ILabel, ILabelHandler>, so dispatching
+			// through it casts the handler to MAUI's ILabelHandler. This backend deliberately does
+			// NOT implement that interface (it binds PlatformView to a per-TFM alias - see
+			// docs/net11-status.md G2), so if the parameterless constructor were ever changed to
+			// pass MAUI's mapper, this throws InvalidCastException.
+			//
+			// The virtual view matters: PropertyMapper.UpdateProperty short-circuits on a null
+			// virtual view, which would make this pass vacuously.
+			var handler = new TizenLabelHandler();
+			handler.SetVirtualView(new StubLabel { Text = "hello" });
+
+			var exception = Record.Exception(() => handler.UpdateValue(nameof(ILabel.Text)));
+
+			Assert.Null(exception);
 		}
 
 		[Fact]

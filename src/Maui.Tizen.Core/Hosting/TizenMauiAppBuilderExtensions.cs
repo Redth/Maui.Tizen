@@ -80,8 +80,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 					"No SynchronizationContext is installed on this thread, so no IDispatcher could be "
 					+ "created. On Tizen this means the call happened before the NUI main loop was "
 					+ "started - resolve IDispatcher from inside the application lifecycle instead."));
-			builder.Services.TryAddTransient<ITicker, TizenTicker>();
-			builder.Services.TryAddSingleton<IAnimationManager, AnimationManager>();
+			// Scoped, matching dotnet/maui's ConfigureAnimations. Two reasons this must not be
+			// transient/singleton: TizenTicker is IDisposable and owns a Timer, so a transient
+			// resolved from the root provider is retained with its timer for the whole process;
+			// and TizenTicker captures SynchronizationContext.Current in its constructor, so a
+			// singleton would pin every animation callback to whichever thread happened to
+			// resolve it first.
+			builder.Services.TryAddScoped<ITicker>(static _ => new TizenTicker());
+			builder.Services.TryAddScoped<IAnimationManager>(
+				static services => new AnimationManager(services.GetRequiredService<ITicker>()));
 
 			return builder;
 		}

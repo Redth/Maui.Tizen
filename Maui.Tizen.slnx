@@ -31,6 +31,7 @@
     <Project Path="tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj" />
     <Project Path="tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj" />
     <Project Path="tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj" />
+    <Project Path="eng/tests/PackageGraphProbe/PackageGraphProbe.csproj" />
   </Folder>
 
   <Folder Name="/eng/">
