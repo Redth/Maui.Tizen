@@ -201,8 +201,7 @@ if [[ $BUILD_OK -eq 1 ]]; then
   # need the repository-wide dotnet.config MTP opt-in, which would break tests/UnitTests
   # (xunit v2 on VSTest). See that project's csproj for the full reasoning.
   ESSENTIALS_TESTS="artifacts/bin/Maui.Tizen.Essentials.Tests/Release/net11.0/Maui.Tizen.Essentials.Tests"
-  check "essentials tests binary was produced" test -x "$ESSENTIALS_TESTS"
-  check "essentials tests" "./$ESSENTIALS_TESTS"
+  ESSENTIALS_RESULTS="$REPO_ROOT/artifacts/test-results/essentials"
 
   # Assert the test COUNT, not just the exit code.
   #
@@ -210,24 +209,22 @@ if [[ $BUILD_OK -eq 1 ]]; then
   # across the loaded closure, and Tizen.NUI's [XmlnsDefinition] constructor P/Invokes and
   # throws off-device. On the xunit v2 runner that aborted discovery part way through a class
   # and SILENTLY DROPPED the remaining tests while still reporting success - it hid 4 tests
-  # before it was noticed. v3 handles it, but "the runner reported success" is demonstrably
-  # not sufficient evidence here, so the floor is pinned.
+  # before it was noticed. v3 handles it, but "the runner exited 0" is demonstrably not
+  # sufficient evidence here, so the floor is pinned.
+  #
+  # The count comes from the runner's JUnit report rather than from scraping its console
+  # summary: the first attempt at this parsed stdout and passed locally but failed on the CI
+  # runner, because console rendering is not a stable contract. A report file is.
   #
   # Raise this when adding tests; never lower it to make a run go green.
   ESSENTIALS_TESTS_MINIMUM=195
-  check "essentials tests ran at least $ESSENTIALS_TESTS_MINIMUM tests" bash -c '
-    set -euo pipefail
-    total="$("./$1" 2>/dev/null | sed -n "s/^[[:space:]]*total:[[:space:]]*\([0-9][0-9]*\).*/\1/p" | tail -1)"
-    if [ -z "$total" ]; then
-      echo "could not parse a test total from the runner summary"
-      exit 1
-    fi
-    if [ "$total" -lt "$2" ]; then
-      echo "test discovery regressed: ran $total, expected at least $2"
-      exit 1
-    fi
-    echo "ran $total tests"
-  ' _ "$ESSENTIALS_TESTS" "$ESSENTIALS_TESTS_MINIMUM"
+
+  check "essentials tests" "$ESSENTIALS_TESTS" \
+    --report-xunit-junit --report-xunit-junit-filename results.xml \
+    --results-directory "$ESSENTIALS_RESULTS"
+
+  check "essentials tests ran at least $ESSENTIALS_TESTS_MINIMUM tests" \
+    python3 "$REPO_ROOT/eng/assert-test-count.py" "$ESSENTIALS_RESULTS/results.xml" "$ESSENTIALS_TESTS_MINIMUM"
 else
   fail "unit tests skipped - a preceding build failed (running --no-build now would only add cascading noise)"
   FAILURES=$((FAILURES + 1))
