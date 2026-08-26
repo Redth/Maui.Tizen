@@ -18,7 +18,7 @@ import was being prepared. A branch name would have made the import unreproducib
 | `sourceBaseline` | `ee4d06cde6b49e297631b08426a33fb34f3152ef` | dotnet/maui `net11.0` @ 2026-08-18. The forward source baseline. |
 | `requiredAncestor` | `0b3bb76d2dd68d76b7c1302f43a76270d5949564` | PR [#36657](https://github.com/dotnet/maui/pull/36657), the Essentials/MainThread extensibility work. Minimum API floor. |
 | `behaviorBaseline` | `c1f4f7d879f6126029009902289efd6a4bb1bda9` | Tag `9.0.120`, the last published Tizen behaviour/API baseline. Retained here as tag `upstream/9.0.120`. |
-| `developmentPackageBaseline` | `11.0.0-preview.7.26418.3` | First coherent public-feed MAUI package set, from the [dnceng `dotnet11` feed](https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet11/nuget/v3/index.json). All key nuspec repository commits resolve to `0b3bb76d2d`. |
+| `developmentPackageBaseline` | `11.0.0-preview.7.26426.4` | Coherent public-feed MAUI package set, from the [dnceng `dotnet11` feed](https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet11/nuget/v3/index.json). All key nuspec repository commits resolve to `bedd1b18b7`. |
 
 Two details are easy to get wrong and are worth stating explicitly:
 
