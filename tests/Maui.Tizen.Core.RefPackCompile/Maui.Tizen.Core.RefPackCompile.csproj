@@ -22,6 +22,7 @@
 
   <PropertyGroup>
     <TargetFramework>$(DotNetTfm)</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
     <AssemblyName>Maui.Tizen.Core.RefPackCompile</AssemblyName>
     <RootNamespace>Microsoft.Maui.Platforms.Tizen</RootNamespace>
 
@@ -37,7 +38,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Maui.Core" Version="$(MicrosoftMauiPackageVersion)" />
+    <PackageReference Include="Microsoft.Maui.Core" />
 
     <!--
       PackageDownload rather than PackageReference: these packages publish no net11.0-compatible
@@ -45,6 +46,7 @@
     -->
     <PackageDownload Include="$(TizenReferencePackId)" Version="[$(TizenReferencePackVersion)]" />
     <PackageDownload Include="Tizen.UIExtensions.NUI" Version="[$(TizenUIExtensionsPackageVersion)]" />
+    <PackageReference Include="Microsoft.Maui.Graphics" />
   </ItemGroup>
 
   <Target Name="_AddTizenReferenceAssemblies" BeforeTargets="ResolveAssemblyReferences">
@@ -54,7 +56,7 @@
     </PropertyGroup>
 
     <Error Condition="!Exists('$(_TizenRefPackDir)Tizen.NUI.dll')"
-           Code="MAUITIZEN0003"
+           Code="MAUITIZEN0102"
            Text="Could not find Tizen.NUI.dll under '$(_TizenRefPackDir)'. Expected it from $(TizenReferencePackId) $(TizenReferencePackVersion); run 'dotnet restore' for this project first." />
 
     <ItemGroup>

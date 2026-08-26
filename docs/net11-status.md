@@ -19,7 +19,10 @@ sources.
 | --- | --- | --- |
 | Unit tests | `dotnet test tests/Maui.Tizen.Core.UnitTests` | Mapper + command-mapper registration, DI/handler registration, hosting, dispatcher/timer/provider semantics, density conversion, layout z-index ordering, `IMauiContext` scoping. **102 tests, all passing.** |
 | Compile validation | `dotnet build tests/Maui.Tizen.Core.RefPackCompile` | Every `#if TIZEN` source - including `TizenMauiApplication`, the NUI view groups and all the ported platform extensions - type-checks against the **real** TizenFX reference assemblies from `Samsung.Tizen.Ref.API15` (`ref/net8.0`), plus the sample head's managed code. **Builds clean.** |
-| Product | `dotnet build src/Maui.Tizen.Core` | Fails with actionable `MAUITIZEN0001`. This is the intended behaviour. |
+| Product | `dotnet build src/Maui.Tizen.Core` | Fails with actionable `MAUITIZEN0001` from `Directory.Build.targets`. This is the intended behaviour. |
+
+Both lanes are wired into `eng/build-workload-free.sh`, so they run in the workload-free CI lane
+under Release + `ContinuousIntegrationBuild=true` (i.e. with `TreatWarningsAsErrors`).
 
 The compile-validation lane is *not* a neutral TFM fallback: it references reference-only
 assemblies, is `IsPackable=false`, and produces nothing that could ever be shipped or executed. It
@@ -59,11 +62,12 @@ of it would drag a .NET 6-era MAUI Graphics into every .NET 11 Tizen app.
 
 Mitigations in place:
 
-* `$(TizenUIExtensionsPackageVersion)` is the single knob, in `eng/Maui.props`.
-* `$(TizenUIExtensionsIsShippable)` is `false` while that value is `0.9.2`, and
-  `MAUITIZEN0002` **refuses to pack** in that state.
-* `Microsoft.Maui.Graphics` is pinned explicitly at `$(MicrosoftMauiPackageVersion)` so the
-  6.x package cannot win resolution during development.
+* The version is centrally managed in `Directory.Packages.props`, mirrored by
+  `$(TizenUIExtensionsPackageVersion)` in `eng/Maui.props`.
+* `$(TizenUIExtensionsIsShippable)` (in `eng/Maui.props`) is `false` while that version is
+  `0.9.2`, and `MAUITIZEN0101` **refuses to pack** in that state.
+* `Microsoft.Maui.Graphics` is referenced explicitly at the central version so the 6.x package
+  cannot win resolution.
 
 `eng/baselines.json` records that the republish is needed *solely* to drop the .NET 6-era Graphics
 dependencies, with no API surface change expected - so bumping the one property should be enough.
@@ -80,7 +84,14 @@ feed, pinned in `eng/Maui.props` and mapped in `NuGet.config` via `packageSource
 source baseline (`ee4d06cde6`) is later than that package, so a newer coherent dev build can be
 dropped into the one property when available.
 
-### B4 - Runtime packs
+### B4 - `eng/build-workload-free.sh` mis-detects the workload
+
+The gate section of the script reports "Samsung Tizen workload is installed" on a machine where it
+demonstrably is not (`dotnet build src/Maui.Tizen.Core` still fails with `MAUITIZEN0001`). The
+MSBuild-side detection in `Directory.Build.props` is correct; only the shell script's report is
+wrong, so nothing builds that should not. Foundation-owned; flagged rather than changed here.
+
+### B5 - Runtime packs
 
 Not evaluated. `Samsung.Tizen.Ref.API15` provides *reference* assemblies only; the corresponding
 runtime packs come from the workload and are therefore blocked behind B1.
@@ -180,7 +191,17 @@ Depending on them would defeat the extraction and would break the moment MAUI dr
 *Ask:* none for MAUI - this is expected migration work - but it is the bulk of the remaining port
 for the non-slice handlers.
 
-### G8 - `IFontManager` has no cross-platform `GetFontFamily`
+### G8 - TizenFX API15 deprecations that dotnet/maui has not taken
+
+The compile-validation lane found that dotnet/maui's Tizen sources still call
+`Tizen.NUI.Window.Instance`, which TizenFX deprecated in **API12** in favour of `Window.Default`.
+Under `TreatWarningsAsErrors` this is a hard failure at API15.
+
+*Impact:* this backend uses `Window.Default`. Expect more of these as the remaining handlers are
+ported - the API15 reference pack is the cheapest way to find them, and is exactly why the
+compile-validation lane exists.
+
+### G9 - `IFontManager` has no cross-platform `GetFontFamily`
 
 dotnet/maui's Tizen `LabelExtensions.UpdateFont` calls a Tizen-only `IFontManager.GetFontFamily`
 extension that is not part of the cross-platform `IFontManager` surface.

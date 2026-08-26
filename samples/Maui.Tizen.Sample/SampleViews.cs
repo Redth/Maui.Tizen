@@ -126,7 +126,7 @@ namespace Maui.Tizen.Sample
 	{
 		public string Text { get; set; } = string.Empty;
 
-		public Color? TextColor { get; set; }
+		public Color TextColor { get; set; } = Colors.Black;
 
 		public Font Font { get; set; } = Font.Default;
 

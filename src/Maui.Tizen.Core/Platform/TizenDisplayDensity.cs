@@ -29,7 +29,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 #if TIZEN
 				try
 				{
-					var dpi = global::Tizen.NUI.Window.Instance?.Dpi;
+					var dpi = global::Tizen.NUI.Window.Default?.Dpi;
 					if (dpi is not null && dpi.X > 0)
 						return dpi.X / BaselineDpi;
 				}

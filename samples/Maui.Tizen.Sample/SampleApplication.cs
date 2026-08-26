@@ -125,8 +125,11 @@ namespace Maui.Tizen.Sample
 		/// <inheritdoc />
 		public IPersistedState PersistedState { get; } = new SamplePersistedState();
 
-		/// <inheritdoc />
-		public IVisualDiagnosticsOverlay? VisualDiagnosticsOverlay => null;
+		/// <summary>
+		/// Not used by the sample. <c>IWindow</c> declares this non-nullable, but MAUI itself only
+		/// ever calls it null-conditionally, and this backend does the same.
+		/// </summary>
+		public IVisualDiagnosticsOverlay VisualDiagnosticsOverlay => null!;
 
 		/// <inheritdoc />
 		public FlowDirection FlowDirection => FlowDirection.LeftToRight;
@@ -196,7 +199,7 @@ namespace Maui.Tizen.Sample
 			return request.Result;
 		}
 
-		sealed class SamplePersistedState : Dictionary<string, string>, IPersistedState
+		sealed class SamplePersistedState : Dictionary<string, string?>, IPersistedState
 		{
 		}
 	}

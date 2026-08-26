@@ -4,7 +4,6 @@ using Microsoft.Maui;
 using Microsoft.Maui.Hosting;
 using Microsoft.Maui.LifecycleEvents;
 using Microsoft.Maui.Platforms.Tizen.LifecycleEvents;
-using Microsoft.Maui.Platforms.Tizen.LifecycleEvents;
 using Tizen.NUI;
 using TizenLifecycleEvents = Microsoft.Maui.Platforms.Tizen.LifecycleEvents.TizenLifecycle;
 

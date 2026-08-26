@@ -1,3 +1,27 @@
+## Build output
 artifacts/
 bin/
 obj/
+*.binlog
+*.user
+*.suo
+
+## IDE
+.vs/
+.vscode/
+.idea/
+*.DotSettings.user
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Import scratch space
+## The filtered mirror is multi-gigabyte and fully reproducible from
+## eng/import/filter-maui-tizen.sh, so it must never be committed.
+artifacts/import/
+*.git.tmp/
+
+## Tizen tooling
+*.tpk
+.sign/

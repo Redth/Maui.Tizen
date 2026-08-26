@@ -20,8 +20,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 	public static class TizenCoreApplicationExtensions
 	{
 		/// <summary>Gets the process-wide NUI window.</summary>
+		/// <remarks>
+		/// dotnet/maui uses <c>Window.Instance</c>, which TizenFX deprecated in API12 in favour of
+		/// <c>Window.Default</c>. This backend targets API15, so the modern member is used.
+		/// </remarks>
 		/// <returns>The default window.</returns>
-		public static TizenNativeWindow GetDefaultWindow() => Window.Instance;
+		public static TizenNativeWindow GetDefaultWindow() => Window.Default;
 
 		/// <summary>Creates and attaches the <see cref="IApplication"/> handler.</summary>
 		/// <param name="platformApplication">The platform application.</param>
