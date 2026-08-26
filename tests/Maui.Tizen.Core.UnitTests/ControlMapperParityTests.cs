@@ -24,16 +24,36 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	public class ControlMapperParityTests
 	{
 		/// <summary>
-		/// Neutral keys Wave A deliberately does not reimplement.
+		/// Neutral keys this backend deliberately does not reimplement.
 		/// </summary>
 		/// <remarks>
+		/// <para>
 		/// <c>Border</c> is the obsolete <c>IBorder.Border</c> mapping; MAUI marks the property
 		/// <c>[Obsolete]</c> and states it will be removed, so reimplementing it would mean
 		/// shipping a backend that is deprecated on arrival. Border rendering itself is not lost -
 		/// it is driven by the stroke and shape properties that replaced it.
+		/// </para>
+		/// <para>
+		/// <c>ContainerView</c> cannot be honoured at all: <c>ViewHandler.ContainerView</c> has a
+		/// <c>private protected</c> setter, so an out-of-repo backend cannot publish a container
+		/// it constructs. The backend renders background, clip and shadow directly onto the
+		/// platform view instead (<c>NeedsContainer =&gt; false</c>).
+		/// </para>
+		/// <para>
+		/// Both exclusions are the same set the core slice applies to its own base mapper, and are
+		/// asserted centrally by
+		/// <c>MapperRegistrationTests.TizenBaseMapperCoversMauisViewMapperExceptDocumentedExclusions</c>.
+		/// </para>
 		/// </remarks>
 		static readonly IReadOnlySet<string> IntentionallyUnmapped =
-			new HashSet<string>(StringComparer.Ordinal) { "Border" };
+			new HashSet<string>(StringComparer.Ordinal) { "Border", "ContainerView" };
+
+		/// <summary>
+		/// Whether a key is deliberately unmapped, so the parity matrix can distinguish a
+		/// documented exclusion from a real gap.
+		/// </summary>
+		/// <param name="key">The mapper key.</param>
+		public static bool IsIntentionallyUnmapped(string key) => IntentionallyUnmapped.Contains(key);
 
 		[Theory]
 		[MemberData(nameof(TizenControlHandlers.TestData), MemberType = typeof(TizenControlHandlers))]
@@ -72,7 +92,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				TizenControlHandlers.GetNeutralMapperKeys(handler.NeutralHandlerName),
 				StringComparer.Ordinal);
 
-			foreach (var key in TizenControlHandlers.GetMapperKeys(typeof(ViewHandler), nameof(ViewHandler.ViewMapper)))
+			foreach (var key in TizenViewMappers.ViewMapper.GetKeys())
 				known.Add(key);
 
 			// MAUI declares these members internal, so they cannot be reached with nameof from an
@@ -85,29 +105,38 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.True(
 				unreachable.Count == 0,
 				$"{handler.HandlerType.Name} maps keys that neither {handler.NeutralHandlerName} " +
-				$"nor ViewHandler.ViewMapper defines: {string.Join(", ", unreachable)}.");
+				$"nor TizenViewMappers.ViewMapper defines: {string.Join(", ", unreachable)}.");
 		}
 
 		/// <summary>
-		/// Every control mapper must chain from MAUI's shared view mapper.
+		/// Every control mapper must chain from the <em>Tizen</em> base view mapper.
 		/// </summary>
 		/// <remarks>
-		/// Without the chain a control maps its own properties and none of the common ones - no
-		/// background, no opacity, no visibility - which reads as a rendering bug rather than a
-		/// registration one.
+		/// <para>
+		/// Chaining MAUI's neutral <c>ViewHandler.ViewMapper</c> would satisfy a key-presence check
+		/// while doing nothing at all: that mapper is compiled with <c>PlatformView</c> aliased to
+		/// <see cref="object"/> and dispatches to the <c>Standard</c> no-op extensions. Every
+		/// common property - size, visibility, enabled, opacity, transforms - would silently never
+		/// reach the platform view.
+		/// </para>
+		/// <para>
+		/// This asserts the source of the chain, not just the key set, so swapping the base back to
+		/// the neutral mapper fails here. <see cref="ControlMapperBehaviorTests"/> then proves the
+		/// chained mappers actually run.
+		/// </para>
 		/// </remarks>
 		[Theory]
 		[MemberData(nameof(TizenControlHandlers.TestData), MemberType = typeof(TizenControlHandlers))]
-		public void MapperChainsFromViewMapper(TizenControlHandlers.ControlHandlerCase handler)
+		public void MapperChainsFromTizenViewMapper(TizenControlHandlers.ControlHandlerCase handler)
 		{
 			var tizenKeys = TizenControlHandlers.GetMapperKeys(handler.HandlerType);
-			var viewKeys = TizenControlHandlers.GetMapperKeys(typeof(ViewHandler), nameof(ViewHandler.ViewMapper));
+			var baseKeys = TizenViewMappers.ViewMapper.GetKeys().ToHashSet(StringComparer.Ordinal);
 
-			var missing = viewKeys.Except(tizenKeys, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
+			var missing = baseKeys.Except(tizenKeys, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
 
 			Assert.True(
 				missing.Count == 0,
-				$"{handler.HandlerType.Name}.Mapper does not chain from ViewHandler.ViewMapper; " +
+				$"{handler.HandlerType.Name}.Mapper does not chain from TizenViewMappers.ViewMapper; " +
 				$"missing {string.Join(", ", missing)}.");
 		}
 

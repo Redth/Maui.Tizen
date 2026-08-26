@@ -27,7 +27,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>The complete property mapper for <see cref="IPicker"/>.</summary>
 		public static readonly IPropertyMapper<IPicker, TizenPickerHandler> Mapper =
-			new PropertyMapper<IPicker, TizenPickerHandler>(ViewHandler.ViewMapper)
+			new PropertyMapper<IPicker, TizenPickerHandler>(TizenViewMappers.ViewMapper)
 			{
 				["Items"] = MapItems,
 				[nameof(IPicker.Title)] = MapTitle,
@@ -43,7 +43,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>The complete command mapper for <see cref="IPicker"/>.</summary>
 		public static readonly CommandMapper<IPicker, TizenPickerHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+			new(TizenViewMappers.ViewCommandMapper);
 
 		public TizenPickerHandler()
 			: base(Mapper, CommandMapper)
@@ -224,7 +224,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 						var index = items.IndexOf(chosen);
 
 						if (index >= 0)
-							VirtualView.SelectedIndex = index;
+						{
+							// Writing the virtual view re-enters MAUI's property system, which
+							// runs the mapper and touches NUI - so it has to happen on the main
+							// loop, not on whatever thread the popup completed on.
+							this.DispatchIfRequired(() => VirtualView.SelectedIndex = index);
+						}
 					}
 					catch (OperationCanceledException)
 					{

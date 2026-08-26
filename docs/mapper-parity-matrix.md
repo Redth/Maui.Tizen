@@ -15,12 +15,24 @@ Generated from the real mappers, so it cannot drift from the code.
 | Legend | Meaning |
 |---|---|
 | mapped | The Tizen handler maps the key. |
+| excluded | Deliberately not mapped, for a documented reason - see the note below the table. |
 | **MISSING** | MAUI maps it and this backend does not. Nothing should be in this state. |
 | n/a | MAUI's neutral handler does not define the key either. |
 
+Two keys are `excluded` throughout, both inherited from the core slice's base mapper:
+
+- `ContainerView` - `ViewHandler.ContainerView` has a `private protected` setter, so an
+  out-of-repo backend cannot publish a container view it constructs. Background, clip and
+  shadow are rendered onto the platform view instead (`NeedsContainer => false`).
+- `Border` - the obsolete `IBorder.Border` mapping. MAUI marks the property `[Obsolete]`
+  and states it will be removed; border rendering is driven by the stroke and shape
+  properties that replaced it.
+
 ## Common view properties
 
-Inherited by every control below through `ViewHandler.ViewMapper`.
+Inherited by every control below through `TizenViewMappers.ViewMapper`, the
+Tizen-owned base mapper. Chaining MAUI's neutral `ViewHandler.ViewMapper` instead would
+register every key while doing nothing, because its bodies are the off-platform no-ops.
 
 | Key | Status |
 |---|---|
@@ -28,10 +40,9 @@ Inherited by every control below through `ViewHandler.ViewMapper`.
 | `AnchorY` | mapped |
 | `AutomationId` | mapped |
 | `Background` | mapped |
-| `Border` | mapped |
 | `Clip` | mapped |
-| `ContainerView` | mapped |
 | `FlowDirection` | mapped |
+| `Frame` | mapped |
 | `Height` | mapped |
 | `InputTransparent` | mapped |
 | `IsEnabled` | mapped |
@@ -60,7 +71,9 @@ Serves `IActivityIndicator`; compared against MAUI's `ActivityIndicatorHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
+| `Border` | mapped | excluded |
 | `Color` | mapped | mapped |
+| `ContainerView` | mapped | excluded |
 | `IsRunning` | mapped | mapped |
 
 ## TizenButtonHandler
@@ -69,7 +82,9 @@ Serves `IButton`; compared against MAUI's `ButtonHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
+| `Border` | mapped | excluded |
 | `CharacterSpacing` | mapped | mapped |
+| `ContainerView` | mapped | excluded |
 | `CornerRadius` | mapped | mapped |
 | `Font` | mapped | mapped |
 | `Padding` | mapped | mapped |
@@ -85,6 +100,8 @@ Serves `ICheckBox`; compared against MAUI's `CheckBoxHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
+| `Border` | mapped | excluded |
+| `ContainerView` | mapped | excluded |
 | `Foreground` | mapped | mapped |
 | `IsChecked` | mapped | mapped |
 
@@ -94,7 +111,9 @@ Serves `IDatePicker`; compared against MAUI's `DatePickerHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
+| `Border` | mapped | excluded |
 | `CharacterSpacing` | mapped | mapped |
+| `ContainerView` | mapped | excluded |
 | `Date` | mapped | mapped |
 | `Font` | mapped | mapped |
 | `Format` | mapped | mapped |
@@ -109,7 +128,9 @@ Serves `IEditor`; compared against MAUI's `EditorHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
+| `Border` | mapped | excluded |
 | `CharacterSpacing` | mapped | mapped |
+| `ContainerView` | mapped | excluded |
 | `CursorPosition` | mapped | mapped |
 | `Font` | mapped | mapped |
 | `HorizontalTextAlignment` | mapped | mapped |
@@ -131,8 +152,10 @@ Serves `IEntry`; compared against MAUI's `EntryHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
+| `Border` | mapped | excluded |
 | `CharacterSpacing` | mapped | mapped |
 | `ClearButtonVisibility` | mapped | mapped |
+| `ContainerView` | mapped | excluded |
 | `CursorPosition` | mapped | mapped |
 | `Font` | mapped | mapped |
 | `HorizontalTextAlignment` | mapped | mapped |
@@ -156,7 +179,9 @@ Serves `IPicker`; compared against MAUI's `PickerHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
+| `Border` | mapped | excluded |
 | `CharacterSpacing` | mapped | mapped |
+| `ContainerView` | mapped | excluded |
 | `Font` | mapped | mapped |
 | `HorizontalTextAlignment` | mapped | mapped |
 | `IsOpen` | mapped | mapped |
@@ -173,6 +198,8 @@ Serves `IProgress`; compared against MAUI's `ProgressBarHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
+| `Border` | mapped | excluded |
+| `ContainerView` | mapped | excluded |
 | `Progress` | mapped | mapped |
 | `ProgressColor` | mapped | mapped |
 
@@ -182,7 +209,9 @@ Serves `IRadioButton`; compared against MAUI's `RadioButtonHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
+| `Border` | mapped | excluded |
 | `CharacterSpacing` | mapped | mapped |
+| `ContainerView` | mapped | excluded |
 | `Content` | mapped | mapped |
 | `CornerRadius` | mapped | mapped |
 | `Font` | mapped | mapped |
@@ -197,8 +226,10 @@ Serves `ISearchBar`; compared against MAUI's `SearchBarHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
+| `Border` | mapped | excluded |
 | `CancelButtonColor` | mapped | mapped |
 | `CharacterSpacing` | mapped | mapped |
+| `ContainerView` | mapped | excluded |
 | `CursorPosition` | mapped | mapped |
 | `Font` | mapped | mapped |
 | `HorizontalTextAlignment` | mapped | mapped |
@@ -222,6 +253,8 @@ Serves `ISlider`; compared against MAUI's `SliderHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
+| `Border` | mapped | excluded |
+| `ContainerView` | mapped | excluded |
 | `Maximum` | mapped | mapped |
 | `MaximumTrackColor` | mapped | mapped |
 | `Minimum` | mapped | mapped |
@@ -236,6 +269,8 @@ Serves `IStepper`; compared against MAUI's `StepperHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
+| `Border` | mapped | excluded |
+| `ContainerView` | mapped | excluded |
 | `Interval` | mapped | mapped |
 | `Maximum` | mapped | mapped |
 | `Minimum` | mapped | mapped |
@@ -247,6 +282,8 @@ Serves `ISwitch`; compared against MAUI's `SwitchHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
+| `Border` | mapped | excluded |
+| `ContainerView` | mapped | excluded |
 | `IsOn` | mapped | mapped |
 | `ThumbColor` | mapped | mapped |
 | `TrackColor` | mapped | mapped |
@@ -257,7 +294,9 @@ Serves `ITimePicker`; compared against MAUI's `TimePickerHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
+| `Border` | mapped | excluded |
 | `CharacterSpacing` | mapped | mapped |
+| `ContainerView` | mapped | excluded |
 | `Font` | mapped | mapped |
 | `Format` | mapped | mapped |
 | `IsOpen` | mapped | mapped |

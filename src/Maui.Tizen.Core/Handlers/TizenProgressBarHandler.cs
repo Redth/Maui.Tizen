@@ -14,7 +14,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	{
 		/// <summary>The complete property mapper for <see cref="IProgress"/>.</summary>
 		public static readonly IPropertyMapper<IProgress, TizenProgressBarHandler> Mapper =
-			new PropertyMapper<IProgress, TizenProgressBarHandler>(ViewHandler.ViewMapper)
+			new PropertyMapper<IProgress, TizenProgressBarHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(IProgress.Progress)] = MapProgress,
 				[nameof(IProgress.ProgressColor)] = MapProgressColor,
@@ -22,7 +22,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>The complete command mapper for <see cref="IProgress"/>.</summary>
 		public static readonly CommandMapper<IProgress, TizenProgressBarHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+			new(TizenViewMappers.ViewCommandMapper);
 
 		public TizenProgressBarHandler()
 			: base(Mapper, CommandMapper)

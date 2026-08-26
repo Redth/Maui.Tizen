@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
+using Microsoft.Maui.Platforms.Tizen.Handlers;
 using Xunit;
 
 namespace Microsoft.Maui.Platforms.Tizen.UnitTests
@@ -72,15 +73,27 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			sb.AppendLine("| Legend | Meaning |");
 			sb.AppendLine("|---|---|");
 			sb.AppendLine("| mapped | The Tizen handler maps the key. |");
+			sb.AppendLine("| excluded | Deliberately not mapped, for a documented reason - see the note below the table. |");
 			sb.AppendLine("| **MISSING** | MAUI maps it and this backend does not. Nothing should be in this state. |");
 			sb.AppendLine("| n/a | MAUI's neutral handler does not define the key either. |");
 			sb.AppendLine();
+			sb.AppendLine("Two keys are `excluded` throughout, both inherited from the core slice's base mapper:");
+			sb.AppendLine();
+			sb.AppendLine("- `ContainerView` - `ViewHandler.ContainerView` has a `private protected` setter, so an");
+			sb.AppendLine("  out-of-repo backend cannot publish a container view it constructs. Background, clip and");
+			sb.AppendLine("  shadow are rendered onto the platform view instead (`NeedsContainer => false`).");
+			sb.AppendLine("- `Border` - the obsolete `IBorder.Border` mapping. MAUI marks the property `[Obsolete]`");
+			sb.AppendLine("  and states it will be removed; border rendering is driven by the stroke and shape");
+			sb.AppendLine("  properties that replaced it.");
+			sb.AppendLine();
 
-			var viewKeys = TizenControlHandlers.GetMapperKeys(typeof(ViewHandler), nameof(ViewHandler.ViewMapper));
+			var viewKeys = TizenViewMappers.ViewMapper.GetKeys().ToHashSet(StringComparer.Ordinal);
 
 			sb.AppendLine("## Common view properties");
 			sb.AppendLine();
-			sb.AppendLine("Inherited by every control below through `ViewHandler.ViewMapper`.");
+			sb.AppendLine("Inherited by every control below through `TizenViewMappers.ViewMapper`, the");
+			sb.AppendLine("Tizen-owned base mapper. Chaining MAUI's neutral `ViewHandler.ViewMapper` instead would");
+			sb.AppendLine("register every key while doing nothing, because its bodies are the off-platform no-ops.");
 			sb.AppendLine();
 			sb.AppendLine("| Key | Status |");
 			sb.AppendLine("|---|---|");
@@ -109,7 +122,11 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				{
 					var inMaui = neutralKeys.Contains(key);
 					var inTizen = tizenKeys.Contains(key);
-					var tizenCell = inTizen ? "mapped" : "**MISSING**";
+
+					var tizenCell = inTizen
+						? "mapped"
+						: ControlMapperParityTests.IsIntentionallyUnmapped(key) ? "excluded" : "**MISSING**";
+
 					sb.AppendLine($"| `{key}` | {(inMaui ? "mapped" : "n/a")} | {tizenCell} |");
 				}
 
@@ -119,19 +136,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			return sb.ToString();
 		}
 
-		static string FindRepositoryFile(string relativePath)
-		{
-			var dir = AppContext.BaseDirectory;
-
-			while (dir is not null)
-			{
-				if (File.Exists(Path.Combine(dir, "Maui.Tizen.slnx")))
-					return Path.Combine(dir, relativePath);
-
-				dir = Path.GetDirectoryName(dir.TrimEnd(Path.DirectorySeparatorChar));
-			}
-
-			throw new InvalidOperationException("Could not locate the repository root from the test output directory.");
-		}
+		static string FindRepositoryFile(string relativePath) =>
+			Path.Combine(TestRepositoryPaths.Root, relativePath);
 	}
 }

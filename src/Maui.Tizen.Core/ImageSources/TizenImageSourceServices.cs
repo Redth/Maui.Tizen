@@ -118,14 +118,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (imageSource is not IStreamImageSource streamImageSource || streamImageSource.IsEmpty)
 				return null;
 
-			var stream = await streamImageSource.GetStreamAsync(cancellationToken).ConfigureAwait(false);
+			// These awaits deliberately do NOT use ConfigureAwait(false). TizenImageSource
+			// registers the decoded buffer with NUI, which is only legal on the main loop;
+			// resuming on the captured context keeps the continuation there. The service is
+			// invoked from a property mapper, so the captured context is the Tizen main loop.
+			var stream = await streamImageSource.GetStreamAsync(cancellationToken);
 			if (stream is null)
 				return null;
 
-			await using (stream.ConfigureAwait(false))
+			await using (stream)
 			{
 				var image = new TizenImageSource();
-				await image.LoadSource(stream).ConfigureAwait(false);
+				await image.LoadSource(stream);
 
 				if (image.ResourceUrl is null)
 				{

@@ -21,7 +21,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// may implement either, both, or neither, so the mappings are defensive about the cast.
 		/// </remarks>
 		public static readonly IPropertyMapper<IButton, TizenButtonHandler> Mapper =
-			new PropertyMapper<IButton, TizenButtonHandler>(ViewHandler.ViewMapper)
+			new PropertyMapper<IButton, TizenButtonHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(IText.Text)] = MapText,
 				[nameof(ITextStyle.TextColor)] = MapTextColor,
@@ -36,8 +36,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>The complete command mapper for <see cref="IButton"/>.</summary>
 		public static readonly CommandMapper<IButton, TizenButtonHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+			new(TizenViewMappers.ViewCommandMapper);
 
+#if TIZEN
+		readonly TizenImageLoader<TizenImageSource> _iconLoader = new();
+#endif
+
+		/// <summary>Initializes a new instance of the <see cref="TizenButtonHandler"/> class.</summary>
 		public TizenButtonHandler()
 			: base(Mapper, CommandMapper)
 		{
@@ -69,6 +74,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void DisconnectHandler(TizenButtonView platformView)
 		{
 #if TIZEN
+			// Cancels any load in flight and releases the native image it had loaded.
+			_iconLoader.Dispose();
 			if (platformView.HasBody())
 			{
 				platformView.TouchEvent -= OnTouch;
@@ -150,26 +157,36 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// Resolves and applies the button's icon.
 		/// </summary>
 		/// <remarks>
+		/// <para>
 		/// Returned as a task so tests and callers that need to await the load can, rather than
 		/// racing an untracked <c>async void</c>.
+		/// </para>
+		/// <para>
+		/// Supersession, source and view identity, failure clearing and disposal of the previous
+		/// result are all handled by <see cref="TizenImageLoader{TImage}"/>; see that type for why
+		/// each one matters. The continuation is marshalled back to the UI thread before the NUI
+		/// icon is touched.
+		/// </para>
 		/// </remarks>
-		public static async Task MapImageSourceAsync(TizenButtonHandler handler, IButton button)
+		public static Task MapImageSourceAsync(TizenButtonHandler handler, IButton button)
 		{
-			if (button is not IImage image)
-				return;
+			ArgumentNullException.ThrowIfNull(handler);
 
-			if (image.Source is null)
-			{
-				handler.PlatformView?.UpdateImageSource(null);
-				return;
-			}
-
+			var source = (button as IImage)?.Source;
 			var provider = handler.GetService<IImageSourceServiceProvider>();
-			if (provider is null)
-				return;
 
-			var result = await provider.GetTizenImageAsync(image.Source).ConfigureAwait(false);
-			handler.PlatformView?.UpdateImageSource(result?.Value);
+			// Capture the view this load is for, so a reconnect can be detected on completion.
+			var target = handler.PlatformView;
+
+			return handler._iconLoader.LoadAsync(
+				source,
+				(imageSource, token) => provider is null
+					? Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(null)
+					: provider.GetTizenImageAsync(imageSource, token),
+				// The load completes on a thread-pool thread; NUI must only be touched on the
+				// main loop, so the application is marshalled back.
+				image => handler.DispatchIfRequired(() => handler.PlatformView?.UpdateImageSource(image)),
+				() => target is not null && ReferenceEquals(handler.PlatformView, target));
 		}
 #endif
 

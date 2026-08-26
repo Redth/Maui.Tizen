@@ -26,7 +26,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>The complete property mapper for <see cref="IDatePicker"/>.</summary>
 		public static readonly IPropertyMapper<IDatePicker, TizenDatePickerHandler> Mapper =
-			new PropertyMapper<IDatePicker, TizenDatePickerHandler>(ViewHandler.ViewMapper)
+			new PropertyMapper<IDatePicker, TizenDatePickerHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(IDatePicker.Format)] = MapFormat,
 				[nameof(IDatePicker.Date)] = MapDate,
@@ -40,7 +40,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>The complete command mapper for <see cref="IDatePicker"/>.</summary>
 		public static readonly CommandMapper<IDatePicker, TizenDatePickerHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+			new(TizenViewMappers.ViewCommandMapper);
 
 		public TizenDatePickerHandler()
 			: base(Mapper, CommandMapper)
@@ -188,7 +188,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 					try
 					{
-						VirtualView.Date = await popup.Open().ConfigureAwait(false);
+						var selected = await popup.Open().ConfigureAwait(false);
+
+						// See TizenPickerHandler: a virtual-view write runs the mapper, so it
+						// must be marshalled back to the main loop.
+						this.DispatchIfRequired(() => VirtualView.Date = selected);
 					}
 					catch (OperationCanceledException)
 					{

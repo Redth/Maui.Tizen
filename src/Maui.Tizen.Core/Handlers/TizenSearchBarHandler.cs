@@ -15,7 +15,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	{
 		/// <summary>The complete property mapper for <see cref="ISearchBar"/>.</summary>
 		public static readonly IPropertyMapper<ISearchBar, TizenSearchBarHandler> Mapper =
-			new PropertyMapper<ISearchBar, TizenSearchBarHandler>(ViewHandler.ViewMapper)
+			new PropertyMapper<ISearchBar, TizenSearchBarHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(ISearchBar.Text)] = MapText,
 				[nameof(ISearchBar.TextColor)] = MapTextColor,
@@ -38,8 +38,32 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		/// <summary>The complete command mapper for <see cref="ISearchBar"/>.</summary>
+		/// <remarks>
+		/// Focus is overridden because a search bar is a composite: the group itself draws no caret
+		/// and accepts no text, so focusing it would appear to do nothing. The request is forwarded
+		/// to the inner text field instead.
+		/// </remarks>
 		public static readonly CommandMapper<ISearchBar, TizenSearchBarHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+			new(TizenViewMappers.ViewCommandMapper)
+			{
+				[nameof(IView.Focus)] = MapFocus,
+				[nameof(IView.Unfocus)] = MapUnfocus,
+			};
+
+		/// <summary>Maps <see cref="IView.Focus"/> onto the inner text field.</summary>
+		/// <param name="handler">The handler.</param>
+		/// <param name="searchBar">The search bar.</param>
+		/// <param name="args">The <see cref="FocusRequest"/>.</param>
+		public static void MapFocus(TizenSearchBarHandler handler, ISearchBar searchBar, object? args)
+		{
+			if (args is not FocusRequest request)
+				return;
+#if TIZEN
+			request.TrySetResult(handler.PlatformView?.FocusEntry() ?? false);
+#else
+			request.TrySetResult(false);
+#endif
+		}
 
 		public TizenSearchBarHandler()
 			: base(Mapper, CommandMapper)
@@ -66,6 +90,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 #if TIZEN
 			platformView.Entry.TextChanged += OnTextChanged;
 			platformView.SearchButtonPressed += OnSearchButtonPressed;
+			platformView.Entry.CursorPositionChanged += OnCursorPositionChanged;
+			platformView.Entry.SelectionChanged += OnSelectionChanged;
+			platformView.Entry.SelectionCleared += OnSelectionCleared;
+			platformView.EntryFocused += OnEntryFocused;
+			platformView.EntryUnfocused += OnEntryUnfocused;
 #endif
 		}
 
@@ -76,6 +105,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			{
 				platformView.Entry.TextChanged -= OnTextChanged;
 				platformView.SearchButtonPressed -= OnSearchButtonPressed;
+				platformView.Entry.CursorPositionChanged -= OnCursorPositionChanged;
+				platformView.Entry.SelectionChanged -= OnSelectionChanged;
+				platformView.Entry.SelectionCleared -= OnSelectionCleared;
+				platformView.EntryFocused -= OnEntryFocused;
+				platformView.EntryUnfocused -= OnEntryUnfocused;
 				platformView.DisconnectEvents();
 			}
 #endif
@@ -221,6 +255,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 		}
 
+		/// <summary>Maps <see cref="IView.Unfocus"/> onto the inner text field.</summary>
+		/// <param name="handler">The handler.</param>
+		/// <param name="searchBar">The search bar.</param>
+		/// <param name="args">Unused.</param>
+		public static void MapUnfocus(TizenSearchBarHandler handler, ISearchBar searchBar, object? args)
+		{
+#if TIZEN
+			handler.PlatformView?.UnfocusEntry();
+#endif
+		}
+
 #if TIZEN
 		void OnTextChanged(object? sender, global::Tizen.NUI.BaseComponents.TextField.TextChangedEventArgs e)
 		{
@@ -232,5 +277,60 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 #endif
 
 		void OnSearchButtonPressed(object? sender, EventArgs e) => VirtualView?.SearchButtonPressed();
+
+		/// <remarks>
+		/// See <c>TizenEditorHandler.OnCursorPositionChanged</c>. The events come from the inner
+		/// text field, since that is what actually owns the caret.
+		/// </remarks>
+		void OnCursorPositionChanged(object? sender, EventArgs e)
+		{
+#if TIZEN
+			if (VirtualView is null || PlatformView is null)
+				return;
+
+			VirtualView.CursorPosition = PlatformView.Entry.PrimaryCursorPosition;
+#endif
+		}
+
+		/// <remarks>
+		/// NUI's selection offsets run backwards on a right-to-left drag; MAUI wants a start plus
+		/// a non-negative length.
+		/// </remarks>
+		void OnSelectionChanged(object? sender, EventArgs e)
+		{
+#if TIZEN
+			if (VirtualView is null || PlatformView is null)
+				return;
+
+			VirtualView.ApplySelection(PlatformView.Entry.SelectedTextStart, PlatformView.Entry.SelectedTextEnd);
+#endif
+		}
+
+		void OnSelectionCleared(object? sender, EventArgs e)
+		{
+#if TIZEN
+			if (VirtualView is null || PlatformView is null)
+				return;
+
+			VirtualView.ApplyCaret(PlatformView.Entry.PrimaryCursorPosition);
+#endif
+		}
+
+		/// <remarks>
+		/// Focus lands on the inner text field, not on the group. Reflecting it back keeps
+		/// <see cref="IView.IsFocused"/> truthful - the base handler only observes focus on the
+		/// platform view it owns, which for a composite control never receives it.
+		/// </remarks>
+		void OnEntryFocused(object? sender, EventArgs e)
+		{
+			if (VirtualView is not null)
+				VirtualView.IsFocused = true;
+		}
+
+		void OnEntryUnfocused(object? sender, EventArgs e)
+		{
+			if (VirtualView is not null)
+				VirtualView.IsFocused = false;
+		}
 	}
 }

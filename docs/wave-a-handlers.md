@@ -41,6 +41,19 @@ builder.ConfigureImageSources(sources => sources.AddTizenImageSources());
 `AddTizenControlHandlers` is separate from the core slice's `AddTizenHandlers` so a host can
 adopt either half independently while the migration is in flight.
 
+## Mapper chaining
+
+Every handler chains **`TizenViewMappers.ViewMapper`**, the Tizen-owned base mapper from the core
+slice - never MAUI's neutral `ViewHandler.ViewMapper`.
+
+This is not a style choice. The neutral mapper is compiled for a non-platform target framework
+where `PlatformView` is aliased to `object` and its bodies are the `Standard` no-ops. Chaining it
+registers every key while applying *nothing*: size, visibility, enabled state, opacity, transforms
+and input transparency would all silently do nothing, and a key-presence test would still pass.
+Wave A shipped that defect initially; it is now pinned from both directions -
+`ControlMapperParityTests.MapperChainsFromTizenViewMapper` asserts the chain's source, and
+`ControlMapperBehaviorTests` asserts that each mapping actually reaches the platform view.
+
 ## Mapper completeness
 
 Every handler's mapper is a **complete** replacement for MAUI's equivalent — see
@@ -52,9 +65,14 @@ body and a `<remarks>` block saying why, rather than being left out of the mappe
 difference matters: an absent key means an application that replaces the mapping silently gets
 nothing, whereas a present no-op is discoverable, documented, and can be overridden.
 
-The one deliberate omission is the obsolete `IBorder.Border` key. MAUI marks the property
-`[Obsolete]` and states it will be removed; border rendering is driven by the stroke and shape
-properties that replaced it.
+Two keys are deliberately excluded, both inherited from the core slice's base mapper and reported
+as `excluded` rather than `MISSING` in the matrix:
+
+- `Border` - the obsolete `IBorder.Border` mapping. MAUI marks the property `[Obsolete]` and
+  states it will be removed; border rendering is driven by the stroke and shape properties that
+  replaced it.
+- `ContainerView` - cannot be honoured at all, because `ViewHandler.ContainerView` has a
+  `private protected` setter. See the extensibility blockers below.
 
 ### Properties Tizen cannot honour
 
@@ -97,6 +115,45 @@ defects visible:
   limits have to be applied around it.
 - **`Window.Instance`** (deprecated in API12) replaced with `Window.Default`.
 
+### Fixes from code review
+
+A second pass found seven further defects, all of which shared the property of leaving the build
+green while misbehaving at runtime:
+
+- **Stepper bounds were applied one property at a time.** MAUI drives mapper keys in declaration
+  order, so `Minimum` landed before `Maximum` and `Value`. For min 5 / max 30 / value 25 that
+  clamped the value into `[5, 10]` - 10 being the native default maximum - and reported a change,
+  which the handler wrote back onto the virtual view, destroying the application's bound value
+  before the real one was applied. A minimum above 10 was worse: `Math.Clamp` threw
+  `ArgumentException` from inside a property mapper. Bounds and value are now applied atomically
+  by `TizenStepperRange`, which is platform-independent and therefore directly unit tested.
+- **`ConfigureAwait(false)` before touching the UI.** `TizenImageSource`, Button, Slider, Picker,
+  DatePicker and TimePicker resumed on a thread-pool thread and then touched NUI or wrote the
+  virtual view - the latter re-enters MAUI's property system, which runs the mapper and touches
+  NUI in turn. Continuations are now marshalled back through `TizenDispatchExtensions`, and a
+  source-level test keeps the pattern from returning.
+- **Image loads had no lifecycle.** No supersession, so a slow earlier load could overwrite a
+  newer one; no source or view identity check; no clearing on failure; and the service result -
+  which owns a native image buffer - was never disposed on replacement or disconnect.
+  `TizenImageLoader<T>` now owns all of it, with regressions for each case.
+- **Editor and SearchBar never proxied cursor or selection events.** Only Entry did, so moving the
+  caret in an editor left MAUI believing it was still wherever it was last told, and the next
+  programmatic edit landed at the wrong offset. NUI reports selections in drag order, so a
+  right-to-left drag produced a negative length; `TizenTextSelection` normalises it.
+- **Composite controls swallowed focus.** SearchBar and Stepper are groups; the group draws no
+  caret and accepts no input, so focus requests appeared to succeed while doing nothing, and child
+  focus was never reflected onto the virtual view. Both now forward to the interactive child and
+  report its focus back.
+- **Unset values did not restore native defaults.** `CornerRadius = -1` and a null or non-solid
+  CheckBox `Foreground` both simply skipped the write, so clearing either kept whatever was last
+  applied and the control could never return to its themed appearance. Both defaults are now
+  captured at construction and restored.
+
+One of these was found by the new tests rather than by reading: because the composite `MapFocus`
+overrides were written inside an `#if TIZEN` block, on the host lane the name silently bound to the
+*inherited* `ViewHandler.MapFocus` - MAUI's no-op. It compiled, and the behaviour differed by target
+framework. The overrides are now unconditional, with only their bodies guarded.
+
 ## MAUI extensibility blockers
 
 Two gaps in MAUI's public surface shaped this wave. Both are additions to the list in
@@ -131,7 +188,13 @@ workload-free lanes the core slice established:
 | Lane | What it proves | Status |
 |---|---|---|
 | `tests/Maui.Tizen.Core.RefPackCompile` | Every `#if TIZEN` branch type-checks against the real `Samsung.Tizen.Ref.API15` reference assemblies. | passing |
-| `tests/Maui.Tizen.Core.UnitTests` | Mappers, command dispatch, DI registration and the naming/collision rules are executed against host stand-ins. | passing |
+| `tests/Maui.Tizen.Core.UnitTests` | Mappers, command dispatch, DI registration, the naming/collision rules, and the platform-independent logic extracted from the handlers - stepper bounds, image-load lifecycle, selection normalisation, dispatching - are executed against host stand-ins. | passing |
+
+Several pieces of logic were deliberately extracted out of the NUI-typed classes
+(`TizenStepperRange`, `TizenImageLoader<T>`, `TizenTextSelection`, `TizenDispatchExtensions`)
+precisely so they land in the host lane and can be executed rather than merely reviewed. That is
+where the subtle defects were, and it is the difference between a test that asserts a mapper key
+exists and one that proves the behaviour is right.
 
 Exact blockers, unchanged by this wave:
 

@@ -19,6 +19,30 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// </remarks>
 	public class TizenButtonView : Button
 	{
+		/// <summary>
+		/// The corner radius the control shipped with, captured before anything overrides it.
+		/// </summary>
+		/// <remarks>
+		/// MAUI uses <c>-1</c> to mean "unset", and unset must restore the themed appearance
+		/// rather than leave whatever radius was last applied. That is only possible if the
+		/// original is captured before the first write, which is why it is read in the
+		/// constructor rather than looked up on demand.
+		/// </remarks>
+		public global::Tizen.NUI.Vector4 DefaultCornerRadius { get; }
+
+		/// <summary>Initializes a new instance of the <see cref="TizenButtonView"/> class.</summary>
+		/// <remarks>
+		/// The radius is copied, not aliased: <c>CornerRadius</c> returns a live
+		/// <c>Vector4</c> that NUI mutates in place, so holding the reference would capture
+		/// whatever the value later became rather than the original.
+		/// </remarks>
+		public TizenButtonView()
+		{
+			var radius = CornerRadius;
+			DefaultCornerRadius = radius is null
+				? new global::Tizen.NUI.Vector4(0, 0, 0, 0)
+				: new global::Tizen.NUI.Vector4(radius.X, radius.Y, radius.Z, radius.W);
+		}
 	}
 
 	/// <summary>The platform view for <c>Entry</c>.</summary>
@@ -34,6 +58,17 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// <summary>The platform view for <c>CheckBox</c>.</summary>
 	public class TizenCheckBoxView : global::Tizen.UIExtensions.NUI.GraphicsView.CheckBox
 	{
+		/// <summary>
+		/// The check colour the control shipped with, captured before anything overrides it.
+		/// </summary>
+		/// <remarks>
+		/// A null or non-solid <c>Foreground</c> means "no override", which has to restore the
+		/// themed colour. Leaving the previous one would make clearing a foreground silently
+		/// keep the colour it was last given.
+		/// </remarks>
+		public global::Tizen.UIExtensions.Common.Color DefaultColor { get; }
+
+		public TizenCheckBoxView() => DefaultColor = Color;
 	}
 
 	/// <summary>The platform view for <c>Switch</c>.</summary>

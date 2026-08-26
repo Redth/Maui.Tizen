@@ -15,7 +15,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	{
 		/// <summary>The complete property mapper for <see cref="ICheckBox"/>.</summary>
 		public static readonly IPropertyMapper<ICheckBox, TizenCheckBoxHandler> Mapper =
-			new PropertyMapper<ICheckBox, TizenCheckBoxHandler>(ViewHandler.ViewMapper)
+			new PropertyMapper<ICheckBox, TizenCheckBoxHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(ICheckBox.IsChecked)] = MapIsChecked,
 				[nameof(ICheckBox.Foreground)] = MapForeground,
@@ -23,7 +23,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>The complete command mapper for <see cref="ICheckBox"/>.</summary>
 		public static readonly CommandMapper<ICheckBox, TizenCheckBoxHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+			new(TizenViewMappers.ViewCommandMapper);
 
 		public TizenCheckBoxHandler()
 			: base(Mapper, CommandMapper)

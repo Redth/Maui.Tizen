@@ -15,7 +15,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	{
 		/// <summary>The complete property mapper for <see cref="IEntry"/>.</summary>
 		public static readonly IPropertyMapper<IEntry, TizenEntryHandler> Mapper =
-			new PropertyMapper<IEntry, TizenEntryHandler>(ViewHandler.ViewMapper)
+			new PropertyMapper<IEntry, TizenEntryHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(IEntry.Background)] = MapBackground,
 				[nameof(IEntry.Text)] = MapText,
@@ -40,7 +40,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>The complete command mapper for <see cref="IEntry"/>.</summary>
 		public static readonly CommandMapper<IEntry, TizenEntryHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+			new(TizenViewMappers.ViewCommandMapper);
 
 		public TizenEntryHandler()
 			: base(Mapper, CommandMapper)
@@ -265,10 +265,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 #if TIZEN
 		void OnCursorPositionChanged(object? sender, EventArgs e)
 		{
+#if TIZEN
 			if (VirtualView is null || PlatformView is null)
 				return;
 
 			VirtualView.CursorPosition = PlatformView.PrimaryCursorPosition;
+#endif
 		}
 #endif
 
@@ -280,22 +282,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </remarks>
 		void OnSelectionChanged(object? sender, EventArgs e)
 		{
+#if TIZEN
 			if (VirtualView is null || PlatformView is null)
 				return;
 
-			VirtualView.SelectionLength = Math.Abs(PlatformView.SelectedTextEnd - PlatformView.SelectedTextStart);
-			VirtualView.CursorPosition = Math.Min(PlatformView.SelectedTextEnd, PlatformView.SelectedTextStart);
+			VirtualView.ApplySelection(PlatformView.SelectedTextStart, PlatformView.SelectedTextEnd);
+#endif
 		}
 #endif
 
 #if TIZEN
 		void OnSelectionCleared(object? sender, EventArgs e)
 		{
+#if TIZEN
 			if (VirtualView is null || PlatformView is null)
 				return;
 
-			VirtualView.SelectionLength = 0;
-			VirtualView.CursorPosition = PlatformView.PrimaryCursorPosition;
+			VirtualView.ApplyCaret(PlatformView.PrimaryCursorPosition);
+#endif
 		}
 #endif
 	}

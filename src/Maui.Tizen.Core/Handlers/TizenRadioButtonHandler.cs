@@ -27,7 +27,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>The complete property mapper for <see cref="IRadioButton"/>.</summary>
 		public static readonly IPropertyMapper<IRadioButton, TizenRadioButtonHandler> Mapper =
-			new PropertyMapper<IRadioButton, TizenRadioButtonHandler>(ViewHandler.ViewMapper)
+			new PropertyMapper<IRadioButton, TizenRadioButtonHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(IContentView.Content)] = MapContent,
 				[nameof(IRadioButton.IsChecked)] = MapIsChecked,
@@ -41,7 +41,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>The complete command mapper for <see cref="IRadioButton"/>.</summary>
 		public static readonly CommandMapper<IRadioButton, TizenRadioButtonHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+			new(TizenViewMappers.ViewCommandMapper);
 
 		public TizenRadioButtonHandler()
 			: base(Mapper, CommandMapper)

@@ -15,7 +15,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	{
 		/// <summary>The complete property mapper for <see cref="IEditor"/>.</summary>
 		public static readonly IPropertyMapper<IEditor, TizenEditorHandler> Mapper =
-			new PropertyMapper<IEditor, TizenEditorHandler>(ViewHandler.ViewMapper)
+			new PropertyMapper<IEditor, TizenEditorHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(IEditor.Background)] = MapBackground,
 				[nameof(IEditor.Text)] = MapText,
@@ -37,7 +37,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>The complete command mapper for <see cref="IEditor"/>.</summary>
 		public static readonly CommandMapper<IEditor, TizenEditorHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+			new(TizenViewMappers.ViewCommandMapper);
 
 		public TizenEditorHandler()
 			: base(Mapper, CommandMapper)
@@ -65,6 +65,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 #if TIZEN
 			platformView.TextChanged += OnTextChanged;
 			platformView.FocusLost += OnFocusLost;
+			platformView.CursorPositionChanged += OnCursorPositionChanged;
+			platformView.SelectionChanged += OnSelectionChanged;
+			platformView.SelectionCleared += OnSelectionCleared;
 #endif
 		}
 
@@ -75,6 +78,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			{
 				platformView.TextChanged -= OnTextChanged;
 				platformView.FocusLost -= OnFocusLost;
+				platformView.CursorPositionChanged -= OnCursorPositionChanged;
+				platformView.SelectionChanged -= OnSelectionChanged;
+				platformView.SelectionCleared -= OnSelectionCleared;
 			}
 #endif
 			base.DisconnectHandler(platformView);
@@ -209,5 +215,50 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// losing focus.
 		/// </remarks>
 		void OnFocusLost(object? sender, EventArgs e) => VirtualView?.Completed();
+
+		/// <remarks>
+		/// Without this the virtual view's <see cref="ITextInput.CursorPosition"/> only ever moves
+		/// when the application sets it. Moving the caret in the editor itself would leave MAUI
+		/// believing it was still wherever it was last told, so the next programmatic edit or
+		/// selection would be applied at the wrong offset.
+		/// </remarks>
+		void OnCursorPositionChanged(object? sender, EventArgs e)
+		{
+#if TIZEN
+			if (VirtualView is null || PlatformView is null)
+				return;
+
+			VirtualView.CursorPosition = PlatformView.PrimaryCursorPosition;
+#endif
+		}
+
+		/// <remarks>
+		/// NUI reports a selection as an ordered pair of offsets that runs backwards when the user
+		/// drags right to left. MAUI models it as a start plus a non-negative length, so the pair
+		/// is normalised here.
+		/// </remarks>
+		void OnSelectionChanged(object? sender, EventArgs e)
+		{
+#if TIZEN
+			if (VirtualView is null || PlatformView is null)
+				return;
+
+			VirtualView.ApplySelection(PlatformView.SelectedTextStart, PlatformView.SelectedTextEnd);
+#endif
+		}
+
+		/// <remarks>
+		/// Clearing the selection collapses it to a caret, so the length goes to zero and the
+		/// cursor follows the platform's primary position.
+		/// </remarks>
+		void OnSelectionCleared(object? sender, EventArgs e)
+		{
+#if TIZEN
+			if (VirtualView is null || PlatformView is null)
+				return;
+
+			VirtualView.ApplyCaret(PlatformView.PrimaryCursorPosition);
+#endif
+		}
 	}
 }

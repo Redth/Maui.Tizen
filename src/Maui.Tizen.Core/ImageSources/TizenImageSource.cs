@@ -28,19 +28,34 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// Decodes <paramref name="stream"/> into a NUI image buffer and publishes its URL.
 		/// </summary>
 		/// <remarks>
+		/// <para>
 		/// Decoding is pushed onto the thread pool because <c>EncodedImageBuffer</c> decodes
 		/// synchronously and would otherwise block the NUI main loop.
+		/// </para>
+		/// <para>
+		/// Only the decode is off-thread. <c>GenerateUrl</c> registers the buffer with NUI and so
+		/// must run on the main loop; it is deliberately outside the <see cref="Task.Run"/>, and
+		/// the caller is responsible for having invoked this from the UI thread. The previous
+		/// arrangement awaited with <c>ConfigureAwait(false)</c> and then called
+		/// <c>GenerateUrl</c> on the continuation - i.e. on a thread-pool thread.
+		/// </para>
 		/// </remarks>
 		public async Task LoadSource(Stream stream)
 		{
 			ArgumentNullException.ThrowIfNull(stream);
 
-			global::Tizen.NUI.EncodedImageBuffer? imageBuffer = null;
-			await Task.Run(() => imageBuffer = new global::Tizen.NUI.EncodedImageBuffer(stream)).ConfigureAwait(false);
+			// Decode off the main loop, then register on it.
+			var imageBuffer = await Task.Run(() => new global::Tizen.NUI.EncodedImageBuffer(stream));
 
-			_imageUrl = imageBuffer?.GenerateUrl();
-			ResourceUrl = _imageUrl?.ToString();
-			imageBuffer?.Dispose();
+			try
+			{
+				_imageUrl = imageBuffer.GenerateUrl();
+				ResourceUrl = _imageUrl?.ToString();
+			}
+			finally
+			{
+				imageBuffer.Dispose();
+			}
 		}
 
 		protected virtual void Dispose(bool disposing)

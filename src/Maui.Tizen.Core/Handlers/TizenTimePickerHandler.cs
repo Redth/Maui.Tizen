@@ -26,7 +26,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>The complete property mapper for <see cref="ITimePicker"/>.</summary>
 		public static readonly IPropertyMapper<ITimePicker, TizenTimePickerHandler> Mapper =
-			new PropertyMapper<ITimePicker, TizenTimePickerHandler>(ViewHandler.ViewMapper)
+			new PropertyMapper<ITimePicker, TizenTimePickerHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(ITimePicker.Format)] = MapFormat,
 				[nameof(ITimePicker.Time)] = MapTime,
@@ -38,7 +38,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>The complete command mapper for <see cref="ITimePicker"/>.</summary>
 		public static readonly CommandMapper<ITimePicker, TizenTimePickerHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+			new(TizenViewMappers.ViewCommandMapper);
 
 		public TizenTimePickerHandler()
 			: base(Mapper, CommandMapper)
@@ -165,7 +165,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 					try
 					{
 						var selected = await popup.Open().ConfigureAwait(false);
-						VirtualView.Time = selected.TimeOfDay;
+
+						// See TizenPickerHandler: a virtual-view write runs the mapper, so it
+						// must be marshalled back to the main loop.
+						this.DispatchIfRequired(() => VirtualView.Time = selected.TimeOfDay);
 					}
 					catch (OperationCanceledException)
 					{

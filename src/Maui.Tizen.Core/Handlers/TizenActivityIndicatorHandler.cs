@@ -14,7 +14,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	{
 		/// <summary>The complete property mapper for <see cref="IActivityIndicator"/>.</summary>
 		public static readonly IPropertyMapper<IActivityIndicator, TizenActivityIndicatorHandler> Mapper =
-			new PropertyMapper<IActivityIndicator, TizenActivityIndicatorHandler>(ViewHandler.ViewMapper)
+			new PropertyMapper<IActivityIndicator, TizenActivityIndicatorHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(IActivityIndicator.IsRunning)] = MapIsRunning,
 				[nameof(IActivityIndicator.Color)] = MapColor,
@@ -22,7 +22,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>The complete command mapper for <see cref="IActivityIndicator"/>.</summary>
 		public static readonly CommandMapper<IActivityIndicator, TizenActivityIndicatorHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+			new(TizenViewMappers.ViewCommandMapper);
 
 		public TizenActivityIndicatorHandler()
 			: base(Mapper, CommandMapper)

@@ -15,7 +15,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	{
 		/// <summary>The complete property mapper for <see cref="ISwitch"/>.</summary>
 		public static readonly IPropertyMapper<ISwitch, TizenSwitchHandler> Mapper =
-			new PropertyMapper<ISwitch, TizenSwitchHandler>(ViewHandler.ViewMapper)
+			new PropertyMapper<ISwitch, TizenSwitchHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(ISwitch.IsOn)] = MapIsOn,
 				[nameof(ISwitch.TrackColor)] = MapTrackColor,
@@ -24,7 +24,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		/// <summary>The complete command mapper for <see cref="ISwitch"/>.</summary>
 		public static readonly CommandMapper<ISwitch, TizenSwitchHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+			new(TizenViewMappers.ViewCommandMapper);
 
 		public TizenSwitchHandler()
 			: base(Mapper, CommandMapper)
