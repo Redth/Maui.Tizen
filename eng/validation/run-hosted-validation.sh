@@ -37,6 +37,16 @@ SUITES=(
   "tests/Maui.Tizen.Consumer.Tests/Maui.Tizen.Consumer.Tests.csproj"
 )
 
+# Run with CI semantics by default, mirroring eng/build-workload-free.sh.
+#
+# TreatWarningsAsErrors is conditioned on ContinuousIntegrationBuild, so without this a locally
+# green run can still fail in CI. That happened: xUnit1051 (async calls should flow
+# TestContext.Current.CancellationToken) is a warning locally and an error in CI, and the first
+# push failed on it. Set MAUI_TIZEN_LOCAL_SEMANTICS=1 to opt out.
+if [[ "${MAUI_TIZEN_LOCAL_SEMANTICS:-0}" != "1" ]]; then
+  export ContinuousIntegrationBuild=true
+fi
+
 pass() { printf '\033[1;32m  PASS\033[0m %s\n' "$*"; }
 fail() { printf '\033[1;31m  FAIL\033[0m %s\n' "$*"; }
 info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }

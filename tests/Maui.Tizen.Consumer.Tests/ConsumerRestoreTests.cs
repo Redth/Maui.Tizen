@@ -119,7 +119,8 @@ public class ConsumerRestoreTests
 
         (await DotNetCli
             .RunAsync(["pack", workspace.Combine("Producer", "Producer.csproj"), "--nologo", "--output", feed],
-                workingDirectory: workspace.Path, environment: environment)
+                workingDirectory: workspace.Path, environment: environment,
+                cancellationToken: TestContext.Current.CancellationToken)
             .ConfigureAwait(true))
             .EnsureSucceeded();
 
@@ -140,7 +141,8 @@ public class ConsumerRestoreTests
 
         var consumer = workspace.Combine("Consumer", "Consumer.csproj");
 
-        (await DotNetCli.RunAsync(["restore", consumer], workingDirectory: workspace.Path, environment: environment)
+        (await DotNetCli.RunAsync(["restore", consumer], workingDirectory: workspace.Path, environment: environment,
+                cancellationToken: TestContext.Current.CancellationToken)
             .ConfigureAwait(true))
             .EnsureSucceeded();
 
@@ -151,7 +153,8 @@ public class ConsumerRestoreTests
         // ...and its buildTransitive targets actually reached the consumer's evaluation.
         var evaluation = await DotNetCli
             .RunAsync(["msbuild", consumer, "-getProperty:MauiTizenConsumerProbeApplied", "-v:q"],
-                workingDirectory: workspace.Path, environment: environment)
+                workingDirectory: workspace.Path, environment: environment,
+                cancellationToken: TestContext.Current.CancellationToken)
             .ConfigureAwait(true);
 
         evaluation.EnsureSucceeded();
@@ -184,7 +187,8 @@ public class ConsumerRestoreTests
 
         var result = await DotNetCli
             .RunAsync(["restore", workspace.Combine("Consumer", "Consumer.csproj")],
-                workingDirectory: workspace.Path, environment: IsolatedNuGetEnvironment(workspace))
+                workingDirectory: workspace.Path, environment: IsolatedNuGetEnvironment(workspace),
+                cancellationToken: TestContext.Current.CancellationToken)
             .ConfigureAwait(true);
 
         Assert.False(result.Succeeded);
@@ -228,7 +232,8 @@ public class ConsumerRestoreTests
 
         var result = await DotNetCli
             .RunAsync(["restore", workspace.Combine("Consumer", "Consumer.csproj")],
-                workingDirectory: workspace.Path, environment: IsolatedNuGetEnvironment(workspace))
+                workingDirectory: workspace.Path, environment: IsolatedNuGetEnvironment(workspace),
+                cancellationToken: TestContext.Current.CancellationToken)
             .ConfigureAwait(true);
 
         result.EnsureSucceeded();
