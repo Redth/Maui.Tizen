@@ -317,6 +317,52 @@ public class RepositoryInvariantTests
 	}
 
 	[Fact]
+	public void NoProjectTargetsBelowTheDotNetFloor()
+	{
+		// The repository is .NET 11+ only (eng/baselines.json > policy.minimumDotNet), and
+		// that has to hold for tooling and test projects too, not just shipping ones.
+		//
+		// A project targeting net10.0 still builds on a machine that has the pinned .NET 11
+		// SDK, but its testhost then fails at RUN time with "You must install or update
+		// .NET to run this application" - unless the machine happens to also carry a .NET 10
+		// runtime, which GitHub's hosted images do. So it goes green in CI and fails for
+		// anyone whose environment matches global.json exactly. This test closes that gap
+		// at the point the project file is written.
+		var floor = ReadRepoJson("eng/baselines.json")
+			.GetProperty("policy").GetProperty("minimumDotNet").GetString();
+		var floorVersion = Version.Parse(floor!);
+
+		var offenders = new List<string>();
+
+		foreach (var project in Directory.EnumerateFiles(RepoRoot, "*.csproj", SearchOption.AllDirectories))
+		{
+			if (project.Contains($"{Path.DirectorySeparatorChar}artifacts{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+				continue;
+
+			var text = File.ReadAllText(project);
+			var relative = Path.GetRelativePath(RepoRoot, project);
+
+			foreach (Match element in Regex.Matches(text, @"<TargetFrameworks?>([^<]+)</TargetFrameworks?>"))
+			{
+				foreach (var tfm in element.Groups[1].Value.Split(';', StringSplitOptions.RemoveEmptyEntries))
+				{
+					var parsed = Regex.Match(tfm.Trim(), @"^net(\d+)\.(\d+)");
+					if (!parsed.Success)
+						continue; // netstandard2.0 and friends are version-independent.
+
+					var version = new Version(int.Parse(parsed.Groups[1].Value), int.Parse(parsed.Groups[2].Value));
+					if (version < floorVersion)
+						offenders.Add($"{relative} targets {tfm.Trim()}");
+				}
+			}
+		}
+
+		Assert.True(
+			offenders.Count == 0,
+			$"These projects target below the .NET {floor} floor: " + string.Join(", ", offenders));
+	}
+
+	[Fact]
 	public void EveryProjectReferencedBySolutionExists()
 	{
 		var solution = ReadRepoFile("Maui.Tizen.slnx");
@@ -327,5 +373,106 @@ public class RepositoryInvariantTests
 			.ToList();
 
 		Assert.True(missing.Count == 0, "Solution references missing projects: " + string.Join(", ", missing));
+	}
+
+	[Fact]
+	public void NoOrphanProjectFilesExistOutsideTheSolution()
+	{
+		// The history import pulled in `GraphicsTester.Skia.Tizen.csproj`, which cannot
+		// load here: its TFM is `$(_MauiDotNetTfm)-tizen` (a dotnet/maui property that
+		// does not exist in this repository, so the TFM evaluates to the malformed
+		// "-tizen") and both of its ProjectReferences point at projects that were never
+		// imported. A folder-level build or an IDE project scan would load it and fail
+		// with errors that have nothing to do with this repository.
+		//
+		// It is parked as `.csproj.orphan` — file and history intact, invisible to project
+		// discovery. This test stops another orphan slipping in unnoticed.
+		var solution = ReadRepoFile("Maui.Tizen.slnx");
+		var referenced = Regex.Matches(solution, @"Path=""([^""]+\.csproj)""")
+			.Select(m => m.Groups[1].Value.Replace('/', Path.DirectorySeparatorChar))
+			.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+		var orphans = Directory
+			.EnumerateFiles(RepoRoot, "*.csproj", SearchOption.AllDirectories)
+			.Where(p => !p.Contains($"{Path.DirectorySeparatorChar}artifacts{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+			.Select(p => Path.GetRelativePath(RepoRoot, p))
+			.Where(p => !referenced.Contains(p))
+			.ToList();
+
+		Assert.True(
+			orphans.Count == 0,
+			"These project files are not in Maui.Tizen.slnx. Either add them, or park them as "
+				+ "'.csproj.orphan' and document them in samples/README.md: "
+				+ string.Join(", ", orphans));
+	}
+
+	[Fact]
+	public void PublicApiAnalyzerIsReferencedSoBaselinesAreEnforced()
+	{
+		// PublicAPI.Shipped/Unshipped files travel with every package project. Without the
+		// analyzer they are inert text and the API surface this repository exists to
+		// preserve could drift silently.
+		var props = ReadRepoFile("eng/targets/TizenPackage.props");
+
+		Assert.Contains("Microsoft.CodeAnalysis.PublicApiAnalyzers", props);
+		Assert.Matches(
+			new Regex(@"Microsoft\.CodeAnalysis\.PublicApiAnalyzers""\s+PrivateAssets=""all"""),
+			props);
+	}
+
+	[Fact]
+	public void SourceLinkIsNotPinnedBecauseTheSdkProvidesIt()
+	{
+		// The .NET SDK has bundled SourceLink since .NET 8. An explicit pin is redundant
+		// and risks holding an older version than the SDK ships.
+		//
+		// Asserts on the PackageVersion element rather than the bare package name: the
+		// file explains this decision in a comment, and a substring check fails on its own
+		// documentation.
+		Assert.DoesNotMatch(
+			new Regex(@"<PackageVersion\s+Include=""Microsoft\.SourceLink"),
+			ReadRepoFile("Directory.Packages.props"));
+	}
+
+	[Fact]
+	public void NoDeadCompileUpdateItemsRemain()
+	{
+		// `<Compile Update="**/*.Tizen.cs" />` with no metadata changes nothing, and every
+		// package project sets EnableDefaultCompileItems=false, so there were no items to
+		// update in the first place. It read as meaningful configuration while doing
+		// nothing at all. Source inclusion is explicit, per project.
+		var targets = ReadRepoFile("Directory.Build.targets");
+		Assert.DoesNotMatch(new Regex(@"<Compile\s+Update="), targets);
+	}
+
+	[Fact]
+	public void AspNetCoreDependenciesUseTheirOwnVersionLine()
+	{
+		// Microsoft.AspNetCore.* are ASP.NET Core packages and do not share MAUI's version
+		// stamp. Pinning them to MAUI's 11.0.0-preview.7.26418.3 produced NU1603 (that
+		// version does not exist for those packages) followed by NU1109 downgrade errors
+		// across the BlazorWebView graph.
+		//
+		// The correct version is what Microsoft.AspNetCore.Components.WebView.Maui declares
+		// in its own nuspec, which also matches the SDK build pinned in global.json.
+		var packages = ReadRepoFile("Directory.Packages.props");
+
+		var mauiStamp = Regex.Match(packages, @"Include=""Microsoft\.Maui\.Core"" Version=""([^""]+)""");
+		Assert.True(mauiStamp.Success, "Directory.Packages.props must pin Microsoft.Maui.Core");
+
+		foreach (Match m in Regex.Matches(packages, @"Include=""(Microsoft\.AspNetCore\.[^""]+|Microsoft\.JSInterop)"" Version=""([^""]+)"""))
+		{
+			var id = m.Groups[1].Value;
+			var version = m.Groups[2].Value;
+
+			// The .Maui bridge package IS a MAUI package and legitimately shares the stamp.
+			if (id.EndsWith(".Maui", StringComparison.Ordinal))
+				continue;
+
+			Assert.True(
+				version != mauiStamp.Groups[1].Value,
+				$"{id} is pinned to MAUI's version stamp ({version}); ASP.NET Core packages "
+					+ "are on their own version line and that version does not exist for them.");
+		}
 	}
 }

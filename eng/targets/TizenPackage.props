@@ -87,8 +87,33 @@
 
     <!-- An assembly with no sources has no docs to generate. -->
     <GenerateDocumentationFile Condition="'$(EnableDefaultCompileItems)' == 'false'">false</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);CS2008</NoWarn>
+
+    <!--
+      CS1591 ("missing XML comment for publicly visible type or member") is suppressed
+      until the imported sources actually compile.
+
+      The inherited dotnet/maui sources are not uniformly documented, and TreatWarningsAsErrors
+      is on in CI, so the moment a project flips EnableDefaultCompileItems to true it would
+      fail with hundreds of CS1591 errors that say nothing about whether the migration is
+      correct. Documentation coverage is a real goal, but it is its own workstream - it
+      should not be the thing that blocks the first handler from compiling.
+
+      Remove this per-project as that project's documentation is completed.
+    -->
+    <NoWarn>$(NoWarn);CS1591;CS2008</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Enforces the PublicAPI.Shipped/Unshipped baselines that travel with each project.
+      Without the analyzer those files are inert text, and the API surface this repository
+      is supposed to preserve could drift silently.
+
+      PrivateAssets=all: an analyzer is a build-time tool and must not become a dependency
+      of the shipped package.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+  </ItemGroup>
 
   <ItemGroup Condition="'$(EnableDefaultCompileItems)' == 'false'">
     <None Include="**/*.cs" Exclude="bin/**;obj/**" />

@@ -38,16 +38,20 @@ info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 note() { printf '\033[1;33m  GATE\033[0m %s\n' "$*"; }
 
 FAILURES=0
+# check <label> <command...> — runs the command, reports, and returns its status so
+# callers can branch (e.g. to skip tests after a failed build).
 check() {
   local label="$1"; shift
   if "$@" >/tmp/mt-check.$$ 2>&1; then
     pass "$label"
-  else
-    fail "$label"
-    sed 's/^/        /' /tmp/mt-check.$$ | tail -30
-    FAILURES=$((FAILURES + 1))
+    rm -f /tmp/mt-check.$$
+    return 0
   fi
+  fail "$label"
+  sed 's/^/        /' /tmp/mt-check.$$ | tail -30
+  FAILURES=$((FAILURES + 1))
   rm -f /tmp/mt-check.$$
+  return 1
 }
 
 info "SDK"
@@ -136,10 +140,28 @@ WORKLOAD_FREE_PROJECTS=(
   "tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj"
   "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj"
 )
+BUILD_OK=1
 for proj in "${WORKLOAD_FREE_PROJECTS[@]}"; do
   check "restore $(basename "$proj")" "$DOTNET" restore "$proj"
-  check "build   $(basename "$proj")" "$DOTNET" build "$proj" --no-restore -c Release
+  if check "build   $(basename "$proj")" "$DOTNET" build "$proj" --no-restore -c Release; then
+    :
+  else
+    BUILD_OK=0
+  fi
 done
+
+# ---------------------------------------------------------------------------
+# 4b. Package graph probe.
+#
+# The real consumers of these packages are the net11.0-tizen11.0 projects, and they
+# cannot restore at all - the workload gate fires before Restore. Without this probe a
+# broken version pin stays invisible until the Samsung workload ships.
+#
+# It already earned its place: Microsoft.AspNetCore.Components.WebView was pinned to
+# MAUI's version stamp, which does not exist for that package.
+# ---------------------------------------------------------------------------
+info "Package graph"
+check "restore package graph probe" "$DOTNET" restore eng/tests/PackageGraphProbe/PackageGraphProbe.csproj
 
 # ---------------------------------------------------------------------------
 # 5. Repository invariant tests.
@@ -147,10 +169,18 @@ done
 # These are the only tests that can meaningfully run before the workload ships: they
 # check that the migration scaffolding is internally consistent rather than testing
 # Tizen behaviour that nobody can execute yet.
+#
+# Skipped when the build failed. `dotnet test --no-build` against missing or stale
+# output produces pages of cascading errors that bury the actual first failure.
 # ---------------------------------------------------------------------------
 info "Repository invariant tests"
-check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
-check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
+if [[ $BUILD_OK -eq 1 ]]; then
+  check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
+  check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
+else
+  fail "unit tests skipped - a preceding build failed (running --no-build now would only add cascading noise)"
+  FAILURES=$((FAILURES + 1))
+fi
 
 # ---------------------------------------------------------------------------
 # 5. Workload detection regressions.
@@ -188,7 +218,8 @@ if [[ "$WORKLOAD_STATE" == "true" ]]; then
 elif [[ "$WORKLOAD_STATE" == "false" ]]; then
   note "Samsung Tizen workload is NOT installed."
   note "  net11.0-tizen11.0 cannot be restored or built until Samsung publishes"
-  note "  'samsung.net.sdk.tizen.manifest-11.0.100'. This is expected; see docs/migration.md."
+  note "  an 11.0.100-band 'Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7' manifest."
+  note "  This is expected; see docs/migration.md."
 else
   fail "could not determine workload state (ReportTizenWorkload returned '${WORKLOAD_STATE:-<empty>}')"
   FAILURES=$((FAILURES + 1))
