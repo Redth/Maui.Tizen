@@ -25,6 +25,16 @@
     <NoWarn>$(NoWarn);NETSDK1057</NoWarn>
   </PropertyGroup>
 
+  <!--
+    Compile the Wave B sources that carry no Tizen.NUI dependency, so their behaviour can be
+    executed here instead of only type-checked by the ref-pack lane.
+  -->
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
+
+  <ItemGroup>
+    <Compile Include="@(MauiTizenWaveBPortableCompile)" LinkBase="WaveB" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />

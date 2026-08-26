@@ -140,7 +140,16 @@
     shares these directories and globbing would sweep it in - including the public
     Microsoft.Maui.Platform.WrapperView, whose full name collides with neutral MAUI.
   -->
+  <!--
+    Wave B sources with no Tizen.NUI dependency. Compiled into the host-side test project as well as
+    the product, so the swipe direction maths is executed rather than merely type-checked.
+  -->
+  <ItemGroup Label="Wave B portable sources">
+    <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenSwipeMetrics.cs" />
+  </ItemGroup>
+
   <ItemGroup Label="Wave B platform sources">
+    <MauiTizenWaveBCompile Include="@(MauiTizenWaveBPortableCompile)" />
     <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenWaveBInterop.cs" />
     <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenAspectExtensions.cs" />
     <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenImageViewExtensions.cs" />

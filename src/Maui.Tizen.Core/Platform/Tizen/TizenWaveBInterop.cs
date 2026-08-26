@@ -19,53 +19,22 @@ using Point = Microsoft.Maui.Graphics.Point;
 namespace Microsoft.Maui.Platforms.Tizen
 {
 	/// <summary>
-	/// Swipe metrics and direction maths.
-	/// </summary>
-	/// <remarks>
-	/// Upstream these lived in <c>Microsoft.Maui.SwipeViewExtensions</c> and
-	/// <c>Microsoft.Maui.SwipeDirectionHelper</c>, both of which are <see langword="internal"/> to
-	/// <c>Microsoft.Maui.Core</c>. An out-of-repo backend cannot reach them, so the values and the
-	/// direction calculation are reproduced here. They are small and stable; the alternative was
-	/// dropping SwipeView from the port entirely.
-	/// </remarks>
-	public static class TizenSwipeMetrics
-	{
-		/// <summary>Distance, in device-independent units, a swipe must travel before it opens.</summary>
-		public const double SwipeThreshold = 250;
-
-		/// <summary>Default width, in device-independent units, of a single swipe item.</summary>
-		public const double SwipeItemWidth = 100;
-
-		/// <summary>Minimum travel, in device-independent units, before a gesture counts as a swipe.</summary>
-		const double SwipeMinimumDelta = 10;
-
-		/// <summary>Determines the swipe direction between two points.</summary>
-		/// <param name="initialPoint">Where the gesture started.</param>
-		/// <param name="endPoint">Where the gesture currently is.</param>
-		/// <returns>The dominant axis direction, or <see langword="null"/> below the minimum delta.</returns>
-		public static SwipeDirection? GetSwipeDirection(Point initialPoint, Point endPoint)
-		{
-			var deltaX = endPoint.X - initialPoint.X;
-			var deltaY = endPoint.Y - initialPoint.Y;
-
-			if (Math.Abs(deltaX) < SwipeMinimumDelta && Math.Abs(deltaY) < SwipeMinimumDelta)
-				return null;
-
-			// The dominant axis wins, matching the upstream behaviour.
-			if (Math.Abs(deltaX) > Math.Abs(deltaY))
-				return deltaX > 0 ? SwipeDirection.Right : SwipeDirection.Left;
-
-			return deltaY > 0 ? SwipeDirection.Down : SwipeDirection.Up;
-		}
-	}
-
-	/// <summary>
 	/// Platform helpers used by the Wave B views and handlers.
 	/// </summary>
 	public static class TizenWaveBViewExtensions
 	{
 		/// <summary>Converts a MAUI <see cref="Visibility"/> to a native shown/hidden flag.</summary>
-		public static bool ToPlatformVisibility(this Visibility visibility) => visibility == Visibility.Visible;
+		/// <remarks>
+		/// Written as an explicit switch to match upstream, so a future <c>Visibility</c> member
+		/// defaults to visible here exactly as it does there.
+		/// </remarks>
+		public static bool ToPlatformVisibility(this Visibility visibility) =>
+			visibility switch
+			{
+				Visibility.Hidden => false,
+				Visibility.Collapsed => false,
+				_ => true,
+			};
 
 		/// <summary>Applies <see cref="IView.Visibility"/> to the native view.</summary>
 		public static void UpdateVisibility(this NView platformView, IView view)
@@ -78,9 +47,17 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		/// <summary>Walks up the native parent chain looking for <typeparamref name="T"/>.</summary>
 		/// <typeparam name="T">The ancestor type to find.</typeparam>
+		/// <remarks>
+		/// Checks <paramref name="platformView"/> itself first, matching upstream's internal
+		/// <c>ViewExtensions.GetParentOfType</c>. Starting at the parent instead would silently miss
+		/// the case where the view already is the type being searched for.
+		/// </remarks>
 		public static T? GetParentOfType<T>(this NView platformView)
 			where T : NView
 		{
+			if (platformView is T self)
+				return self;
+
 			var parent = platformView.GetParent() as NView;
 
 			while (parent is not null)

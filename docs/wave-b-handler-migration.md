@@ -199,11 +199,29 @@ the compile lane:
 
 ### MAUI internals reproduced locally
 
-`TizenSwipeMetrics` reproduces the swipe threshold, default item width and direction calculation
-because `SwipeViewExtensions` and `SwipeDirectionHelper` are `internal` to `Microsoft.Maui.Core`.
-The values are small and stable; the alternative was dropping SwipeView from the port. Similarly
-`TizenWaveBViewExtensions` supplies `ContainsAny`, visibility, parent-walking and the `float`
-density overloads that the core slice does not expose.
+`SwipeViewExtensions`, `SwipeDirectionHelper`, `RectF.ContainsAny` and `ViewExtensions.GetParentOfType`
+are all `internal` to `Microsoft.Maui.Core`, so an out-of-repo backend cannot call them. They are
+reproduced in `TizenSwipeMetrics` and `TizenWaveBViewExtensions`.
+
+Because the compiler cannot diff a reproduction against an inaccessible original, these are the
+easiest thing in the port to get quietly wrong — and the first revision did:
+
+- **`GetSwipeDirection` used a "larger delta wins" approximation and returned `null` below a minimum
+  travel distance.** Upstream is angle-based and returns a non-nullable `SwipeDirection`. The caller
+  stores it in a nullable field that upstream only ever clears explicitly, so returning null on a
+  small drag left the gesture with no direction and the swipe never opened. Now verbatim.
+- **`GetParentOfType` started at the parent.** Upstream checks the view itself first.
+- **`ToPlatformVisibility` compared against `Visible`.** Upstream switches on `Hidden`/`Collapsed`
+  and defaults to visible, so a future enum member would diverge.
+
+`TizenSwipeMetrics` has no `Tizen.NUI` dependency, so it is kept in its own file and compiled into
+the host-side test project as well as the product. `SwipeMetricsTests` (25 cases) executes it and
+pins the upstream angle boundaries, rather than trusting that it type-checks. That test also caught
+an incorrect assumption in its own first draft: a zero-length gesture resolves to `Right`, not
+`Left`, because `Atan2(0, 0)` normalises to 0 degrees.
+
+The remaining helpers in `TizenWaveBViewExtensions` (`ContainsAny`, the `float` density overloads,
+image-source loading) are verified against upstream source and type-checked by the ref-pack lane.
 
 ### Not compiled, and why
 
