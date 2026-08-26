@@ -25,6 +25,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/UnitTests/Maui.Tizen.UnitTests.csproj" />
     <Project Path="eng/tests/PackageGraphProbe/PackageGraphProbe.csproj" />
+    <Project Path="eng/tests/Api15CompileProbe/Api15CompileProbe.csproj" />
     <Project Path="tests/TestUtils/Maui.Tizen.TestUtils/Maui.Tizen.TestUtils.csproj" />
     <Project Path="tests/Maui.Tizen.Validation.Tests/Maui.Tizen.Validation.Tests.csproj" />
     <Project Path="tests/Maui.Tizen.Build.Tests/Maui.Tizen.Build.Tests.csproj" />

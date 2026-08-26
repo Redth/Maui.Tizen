@@ -39,23 +39,56 @@ public static class TizenPrivileges
 /// </remarks>
 public sealed class TizenAgentEnvironment
 {
+    readonly bool _hasWindow = true;
+    readonly bool _supportsCapture = true;
+    readonly bool _supportsWindowResize = true;
+
     /// <summary>Device profile, e.g. <c>mobile</c> or <c>tv</c>.</summary>
     public string Profile { get; init; } = TizenDeviceProfiles.Mobile;
 
     /// <summary>Privileges actually granted to the host application.</summary>
     public IReadOnlyCollection<string> GrantedPrivileges { get; init; } = [];
 
+    /// <summary>
+    /// Live probe for window availability, evaluated on every read.
+    /// </summary>
+    /// <remarks>
+    /// The agent starts before the application's first window exists, so a value captured at
+    /// construction would report every window-dependent capability as permanently unsupported for
+    /// the lifetime of the process. A driver connecting after the UI appeared would be told the
+    /// agent cannot walk the tree, which is both wrong and unrecoverable.
+    /// </remarks>
+    public Func<bool>? WindowProbe { get; init; }
+
+    /// <summary>Live probe for screenshot capture availability.</summary>
+    public Func<bool>? CaptureProbe { get; init; }
+
+    /// <summary>Live probe for programmatic window resize.</summary>
+    public Func<bool>? WindowResizeProbe { get; init; }
+
     /// <summary>True when a NUI window is available to capture and drive.</summary>
-    public bool HasWindow { get; init; } = true;
+    public bool HasWindow
+    {
+        get => WindowProbe?.Invoke() ?? _hasWindow;
+        init => _hasWindow = value;
+    }
 
     /// <summary>
     /// True when <c>Tizen.NUI.Capture</c> is usable. Emulator images without a GL backend can fail
     /// capture while everything else works.
     /// </summary>
-    public bool SupportsCapture { get; init; } = true;
+    public bool SupportsCapture
+    {
+        get => CaptureProbe?.Invoke() ?? _supportsCapture;
+        init => _supportsCapture = value;
+    }
 
     /// <summary>True when the window manager permits programmatic resize.</summary>
-    public bool SupportsWindowResize { get; init; } = true;
+    public bool SupportsWindowResize
+    {
+        get => WindowResizeProbe?.Invoke() ?? _supportsWindowResize;
+        init => _supportsWindowResize = value;
+    }
 
     public bool HasPrivilege(string privilege) =>
         GrantedPrivileges.Contains(privilege, StringComparer.OrdinalIgnoreCase);

@@ -1,6 +1,8 @@
-using Tizen.Applications;
-using Tizen.NUI;
-using Tizen.Security;
+using global::Tizen.System;
+using Information = global::Tizen.System.Information;
+using NUIWindow = global::Tizen.NUI.Window;
+using PackageManager = global::Tizen.Applications.PackageManager;
+using TizenApplication = global::Tizen.Applications.Application;
 
 namespace Maui.Tizen.DevFlow.Agent;
 
@@ -8,16 +10,23 @@ namespace Maui.Tizen.DevFlow.Agent;
 /// Reads the device facts the agent's capability decisions depend on.
 /// </summary>
 /// <remarks>
-/// This is the only place that touches Tizen device APIs for environment discovery. Everything that
-/// consumes the result works against the platform-neutral <see cref="TizenAgentEnvironment"/>, which
-/// is what allows the capability policy to be tested on a hosted runner.
+/// The only place that touches Tizen device APIs for environment discovery. Everything that
+/// consumes the result works against the platform-neutral <see cref="TizenAgentEnvironment"/>,
+/// which is what allows the capability policy to be tested on a hosted runner.
 /// </remarks>
 public static class TizenDeviceEnvironment
 {
     const string ProfileFeatureKey = "http://tizen.org/feature/profile";
     const string ScreenFeatureKey = "http://tizen.org/feature/screen";
 
-    /// <summary>Probes the current device.</summary>
+    /// <summary>
+    /// Probes the current device.
+    /// </summary>
+    /// <remarks>
+    /// Window-dependent facts are read through <see cref="TizenAgentEnvironment"/>'s live probes
+    /// rather than captured here, because the agent can start before the first window exists. See
+    /// <see cref="TizenAgentEnvironment.WindowProbe"/>.
+    /// </remarks>
     public static TizenAgentEnvironment Detect()
     {
         var profile = DetectProfile();
@@ -26,16 +35,19 @@ public static class TizenDeviceEnvironment
         {
             Profile = profile,
             GrantedPrivileges = DetectPrivileges(),
-            HasWindow = TryGetWindow() is not null,
-            SupportsCapture = HasScreen(),
+
+            // Evaluated on every read, so a capability that becomes available once the window is
+            // created is not reported as permanently unsupported.
+            WindowProbe = HasWindow,
+            CaptureProbe = () => HasWindow() && HasScreen(),
 
             // TV windows are locked to the panel resolution by the window manager.
-            SupportsWindowResize = profile != TizenDeviceProfiles.Tv,
+            WindowResizeProbe = () => HasWindow() && profile != TizenDeviceProfiles.Tv,
         };
     }
 
     /// <summary>The application's private data directory.</summary>
-    public static string GetAppDataPath() => Application.Current.DirectoryInfo.Data;
+    public static string GetAppDataPath() => TizenApplication.Current.DirectoryInfo.Data;
 
     /// <summary>Window size and display density.</summary>
     public static (double Width, double Height, double Density) GetWindowMetrics(int? windowIndex)
@@ -45,7 +57,10 @@ public static class TizenDeviceEnvironment
             return (0, 0, 1);
 
         var size = window.WindowSize;
-        return (size.Width, size.Height, GraphicsTypeManager.Instance.ScaleFactor);
+
+        // DevFlow coordinates are logical while NUI reports physical pixels. Getting this wrong
+        // makes every coordinate-based tap land in the wrong place on non-mdpi devices.
+        return (size.Width, size.Height, global::Tizen.NUI.GraphicsTypeManager.Instance.Density);
     }
 
     static string DetectProfile()
@@ -64,47 +79,47 @@ public static class TizenDeviceEnvironment
     static bool HasScreen() =>
         !Information.TryGetValue<bool>(ScreenFeatureKey, out var hasScreen) || hasScreen;
 
+    static bool HasWindow() => TryGetWindow() is not null;
+
     /// <summary>
-    /// Returns only privileges actually granted.
+    /// Privileges the application actually holds.
     /// </summary>
     /// <remarks>
-    /// Declaring a privilege in <c>tizen-manifest.xml</c> is not the same as holding it: privacy
-    /// privileges can be denied by the user at runtime. Checking the granted state is what keeps the
-    /// advertised capability map truthful.
+    /// Read from the installed package rather than through <c>PrivacyPrivilegeManager</c>, which is
+    /// <c>[Obsolete]</c> in API15 and would fail the build under warnings-as-errors. It is also the
+    /// more accurate source here: <c>inputgenerator</c> is an install-time privilege, so what
+    /// matters is whether the package was installed with it declared, which is exactly what
+    /// <see cref="Package.Privileges"/> reports.
     /// </remarks>
     static IReadOnlyCollection<string> DetectPrivileges()
     {
-        var granted = new List<string>();
-
-        foreach (var privilege in TizenPrivileges.Default.Concat(TizenPrivileges.Optional))
-        {
-            if (IsGranted(privilege))
-                granted.Add(privilege);
-        }
-
-        return granted;
-    }
-
-    static bool IsGranted(string privilege)
-    {
         try
         {
-            return PrivacyPrivilegeManager.CheckPermission(privilege) == CheckResult.Allow;
+            var applicationId = TizenApplication.Current.ApplicationInfo.ApplicationId;
+            var packageId = PackageManager.GetPackageIdByApplicationId(applicationId);
+
+            if (string.IsNullOrEmpty(packageId))
+                return [];
+
+            var package = PackageManager.GetPackage(packageId);
+            return package?.Privileges is { } privileges ? [.. privileges] : [];
+        }
+        catch (InvalidOperationException)
+        {
+            // Package metadata is unavailable outside a packaged app, e.g. under a test host.
+            return [];
         }
         catch (ArgumentException)
         {
-            // Non-privacy privileges are not known to PrivacyPrivilegeManager. They are granted at
-            // install time if declared, so treat a lookup failure as granted rather than hiding a
-            // capability that actually works.
-            return true;
+            return [];
         }
     }
 
-    static Window? TryGetWindow()
+    static NUIWindow? TryGetWindow()
     {
         try
         {
-            return Window.Default;
+            return NUIWindow.Default;
         }
         catch (InvalidOperationException)
         {

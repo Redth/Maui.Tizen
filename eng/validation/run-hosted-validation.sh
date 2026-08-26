@@ -58,6 +58,19 @@ mkdir -p "$RESULTS_DIR"
 info "SDK"
 "$DOTNET" --version | sed 's/^/  /'
 
+# The Tizen agent cannot be built for its real TFM anywhere, so it is compiled here against the
+# API15 reference assemblies instead. Building it first means a broken agent fails the lane rather
+# than being reported only by whatever test happens to touch it.
+info "Compiling the Tizen agent against the API15 reference assemblies"
+if "$DOTNET" build eng/tests/Api15CompileProbe/Api15CompileProbe.csproj -c "$CONFIGURATION" --nologo -v q >/tmp/mt-api15.$$ 2>&1; then
+  pass "API15 compile probe"
+else
+  fail "API15 compile probe"
+  sed 's/^/        /' /tmp/mt-api15.$$ | tail -40
+  FAILURES=$((FAILURES + 1))
+fi
+rm -f /tmp/mt-api15.$$
+
 info "Building validation suites ($CONFIGURATION)"
 for suite in "${SUITES[@]}"; do
   if ! "$DOTNET" build "$suite" -c "$CONFIGURATION" --nologo -v q >/tmp/mt-build.$$ 2>&1; then

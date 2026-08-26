@@ -110,6 +110,13 @@
       exact override surface so an upstream change fails the hosted lane immediately.
     -->
     <PackageVersion Include="Microsoft.Maui.DevFlow.Agent.Core" Version="0.1.0-preview.12.26421.1" />
+
+    <!--
+      Samsung's API15 reference assemblies, consumed as an ordinary package so the Tizen agent
+      sources can be COMPILED against the real platform surface without the Samsung workload.
+      Version mirrors eng/baselines.json > target.referencePack; a test asserts they match.
+    -->
+    <PackageVersion Include="Samsung.Tizen.Ref.API15" Version="15.0.0.19396" />
   </ItemGroup>
 
 </Project>

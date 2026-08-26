@@ -1,7 +1,11 @@
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.DevFlow.Agent.Core;
-using Tizen.NUI;
-using Tizen.NUI.BaseComponents;
+using global::Tizen.NUI;
+using IOPath = System.IO.Path;
+using NUIColor = global::Tizen.NUI.Color;
+using NUISize = global::Tizen.NUI.Size;
+using NUIView = global::Tizen.NUI.BaseComponents.View;
+using NUIWindow = global::Tizen.NUI.Window;
 
 namespace Maui.Tizen.DevFlow.Agent;
 
@@ -10,14 +14,20 @@ namespace Maui.Tizen.DevFlow.Agent;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <see cref="Capture"/> is file-based and asynchronous: it writes a PNG to a path and raises
-/// <see cref="Capture.Finished"/>. There is no in-memory overload, so the flow is necessarily
-/// capture to a temp file under the app's own data directory, read the bytes, delete the file.
+/// <see cref="Capture"/> is file-based and asynchronous: <see cref="Capture.Start(Container, NUISize, string, NUIColor)"/>
+/// writes a PNG and then raises <see cref="Capture.Finished"/> with
+/// <see cref="CaptureFinishedEventArgs.Success"/>. There is no in-memory overload that yields
+/// encoded bytes, so the flow is necessarily capture to a temp file, read, delete.
 /// </para>
 /// <para>
-/// The app data directory is used rather than <c>/tmp</c> because a sandboxed Tizen application is
-/// not guaranteed write access outside its own storage, and a capture that silently fails to write
-/// is indistinguishable from a capture that produced nothing.
+/// A <see cref="Capture"/> instance is created per request rather than shared. It is a stateful
+/// native object with a single <c>Finished</c> event, so a shared instance would deliver one
+/// request's completion to another's handler under concurrent capture.
+/// </para>
+/// <para>
+/// The file goes in the application's own data directory, not <c>/tmp</c>: a sandboxed Tizen
+/// application is not guaranteed write access elsewhere, and a capture that silently fails to write
+/// is indistinguishable from one that produced nothing.
 /// </para>
 /// </remarks>
 public sealed class TizenScreenshotCapture : IDisposable
@@ -35,61 +45,69 @@ public sealed class TizenScreenshotCapture : IDisposable
         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
 
     /// <summary>Captures a whole window, or null when capture is unavailable.</summary>
-    public Task<byte[]?> CaptureWindowAsync(int? windowIndex)
+    public async Task<byte[]?> CaptureWindowAsync(int? windowIndex)
     {
         if (!CanCapture)
-            return Task.FromResult<byte[]?>(null);
+            return null;
 
-        return MainThread.InvokeOnMainThreadAsync(() =>
+        var target = await MainThread.InvokeOnMainThreadAsync(() =>
         {
             var window = ResolveWindow(windowIndex);
+
             return window is null
-                ? Task.FromResult<byte[]?>(null)
-                : CaptureAsync(window.GetDefaultLayer(), new Size2D((int)window.WindowSize.Width, (int)window.WindowSize.Height));
-        }).Unwrap();
+                ? default((Container? Source, NUISize? Size))
+                : (window.GetDefaultLayer(), new NUISize(window.WindowSize.Width, window.WindowSize.Height));
+        }).ConfigureAwait(false);
+
+        return target.Source is null || target.Size is null
+            ? null
+            : await CaptureAsync(target.Source, target.Size).ConfigureAwait(false);
     }
 
     /// <summary>Captures a single native element, or null when capture is unavailable.</summary>
-    public Task<byte[]?> CaptureElementAsync(object nativeElement, ElementInfo elementInfo)
+    public async Task<byte[]?> CaptureElementAsync(object nativeElement, ElementInfo? elementInfo)
     {
-        if (!CanCapture || nativeElement is not View view)
-            return Task.FromResult<byte[]?>(null);
+        if (!CanCapture || nativeElement is not NUIView view)
+            return null;
 
-        return MainThread.InvokeOnMainThreadAsync(() =>
+        var size = await MainThread.InvokeOnMainThreadAsync(() =>
         {
-            var size = view.CurrentSize;
-            return size.Width <= 0 || size.Height <= 0
-                ? Task.FromResult<byte[]?>(null)
-                : CaptureAsync(view, new Size2D((int)size.Width, (int)size.Height));
-        }).Unwrap();
+            var current = view.CurrentSize;
+            return current.Width <= 0 || current.Height <= 0
+                ? null
+                : new NUISize(current.Width, current.Height);
+        }).ConfigureAwait(false);
+
+        return size is null ? null : await CaptureAsync(view, size).ConfigureAwait(false);
     }
 
     bool CanCapture => !_disposed && _environment is { HasWindow: true, SupportsCapture: true };
 
     /// <remarks>
-    /// Multi-window is not addressed yet: NUI exposes no index-based lookup, so every index
-    /// resolves to the default window. Returning it for a non-zero index would silently capture
-    /// the wrong surface, so that case is rejected instead.
+    /// NUI exposes no index-based window lookup, so any index other than the default would resolve
+    /// to the same window. Returning it anyway would silently capture the wrong surface, so a
+    /// non-default index is rejected instead.
     /// </remarks>
-    static Window? ResolveWindow(int? windowIndex) =>
-        windowIndex is null or 0 ? Window.Default : null;
+    static NUIWindow? ResolveWindow(int? windowIndex) =>
+        windowIndex is null or 0 ? NUIWindow.Default : null;
 
-    async Task<byte[]?> CaptureAsync(View source, Size2D size)
+    async Task<byte[]?> CaptureAsync(Container source, NUISize size)
     {
-        var path = Path.Combine(
+        var path = IOPath.Combine(
             TizenDeviceEnvironment.GetAppDataPath(),
             $"devflow-capture-{Guid.NewGuid():N}.png");
 
         var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var capture = new Capture();
 
-        void OnFinished(object? sender, Capture.FinishedEventArgs e) =>
-            completion.TrySetResult(e.Success);
+        void OnFinished(object? sender, CaptureFinishedEventArgs e) => completion.TrySetResult(e.Success);
 
-        Capture.Instance.Finished += OnFinished;
+        capture.Finished += OnFinished;
 
         try
         {
-            Capture.Instance.Start(source, size, path, Color.Transparent);
+            await MainThread.InvokeOnMainThreadAsync(() =>
+                capture.Start(source, size, path, NUIColor.Transparent)).ConfigureAwait(false);
 
             var completed = await Task.WhenAny(completion.Task, Task.Delay(CaptureTimeout)).ConfigureAwait(false);
             if (completed != completion.Task || !await completion.Task.ConfigureAwait(false))
@@ -99,7 +117,8 @@ public sealed class TizenScreenshotCapture : IDisposable
         }
         finally
         {
-            Capture.Instance.Finished -= OnFinished;
+            capture.Finished -= OnFinished;
+            capture.Dispose();
             TryDelete(path);
         }
     }

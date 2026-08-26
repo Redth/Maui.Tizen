@@ -34,18 +34,33 @@ that fails still reports green at the job level, so an unavailable lane would be
 from a passing one. Conditioning on `steps.preflight.outputs.lane_available` makes the steps
 genuinely "not run".
 
-**`release-gate` always runs (`if: always()`).** It is the job branch protection should point at. It
-fails a release when the lab is not attached or the matrix did not pass, and passes for everything
-else with the reason in the summary.
+**`release-gate` always runs (`if: always()`)** and delegates the decision to
+`eng/validation/scripts/evaluate-release-gate.sh`.
+
+The decision is a script rather than inline YAML because the previous inline version contained a
+hole that no test could catch: it only inspected the matrix job's *result*, and a matrix whose
+device steps were all conditioned out still reports `success`. A device lane that validated nothing
+passed the release gate.
+
+The fix is that each profile writes a result file recording whether the lane was available and
+whether it passed, and the gate requires one per required profile. Artifacts rather than job
+outputs, because matrix job outputs collapse to a single last-writer-wins value and a passing
+profile would mask a skipped one.
 
 ```
 required = tag push v* OR workflow_dispatch(release_validation: true)
 
-required == false                  -> pass, report device lane result
-required == true, lab disabled     -> fail: "a release requires the Tizen device lane"
-required == true, matrix != success-> fail: "the device lane did not pass"
-required == true, matrix == success-> pass
+required == false                          -> pass, lane is informational
+required == true, lab disabled             -> fail: no device lab attached
+required == true, matrix != success        -> fail: names the actual result
+required == true, any profile result absent-> fail: job did not complete
+required == true, any lane_available!=true -> fail: nothing ran on hardware
+required == true, any status != pass       -> fail
+otherwise                                  -> pass
 ```
+
+`Maui.Tizen.Validation.Tests.ReleaseGateTests` exercises this as a truth table, including the
+skipped-but-successful case that the review found.
 
 `device-lane-status` in `ci.yml` reports the same information on ordinary pull requests, so the
 lane's absence is visible on every run rather than only when someone goes looking.
@@ -74,6 +89,20 @@ Some assertions are noise on a pull request and essential at release. They are g
 
 - `UnshippedApiIsEmptyBeforeARelease` — the imported baseline starts with hundreds of pending API
   entries, so failing every PR on it would train people to ignore the suite.
+
+The device workflow exports the flag automatically whenever the run is a release, and
+`ReleaseReadinessTests.ReleaseValidationFlagIsWiredIntoTheReleaseWorkflow` fails if that wiring is
+removed - otherwise every release-only gate would silently go back to skipping.
+
+Under the flag these stop skipping and start failing:
+
+| Gate | Requires |
+|---|---|
+| `EveryDeclaredPackageWasProduced` | a `.nupkg` for every package-content contract |
+| `EveryProducedPackageSatisfiesItsContentContract` | each package matches its contract |
+| `EveryRequiredVisualBaselineExists` | a baseline per catalog case, profile, theme and density |
+| `EveryRequiredProfileReportedADeviceResult` | every gating profile ran on hardware and passed |
+| `UnshippedApiIsEmptyBeforeARelease` | no pending public API |
 
 Run them locally with:
 

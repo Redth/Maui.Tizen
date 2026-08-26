@@ -1,6 +1,7 @@
 using Microsoft.Maui.DevFlow.Agent.Core;
-using Tizen.NUI;
-using Tizen.NUI.BaseComponents;
+using NUITextEditor = global::Tizen.NUI.BaseComponents.TextEditor;
+using NUITextField = global::Tizen.NUI.BaseComponents.TextField;
+using NUIView = global::Tizen.NUI.BaseComponents.View;
 
 namespace Maui.Tizen.DevFlow.Agent;
 
@@ -71,13 +72,17 @@ public class TizenVisualTreeWalker : VisualTreeWalker
     /// <summary>
     /// NUI's <see cref="View.Name"/> is the only stable, developer-assignable identity available.
     /// </summary>
-    protected override string? EnsurePlatformStableId(object platformObj) =>
-        platformObj is View { Name.Length: > 0 } view ? view.Name : null;
+    protected override string EnsurePlatformStableId(object platformObj) =>
+        platformObj is NUIView { Name.Length: > 0 } view
+            ? view.Name
+            // DevFlow's preview assemblies are not nullable-annotated; the base contract
+            // declares a non-null id, so it is trusted here rather than re-declared nullable.
+            : base.EnsurePlatformStableId(platformObj)!;
 
     /// <summary>Moves keyboard/remote focus to a registered native element.</summary>
     protected override string? TryNativeElementFocus(string elementId, object nativeElement)
     {
-        if (nativeElement is not View view)
+        if (nativeElement is not NUIView view)
             return $"Element '{elementId}' is not a NUI View.";
 
         if (!view.Focusable)
@@ -99,8 +104,8 @@ public class TizenVisualTreeWalker : VisualTreeWalker
     protected override string? TrySetValueRegisteredNativeElement(string elementId, object nativeElement, string value) =>
         nativeElement switch
         {
-            TextField field => Apply(() => field.Text = value),
-            TextEditor editor => Apply(() => editor.Text = value),
+            NUITextField field => Apply(() => field.Text = value),
+            NUITextEditor editor => Apply(() => editor.Text = value),
             _ => $"Element '{elementId}' is a {nativeElement?.GetType().Name ?? "null"}, " +
                  "which is not a NUI text input. Only TextField and TextEditor support native fill.",
         };
@@ -120,7 +125,7 @@ public class TizenVisualTreeWalker : VisualTreeWalker
     ElementInfo ToElementInfo(NativeElementRegistration registration)
     {
         var descriptor = registration.Descriptor;
-        var view = descriptor.Target as View;
+        var view = descriptor.Target as NUIView;
 
         var info = new ElementInfo
         {
@@ -152,7 +157,7 @@ public class TizenVisualTreeWalker : VisualTreeWalker
     /// Prefers live NUI geometry over the bounds captured at registration time, because chrome moves
     /// (a toolbar slides, a dialog centres) after it is registered.
     /// </summary>
-    static BoundsInfo ToBounds(NativeElementDescriptor descriptor, View? view)
+    static BoundsInfo ToBounds(NativeElementDescriptor descriptor, NUIView? view)
     {
         if (view is null)
         {
