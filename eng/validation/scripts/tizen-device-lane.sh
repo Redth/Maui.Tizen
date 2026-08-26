@@ -36,6 +36,9 @@
 #   tizen-device-lane.sh agent-status
 #   tizen-device-lane.sh remote-focus
 #   tizen-device-lane.sh lifecycle
+#   tizen-device-lane.sh pack
+#   tizen-device-lane.sh device-assertions
+#   tizen-device-lane.sh baselines
 
 set -euo pipefail
 
@@ -238,24 +241,53 @@ print(focused[0].get('automationId') or focused[0].get('id') if focused else '')
 }
 
 # ---------------------------------------------------------------------------
-# Lifecycle.
+# Lifecycle: a real background/foreground cycle.
 #
-# Suspend/resume is where Tizen apps most often lose state or fail to re-attach their renderer.
+# The previous version used `app_launcher -k`, which TERMINATES the application; relaunching it
+# afterwards is a cold start. That tests process startup, not suspend/resume - and suspend/resume
+# is where Tizen apps actually lose state or fail to re-attach their renderer, because the process
+# survives and the surface does not.
+#
+# Backgrounding is done by bringing the home application to the foreground, which is what pressing
+# Home does. The home application id is profile-specific, so it is supplied rather than assumed.
 # ---------------------------------------------------------------------------
 cmd_lifecycle() {
   local app="${APP_ID:?APP_ID must be set for the lifecycle harness}"
+  local home="${HOME_APP_ID:-}"
 
-  info "Lifecycle: launch, background, foreground"
+  if [[ -z "$home" ]]; then
+    fail "HOME_APP_ID must be set so the app can be backgrounded rather than killed."
+    fail "  It is profile-specific (mobile and TV ship different home applications), so there"
+    fail "  is no safe default. Terminating the app instead would make this a cold-start test."
+    exit 1
+  fi
+
+  info "Lifecycle: launch, background via Home, foreground"
 
   sdb_cmd shell app_launcher -s "$app"
   sleep 3
-
   cmd_agent_status >/dev/null
 
-  # Home moves the app to the background without terminating it.
-  sdb_cmd shell app_launcher -k "$app" || true
-  sleep 2
+  # Write a marker into the running app so resume can be distinguished from a cold start:
+  # a restarted process would have lost it.
+  local marker="lifecycle-$(date +%s)"
+  devflow "storage/preferences" \
+    -H 'Content-Type: application/json' \
+    -d "{\"key\":\"devflow.lifecycle.marker\",\"value\":\"$marker\"}" >/dev/null || true
 
+  info "Backgrounding via $home"
+  sdb_cmd shell app_launcher -s "$home"
+  sleep 3
+
+  # The app must still be running, just not foreground. A terminated app is a lifecycle failure,
+  # not a successful background.
+  if ! sdb_cmd shell app_launcher -r | grep -q "$app"; then
+    fail "'$app' is no longer running after backgrounding. It was terminated rather than suspended."
+    exit 1
+  fi
+  pass "App is still running in the background"
+
+  info "Returning to the foreground"
   sdb_cmd shell app_launcher -s "$app"
   sleep 3
 
@@ -264,7 +296,137 @@ cmd_lifecycle() {
     exit 1
   fi
 
-  pass "App survived a background/foreground cycle"
+  # Handler re-attachment: the visual tree must be walkable again. An app that resumes with a
+  # detached renderer answers /agent/status but returns an empty tree.
+  local elements
+  elements="$(devflow "ui/tree?depth=3" | python3 -c "
+import json,sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print(0); raise SystemExit
+roots = d if isinstance(d, list) else d.get('elements', d.get('roots', []))
+print(len(roots))
+")"
+
+  if [[ "${elements:-0}" -lt 1 ]]; then
+    fail "The visual tree is empty after resume; handlers did not re-attach."
+    exit 1
+  fi
+  pass "Visual tree re-attached after resume ($elements root element(s))"
+
+  local restored
+  restored="$(devflow "storage/preferences?key=devflow.lifecycle.marker" | python3 -c "
+import json,sys
+try:
+    print(json.load(sys.stdin).get('value',''))
+except Exception:
+    print('')
+" || true)"
+
+  if [[ "$restored" == "$marker" ]]; then
+    pass "In-process state survived the cycle (this was a resume, not a cold start)"
+  else
+    fail "State did not survive: expected '$marker', got '${restored:-<empty>}'."
+    fail "  The app was restarted rather than resumed, so suspend/resume was not exercised."
+    exit 1
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Shipping packages.
+#
+# Only produced where the workload exists. The release gates in ReleaseReadinessTests require
+# every declared package-content contract to have a matching .nupkg.
+# ---------------------------------------------------------------------------
+cmd_pack() {
+  require_lane pack
+
+  info "Packing shipping packages"
+  "$DOTNET" pack "$REPO_ROOT/Maui.Tizen.slnx" -c Release --nologo
+}
+
+# ---------------------------------------------------------------------------
+# On-device assertions.
+#
+# These MUST execute inside the deployed application. Running the hosted validation script on the
+# controller would load no Tizen backend, so the mapper-parity and Essentials suites would skip
+# exactly as they do on any hosted runner - a device lane that validated nothing.
+#
+# The in-app agent exposes them through a DevFlow extension namespace; results come back as JSON.
+# ---------------------------------------------------------------------------
+cmd_device_assertions() {
+  info "Running on-device conventions inside the deployed app"
+
+  local response
+  if ! response="$(devflow "extensions/maui-tizen/conventions/run" -X POST)"; then
+    fail "The on-device conventions endpoint did not respond."
+    fail "  The app must register the Maui.Tizen DevFlow conventions extension; without it the"
+    fail "  mapper-parity and Essentials suites cannot run anywhere, because they need the Tizen"
+    fail "  backend executing in-process. See docs/validation/device-lane.md."
+    exit 1
+  fi
+
+  echo "$response" | python3 -c "
+import json,sys
+d = json.load(sys.stdin)
+failed = d.get('failed', [])
+total = d.get('total', 0)
+skipped = d.get('skipped', [])
+print(f'        total={total} failed={len(failed)} skipped={len(skipped)}')
+for f in failed:
+    print(f'        FAIL {f}')
+for s in skipped:
+    print(f'        SKIP {s}')
+# A run that asserted nothing is a failure: it is indistinguishable from a passing run.
+raise SystemExit(1 if failed or total == 0 else 0)
+"
+
+  pass "On-device conventions passed"
+}
+
+# ---------------------------------------------------------------------------
+# Visual baselines.
+#
+# Screenshots are captured on the device and pulled back to the controller; the comparison itself
+# runs host-side with the deterministic comparer in Maui.Tizen.TestUtils.
+# ---------------------------------------------------------------------------
+cmd_baselines() {
+  local out="$REPO_ROOT/artifacts/screenshots/$TIZEN_PROFILE"
+  mkdir -p "$out"
+
+  info "Capturing visual baselines for $TIZEN_PROFILE"
+
+  local cases
+  cases="$(python3 -c "
+import json
+m = json.load(open('$REPO_ROOT/samples/Maui.Tizen.Catalog/catalog-manifest.json'))
+print(' '.join(c['id'] for c in m['cases'] if c.get('capturesBaseline') and '$TIZEN_PROFILE' in c['profiles']))
+")"
+
+  if [[ -z "$cases" ]]; then
+    gate "No baseline cases declared for profile '$TIZEN_PROFILE'."
+    return 0
+  fi
+
+  local id
+  for id in $cases; do
+    devflow "ui/actions/navigate" \
+      -H 'Content-Type: application/json' \
+      -d "{\"route\":\"$id\"}" >/dev/null
+
+    # Settle before capturing; an in-flight animation is the classic source of a flaky baseline.
+    sleep 1
+
+    if devflow "ui/screenshot?format=png" --output "$out/$id.png"; then
+      echo "        captured $id"
+    else
+      fail "Could not capture '$id'."
+      exit 1
+    fi
+  done
+
+  pass "Captured $(echo "$cases" | wc -w | tr -d ' ') screenshot(s) into artifacts/screenshots/$TIZEN_PROFILE"
 }
 
 case "${1:-}" in
@@ -276,6 +438,9 @@ case "${1:-}" in
   agent-status) shift; cmd_agent_status "$@" ;;
   remote-focus) shift; cmd_remote_focus "$@" ;;
   lifecycle)    shift; cmd_lifecycle "$@" ;;
+  pack)              shift; cmd_pack "$@" ;;
+  device-assertions) shift; cmd_device_assertions "$@" ;;
+  baselines)         shift; cmd_baselines "$@" ;;
   *)
     sed -n '2,40p' "$0"
     exit 2

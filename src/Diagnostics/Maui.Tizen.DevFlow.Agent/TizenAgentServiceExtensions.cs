@@ -47,7 +47,7 @@ public static class TizenAgentServiceExtensions
         var context = DevFlowAgentHost.Configure(
             options,
             () => (identity.ReportedPlatform, identity.Profile),
-            message => Tizen.Log.Info(LogTag, message));
+            message => global::Tizen.Log.Info(LogTag, message));
 
         var service = new TizenAgentService(options, environment);
         context.AttachTo(service, options);

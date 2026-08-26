@@ -47,6 +47,12 @@ repository variable.
 6. Create a `tizen-device-lab` environment, and a `tizen-release` environment with required
    reviewers.
 
+| Variable | Purpose |
+|---|---|
+| `TIZEN_CATALOG_PROJECT` | Path to the application under test. **Unset today**, so the device job reports no application and a release is blocked rather than passing vacuously. There is deliberately no hard-coded path: a workflow step that builds a non-existent project looks plausible for as long as the job never runs. |
+| `TIZEN_CATALOG_APP_ID` | Tizen application id, for launch and lifecycle. |
+| `TIZEN_HOME_APP_ID` | Home application id, used to background the app under test. Profile-specific, so it has no default. |
+
 Verify with:
 
 ```bash
@@ -77,6 +83,29 @@ Only `net11.0-tizen11.0` gates a release. `alsoValidTargets` (`tizen10.1`, `10.0
 marked `confirmed: false` and are exercised opportunistically, because they have not been verified
 against real Samsung tooling. A test asserts none of them claims to be confirmed — a confirmed
 target belongs in `eng/baselines.json`, not in an opportunistic list.
+
+## Lifecycle is a real suspend/resume
+
+`lifecycle` brings the **home application** to the foreground to background the app under test,
+rather than terminating it. Using `app_launcher -k` and relaunching, as an earlier version did,
+tests process startup - and suspend/resume is precisely where Tizen apps lose state or fail to
+re-attach their renderer, because the process survives and the surface does not.
+
+Three things are asserted after resume, because each fails independently:
+
+1. the process is still running after backgrounding (a terminated app is a lifecycle failure);
+2. the agent responds and the visual tree is non-empty (handlers re-attached - an app can answer
+   `/agent/status` with a detached renderer);
+3. a marker written before backgrounding survives (proving this was a resume, not a cold start).
+
+## On-device assertions run on the device
+
+Mapper parity and Essentials coverage need the Tizen backend executing in-process, so the device
+lane invokes them through a DevFlow extension endpoint inside the deployed app
+(`device-assertions`). Running `run-hosted-validation.sh` on the self-hosted controller instead
+would load no Tizen backend, and those suites would skip there exactly as on any hosted runner - a
+device lane that validated nothing. A run that reports zero assertions is treated as a failure for
+the same reason.
 
 ## Why the availability job runs on a hosted runner
 

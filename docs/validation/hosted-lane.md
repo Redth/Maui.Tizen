@@ -41,6 +41,11 @@ See [blocker 6](blockers.md#6-two-test-frameworks-in-one-repository) for how thi
 
 Pulling work into this lane was a deliberate goal, since the device lane is blocked indefinitely.
 
+**Compiling the Tizen agent.** `eng/tests/Api15CompileProbe` compiles the agent's sources against
+the real `Samsung.Tizen.Ref.API15` reference assemblies with warnings-as-errors. The agent's own TFM
+cannot be built anywhere, but its correctness against the platform surface is now a compiler
+result rather than a hope. See [blockers](blockers.md#7-the-tizen-devflow-agent-cannot-be-built-for-its-real-target-framework).
+
 **The DevFlow API contract.** `src/Diagnostics/Maui.Tizen.DevFlow.Agent` cannot be compiled by
 anyone. But DevFlow's own packages are plain `net10.0` assemblies, so the hosted lane loads them and
 asserts that every member the Tizen agent overrides still exists with the expected signature. A

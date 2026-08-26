@@ -135,20 +135,48 @@ fails if `global.json` opts in while the v2 project still exists.
 `"test": { "runner": "Microsoft.Testing.Platform" }` to `global.json` and the runner script
 collapses to a single `dotnet test`.
 
-## 7. The Tizen DevFlow agent is not verified by a compiler
+## 7. The Tizen DevFlow agent cannot be built for its real target framework
 
-**Consequence of blocker 1.**
+**Consequence of blocker 1. Largely mitigated.**
 
-`src/Diagnostics/Maui.Tizen.DevFlow.Agent` targets `net11.0-tizen11.0` and cannot be compiled
-anywhere. Two things limit the exposure:
+`src/Diagnostics/Maui.Tizen.DevFlow.Agent` targets `net11.0-tizen11.0` and cannot be built anywhere.
+It used to follow that its code was unverified by any compiler. That is no longer true.
 
-- Everything that does not need Tizen types lives in `Maui.Tizen.DevFlow.Agent.Shared`, which builds
-  and is tested on the hosted lane — capability policy, privilege gating, platform identity, the
-  native-element registry, and the connection/forwarding descriptors.
-- Every DevFlow member the Tizen agent overrides is pinned by `DevFlowContractTests` against the
-  real published package. If maui-labs changes a signature, the hosted lane fails immediately rather
-  than the problem surfacing on a device months later.
+`eng/tests/Api15CompileProbe` compiles the agent's sources against the **real API15 reference
+assemblies**, pulled in as an ordinary NuGet package (`Samsung.Tizen.Ref.API15`), on an ordinary
+hosted runner with `TreatWarningsAsErrors`. It runs first in `run-hosted-validation.sh`.
 
-What remains unverified is the Tizen-specific code itself: NUI property access, `Tizen.NUI.Capture`
-usage, and privilege queries. That is stated plainly at the top of the project file rather than left
-for someone to discover.
+It found around fifteen real defects on its first run, every one of which would have failed a device
+build:
+
+- `Capture.Instance` and `Capture.FinishedEventArgs` do not exist. `Capture` is instantiated, and
+  the event args type is the top-level `CaptureFinishedEventArgs`.
+- `Window.GetDefaultLayer()` returns `Layer`, not `View`; `Capture.Start` takes a `Container`.
+- `Window.FeedTouch` does not exist. Synthesised input goes through
+  `Tizen.NUI.WindowSystem.InputGenerator`.
+- `PrivacyPrivilegeManager` is itself `[Obsolete]` in API15. Privileges are read from
+  `Package.Privileges`, which is also more accurate for install-time privileges.
+- `GraphicsTypeManager.ScaleFactor` does not exist; the property is `Density`.
+- The repository's own `Maui.Tizen.*` namespace shadows `Tizen.*`, so unqualified `Tizen.Log`
+  resolved to `Maui.Tizen.Log`. Platform types are now `global::`-qualified or aliased.
+- `View`, `Window`, `Color` and `Path` are ambiguous between `Microsoft.Maui.*` and `Tizen.NUI.*`
+  under `UseMaui`.
+
+**What the probe still does not prove:** that the application runs. There is no Tizen runtime, the
+probe's TFM is plain `net11.0`, and reference assemblies carry no implementation. Runtime behaviour
+- capture actually producing pixels, input actually reaching a control - remains device-lane work.
+
+## 8. On-device assertions need an application that does not exist yet
+
+**Blocks:** live mapper parity, live DI and Essentials coverage.
+
+These need the Tizen backend executing in-process, so they can only run inside a deployed
+application. The device lane invokes them through a DevFlow extension endpoint
+(`extensions/maui-tizen/conventions/run`) which the catalog application must register.
+
+Until that application exists, `TIZEN_CATALOG_PROJECT` is unset, the device job reports no
+application under test, and a **release is blocked** rather than passing with those suites skipped.
+
+Running `run-hosted-validation.sh` on the self-hosted runner is explicitly *not* a substitute: the
+controller has no Tizen backend loaded, so those suites would skip there exactly as they do on any
+hosted runner.

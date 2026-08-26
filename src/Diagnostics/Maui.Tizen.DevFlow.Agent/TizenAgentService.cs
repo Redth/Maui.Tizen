@@ -39,7 +39,14 @@ public class TizenAgentService : MauiDevFlowAgentService
         _nativeInput = new TizenNativeInput(environment);
     }
 
-    /// <summary>The capability map this agent advertises.</summary>
+    /// <summary>
+    /// The capability map this agent advertises, recomputed on every read.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not cached. Window-dependent capabilities change when the first window is
+    /// created, and a map captured at construction would report the tree, screenshot and
+    /// interaction endpoints as unsupported forever.
+    /// </remarks>
     public IReadOnlyDictionary<string, TizenCapability> Capabilities =>
         TizenAgentCapabilityPolicy.Compute(_environment);
 
@@ -68,7 +75,7 @@ public class TizenAgentService : MauiDevFlowAgentService
     protected override Task<byte[]?> CaptureFullScreenAsync(int? windowIndex) =>
         _capture.CaptureWindowAsync(windowIndex);
 
-    protected override Task<byte[]?> CaptureNativeElementScreenshotAsync(object nativeElement, ElementInfo elementInfo) =>
+    protected override Task<byte[]?> CaptureNativeElementScreenshotAsync(object nativeElement, ElementInfo? elementInfo) =>
         _capture.CaptureElementAsync(nativeElement, elementInfo);
 
     protected override ScreenshotCaptureFailure DescribeScreenshotFailure()
@@ -94,7 +101,9 @@ public class TizenAgentService : MauiDevFlowAgentService
                 ]);
         }
 
-        return base.DescribeScreenshotFailure();
+        // DevFlow's preview assemblies are not nullable-annotated, so its declared non-null
+        // returns are oblivious to the compiler. Trusting the documented contract here.
+        return base.DescribeScreenshotFailure()!;
     }
 
     /// <summary>
@@ -132,7 +141,7 @@ public class TizenAgentService : MauiDevFlowAgentService
     }
 
     static BoundsInfo? TreeWalkerBounds(object nativeElement) =>
-        nativeElement is Tizen.NUI.BaseComponents.View view
+        nativeElement is global::Tizen.NUI.BaseComponents.View view
             ? new BoundsInfo
             {
                 X = view.ScreenPosition.X,
