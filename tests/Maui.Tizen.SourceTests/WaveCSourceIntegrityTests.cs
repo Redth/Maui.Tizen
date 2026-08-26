@@ -45,6 +45,13 @@ public class WaveCSourceIntegrityTests
 		// The in-tree backend compiled inside Microsoft.Maui.Controls and could reach its
 		// internals. A leftover `using Microsoft.Maui.Controls.Internals` is the clearest sign a
 		// file was copied rather than migrated.
+		//
+		// This bans the USING DIRECTIVE, not the namespace's contents. A few genuinely public
+		// types live under that namespace - NavigationRequestedEventArgs is one - and Wave C does
+		// use them, fully qualified. Spelling them out is deliberate: at the call site it is then
+		// obvious which upstream types are public-but-awkwardly-placed, versus the ones that were
+		// actually internal and had to be replaced by an adapter. (IAppearanceObserver is neither:
+		// it is public and lives in Microsoft.Maui.Controls, despite where it looks like it lives.)
 		var offenders = WaveCSource.Files
 			.Where(f => WaveBSource.ParseTree(f).GetRoot()
 				.DescendantNodes()
