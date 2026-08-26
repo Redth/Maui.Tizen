@@ -6,637 +6,6 @@
   "sha256": "2ffa19a7323a2f77e837fe0786565d22203a91560dd66e5c445b51a1dc52a815",
   "types": [
     {
-      "namespace": "",
-      "name": "BindingPropertyChangedDelegate",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "BindingPropertyChangedDelegate",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 1,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "BindingPropertyChangingDelegate",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "BindingPropertyChangingDelegate",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 1,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "ButtonContentLayout",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor(ImagePosition, double) -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "method",
-          "signature": "ToString() -\u003E string",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        },
-        {
-          "kind": "property",
-          "signature": "Position { get; } : ImagePosition",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "Spacing { get; } : double",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "ButtonContentTypeConverter",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "baseType": "System.ComponentModel.TypeConverter",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "method",
-          "signature": "CanConvertFrom(System.ComponentModel.ITypeDescriptorContext, System.Type) -\u003E bool",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "CanConvertTo(System.ComponentModel.ITypeDescriptorContext, System.Type) -\u003E bool",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "ConvertFrom(System.ComponentModel.ITypeDescriptorContext, System.Globalization.CultureInfo, object) -\u003E object",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "ConvertTo(System.ComponentModel.ITypeDescriptorContext, System.Globalization.CultureInfo, object, System.Type) -\u003E object",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "CoerceValueDelegate",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "CoerceValueDelegate",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 1,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "CommonStates",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "Disabled : string",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "Focused : string",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "Normal : string",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "PointerOver : string",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "Selected : string",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "CreateDefaultValueDelegate",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "CreateDefaultValueDelegate",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 2,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "Datum",
-      "kind": "struct",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "field",
-          "signature": "Depth : int",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "Id : string",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "Line : int",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "Name : string",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "Ticks : long",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "DefaultVisual",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [
-        "Microsoft.Maui.Controls.IVisual"
-      ],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "DisposeMethod",
-      "kind": "enum",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "field",
-          "signature": "LeaveInPlace",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "NoAction",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "RestoreToBackground",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "RestoreToPrevious",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "FocusRequestArgs",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "System.EventArgs",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "Focus { get; set; } : bool",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "Result { get; set; } : bool",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "GradientBrushParser",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor(Microsoft.Maui.Graphics.Converters.ColorTypeConverter) -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "method",
-          "signature": "Parse(string) -\u003E Microsoft.Maui.Controls.GradientBrush",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "IAbsoluteList",
-      "kind": "interface",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": true,
-      "isSealed": false,
-      "arity": 1,
-      "interfaces": [
-        "System.Collections.Generic.ICollection\u003CT0\u003E",
-        "System.Collections.Generic.IEnumerable\u003CT0\u003E",
-        "System.Collections.Generic.IList\u003CT0\u003E",
-        "System.Collections.IEnumerable"
-      ],
-      "members": [
-        {
-          "kind": "method",
-          "signature": "Add(Microsoft.Maui.Controls.View, Microsoft.Maui.Graphics.Point) -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": true,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "Add(Microsoft.Maui.Controls.View, Microsoft.Maui.Graphics.Rect, Microsoft.Maui.Layouts.AbsoluteLayoutFlags) -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": true,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "IGridList",
-      "kind": "interface",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": true,
-      "isSealed": false,
-      "arity": 1,
-      "interfaces": [
-        "System.Collections.Generic.ICollection\u003CT0\u003E",
-        "System.Collections.Generic.IEnumerable\u003CT0\u003E",
-        "System.Collections.Generic.IList\u003CT0\u003E",
-        "System.Collections.IEnumerable"
-      ],
-      "members": [
-        {
-          "kind": "method",
-          "signature": "Add(Microsoft.Maui.Controls.View, int, int) -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": true,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "Add(Microsoft.Maui.Controls.View, int, int, int, int) -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": true,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "AddHorizontal(Microsoft.Maui.Controls.View) -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": true,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "AddHorizontal(System.Collections.Generic.IEnumerable\u003CMicrosoft.Maui.Controls.View\u003E) -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": true,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "AddVertical(Microsoft.Maui.Controls.View) -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": true,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "AddVertical(System.Collections.Generic.IEnumerable\u003CMicrosoft.Maui.Controls.View\u003E) -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": true,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "IRelativeList",
-      "kind": "interface",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": true,
-      "isSealed": false,
-      "arity": 1,
-      "interfaces": [
-        "System.Collections.Generic.ICollection\u003CT0\u003E",
-        "System.Collections.Generic.IEnumerable\u003CT0\u003E",
-        "System.Collections.Generic.IList\u003CT0\u003E",
-        "System.Collections.IEnumerable"
-      ],
-      "members": [
-        {
-          "kind": "method",
-          "signature": "Add(T0, Microsoft.Maui.Controls.Compatibility.Constraint, Microsoft.Maui.Controls.Compatibility.Constraint, Microsoft.Maui.Controls.Compatibility.Constraint, Microsoft.Maui.Controls.Compatibility.Constraint) -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": true,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "Add(T0, System.Linq.Expressions.Expression\u003CSystem.Func\u003CMicrosoft.Maui.Graphics.Rect\u003E\u003E) -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": true,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "Add(T0, System.Linq.Expressions.Expression\u003CSystem.Func\u003Cdouble\u003E\u003E, System.Linq.Expressions.Expression\u003CSystem.Func\u003Cdouble\u003E\u003E, System.Linq.Expressions.Expression\u003CSystem.Func\u003Cdouble\u003E\u003E, System.Linq.Expressions.Expression\u003CSystem.Func\u003Cdouble\u003E\u003E) -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": true,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "ImagePosition",
-      "kind": "enum",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "field",
-          "signature": "Bottom",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "Left",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "Right",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "Top",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
       "namespace": "Microsoft.Maui.Controls",
       "name": "AbsoluteLayout",
       "kind": "class",
@@ -941,10 +310,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Auto",
+          "signature": "Auto = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -952,7 +322,7 @@
         },
         {
           "kind": "field",
-          "signature": "Bottom",
+          "signature": "Bottom = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -960,7 +330,7 @@
         },
         {
           "kind": "field",
-          "signature": "Center",
+          "signature": "Center = 5",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -968,7 +338,7 @@
         },
         {
           "kind": "field",
-          "signature": "Left",
+          "signature": "Left = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -976,7 +346,7 @@
         },
         {
           "kind": "field",
-          "signature": "Right",
+          "signature": "Right = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -984,7 +354,7 @@
         },
         {
           "kind": "field",
-          "signature": "Top",
+          "signature": "Top = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -2981,6 +2351,136 @@
     },
     {
       "namespace": "Microsoft.Maui.Controls",
+      "name": "BindableProperty\u002BBindingPropertyChangedDelegate",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Microsoft.Maui.Controls.BindableObject, object, object) -\u003E void",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
+      "name": "BindableProperty\u002BBindingPropertyChangedDelegate",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 1,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Microsoft.Maui.Controls.BindableObject, T0, T0) -\u003E void",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
+      "name": "BindableProperty\u002BBindingPropertyChangingDelegate",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Microsoft.Maui.Controls.BindableObject, object, object) -\u003E void",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
+      "name": "BindableProperty\u002BBindingPropertyChangingDelegate",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 1,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Microsoft.Maui.Controls.BindableObject, T0, T0) -\u003E void",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
+      "name": "BindableProperty\u002BCoerceValueDelegate",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Microsoft.Maui.Controls.BindableObject, object) -\u003E object",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
+      "name": "BindableProperty\u002BCoerceValueDelegate",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 1,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Microsoft.Maui.Controls.BindableObject, T0) -\u003E T0",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
+      "name": "BindableProperty\u002BCreateDefaultValueDelegate",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Microsoft.Maui.Controls.BindableObject) -\u003E object",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
+      "name": "BindableProperty\u002BCreateDefaultValueDelegate",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 2,
+      "interfaces": [],
+      "delegateSignature": "Invoke(T0) -\u003E T1",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
+      "name": "BindableProperty\u002BValidateValueDelegate",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Microsoft.Maui.Controls.BindableObject, object) -\u003E bool",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
+      "name": "BindableProperty\u002BValidateValueDelegate",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 1,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Microsoft.Maui.Controls.BindableObject, T0) -\u003E bool",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
       "name": "BindablePropertyConverter",
       "kind": "class",
       "accessibility": "public",
@@ -3267,10 +2767,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3278,7 +2779,7 @@
         },
         {
           "kind": "field",
-          "signature": "OneTime",
+          "signature": "OneTime = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3286,7 +2787,7 @@
         },
         {
           "kind": "field",
-          "signature": "OneWay",
+          "signature": "OneWay = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3294,7 +2795,7 @@
         },
         {
           "kind": "field",
-          "signature": "OneWayToSource",
+          "signature": "OneWayToSource = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3302,7 +2803,7 @@
         },
         {
           "kind": "field",
-          "signature": "TwoWay",
+          "signature": "TwoWay = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -5096,6 +4597,35 @@
     },
     {
       "namespace": "Microsoft.Maui.Controls",
+      "name": "BrushTypeConverter\u002BGradientBrushParser",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(Microsoft.Maui.Graphics.Converters.ColorTypeConverter) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Parse(string) -\u003E Microsoft.Maui.Controls.GradientBrush",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
       "name": "Button",
       "kind": "class",
       "accessibility": "public",
@@ -5568,8 +5098,8 @@
     },
     {
       "namespace": "Microsoft.Maui.Controls",
-      "name": "ButtonsMask",
-      "kind": "enum",
+      "name": "Button\u002BButtonContentLayout",
+      "kind": "class",
       "accessibility": "public",
       "isStatic": false,
       "isAbstract": false,
@@ -5578,8 +5108,54 @@
       "interfaces": [],
       "members": [
         {
+          "kind": "constructor",
+          "signature": "#ctor(ImagePosition, double) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ToString() -\u003E string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Position { get; } : ImagePosition",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Spacing { get; } : double",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
+      "name": "Button\u002BButtonContentLayout\u002BImagePosition",
+      "kind": "enum",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "underlyingType": "int",
+      "members": [
+        {
           "kind": "field",
-          "signature": "Primary",
+          "signature": "Bottom = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -5587,7 +5163,107 @@
         },
         {
           "kind": "field",
-          "signature": "Secondary",
+          "signature": "Left = 0",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "Right = 2",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "Top = 1",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
+      "name": "Button\u002BButtonContentTypeConverter",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "baseType": "System.ComponentModel.TypeConverter",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "CanConvertFrom(System.ComponentModel.ITypeDescriptorContext, System.Type) -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "CanConvertTo(System.ComponentModel.ITypeDescriptorContext, System.Type) -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "ConvertFrom(System.ComponentModel.ITypeDescriptorContext, System.Globalization.CultureInfo, object) -\u003E object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "ConvertTo(System.ComponentModel.ITypeDescriptorContext, System.Globalization.CultureInfo, object, System.Type) -\u003E object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
+      "name": "ButtonsMask",
+      "kind": "enum",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "underlyingType": "int",
+      "members": [
+        {
+          "kind": "field",
+          "signature": "Primary = 1",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "Secondary = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -6564,6 +6240,7 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "delegateSignature": "Invoke(System.Collections.IEnumerable, object, System.Action, bool) -\u003E void",
       "members": []
     },
     {
@@ -7025,6 +6702,40 @@
           "isStatic": false,
           "isAbstract": false,
           "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility",
+      "name": "AbsoluteLayout\u002BIAbsoluteList",
+      "kind": "interface",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": true,
+      "isSealed": false,
+      "arity": 1,
+      "interfaces": [
+        "System.Collections.Generic.ICollection\u003CT0\u003E",
+        "System.Collections.Generic.IEnumerable\u003CT0\u003E",
+        "System.Collections.Generic.IList\u003CT0\u003E",
+        "System.Collections.IEnumerable"
+      ],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "Add(Microsoft.Maui.Controls.View, Microsoft.Maui.Graphics.Point) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Add(Microsoft.Maui.Controls.View, Microsoft.Maui.Graphics.Rect, Microsoft.Maui.Layouts.AbsoluteLayoutFlags) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
         }
       ]
     },
@@ -7749,6 +7460,72 @@
     },
     {
       "namespace": "Microsoft.Maui.Controls.Compatibility",
+      "name": "Grid\u002BIGridList",
+      "kind": "interface",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": true,
+      "isSealed": false,
+      "arity": 1,
+      "interfaces": [
+        "System.Collections.Generic.ICollection\u003CT0\u003E",
+        "System.Collections.Generic.IEnumerable\u003CT0\u003E",
+        "System.Collections.Generic.IList\u003CT0\u003E",
+        "System.Collections.IEnumerable"
+      ],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "Add(Microsoft.Maui.Controls.View, int, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Add(Microsoft.Maui.Controls.View, int, int, int, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "AddHorizontal(Microsoft.Maui.Controls.View) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "AddHorizontal(System.Collections.Generic.IEnumerable\u003CMicrosoft.Maui.Controls.View\u003E) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "AddVertical(Microsoft.Maui.Controls.View) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "AddVertical(System.Collections.Generic.IEnumerable\u003CMicrosoft.Maui.Controls.View\u003E) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility",
       "name": "INativeElementView",
       "kind": "interface",
       "accessibility": "public",
@@ -8287,6 +8064,48 @@
     },
     {
       "namespace": "Microsoft.Maui.Controls.Compatibility",
+      "name": "RelativeLayout\u002BIRelativeList",
+      "kind": "interface",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": true,
+      "isSealed": false,
+      "arity": 1,
+      "interfaces": [
+        "System.Collections.Generic.ICollection\u003CT0\u003E",
+        "System.Collections.Generic.IEnumerable\u003CT0\u003E",
+        "System.Collections.Generic.IList\u003CT0\u003E",
+        "System.Collections.IEnumerable"
+      ],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "Add(T0, Microsoft.Maui.Controls.Compatibility.Constraint, Microsoft.Maui.Controls.Compatibility.Constraint, Microsoft.Maui.Controls.Compatibility.Constraint, Microsoft.Maui.Controls.Compatibility.Constraint) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Add(T0, System.Linq.Expressions.Expression\u003CSystem.Func\u003CMicrosoft.Maui.Graphics.Rect\u003E\u003E) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Add(T0, System.Linq.Expressions.Expression\u003CSystem.Func\u003Cdouble\u003E\u003E, System.Linq.Expressions.Expression\u003CSystem.Func\u003Cdouble\u003E\u003E, System.Linq.Expressions.Expression\u003CSystem.Func\u003Cdouble\u003E\u003E, System.Linq.Expressions.Expression\u003CSystem.Func\u003Cdouble\u003E\u003E) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility",
       "name": "StackLayout",
       "kind": "class",
       "accessibility": "public",
@@ -8483,10 +8302,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Constant",
+          "signature": "Constant = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -8494,7 +8314,7 @@
         },
         {
           "kind": "field",
-          "signature": "RelativeToParent",
+          "signature": "RelativeToParent = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -8502,7 +8322,7 @@
         },
         {
           "kind": "field",
-          "signature": "RelativeToView",
+          "signature": "RelativeToView = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -8941,10 +8761,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Copy",
+          "signature": "Copy = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -8952,7 +8773,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -9737,10 +9558,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "GlobalInstance",
+          "signature": "GlobalInstance = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -9748,7 +9570,7 @@
         },
         {
           "kind": "field",
-          "signature": "NewInstance",
+          "signature": "NewInstance = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -10020,6 +9842,115 @@
         {
           "kind": "property",
           "signature": "RuntimePlatform { get; } : string",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
+      "name": "Device\u002BStyles",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "field",
+          "signature": "BodyStyle : Microsoft.Maui.Controls.Style",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "BodyStyleKey : string",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "CaptionStyle : Microsoft.Maui.Controls.Style",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "CaptionStyleKey : string",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "ListItemDetailTextStyle : Microsoft.Maui.Controls.Style",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "ListItemDetailTextStyleKey : string",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "ListItemTextStyle : Microsoft.Maui.Controls.Style",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "ListItemTextStyleKey : string",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "SubtitleStyle : Microsoft.Maui.Controls.Style",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "SubtitleStyleKey : string",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "TitleStyle : Microsoft.Maui.Controls.Style",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "TitleStyleKey : string",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -10950,10 +10881,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Disabled",
+          "signature": "Disabled = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -10961,7 +10893,7 @@
         },
         {
           "kind": "field",
-          "signature": "TextChanges",
+          "signature": "TextChanges = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -11040,10 +10972,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Explicit",
+          "signature": "Explicit = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -11051,7 +10984,7 @@
         },
         {
           "kind": "field",
-          "signature": "RightToLeft",
+          "signature": "RightToLeft = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -12738,10 +12671,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "AsMultipleItems",
+          "signature": "AsMultipleItems = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -12749,7 +12683,7 @@
         },
         {
           "kind": "field",
-          "signature": "AsSingleItem",
+          "signature": "AsSingleItem = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -12767,10 +12701,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "CollapseOnScroll",
+          "signature": "CollapseOnScroll = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -12778,7 +12713,7 @@
         },
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -12786,7 +12721,7 @@
         },
         {
           "kind": "field",
-          "signature": "Fixed",
+          "signature": "Fixed = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -12794,7 +12729,7 @@
         },
         {
           "kind": "field",
-          "signature": "Scroll",
+          "signature": "Scroll = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -12882,10 +12817,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -12893,7 +12829,7 @@
         },
         {
           "kind": "field",
-          "signature": "Popover",
+          "signature": "Popover = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -12901,7 +12837,7 @@
         },
         {
           "kind": "field",
-          "signature": "Split",
+          "signature": "Split = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -12909,7 +12845,7 @@
         },
         {
           "kind": "field",
-          "signature": "SplitOnLandscape",
+          "signature": "SplitOnLandscape = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -12917,7 +12853,7 @@
         },
         {
           "kind": "field",
-          "signature": "SplitOnPortrait",
+          "signature": "SplitOnPortrait = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -13146,10 +13082,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Bold",
+          "signature": "Bold = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -13157,7 +13094,7 @@
         },
         {
           "kind": "field",
-          "signature": "Italic",
+          "signature": "Italic = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -13165,7 +13102,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -13651,10 +13588,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Began",
+          "signature": "Began = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -13662,7 +13600,7 @@
         },
         {
           "kind": "field",
-          "signature": "Cancelled",
+          "signature": "Cancelled = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -13670,7 +13608,7 @@
         },
         {
           "kind": "field",
-          "signature": "Ended",
+          "signature": "Ended = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -13678,7 +13616,7 @@
         },
         {
           "kind": "field",
-          "signature": "Failed",
+          "signature": "Failed = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -13686,7 +13624,7 @@
         },
         {
           "kind": "field",
-          "signature": "Possible",
+          "signature": "Possible = 5",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -13694,7 +13632,7 @@
         },
         {
           "kind": "field",
-          "signature": "Update",
+          "signature": "Update = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -21968,10 +21906,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Circle",
+          "signature": "Circle = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -21979,7 +21918,7 @@
         },
         {
           "kind": "field",
-          "signature": "Square",
+          "signature": "Square = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -22201,10 +22140,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "long",
       "members": [
         {
           "kind": "field",
-          "signature": "DisableCss",
+          "signature": "DisableCss = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -22212,7 +22152,7 @@
         },
         {
           "kind": "field",
-          "signature": "SkipRenderers",
+          "signature": "SkipRenderers = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -23059,6 +22999,7 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "delegateSignature": "Invoke(string) -\u003E System.Threading.Tasks.Task\u003Cstring\u003E",
       "members": []
     },
     {
@@ -23222,6 +23163,105 @@
         {
           "kind": "property",
           "signature": "TransparencyIndex { get; set; } : int",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Internals",
+      "name": "GIFBitmap\u002BDisposeMethod",
+      "kind": "enum",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "underlyingType": "int",
+      "members": [
+        {
+          "kind": "field",
+          "signature": "LeaveInPlace = 1",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "NoAction = 0",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "RestoreToBackground = 2",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "RestoreToPrevious = 3",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Internals",
+      "name": "GIFBitmap\u002BRect",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(int, int, int, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Height { get; } : int",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Width { get; } : int",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "X { get; } : int",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Y { get; } : int",
           "accessibility": "public",
           "isStatic": false,
           "isAbstract": false,
@@ -23986,10 +24026,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "HorizontalOptionsChanged",
+          "signature": "HorizontalOptionsChanged = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -23997,7 +24038,7 @@
         },
         {
           "kind": "field",
-          "signature": "MarginChanged",
+          "signature": "MarginChanged = 32",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24005,7 +24046,7 @@
         },
         {
           "kind": "field",
-          "signature": "MeasureChanged",
+          "signature": "MeasureChanged = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24013,7 +24054,7 @@
         },
         {
           "kind": "field",
-          "signature": "RendererReady",
+          "signature": "RendererReady = 16",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24021,7 +24062,7 @@
         },
         {
           "kind": "field",
-          "signature": "SizeRequestChanged",
+          "signature": "SizeRequestChanged = 8",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24029,7 +24070,7 @@
         },
         {
           "kind": "field",
-          "signature": "Undefined",
+          "signature": "Undefined = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24037,7 +24078,7 @@
         },
         {
           "kind": "field",
-          "signature": "VerticalOptionsChanged",
+          "signature": "VerticalOptionsChanged = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24317,10 +24358,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Insert",
+          "signature": "Insert = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24328,7 +24370,7 @@
         },
         {
           "kind": "field",
-          "signature": "Pop",
+          "signature": "Pop = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24336,7 +24378,7 @@
         },
         {
           "kind": "field",
-          "signature": "PopToRoot",
+          "signature": "PopToRoot = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24344,7 +24386,7 @@
         },
         {
           "kind": "field",
-          "signature": "Push",
+          "signature": "Push = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24352,7 +24394,7 @@
         },
         {
           "kind": "field",
-          "signature": "Remove",
+          "signature": "Remove = 5",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24360,7 +24402,7 @@
         },
         {
           "kind": "field",
-          "signature": "Unknown",
+          "signature": "Unknown = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24794,6 +24836,59 @@
     },
     {
       "namespace": "Microsoft.Maui.Controls.Internals",
+      "name": "Profile\u002BDatum",
+      "kind": "struct",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "field",
+          "signature": "Depth : int",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "Id : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "Line : int",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "Name : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "Ticks : long",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Internals",
       "name": "ProfileDatum",
       "kind": "class",
       "accessibility": "public",
@@ -25200,6 +25295,88 @@
     },
     {
       "namespace": "Microsoft.Maui.Controls.Internals",
+      "name": "ResourceLoader\u002BResourceLoadingQuery",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "AssemblyName { get; set; } : System.Reflection.AssemblyName",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Instance { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "ResourcePath { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Internals",
+      "name": "ResourceLoader\u002BResourceLoadingResponse",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "ResourceContent { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "UseDesignProperties { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Internals",
       "name": "ResourcesChangedEventArgs",
       "kind": "class",
       "accessibility": "public",
@@ -25246,10 +25423,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "ClearDynamicResource",
+          "signature": "ClearDynamicResource = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25257,7 +25435,7 @@
         },
         {
           "kind": "field",
-          "signature": "ClearOneWayBindings",
+          "signature": "ClearOneWayBindings = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25265,7 +25443,7 @@
         },
         {
           "kind": "field",
-          "signature": "ClearTwoWayBindings",
+          "signature": "ClearTwoWayBindings = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25273,7 +25451,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25281,7 +25459,7 @@
         },
         {
           "kind": "field",
-          "signature": "RaiseOnEqual",
+          "signature": "RaiseOnEqual = 8",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25873,10 +26051,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "MeasureAllItems",
+          "signature": "MeasureAllItems = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25884,7 +26063,7 @@
         },
         {
           "kind": "field",
-          "signature": "MeasureFirstItem",
+          "signature": "MeasureFirstItem = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26051,10 +26230,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Horizontal",
+          "signature": "Horizontal = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26062,7 +26242,7 @@
         },
         {
           "kind": "field",
-          "signature": "Vertical",
+          "signature": "Vertical = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26134,10 +26314,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "KeepItemsInView",
+          "signature": "KeepItemsInView = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26145,7 +26326,7 @@
         },
         {
           "kind": "field",
-          "signature": "KeepLastItemInView",
+          "signature": "KeepLastItemInView = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26153,7 +26334,7 @@
         },
         {
           "kind": "field",
-          "signature": "KeepScrollOffset",
+          "signature": "KeepScrollOffset = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -27410,10 +27591,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Center",
+          "signature": "Center = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -27421,7 +27603,7 @@
         },
         {
           "kind": "field",
-          "signature": "End",
+          "signature": "End = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -27429,7 +27611,7 @@
         },
         {
           "kind": "field",
-          "signature": "Fill",
+          "signature": "Fill = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -27437,7 +27619,7 @@
         },
         {
           "kind": "field",
-          "signature": "Start",
+          "signature": "Start = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -28526,10 +28708,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "RecycleElement",
+          "signature": "RecycleElement = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -28537,7 +28720,7 @@
         },
         {
           "kind": "field",
-          "signature": "RecycleElementAndDataTemplate",
+          "signature": "RecycleElementAndDataTemplate = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -28545,7 +28728,7 @@
         },
         {
           "kind": "field",
-          "signature": "RetainElement",
+          "signature": "RetainElement = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -28563,10 +28746,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -28574,7 +28758,7 @@
         },
         {
           "kind": "field",
-          "signature": "Single",
+          "signature": "Single = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -28624,10 +28808,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "IncludeMargins",
+          "signature": "IncludeMargins = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -28635,7 +28820,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -30077,10 +30262,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Body",
+          "signature": "Body = 5",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -30088,7 +30274,7 @@
         },
         {
           "kind": "field",
-          "signature": "Caption",
+          "signature": "Caption = 9",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -30096,7 +30282,7 @@
         },
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -30104,7 +30290,7 @@
         },
         {
           "kind": "field",
-          "signature": "Header",
+          "signature": "Header = 6",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -30112,7 +30298,7 @@
         },
         {
           "kind": "field",
-          "signature": "Large",
+          "signature": "Large = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -30120,7 +30306,7 @@
         },
         {
           "kind": "field",
-          "signature": "Medium",
+          "signature": "Medium = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -30128,7 +30314,7 @@
         },
         {
           "kind": "field",
-          "signature": "Micro",
+          "signature": "Micro = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -30136,7 +30322,7 @@
         },
         {
           "kind": "field",
-          "signature": "Small",
+          "signature": "Small = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -30144,7 +30330,7 @@
         },
         {
           "kind": "field",
-          "signature": "Subtitle",
+          "signature": "Subtitle = 8",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -30152,7 +30338,7 @@
         },
         {
           "kind": "field",
-          "signature": "Title",
+          "signature": "Title = 7",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -33921,10 +34107,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -33932,7 +34119,7 @@
         },
         {
           "kind": "field",
-          "signature": "Done",
+          "signature": "Done = 6",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -33940,7 +34127,7 @@
         },
         {
           "kind": "field",
-          "signature": "Go",
+          "signature": "Go = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -33948,7 +34135,7 @@
         },
         {
           "kind": "field",
-          "signature": "ImeMaskAction",
+          "signature": "ImeMaskAction = 255",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -33956,7 +34143,7 @@
         },
         {
           "kind": "field",
-          "signature": "Next",
+          "signature": "Next = 5",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -33964,7 +34151,7 @@
         },
         {
           "kind": "field",
-          "signature": "NoAccessoryAction",
+          "signature": "NoAccessoryAction = 536870912",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -33972,7 +34159,7 @@
         },
         {
           "kind": "field",
-          "signature": "NoExtractUi",
+          "signature": "NoExtractUi = 268435456",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -33980,7 +34167,7 @@
         },
         {
           "kind": "field",
-          "signature": "NoFullscreen",
+          "signature": "NoFullscreen = 33554432",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -33988,7 +34175,7 @@
         },
         {
           "kind": "field",
-          "signature": "NoPersonalizedLearning",
+          "signature": "NoPersonalizedLearning = 16777216",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -33996,7 +34183,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -34004,7 +34191,7 @@
         },
         {
           "kind": "field",
-          "signature": "Previous",
+          "signature": "Previous = 7",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -34012,7 +34199,7 @@
         },
         {
           "kind": "field",
-          "signature": "Search",
+          "signature": "Search = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -34020,7 +34207,7 @@
         },
         {
           "kind": "field",
-          "signature": "Send",
+          "signature": "Send = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -34091,10 +34278,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "AlwaysAllow",
+          "signature": "AlwaysAllow = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -34102,7 +34290,7 @@
         },
         {
           "kind": "field",
-          "signature": "CompatibilityMode",
+          "signature": "CompatibilityMode = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -34110,7 +34298,7 @@
         },
         {
           "kind": "field",
-          "signature": "NeverAllow",
+          "signature": "NeverAllow = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -34414,10 +34602,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Bottom",
+          "signature": "Bottom = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -34425,7 +34614,7 @@
         },
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -34433,7 +34622,7 @@
         },
         {
           "kind": "field",
-          "signature": "Top",
+          "signature": "Top = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -34746,10 +34935,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Pan",
+          "signature": "Pan = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -34757,7 +34947,7 @@
         },
         {
           "kind": "field",
-          "signature": "Resize",
+          "signature": "Resize = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -34765,7 +34955,7 @@
         },
         {
           "kind": "field",
-          "signature": "Unspecified",
+          "signature": "Unspecified = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -34912,10 +35102,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Bottom",
+          "signature": "Bottom = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -34923,7 +35114,7 @@
         },
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -34931,7 +35122,7 @@
         },
         {
           "kind": "field",
-          "signature": "Top",
+          "signature": "Top = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -36602,10 +36793,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Full",
+          "signature": "Full = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -36613,7 +36805,7 @@
         },
         {
           "kind": "field",
-          "signature": "Partial",
+          "signature": "Partial = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -36891,10 +37083,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Accessible",
+          "signature": "Accessible = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -36902,7 +37095,7 @@
         },
         {
           "kind": "field",
-          "signature": "Inaccessible",
+          "signature": "Inaccessible = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -37049,6 +37242,52 @@
         {
           "kind": "method",
           "signature": "SetRefreshPullDirection(Microsoft.Maui.Controls.IPlatformElementConfiguration\u003CMicrosoft.Maui.Controls.PlatformConfiguration.Windows, Microsoft.Maui.Controls.RefreshView\u003E, RefreshPullDirection) -\u003E Microsoft.Maui.Controls.IPlatformElementConfiguration\u003CMicrosoft.Maui.Controls.PlatformConfiguration.Windows, Microsoft.Maui.Controls.RefreshView\u003E",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.PlatformConfiguration.WindowsSpecific",
+      "name": "RefreshView\u002BRefreshPullDirection",
+      "kind": "enum",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "underlyingType": "int",
+      "members": [
+        {
+          "kind": "field",
+          "signature": "BottomToTop = 3",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "LeftToRight = 0",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "RightToLeft = 2",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "TopToBottom = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -37260,10 +37499,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Bottom",
+          "signature": "Bottom = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -37271,7 +37511,7 @@
         },
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -37279,7 +37519,7 @@
         },
         {
           "kind": "field",
-          "signature": "Top",
+          "signature": "Top = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -37603,10 +37843,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "SameThread",
+          "signature": "SameThread = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -37614,7 +37855,7 @@
         },
         {
           "kind": "field",
-          "signature": "SeparateProcess",
+          "signature": "SeparateProcess = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -37622,7 +37863,7 @@
         },
         {
           "kind": "field",
-          "signature": "SeparateThread",
+          "signature": "SeparateThread = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -37796,10 +38037,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Dark",
+          "signature": "Dark = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -37807,7 +38049,7 @@
         },
         {
           "kind": "field",
-          "signature": "ExtraLight",
+          "signature": "ExtraLight = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -37815,7 +38057,7 @@
         },
         {
           "kind": "field",
-          "signature": "Light",
+          "signature": "Light = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -37823,7 +38065,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -38109,10 +38351,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Grouped",
+          "signature": "Grouped = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -38120,7 +38363,7 @@
         },
         {
           "kind": "field",
-          "signature": "Plain",
+          "signature": "Plain = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -38138,10 +38381,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Always",
+          "signature": "Always = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -38149,7 +38393,7 @@
         },
         {
           "kind": "field",
-          "signature": "Automatic",
+          "signature": "Automatic = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -38157,7 +38401,7 @@
         },
         {
           "kind": "field",
-          "signature": "Never",
+          "signature": "Never = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -38933,10 +39177,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -38944,7 +39189,7 @@
         },
         {
           "kind": "field",
-          "signature": "FullWidth",
+          "signature": "FullWidth = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39015,10 +39260,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39026,7 +39272,7 @@
         },
         {
           "kind": "field",
-          "signature": "False",
+          "signature": "False = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39034,7 +39280,7 @@
         },
         {
           "kind": "field",
-          "signature": "True",
+          "signature": "True = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39052,10 +39298,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "DoNotAdjust",
+          "signature": "DoNotAdjust = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39063,7 +39310,7 @@
         },
         {
           "kind": "field",
-          "signature": "MatchNavigationBarTextLuminosity",
+          "signature": "MatchNavigationBarTextLuminosity = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39240,10 +39487,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39251,7 +39499,7 @@
         },
         {
           "kind": "field",
-          "signature": "Opaque",
+          "signature": "Opaque = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39259,7 +39507,7 @@
         },
         {
           "kind": "field",
-          "signature": "Translucent",
+          "signature": "Translucent = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39277,10 +39525,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Automatic",
+          "signature": "Automatic = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39288,7 +39537,7 @@
         },
         {
           "kind": "field",
-          "signature": "FormSheet",
+          "signature": "FormSheet = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39296,7 +39545,7 @@
         },
         {
           "kind": "field",
-          "signature": "FullScreen",
+          "signature": "FullScreen = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39304,7 +39553,7 @@
         },
         {
           "kind": "field",
-          "signature": "OverFullScreen",
+          "signature": "OverFullScreen = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39312,7 +39561,7 @@
         },
         {
           "kind": "field",
-          "signature": "PageSheet",
+          "signature": "PageSheet = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39330,10 +39579,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39341,7 +39591,7 @@
         },
         {
           "kind": "field",
-          "signature": "Minimal",
+          "signature": "Minimal = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39349,7 +39599,7 @@
         },
         {
           "kind": "field",
-          "signature": "Prominent",
+          "signature": "Prominent = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39367,10 +39617,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Fade",
+          "signature": "Fade = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39378,7 +39629,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39386,7 +39637,7 @@
         },
         {
           "kind": "field",
-          "signature": "Slide",
+          "signature": "Slide = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39404,10 +39655,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Immediately",
+          "signature": "Immediately = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39415,7 +39667,7 @@
         },
         {
           "kind": "field",
-          "signature": "WhenFinished",
+          "signature": "WhenFinished = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39757,6 +40009,28 @@
       ]
     },
     {
+      "namespace": "Microsoft.Maui.Controls.PlatformConfiguration.iOSSpecific",
+      "name": "VisualElement\u002BShadowEffect",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.RoutingEffect",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
       "namespace": "Microsoft.Maui.Controls.PlatformConfiguration",
       "name": "macOS",
       "kind": "class",
@@ -39882,10 +40156,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Crossfade",
+          "signature": "Crossfade = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39893,7 +40168,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39901,7 +40176,7 @@
         },
         {
           "kind": "field",
-          "signature": "SlideBackward",
+          "signature": "SlideBackward = 7",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39909,7 +40184,7 @@
         },
         {
           "kind": "field",
-          "signature": "SlideDown",
+          "signature": "SlideDown = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39917,7 +40192,7 @@
         },
         {
           "kind": "field",
-          "signature": "SlideForward",
+          "signature": "SlideForward = 6",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39925,7 +40200,7 @@
         },
         {
           "kind": "field",
-          "signature": "SlideLeft",
+          "signature": "SlideLeft = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39933,7 +40208,7 @@
         },
         {
           "kind": "field",
-          "signature": "SlideRight",
+          "signature": "SlideRight = 5",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -39941,7 +40216,7 @@
         },
         {
           "kind": "field",
-          "signature": "SlideUp",
+          "signature": "SlideUp = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -40605,10 +40880,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Animated",
+          "signature": "Animated = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -40616,7 +40892,7 @@
         },
         {
           "kind": "field",
-          "signature": "Modal",
+          "signature": "Modal = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -40624,7 +40900,7 @@
         },
         {
           "kind": "field",
-          "signature": "ModalAnimated",
+          "signature": "ModalAnimated = 6",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -40632,7 +40908,7 @@
         },
         {
           "kind": "field",
-          "signature": "ModalNotAnimated",
+          "signature": "ModalNotAnimated = 5",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -40640,7 +40916,7 @@
         },
         {
           "kind": "field",
-          "signature": "NotAnimated",
+          "signature": "NotAnimated = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -40764,6 +41040,7 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "delegateSignature": "Invoke(object, Microsoft.Maui.Controls.PropertyChangingEventArgs) -\u003E void",
       "members": []
     },
     {
@@ -41732,10 +42009,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "FindAncestor",
+          "signature": "FindAncestor = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -41743,7 +42021,7 @@
         },
         {
           "kind": "field",
-          "signature": "FindAncestorBindingContext",
+          "signature": "FindAncestorBindingContext = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -41751,7 +42029,7 @@
         },
         {
           "kind": "field",
-          "signature": "Self",
+          "signature": "Self = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -41759,7 +42037,7 @@
         },
         {
           "kind": "field",
-          "signature": "TemplatedParent",
+          "signature": "TemplatedParent = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -42061,6 +42339,62 @@
         {
           "kind": "property",
           "signature": "Values { get; } : System.Collections.Generic.ICollection\u003Cobject\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
+      "name": "ResourceDictionary\u002BRDSourceTypeConverter",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "System.ComponentModel.TypeConverter",
+      "interfaces": [
+        "Microsoft.Maui.Controls.IExtendedTypeConverter"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "CanConvertFrom(System.ComponentModel.ITypeDescriptorContext, System.Type) -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "CanConvertTo(System.ComponentModel.ITypeDescriptorContext, System.Type) -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "ConvertFrom(System.ComponentModel.ITypeDescriptorContext, System.Globalization.CultureInfo, object) -\u003E object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "ConvertTo(System.ComponentModel.ITypeDescriptorContext, System.Globalization.CultureInfo, object, System.Type) -\u003E object",
           "accessibility": "public",
           "isStatic": false,
           "isAbstract": false,
@@ -42387,10 +42721,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Auto",
+          "signature": "Auto = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -42398,7 +42733,7 @@
         },
         {
           "kind": "field",
-          "signature": "Disabled",
+          "signature": "Disabled = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -42406,7 +42741,7 @@
         },
         {
           "kind": "field",
-          "signature": "Enabled",
+          "signature": "Enabled = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -42424,10 +42759,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Element",
+          "signature": "Element = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -42435,7 +42771,7 @@
         },
         {
           "kind": "field",
-          "signature": "Position",
+          "signature": "Position = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -42453,10 +42789,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Center",
+          "signature": "Center = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -42464,7 +42801,7 @@
         },
         {
           "kind": "field",
-          "signature": "End",
+          "signature": "End = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -42472,7 +42809,7 @@
         },
         {
           "kind": "field",
-          "signature": "MakeVisible",
+          "signature": "MakeVisible = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -42480,7 +42817,7 @@
         },
         {
           "kind": "field",
-          "signature": "Start",
+          "signature": "Start = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -43204,10 +43541,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Collapsible",
+          "signature": "Collapsible = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -43215,7 +43553,7 @@
         },
         {
           "kind": "field",
-          "signature": "Expanded",
+          "signature": "Expanded = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -43223,7 +43561,7 @@
         },
         {
           "kind": "field",
-          "signature": "Hidden",
+          "signature": "Hidden = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -44213,10 +44551,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Multiple",
+          "signature": "Multiple = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -44224,7 +44563,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -44232,7 +44571,7 @@
         },
         {
           "kind": "field",
-          "signature": "Single",
+          "signature": "Single = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -44343,10 +44682,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -44354,7 +44694,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -45024,10 +45364,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "EvenOdd",
+          "signature": "EvenOdd = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -45035,7 +45376,7 @@
         },
         {
           "kind": "field",
-          "signature": "Nonzero",
+          "signature": "Nonzero = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -46359,10 +46700,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Flat",
+          "signature": "Flat = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -46370,7 +46712,7 @@
         },
         {
           "kind": "field",
-          "signature": "Round",
+          "signature": "Round = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -46378,7 +46720,7 @@
         },
         {
           "kind": "field",
-          "signature": "Square",
+          "signature": "Square = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -46396,10 +46738,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Bevel",
+          "signature": "Bevel = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -46407,7 +46750,7 @@
         },
         {
           "kind": "field",
-          "signature": "Miter",
+          "signature": "Miter = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -46415,7 +46758,7 @@
         },
         {
           "kind": "field",
-          "signature": "Round",
+          "signature": "Round = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -49726,10 +50069,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Insert",
+          "signature": "Insert = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -49737,7 +50081,7 @@
         },
         {
           "kind": "field",
-          "signature": "Pop",
+          "signature": "Pop = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -49745,7 +50089,7 @@
         },
         {
           "kind": "field",
-          "signature": "PopToRoot",
+          "signature": "PopToRoot = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -49753,7 +50097,7 @@
         },
         {
           "kind": "field",
-          "signature": "Push",
+          "signature": "Push = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -49761,7 +50105,7 @@
         },
         {
           "kind": "field",
-          "signature": "Remove",
+          "signature": "Remove = 5",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -49769,7 +50113,7 @@
         },
         {
           "kind": "field",
-          "signature": "ShellContentChanged",
+          "signature": "ShellContentChanged = 8",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -49777,7 +50121,7 @@
         },
         {
           "kind": "field",
-          "signature": "ShellItemChanged",
+          "signature": "ShellItemChanged = 6",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -49785,7 +50129,7 @@
         },
         {
           "kind": "field",
-          "signature": "ShellSectionChanged",
+          "signature": "ShellSectionChanged = 7",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -49793,7 +50137,7 @@
         },
         {
           "kind": "field",
-          "signature": "Unknown",
+          "signature": "Unknown = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -50287,10 +50631,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Center",
+          "signature": "Center = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -50298,7 +50643,7 @@
         },
         {
           "kind": "field",
-          "signature": "End",
+          "signature": "End = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -50306,7 +50651,7 @@
         },
         {
           "kind": "field",
-          "signature": "Start",
+          "signature": "Start = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -50324,10 +50669,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Mandatory",
+          "signature": "Mandatory = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -50335,7 +50681,7 @@
         },
         {
           "kind": "field",
-          "signature": "MandatorySingle",
+          "signature": "MandatorySingle = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -50343,7 +50689,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -50818,10 +51164,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Horizontal",
+          "signature": "Horizontal = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -50829,7 +51176,7 @@
         },
         {
           "kind": "field",
-          "signature": "Vertical",
+          "signature": "Vertical = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -51137,10 +51484,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Fill",
+          "signature": "Fill = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -51148,7 +51496,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -51156,7 +51504,7 @@
         },
         {
           "kind": "field",
-          "signature": "Uniform",
+          "signature": "Uniform = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -51164,7 +51512,7 @@
         },
         {
           "kind": "field",
-          "signature": "UniformToFill",
+          "signature": "UniformToFill = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -51490,10 +51838,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Clockwise",
+          "signature": "Clockwise = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -51501,7 +51850,7 @@
         },
         {
           "kind": "field",
-          "signature": "CounterClockwise",
+          "signature": "CounterClockwise = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -52646,10 +52995,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Data",
+          "signature": "Data = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -52657,7 +53007,7 @@
         },
         {
           "kind": "field",
-          "signature": "Form",
+          "signature": "Form = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -52665,7 +53015,7 @@
         },
         {
           "kind": "field",
-          "signature": "Menu",
+          "signature": "Menu = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -52673,7 +53023,7 @@
         },
         {
           "kind": "field",
-          "signature": "Settings",
+          "signature": "Settings = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -53092,10 +53442,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -53103,7 +53454,7 @@
         },
         {
           "kind": "field",
-          "signature": "Hidden",
+          "signature": "Hidden = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -53111,7 +53462,7 @@
         },
         {
           "kind": "field",
-          "signature": "Icons",
+          "signature": "Icons = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -53119,7 +53470,7 @@
         },
         {
           "kind": "field",
-          "signature": "OnBottom",
+          "signature": "OnBottom = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -53127,7 +53478,7 @@
         },
         {
           "kind": "field",
-          "signature": "OnNavigation",
+          "signature": "OnNavigation = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -53285,10 +53636,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Desktop",
+          "signature": "Desktop = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -53296,7 +53648,7 @@
         },
         {
           "kind": "field",
-          "signature": "Phone",
+          "signature": "Phone = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -53304,7 +53656,7 @@
         },
         {
           "kind": "field",
-          "signature": "TV",
+          "signature": "TV = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -53312,7 +53664,7 @@
         },
         {
           "kind": "field",
-          "signature": "Tablet",
+          "signature": "Tablet = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -53320,7 +53672,7 @@
         },
         {
           "kind": "field",
-          "signature": "Unsupported",
+          "signature": "Unsupported = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -53328,7 +53680,7 @@
         },
         {
           "kind": "field",
-          "signature": "Watch",
+          "signature": "Watch = 5",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -54891,10 +55243,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -54902,7 +55255,7 @@
         },
         {
           "kind": "field",
-          "signature": "Primary",
+          "signature": "Primary = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -54910,7 +55263,7 @@
         },
         {
           "kind": "field",
-          "signature": "Secondary",
+          "signature": "Secondary = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -55783,10 +56136,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -55794,7 +56148,7 @@
         },
         {
           "kind": "field",
-          "signature": "Prelight",
+          "signature": "Prelight = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -55802,7 +56156,7 @@
         },
         {
           "kind": "field",
-          "signature": "Pressed",
+          "signature": "Pressed = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -56854,6 +57208,98 @@
     },
     {
       "namespace": "Microsoft.Maui.Controls",
+      "name": "VisualElement\u002BFocusRequestArgs",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "System.EventArgs",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Focus { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Result { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
+      "name": "VisualElement\u002BVisibilityConverter",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "System.ComponentModel.TypeConverter",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "CanConvertFrom(System.ComponentModel.ITypeDescriptorContext, System.Type) -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "CanConvertTo(System.ComponentModel.ITypeDescriptorContext, System.Type) -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "ConvertFrom(System.ComponentModel.ITypeDescriptorContext, System.Globalization.CultureInfo, object) -\u003E object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "ConvertTo(System.ComponentModel.ITypeDescriptorContext, System.Globalization.CultureInfo, object, System.Type) -\u003E object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
       "name": "VisualMarker",
       "kind": "class",
       "accessibility": "public",
@@ -56876,6 +57322,29 @@
           "signature": "MatchParent { get; } : Microsoft.Maui.Controls.IVisual",
           "accessibility": "public",
           "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
+      "name": "VisualMarker\u002BDefaultVisual",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.IVisual"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
           "isAbstract": false,
           "isVirtual": false
         }
@@ -57211,6 +57680,67 @@
         {
           "kind": "method",
           "signature": "SetVisualStateGroups(Microsoft.Maui.Controls.VisualElement, Microsoft.Maui.Controls.VisualStateGroupList) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls",
+      "name": "VisualStateManager\u002BCommonStates",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "Disabled : string",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "Focused : string",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "Normal : string",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "PointerOver : string",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "Selected : string",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -58927,451 +59457,6 @@
           "isStatic": false,
           "isAbstract": false,
           "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "RDSourceTypeConverter",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "System.ComponentModel.TypeConverter",
-      "interfaces": [
-        "Microsoft.Maui.Controls.IExtendedTypeConverter"
-      ],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "method",
-          "signature": "CanConvertFrom(System.ComponentModel.ITypeDescriptorContext, System.Type) -\u003E bool",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "CanConvertTo(System.ComponentModel.ITypeDescriptorContext, System.Type) -\u003E bool",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "ConvertFrom(System.ComponentModel.ITypeDescriptorContext, System.Globalization.CultureInfo, object) -\u003E object",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "ConvertTo(System.ComponentModel.ITypeDescriptorContext, System.Globalization.CultureInfo, object, System.Type) -\u003E object",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "Rect",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor(int, int, int, int) -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "Height { get; } : int",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "Width { get; } : int",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "X { get; } : int",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "Y { get; } : int",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "RefreshPullDirection",
-      "kind": "enum",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "field",
-          "signature": "BottomToTop",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "LeftToRight",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "RightToLeft",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "TopToBottom",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "ResourceLoadingQuery",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "AssemblyName { get; set; } : System.Reflection.AssemblyName",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "Instance { get; set; } : object",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "ResourcePath { get; set; } : string",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "ResourceLoadingResponse",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "ResourceContent { get; set; } : string",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "UseDesignProperties { get; set; } : bool",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "ShadowEffect",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "Microsoft.Maui.Controls.RoutingEffect",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "Styles",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": true,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "field",
-          "signature": "BodyStyle : Microsoft.Maui.Controls.Style",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "BodyStyleKey : string",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "CaptionStyle : Microsoft.Maui.Controls.Style",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "CaptionStyleKey : string",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "ListItemDetailTextStyle : Microsoft.Maui.Controls.Style",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "ListItemDetailTextStyleKey : string",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "ListItemTextStyle : Microsoft.Maui.Controls.Style",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "ListItemTextStyleKey : string",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "SubtitleStyle : Microsoft.Maui.Controls.Style",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "SubtitleStyleKey : string",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "TitleStyle : Microsoft.Maui.Controls.Style",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "TitleStyleKey : string",
-          "accessibility": "public",
-          "isStatic": true,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "ValidateValueDelegate",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "ValidateValueDelegate",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 1,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "VisibilityConverter",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "System.ComponentModel.TypeConverter",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "method",
-          "signature": "CanConvertFrom(System.ComponentModel.ITypeDescriptorContext, System.Type) -\u003E bool",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "CanConvertTo(System.ComponentModel.ITypeDescriptorContext, System.Type) -\u003E bool",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "ConvertFrom(System.ComponentModel.ITypeDescriptorContext, System.Globalization.CultureInfo, object) -\u003E object",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "ConvertTo(System.ComponentModel.ITypeDescriptorContext, System.Globalization.CultureInfo, object, System.Type) -\u003E object",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
         }
       ]
     }

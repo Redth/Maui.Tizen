@@ -17,12 +17,15 @@
     Does not require a Tizen workload: the scan is a pure file-system walk + text/regex scan.
 
 .PARAMETER PrimaryRoot
-    Path to an existing net11 source checkout (sourceBaseline). If omitted, one is downloaded to a
-    cache directory under -CacheDir using the commit pinned in eng/baselines.json.
+    Path to an existing net11 source checkout (sourceBaseline), produced by
+    Get-MauiSourceSnapshot.ps1. Its .mt-snapshot.json provenance marker is validated against
+    eng/baselines.json's pinned commit -- a directory that is not a verified snapshot of exactly
+    that commit is rejected rather than silently scanned. If omitted, one is downloaded to a cache
+    directory under -CacheDir.
 
 .PARAMETER LegacyRoot
-    Path to an existing 9.0.120 source checkout (behaviorBaseline). If omitted, one is downloaded
-    the same way.
+    Path to an existing 9.0.120 source checkout (behaviorBaseline), validated the same way. If
+    omitted, one is downloaded the same way.
 
 .PARAMETER CacheDir
     Directory used to cache downloaded source snapshots across repeated runs. Defaults to a
@@ -34,7 +37,7 @@
 
 .EXAMPLE
     ./generate-source-inventory.ps1 -PrimaryRoot /tmp/maui-net11 -LegacyRoot /tmp/maui-9.0.120
-    Reuses already-downloaded snapshots (fast local iteration).
+    Reuses already-downloaded, provenance-verified snapshots (fast local iteration).
 #>
 [CmdletBinding()]
 param(
@@ -46,17 +49,40 @@ param(
 $ErrorActionPreference = 'Stop'
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $Baselines = Get-Content (Join-Path $RepoRoot 'eng/baselines.json') -Raw | ConvertFrom-Json
+$repository = $Baselines.source.repository -replace '^https://github.com/', ''
+
+# A caller-supplied root must be a verified snapshot of exactly the pinned ref -- an arbitrary
+# directory (an unrelated checkout, a stale snapshot from a different commit, a directory that
+# merely looks right) is rejected rather than silently scanned, which would generate a manifest
+# that looks legitimate but describes the wrong tree.
+function Assert-VerifiedSnapshot([string]$dir, [string]$repo, [string]$ref, [string]$label) {
+    $markerPath = Join-Path $dir '.mt-snapshot.json'
+    if (-not (Test-Path $markerPath)) {
+        throw "-$label '$dir' has no .mt-snapshot.json provenance marker (produced by Get-MauiSourceSnapshot.ps1), so it cannot be verified as $repo@$ref. Refusing to scan an unverified directory."
+    }
+    $marker = Get-Content $markerPath -Raw | ConvertFrom-Json
+    if ($marker.repository -ne $repo -or $marker.ref -ne $ref) {
+        throw "-$label '$dir' is a verified snapshot of $($marker.repository)@$($marker.ref), not the pinned $repo@$ref. Refusing to scan a mismatched snapshot."
+    }
+}
+
+$primaryRef = $Baselines.source.sourceBaseline.commit
+$legacyRef = $Baselines.source.behaviorBaseline.commit
 
 if (-not $PrimaryRoot) {
-    $primaryRef = $Baselines.source.sourceBaseline.commit
     $PrimaryRoot = Join-Path $CacheDir "maui-$primaryRef"
-    & (Join-Path $PSScriptRoot 'Get-MauiSourceSnapshot.ps1') -Ref $primaryRef -OutDir $PrimaryRoot
+    & (Join-Path $PSScriptRoot 'Get-MauiSourceSnapshot.ps1') -Repo $repository -Ref $primaryRef -OutDir $PrimaryRoot
+}
+else {
+    Assert-VerifiedSnapshot -dir $PrimaryRoot -repo $repository -ref $primaryRef -label 'PrimaryRoot'
 }
 
 if (-not $LegacyRoot) {
-    $legacyRef = $Baselines.source.behaviorBaseline.commit
     $LegacyRoot = Join-Path $CacheDir "maui-$legacyRef"
-    & (Join-Path $PSScriptRoot 'Get-MauiSourceSnapshot.ps1') -Ref $legacyRef -OutDir $LegacyRoot
+    & (Join-Path $PSScriptRoot 'Get-MauiSourceSnapshot.ps1') -Repo $repository -Ref $legacyRef -OutDir $LegacyRoot
+}
+else {
+    Assert-VerifiedSnapshot -dir $LegacyRoot -repo $repository -ref $legacyRef -label 'LegacyRoot'
 }
 
 $toolDir = Join-Path $RepoRoot 'eng/tools/SourceInventory'

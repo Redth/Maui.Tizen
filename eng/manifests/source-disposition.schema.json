@@ -123,10 +123,6 @@
             {
               "const": "exclude",
               "description": "Deliberately dropped. Requires notes explaining why, so that 'excluded' is never indistinguishable from 'overlooked'."
-            },
-            {
-              "const": "pending-audit",
-              "description": "The file exists only at behaviorBaseline (9.0.120) and its disposition depends on a question this manifest cannot answer by itself: whether any net11 Tizen handler depends on implementation that exists only here. Used instead of a default 'exclude' so that a drop is a reviewed conclusion, not an artifact of the generator's absence-detection. Requires notes describing what to check."
             }
           ]
         },
@@ -174,7 +170,7 @@
           "then": { "required": ["targetPath"] }
         },
         {
-          "if": { "properties": { "disposition": { "enum": ["exclude", "pending-audit"] } }, "required": ["disposition"] },
+          "if": { "properties": { "disposition": { "const": "exclude" } }, "required": ["disposition"] },
           "then": {
             "required": ["notes"],
             "properties": { "notes": { "minLength": 10 } }

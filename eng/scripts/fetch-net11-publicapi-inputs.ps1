@@ -13,8 +13,10 @@
     text, not a compiled assembly) into eng/api-baselines/net11.0-publicapi.
 
 .PARAMETER PrimaryRoot
-    Path to an existing net11 source checkout (see Get-MauiSourceSnapshot.ps1). If omitted, one is
-    downloaded using the commit pinned in eng/baselines.json (source.sourceBaseline.commit).
+    Path to an existing net11 source checkout, produced by Get-MauiSourceSnapshot.ps1. Its
+    .mt-snapshot.json provenance marker is validated against eng/baselines.json's pinned commit --
+    a directory that is not a verified snapshot of exactly that commit is rejected. If omitted, one
+    is downloaded using the commit pinned in eng/baselines.json (source.sourceBaseline.commit).
 #>
 [CmdletBinding()]
 param(
@@ -25,12 +27,23 @@ param(
 $ErrorActionPreference = 'Stop'
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $Baselines = Get-Content (Join-Path $RepoRoot 'eng/baselines.json') -Raw | ConvertFrom-Json
+$repository = $Baselines.source.repository -replace '^https://github.com/', ''
 $primaryRef = $Baselines.source.sourceBaseline.commit
 $primaryLabel = $Baselines.source.sourceBaseline.branch
 
 if (-not $PrimaryRoot) {
     $PrimaryRoot = Join-Path $CacheDir "maui-$primaryRef"
-    & (Join-Path $PSScriptRoot 'Get-MauiSourceSnapshot.ps1') -Ref $primaryRef -OutDir $PrimaryRoot
+    & (Join-Path $PSScriptRoot 'Get-MauiSourceSnapshot.ps1') -Repo $repository -Ref $primaryRef -OutDir $PrimaryRoot
+}
+else {
+    $markerPath = Join-Path $PrimaryRoot '.mt-snapshot.json'
+    if (-not (Test-Path $markerPath)) {
+        throw "-PrimaryRoot '$PrimaryRoot' has no .mt-snapshot.json provenance marker, so it cannot be verified as $repository@$primaryRef. Refusing to read an unverified directory."
+    }
+    $marker = Get-Content $markerPath -Raw | ConvertFrom-Json
+    if ($marker.repository -ne $repository -or $marker.ref -ne $primaryRef) {
+        throw "-PrimaryRoot '$PrimaryRoot' is a verified snapshot of $($marker.repository)@$($marker.ref), not the pinned $repository@$primaryRef. Refusing to read a mismatched snapshot."
+    }
 }
 
 # Repo-relative source path -> friendly output directory name (matching the target project names
@@ -82,7 +95,6 @@ foreach ($entry in $projects.GetEnumerator()) {
 
 $manifest = [ordered]@{
     schemaVersion  = 1
-    generatedAtUtc = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
     repository     = $Baselines.source.repository
     sourceRef      = $primaryRef
     sourceRefLabel = $primaryLabel

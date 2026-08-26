@@ -57,6 +57,24 @@ public static class Program
         var entries = scanner.Scan(primaryRoot, legacyRoot).ToList();
         entries.Sort((a, b) => string.CompareOrdinal(a.Path, b.Path));
 
+        // Semantic duplicate-path rejection: two entries for the same upstream path is a
+        // generator bug (e.g. an area/mapping matching both the primary-root scan and the
+        // legacy-only recovery pass for the same file), not a data condition a consumer should
+        // have to notice on their own. Fail loudly instead of emitting an ambiguous manifest.
+        var duplicatePaths = entries.GroupBy(e => e.Path, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+        if (duplicatePaths.Count > 0)
+        {
+            Console.Error.WriteLine("Refusing to write a manifest with duplicate paths:");
+            foreach (var p in duplicatePaths)
+            {
+                Console.Error.WriteLine($"  {p}");
+            }
+            return 3;
+        }
+
         var manifest = new
         {
             schemaVersion = 1,
@@ -64,7 +82,7 @@ public static class Program
             {
                 sourceBaseline = primaryRef,
                 behaviorBaseline = legacyRef,
-                generatedUtc = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                generatedUtc = DeterministicTimestamp(),
                 tool = "eng/tools/SourceInventory (maui-tizen-source-inventory)",
             },
             entries,
@@ -91,6 +109,23 @@ public static class Program
 
         return 0;
     }
+
+    /// <summary>
+    /// Wall-clock timestamps make regenerating an otherwise-identical manifest produce a
+    /// byte-different file, which defeats "prove this is reproducible" review. Only emit a
+    /// timestamp when SOURCE_DATE_EPOCH (the standard reproducible-builds convention) is set;
+    /// otherwise omit the field entirely (it is optional in the schema) rather than fabricate a
+    /// value that is not actually reproducible.
+    /// </summary>
+    private static string? DeterministicTimestamp()
+    {
+        var epoch = Environment.GetEnvironmentVariable("SOURCE_DATE_EPOCH");
+        if (epoch is not null && long.TryParse(epoch, out var seconds))
+        {
+            return DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ");
+        }
+        return null;
+    }
 }
 
 /// <summary>Matches eng/manifests/source-disposition.schema.json's "entry" definition.</summary>
@@ -105,7 +140,48 @@ public sealed class InventoryEntry
     public string? TargetPath { get; init; }
     public string? TargetNamespace { get; init; }
     public string? CollisionRisk { get; init; } // "none" | "namespace-only" | "type-name" | "assembly-identity"
+    public EntryProvenance? Provenance { get; init; }
     public string? Notes { get; init; }
+}
+
+public sealed class EntryProvenance
+{
+    public List<string>? HistoricalPaths { get; init; }
+}
+
+/// <summary>
+/// Area-level historical path patterns the Tizen backend has lived under, transcribed directly
+/// from eng/import/tizen-paths.txt's documentation comment. This is NOT per-file git lineage
+/// (the generator scans a source-snapshot tarball with no git history available -- see
+/// eng/scripts/Get-MauiSourceSnapshot.ps1) -- it is area-level historical context so a reviewer
+/// tracing a file's origin knows where else in history to look. Left empty for areas the
+/// documented list does not cover.
+/// </summary>
+internal static class HistoricalPaths
+{
+    private static readonly Dictionary<string, string[]> ByArea = new(StringComparer.Ordinal)
+    {
+        ["Compatibility.Core"] = ["Xamarin.Forms.Platform.Tizen/**", "Stubs/Xamarin.Forms.Platform.Tizen/**"],
+        ["Compatibility.Material"] = ["Xamarin.Forms.Platform.Tizen/**"],
+        ["Compatibility.Maps"] = ["Xamarin.Forms.Platform.Tizen/**"],
+        ["Essentials"] = ["Xamarin.Essentials/**/*.tizen.cs"],
+        ["Core.Platform"] = ["src/Core/src/Platform/Tizen/** (historical)", "src/Core/src/LifecycleEvents/Tizen/** (historical)"],
+        ["Maps"] = ["src/Core/maps/src/**/Tizen/** (historical)"],
+        ["Controls"] = ["src/Controls/src/Core/Platform/Tizen/** (historical)", "src/Controls/src/Core/Handlers/**/Tizen/** (historical)"],
+        ["BlazorWebView"] = ["src/BlazorWebView/src/Maui/Tizen/** (historical)"],
+        ["Graphics"] = ["src/Graphics/samples/GraphicsTester.Skia.Tizen/**"],
+        ["Templates"] = ["src/Templates/**/Tizen/** (historical)"],
+        ["Samples"] = ["Samples/Samples.Tizen/**", "PagesGallery/PagesGallery.Tizen/**", "EmbeddingTestBeds/Embedding.Tizen/**"],
+    };
+
+    public static EntryProvenance? For(string? area)
+    {
+        if (area is not null && ByArea.TryGetValue(area, out var paths))
+        {
+            return new EntryProvenance { HistoricalPaths = [.. paths] };
+        }
+        return null;
+    }
 }
 
 /// <summary>
@@ -162,9 +238,27 @@ internal static class LayoutMap
         // The legacy top-level Xamarin.Forms.Platform.Compatibility stack. Distinct from
         // src/Controls/src/Core/Compatibility/** (still present on net11.0, handled by the
         // "src/Controls/src/Core/" mapping above as part of Maui.Tizen.Controls).
+        //
+        // Split into sub-areas rather than one flat "Compatibility" bucket: the three
+        // sub-stacks have genuinely different audit priors (Material is Xamarin.Forms-era
+        // visuals with no MAUI equivalent -- near-certain exclusion; Maps is small and
+        // Maui.Tizen.Maps already exists, so it needs a real look; Core -- renderers, gestures,
+        // logging, extensions -- is where a net11 Tizen handler dependency, if one exists, is
+        // most likely to be found). A reviewer who can filter to 48/17/5 is doing a tractable
+        // job; one facing an undifferentiated 70 is more likely to rubber-stamp. This does NOT
+        // change the disposition (still "exclude", per the schema's immutable enum and the
+        // absent-from-net11.0 justification) -- it only makes the audit note actionable.
+        if (relativePath.StartsWith("src/Compatibility/Material/", StringComparison.Ordinal))
+        {
+            return ("Compatibility.Material", "Maui.Tizen.Compatibility");
+        }
+        if (relativePath.StartsWith("src/Compatibility/Maps/", StringComparison.Ordinal))
+        {
+            return ("Compatibility.Maps", "Maui.Tizen.Compatibility");
+        }
         if (relativePath.StartsWith("src/Compatibility/", StringComparison.Ordinal))
         {
-            return ("Compatibility", "Maui.Tizen.Compatibility");
+            return ("Compatibility.Core", "Maui.Tizen.Compatibility");
         }
 
         return null;
@@ -261,14 +355,24 @@ internal sealed partial class Scanner
             package = mapping?.Package ?? "none";
         }
 
-        // Per the Compatibility layer's disposition question is not "is it on net11.0" (it
-        // isn't) but "does any net11 Tizen handler depend on implementation that exists only
-        // here?" -- an audit this generator cannot perform. "pending-audit" makes the eventual
-        // drop (or partial move) a reviewed conclusion rather than a default the generator
-        // asserted on its own. See docs/migration.md's Compatibility open decision.
-        var disposition = area == "Compatibility" ? "pending-audit" : "exclude";
-        var notes = area == "Compatibility"
-            ? "Present at 9.0.120 only (legacy top-level src/Compatibility/** stack, deleted upstream before net11.0). Audit: does any net11 Tizen handler depend on implementation that exists only here? Move only what is genuinely required; per docs/migration.md the expected outcome is that this package is not shipped at all."
+        // Scope arbitration: the schema's disposition enum is immutable input (move | rename |
+        // rebuild | keep-upstream | exclude). The legacy top-level src/Compatibility/** stack is
+        // absent from net11.0 -- that fact alone is a sufficient, settled justification for
+        // "exclude" per the schema's own rule (notes explaining why). Whether any net11 Tizen
+        // handler depends on implementation that exists only here is a real open question, but it
+        // is recorded as an audit note on the exclude entry, not as a different disposition value.
+        // Do NOT change this to "rebuild": these are old/duplicate legacy renderer files unless an
+        // audit proves otherwise, and reviving a .NET10-era Compatibility project is out of scope.
+        var disposition = "exclude";
+        var isCompatibilityArea = area is not null && area.StartsWith("Compatibility", StringComparison.Ordinal);
+        var notes = isCompatibilityArea
+            ? area switch
+            {
+                "Compatibility.Material" => "Present at 9.0.120 only (legacy Xamarin.Forms Material Design visuals, src/Compatibility/Material/**, deleted upstream before net11.0); absent from net11.0 is the justification for exclude. No MAUI equivalent exists -- near-certain blanket exclusion, but confirm before finalizing.",
+                "Compatibility.Maps" => "Present at 9.0.120 only (legacy src/Compatibility/Maps/**, deleted upstream before net11.0); absent from net11.0 is the justification for exclude. Small set; Maui.Tizen.Maps already exists as a modern target, so give this one a real look before finalizing.",
+                "Compatibility.Core" => "Present at 9.0.120 only (legacy src/Compatibility/Core/** renderers/gestures/logging/extensions, deleted upstream before net11.0); absent from net11.0 is the justification for exclude. If any net11 Tizen handler depends on implementation that exists only in the old Compatibility stack, it is most likely here -- audit before finalizing. Per docs/migration.md the expected outcome is that this package is not shipped at all.",
+                _ => "Present at 9.0.120 only (legacy top-level src/Compatibility/** stack, deleted upstream before net11.0); absent from net11.0 is the justification for exclude. Audit note for reviewers: confirm no net11 Tizen handler depends on implementation that exists only here before finalizing.",
+            }
             : "Present at 9.0.120 only; not found at the net11.0 source baseline.";
 
         return new InventoryEntry
@@ -282,6 +386,7 @@ internal sealed partial class Scanner
             TargetPath = null,
             TargetNamespace = null,
             CollisionRisk = "none",
+            Provenance = HistoricalPaths.For(area),
             Notes = notes,
         };
     }
@@ -461,6 +566,7 @@ internal sealed partial class Scanner
             TargetPath = targetPath,
             TargetNamespace = targetNamespace,
             CollisionRisk = collisionRisk,
+            Provenance = HistoricalPaths.For(area),
             Notes = notes,
         };
     }

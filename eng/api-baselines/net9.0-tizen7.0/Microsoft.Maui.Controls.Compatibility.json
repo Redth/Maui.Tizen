@@ -6,47 +6,6 @@
   "sha256": "00a2b04601b41ad437b401ffe1f1708a4a746478ab5ce361e3db9f5abccd541b",
   "types": [
     {
-      "namespace": "",
-      "name": "EffectScope",
-      "kind": "struct",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "field",
-          "signature": "Effects : Microsoft.Maui.Controls.ExportEffectAttribute[]",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "field",
-          "signature": "Name : string",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "Guardian",
-      "kind": "struct",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": []
-    },
-    {
       "namespace": "Microsoft.Maui.Controls.Compatibility",
       "name": "DisplayResolutionUnit",
       "kind": "class",
@@ -683,6 +642,35 @@
         {
           "kind": "property",
           "signature": "UseSkiaSharp { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility",
+      "name": "InitializationOptions\u002BEffectScope",
+      "kind": "struct",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "field",
+          "signature": "Effects : Microsoft.Maui.Controls.ExportEffectAttribute[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "Name : string",
           "accessibility": "public",
           "isStatic": false,
           "isAbstract": false,
@@ -2445,6 +2433,18 @@
     },
     {
       "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "Log\u002BGuardian",
+      "kind": "struct",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
       "name": "MeasureDelegate",
       "kind": "delegate",
       "accessibility": "public",
@@ -2453,6 +2453,7 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "delegateSignature": "Invoke(Microsoft.Maui.Controls.Compatibility.Platform.Tizen.NativeViewWrapperRenderer, int, int) -\u003E System.Nullable\u003CMicrosoft.Maui.Graphics.Size\u003E",
       "members": []
     },
     {
@@ -3493,10 +3494,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "byte",
       "members": [
         {
           "kind": "field",
-          "signature": "Disposed",
+          "signature": "Disposed = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3504,7 +3506,7 @@
         },
         {
           "kind": "field",
-          "signature": "NeedsLayout",
+          "signature": "NeedsLayout = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3512,7 +3514,7 @@
         },
         {
           "kind": "field",
-          "signature": "NeedsTransformation",
+          "signature": "NeedsTransformation = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3520,7 +3522,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3538,10 +3540,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Defalut",
+          "signature": "Defalut = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3549,7 +3552,7 @@
         },
         {
           "kind": "field",
-          "signature": "Lightweight",
+          "signature": "Lightweight = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3698,10 +3701,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "All",
+          "signature": "All = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3709,7 +3713,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3717,7 +3721,7 @@
         },
         {
           "kind": "field",
-          "signature": "StaticRegistrarOnly",
+          "signature": "StaticRegistrarOnly = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3735,10 +3739,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3746,7 +3751,7 @@
         },
         {
           "kind": "field",
-          "signature": "Never",
+          "signature": "Never = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,

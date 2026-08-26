@@ -6,501 +6,6 @@
   "sha256": "bc971f49ab6f78c36d2f101ae4c4f814d7c2381dfecb0c63ff111c3f24e0a58f",
   "types": [
     {
-      "namespace": "",
-      "name": "BasePermission",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": true,
-      "isSealed": false,
-      "arity": 0,
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "method",
-          "signature": "CheckStatusAsync() -\u003E System.Threading.Tasks.Task\u003CMicrosoft.Maui.ApplicationModel.PermissionStatus\u003E",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": true,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "EnsureDeclared() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": true,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "RequestAsync() -\u003E System.Threading.Tasks.Task\u003CMicrosoft.Maui.ApplicationModel.PermissionStatus\u003E",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": true,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "ShouldShowRationale() -\u003E bool",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": true,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "BasePlatformPermission",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": true,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "protected",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "method",
-          "signature": "CheckStatusAsync() -\u003E System.Threading.Tasks.Task\u003CMicrosoft.Maui.ApplicationModel.PermissionStatus\u003E",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "EnsureDeclared() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "RequestAsync() -\u003E System.Threading.Tasks.Task\u003CMicrosoft.Maui.ApplicationModel.PermissionStatus\u003E",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        },
-        {
-          "kind": "method",
-          "signature": "ShouldShowRationale() -\u003E bool",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        },
-        {
-          "kind": "property",
-          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "Battery",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "Bluetooth",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "CalendarRead",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "CalendarWrite",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "Camera",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "ContactsRead",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "ContactsWrite",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "Flashlight",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "LaunchApp",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "LocationAlways",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "LocationWhenInUse",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "LocationWhenInUse",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "Maps",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "Media",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "Microphone",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
       "namespace": "Microsoft.Maui.Accessibility",
       "name": "ISemanticScreenReader",
       "kind": "interface",
@@ -801,10 +306,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Packaged",
+          "signature": "Packaged = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -812,7 +318,7 @@
         },
         {
           "kind": "field",
-          "signature": "Unpackaged",
+          "signature": "Unpackaged = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -830,10 +336,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Dark",
+          "signature": "Dark = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -841,7 +348,7 @@
         },
         {
           "kind": "field",
-          "signature": "Light",
+          "signature": "Light = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -849,7 +356,7 @@
         },
         {
           "kind": "field",
-          "signature": "Unspecified",
+          "signature": "Unspecified = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -989,10 +496,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "LaunchAdjacent",
+          "signature": "LaunchAdjacent = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -1000,7 +508,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -1008,7 +516,7 @@
         },
         {
           "kind": "field",
-          "signature": "PresentAsFormSheet",
+          "signature": "PresentAsFormSheet = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -1016,7 +524,7 @@
         },
         {
           "kind": "field",
-          "signature": "PresentAsPageSheet",
+          "signature": "PresentAsPageSheet = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -1034,10 +542,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "External",
+          "signature": "External = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -1045,7 +554,7 @@
         },
         {
           "kind": "field",
-          "signature": "SystemPreferred",
+          "signature": "SystemPreferred = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -1124,10 +633,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -1135,7 +645,7 @@
         },
         {
           "kind": "field",
-          "signature": "Hide",
+          "signature": "Hide = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -1143,7 +653,7 @@
         },
         {
           "kind": "field",
-          "signature": "Show",
+          "signature": "Show = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -1480,10 +990,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Html",
+          "signature": "Html = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -1491,7 +1002,7 @@
         },
         {
           "kind": "field",
-          "signature": "PlainText",
+          "signature": "PlainText = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -2928,10 +2439,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "LeftToRight",
+          "signature": "LeftToRight = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -2939,7 +2451,7 @@
         },
         {
           "kind": "field",
-          "signature": "RightToLeft",
+          "signature": "RightToLeft = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -2947,7 +2459,7 @@
         },
         {
           "kind": "field",
-          "signature": "Unknown",
+          "signature": "Unknown = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3265,10 +2777,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Bicycling",
+          "signature": "Bicycling = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3276,7 +2789,7 @@
         },
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3284,7 +2797,7 @@
         },
         {
           "kind": "field",
-          "signature": "Driving",
+          "signature": "Driving = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3292,7 +2805,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3300,7 +2813,7 @@
         },
         {
           "kind": "field",
-          "signature": "Transit",
+          "signature": "Transit = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3308,7 +2821,7 @@
         },
         {
           "kind": "field",
-          "signature": "Walking",
+          "signature": "Walking = 5",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3409,10 +2922,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Denied",
+          "signature": "Denied = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3420,7 +2934,7 @@
         },
         {
           "kind": "field",
-          "signature": "Disabled",
+          "signature": "Disabled = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3428,7 +2942,7 @@
         },
         {
           "kind": "field",
-          "signature": "Granted",
+          "signature": "Granted = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3436,7 +2950,7 @@
         },
         {
           "kind": "field",
-          "signature": "Limited",
+          "signature": "Limited = 5",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3444,7 +2958,7 @@
         },
         {
           "kind": "field",
-          "signature": "Restricted",
+          "signature": "Restricted = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3452,7 +2966,7 @@
         },
         {
           "kind": "field",
-          "signature": "Unknown",
+          "signature": "Unknown = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3502,6 +3016,819 @@
           "isStatic": true,
           "isAbstract": false,
           "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BBasePermission",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": true,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "CheckStatusAsync() -\u003E System.Threading.Tasks.Task\u003CMicrosoft.Maui.ApplicationModel.PermissionStatus\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "EnsureDeclared() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "RequestAsync() -\u003E System.Threading.Tasks.Task\u003CMicrosoft.Maui.ApplicationModel.PermissionStatus\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "ShouldShowRationale() -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BBasePlatformPermission",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": true,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "CheckStatusAsync() -\u003E System.Threading.Tasks.Task\u003CMicrosoft.Maui.ApplicationModel.PermissionStatus\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "EnsureDeclared() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "RequestAsync() -\u003E System.Threading.Tasks.Task\u003CMicrosoft.Maui.ApplicationModel.PermissionStatus\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "ShouldShowRationale() -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BBattery",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BBluetooth",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BCalendarRead",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BCalendarWrite",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BCamera",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BContactsRead",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BContactsWrite",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BFlashlight",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BLaunchApp",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BLocationAlways",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "LocationWhenInUse",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BLocationWhenInUse",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BMaps",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BMedia",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BMicrophone",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BNearbyWifiDevices",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BNetworkState",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BPhone",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BPhotos",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BPhotosAddOnly",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BPostNotifications",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BReminders",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BSensors",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BSms",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BSpeech",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BStorageRead",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BStorageWrite",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.ApplicationModel",
+      "name": "Permissions\u002BVibrate",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "BasePlatformPermission",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
         }
       ]
     },
@@ -3691,6 +4018,43 @@
           "signature": "Default { get; } : Microsoft.Maui.Authentication.IAppleSignInAuthenticator",
           "accessibility": "public",
           "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Authentication",
+      "name": "AppleSignInAuthenticator\u002BOptions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "IncludeEmailScope { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "IncludeFullNameScope { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
           "isAbstract": false,
           "isVirtual": false
         }
@@ -4140,10 +4504,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "AC",
+          "signature": "AC = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4151,7 +4516,7 @@
         },
         {
           "kind": "field",
-          "signature": "Battery",
+          "signature": "Battery = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4159,7 +4524,7 @@
         },
         {
           "kind": "field",
-          "signature": "Unknown",
+          "signature": "Unknown = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4167,7 +4532,7 @@
         },
         {
           "kind": "field",
-          "signature": "Usb",
+          "signature": "Usb = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4175,7 +4540,7 @@
         },
         {
           "kind": "field",
-          "signature": "Wireless",
+          "signature": "Wireless = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4193,10 +4558,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Charging",
+          "signature": "Charging = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4204,7 +4570,7 @@
         },
         {
           "kind": "field",
-          "signature": "Discharging",
+          "signature": "Discharging = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4212,7 +4578,7 @@
         },
         {
           "kind": "field",
-          "signature": "Full",
+          "signature": "Full = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4220,7 +4586,7 @@
         },
         {
           "kind": "field",
-          "signature": "NotCharging",
+          "signature": "NotCharging = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4228,7 +4594,7 @@
         },
         {
           "kind": "field",
-          "signature": "NotPresent",
+          "signature": "NotPresent = 5",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4236,7 +4602,7 @@
         },
         {
           "kind": "field",
-          "signature": "Unknown",
+          "signature": "Unknown = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4654,10 +5020,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Physical",
+          "signature": "Physical = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4665,7 +5032,7 @@
         },
         {
           "kind": "field",
-          "signature": "Unknown",
+          "signature": "Unknown = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4673,7 +5040,7 @@
         },
         {
           "kind": "field",
-          "signature": "Virtual",
+          "signature": "Virtual = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4848,10 +5215,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Landscape",
+          "signature": "Landscape = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4859,7 +5227,7 @@
         },
         {
           "kind": "field",
-          "signature": "Portrait",
+          "signature": "Portrait = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4867,7 +5235,7 @@
         },
         {
           "kind": "field",
-          "signature": "Unknown",
+          "signature": "Unknown = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4885,10 +5253,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Rotation0",
+          "signature": "Rotation0 = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4896,7 +5265,7 @@
         },
         {
           "kind": "field",
-          "signature": "Rotation180",
+          "signature": "Rotation180 = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4904,7 +5273,7 @@
         },
         {
           "kind": "field",
-          "signature": "Rotation270",
+          "signature": "Rotation270 = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4912,7 +5281,7 @@
         },
         {
           "kind": "field",
-          "signature": "Rotation90",
+          "signature": "Rotation90 = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4920,7 +5289,7 @@
         },
         {
           "kind": "field",
-          "signature": "Unknown",
+          "signature": "Unknown = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4938,10 +5307,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Off",
+          "signature": "Off = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4949,7 +5319,7 @@
         },
         {
           "kind": "field",
-          "signature": "On",
+          "signature": "On = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -4957,7 +5327,7 @@
         },
         {
           "kind": "field",
-          "signature": "Unknown",
+          "signature": "Unknown = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -5087,10 +5457,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Click",
+          "signature": "Click = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -5098,7 +5469,7 @@
         },
         {
           "kind": "field",
-          "signature": "LongPress",
+          "signature": "LongPress = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -5588,10 +5959,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Ellipsoid",
+          "signature": "Ellipsoid = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -5599,7 +5971,7 @@
         },
         {
           "kind": "field",
-          "signature": "Geoid",
+          "signature": "Geoid = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -5607,7 +5979,7 @@
         },
         {
           "kind": "field",
-          "signature": "Surface",
+          "signature": "Surface = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -5615,7 +5987,7 @@
         },
         {
           "kind": "field",
-          "signature": "Terrain",
+          "signature": "Terrain = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -5623,7 +5995,7 @@
         },
         {
           "kind": "field",
-          "signature": "Unspecified",
+          "signature": "Unspecified = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -6001,10 +6373,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Kilometers",
+          "signature": "Kilometers = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -6012,7 +6385,7 @@
         },
         {
           "kind": "field",
-          "signature": "Miles",
+          "signature": "Miles = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -6205,10 +6578,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Best",
+          "signature": "Best = 5",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -6216,7 +6590,7 @@
         },
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -6224,7 +6598,7 @@
         },
         {
           "kind": "field",
-          "signature": "High",
+          "signature": "High = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -6232,7 +6606,7 @@
         },
         {
           "kind": "field",
-          "signature": "Low",
+          "signature": "Low = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -6240,7 +6614,7 @@
         },
         {
           "kind": "field",
-          "signature": "Lowest",
+          "signature": "Lowest = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -6248,7 +6622,7 @@
         },
         {
           "kind": "field",
-          "signature": "Medium",
+          "signature": "Medium = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -6266,10 +6640,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "PositionUnavailable",
+          "signature": "PositionUnavailable = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -6277,7 +6652,7 @@
         },
         {
           "kind": "field",
-          "signature": "Unauthorized",
+          "signature": "Unauthorized = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -7982,10 +8357,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -7993,7 +8369,7 @@
         },
         {
           "kind": "field",
-          "signature": "Fastest",
+          "signature": "Fastest = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -8001,7 +8377,7 @@
         },
         {
           "kind": "field",
-          "signature": "Game",
+          "signature": "Game = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -8009,7 +8385,7 @@
         },
         {
           "kind": "field",
-          "signature": "UI",
+          "signature": "UI = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -8489,10 +8865,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Jpeg",
+          "signature": "Jpeg = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -8500,7 +8877,7 @@
         },
         {
           "kind": "field",
-          "signature": "Png",
+          "signature": "Png = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -8869,10 +9246,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Bluetooth",
+          "signature": "Bluetooth = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -8880,7 +9258,7 @@
         },
         {
           "kind": "field",
-          "signature": "Cellular",
+          "signature": "Cellular = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -8888,7 +9266,7 @@
         },
         {
           "kind": "field",
-          "signature": "Ethernet",
+          "signature": "Ethernet = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -8896,7 +9274,7 @@
         },
         {
           "kind": "field",
-          "signature": "Unknown",
+          "signature": "Unknown = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -8904,7 +9282,7 @@
         },
         {
           "kind": "field",
-          "signature": "WiFi",
+          "signature": "WiFi = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -9050,10 +9428,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "ConstrainedInternet",
+          "signature": "ConstrainedInternet = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -9061,7 +9440,7 @@
         },
         {
           "kind": "field",
-          "signature": "Internet",
+          "signature": "Internet = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -9069,7 +9448,7 @@
         },
         {
           "kind": "field",
-          "signature": "Local",
+          "signature": "Local = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -9077,7 +9456,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -9085,7 +9464,7 @@
         },
         {
           "kind": "field",
-          "signature": "Unknown",
+          "signature": "Unknown = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -10078,361 +10457,6 @@
       "arity": 0,
       "interfaces": [],
       "members": []
-    },
-    {
-      "namespace": "",
-      "name": "NearbyWifiDevices",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "NetworkState",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "Options",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "IncludeEmailScope { get; set; } : bool",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "IncludeFullNameScope { get; set; } : bool",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "Phone",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "Photos",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "PhotosAddOnly",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "PostNotifications",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "Reminders",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "Sensors",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "Sms",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "Speech",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "StorageRead",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "StorageWrite",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        }
-      ]
-    },
-    {
-      "namespace": "",
-      "name": "Vibrate",
-      "kind": "class",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": false,
-      "arity": 0,
-      "baseType": "BasePlatformPermission",
-      "interfaces": [],
-      "members": [
-        {
-          "kind": "constructor",
-          "signature": "#ctor() -\u003E void",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": false
-        },
-        {
-          "kind": "property",
-          "signature": "RequiredPrivileges { get; } : System.ValueTuple\u003Cstring, bool\u003E[]",
-          "accessibility": "public",
-          "isStatic": false,
-          "isAbstract": false,
-          "isVirtual": true
-        }
-      ]
     }
   ]
 }

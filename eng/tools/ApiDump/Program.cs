@@ -103,6 +103,8 @@ public sealed class ApiType
     public int Arity { get; init; }
     public string? BaseType { get; init; }
     public List<string> Interfaces { get; init; } = [];
+    public string? UnderlyingType { get; init; } // enum only: its backing primitive type.
+    public string? DelegateSignature { get; init; } // delegate only: its Invoke method's signature.
     public List<ApiMember> Members { get; init; } = [];
 }
 
@@ -272,8 +274,8 @@ internal static class AssemblyApiDumper
 
     private static ApiType BuildType(MetadataReader reader, TypeDefinition typeDef, SignatureStringProvider provider)
     {
-        var ns = reader.GetString(typeDef.Namespace);
-        var name = provider.GetTypeDisplayName(typeDef);
+        var ns = provider.GetEffectiveNamespace(typeDef);
+        var name = provider.GetQualifiedTypeName(typeDef);
         var isInterface = (typeDef.Attributes & TypeAttributes.Interface) != 0;
         var isValueType = !isInterface && IsValueType(reader, typeDef);
         var isEnum = isValueType && IsEnum(reader, typeDef);
@@ -422,10 +424,13 @@ internal static class AssemblyApiDumper
                     continue;
                 }
 
+                var fieldName = reader.GetString(field.Name);
+                var constantValue = GetEnumConstantValueString(reader, field);
+
                 members.Add(new ApiMember
                 {
                     Kind = "field",
-                    Signature = reader.GetString(field.Name),
+                    Signature = constantValue is null ? fieldName : $"{fieldName} = {constantValue}",
                     Accessibility = Accessibility(field.Attributes),
                     IsStatic = true,
                 });
@@ -456,6 +461,18 @@ internal static class AssemblyApiDumper
         }
         interfaces.Sort(StringComparer.Ordinal);
 
+        string? underlyingType = null;
+        if (kind == "enum")
+        {
+            underlyingType = GetEnumUnderlyingType(reader, typeDef, provider);
+        }
+
+        string? delegateSignature = null;
+        if (kind == "delegate")
+        {
+            delegateSignature = GetDelegateInvokeSignature(reader, typeDef, provider);
+        }
+
         return new ApiType
         {
             Namespace = ns,
@@ -468,8 +485,70 @@ internal static class AssemblyApiDumper
             Arity = provider.GetGenericArity(typeDef),
             BaseType = baseTypeName,
             Interfaces = interfaces,
+            UnderlyingType = underlyingType,
+            DelegateSignature = delegateSignature,
             Members = members,
         };
+    }
+
+    /// <summary>The primitive backing type of an enum, read from its "value__" special field.</summary>
+    private static string? GetEnumUnderlyingType(MetadataReader reader, TypeDefinition typeDef, SignatureStringProvider provider)
+    {
+        foreach (var fieldHandle in typeDef.GetFields())
+        {
+            var field = reader.GetFieldDefinition(fieldHandle);
+            if ((field.Attributes & FieldAttributes.SpecialName) != 0 && reader.GetString(field.Name) == "value__")
+            {
+                return field.DecodeSignature(provider, null);
+            }
+        }
+        return null;
+    }
+
+    /// <summary>Reads the numeric/constant value backing an enum member field, formatted as a
+    /// plain literal (e.g. "2" or "-1"). Returns null if the field has no constant (unexpected for
+    /// a public enum member, but handled defensively).</summary>
+    private static string? GetEnumConstantValueString(MetadataReader reader, FieldDefinition field)
+    {
+        var constantHandle = field.GetDefaultValue();
+        if (constantHandle.IsNil)
+        {
+            return null;
+        }
+
+        var constant = reader.GetConstant(constantHandle);
+        var blobReader = reader.GetBlobReader(constant.Value);
+        return constant.TypeCode switch
+        {
+            ConstantTypeCode.Byte => blobReader.ReadByte().ToString(),
+            ConstantTypeCode.SByte => blobReader.ReadSByte().ToString(),
+            ConstantTypeCode.Int16 => blobReader.ReadInt16().ToString(),
+            ConstantTypeCode.UInt16 => blobReader.ReadUInt16().ToString(),
+            ConstantTypeCode.Int32 => blobReader.ReadInt32().ToString(),
+            ConstantTypeCode.UInt32 => blobReader.ReadUInt32().ToString(),
+            ConstantTypeCode.Int64 => blobReader.ReadInt64().ToString(),
+            ConstantTypeCode.UInt64 => blobReader.ReadUInt64().ToString(),
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// A delegate type's public API surface is entirely its Invoke method's signature (the
+    /// compiler-generated BeginInvoke/EndInvoke/.ctor are not meaningful API surface on their
+    /// own). Without this, every delegate type dumped identically as an empty member list,
+    /// regardless of its actual parameter/return shape.
+    /// </summary>
+    private static string? GetDelegateInvokeSignature(MetadataReader reader, TypeDefinition typeDef, SignatureStringProvider provider)
+    {
+        foreach (var methodHandle in typeDef.GetMethods())
+        {
+            var method = reader.GetMethodDefinition(methodHandle);
+            if (reader.GetString(method.Name) == "Invoke")
+            {
+                return provider.GetMethodSignatureString(methodHandle, method);
+            }
+        }
+        return null;
     }
 
     private static bool IsValueType(MetadataReader reader, TypeDefinition typeDef)
@@ -586,6 +665,50 @@ internal sealed class SignatureStringProvider : ISignatureTypeProvider<string, o
         var name = _reader.GetString(typeDef.Name);
         var tick = name.IndexOf('`');
         return tick < 0 ? name : name[..tick];
+    }
+
+    /// <summary>
+    /// Full display name for a (possibly nested) type: the chain of enclosing type names joined
+    /// with '+' (the CLR's own nested-type separator, distinct from the '.' used for namespaces
+    /// and from member access), e.g. "Button+VisualStateManagerOverride". Without this, two
+    /// unrelated nested types that happen to share a simple name (common for enums/delegates
+    /// nested inside different handler classes) would be indistinguishable in the dump.
+    /// </summary>
+    public string GetQualifiedTypeName(TypeDefinition typeDef)
+    {
+        var names = new List<string>();
+        var current = typeDef;
+        while (true)
+        {
+            names.Add(GetTypeDisplayName(current));
+            var declaring = current.GetDeclaringType();
+            if (declaring.IsNil)
+            {
+                break;
+            }
+            current = _reader.GetTypeDefinition(declaring);
+        }
+        names.Reverse();
+        return string.Join("+", names);
+    }
+
+    /// <summary>
+    /// Namespace of a (possibly nested) type. Nested TypeDefs always report an empty namespace of
+    /// their own -- only the outermost enclosing type carries it -- so this walks up the
+    /// declaring-type chain rather than reading typeDef.Namespace directly.
+    /// </summary>
+    public string GetEffectiveNamespace(TypeDefinition typeDef)
+    {
+        var current = typeDef;
+        while (true)
+        {
+            var declaring = current.GetDeclaringType();
+            if (declaring.IsNil)
+            {
+                return _reader.GetString(current.Namespace);
+            }
+            current = _reader.GetTypeDefinition(declaring);
+        }
     }
 
     public int GetGenericArity(TypeDefinition typeDef)

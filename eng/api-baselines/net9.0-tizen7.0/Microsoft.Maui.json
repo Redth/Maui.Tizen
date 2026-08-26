@@ -6,18 +6,6 @@
   "sha256": "e76a8a7e20ee15405e3b51740635da25708b56df2c9fb69f62fc8093a9e5de43",
   "types": [
     {
-      "namespace": "",
-      "name": "LerpDelegate",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": []
-    },
-    {
       "namespace": "Microsoft.Maui",
       "name": "ActivationState",
       "kind": "class",
@@ -739,6 +727,19 @@
     },
     {
       "namespace": "Microsoft.Maui.Animations",
+      "name": "Lerp\u002BLerpDelegate",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "delegateSignature": "Invoke(object, object, double) -\u003E object",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.Animations",
       "name": "LerpingAnimation",
       "kind": "class",
       "accessibility": "public",
@@ -958,10 +959,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "AspectFill",
+          "signature": "AspectFill = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -969,7 +971,7 @@
         },
         {
           "kind": "field",
-          "signature": "AspectFit",
+          "signature": "AspectFit = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -977,7 +979,7 @@
         },
         {
           "kind": "field",
-          "signature": "Center",
+          "signature": "Center = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -985,7 +987,7 @@
         },
         {
           "kind": "field",
-          "signature": "Fill",
+          "signature": "Fill = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -1003,10 +1005,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Never",
+          "signature": "Never = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -1014,7 +1017,7 @@
         },
         {
           "kind": "field",
-          "signature": "WhileEditing",
+          "signature": "WhileEditing = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -2753,10 +2756,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Multiply",
+          "signature": "Multiply = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -2764,7 +2768,7 @@
         },
         {
           "kind": "field",
-          "signature": "SrcAtop",
+          "signature": "SrcAtop = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -2772,7 +2776,7 @@
         },
         {
           "kind": "field",
-          "signature": "SrcIn",
+          "signature": "SrcIn = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -2790,10 +2794,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "LeftToRight",
+          "signature": "LeftToRight = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -2801,7 +2806,7 @@
         },
         {
           "kind": "field",
-          "signature": "MatchParent",
+          "signature": "MatchParent = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -2809,7 +2814,7 @@
         },
         {
           "kind": "field",
-          "signature": "RightToLeft",
+          "signature": "RightToLeft = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -2827,10 +2832,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Disabled",
+          "signature": "Disabled = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -2838,7 +2844,7 @@
         },
         {
           "kind": "field",
-          "signature": "Flyout",
+          "signature": "Flyout = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -2846,7 +2852,7 @@
         },
         {
           "kind": "field",
-          "signature": "Locked",
+          "signature": "Locked = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3313,10 +3319,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3324,7 +3331,7 @@
         },
         {
           "kind": "field",
-          "signature": "Italic",
+          "signature": "Italic = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3332,7 +3339,7 @@
         },
         {
           "kind": "field",
-          "signature": "Oblique",
+          "signature": "Oblique = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3350,10 +3357,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Black",
+          "signature": "Black = 900",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3361,7 +3369,7 @@
         },
         {
           "kind": "field",
-          "signature": "Bold",
+          "signature": "Bold = 700",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3369,7 +3377,7 @@
         },
         {
           "kind": "field",
-          "signature": "Heavy",
+          "signature": "Heavy = 800",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3377,7 +3385,7 @@
         },
         {
           "kind": "field",
-          "signature": "Light",
+          "signature": "Light = 300",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3385,7 +3393,7 @@
         },
         {
           "kind": "field",
-          "signature": "Medium",
+          "signature": "Medium = 500",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3393,7 +3401,7 @@
         },
         {
           "kind": "field",
-          "signature": "Regular",
+          "signature": "Regular = 400",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3401,7 +3409,7 @@
         },
         {
           "kind": "field",
-          "signature": "Semibold",
+          "signature": "Semibold = 600",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3409,7 +3417,7 @@
         },
         {
           "kind": "field",
-          "signature": "Thin",
+          "signature": "Thin = 100",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3417,7 +3425,7 @@
         },
         {
           "kind": "field",
-          "signature": "Ultralight",
+          "signature": "Ultralight = 200",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3435,10 +3443,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Canceled",
+          "signature": "Canceled = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3446,7 +3455,7 @@
         },
         {
           "kind": "field",
-          "signature": "Completed",
+          "signature": "Completed = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3454,7 +3463,7 @@
         },
         {
           "kind": "field",
-          "signature": "Running",
+          "signature": "Running = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3462,7 +3471,7 @@
         },
         {
           "kind": "field",
-          "signature": "Started",
+          "signature": "Started = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3782,10 +3791,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Absolute",
+          "signature": "Absolute = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3793,7 +3803,7 @@
         },
         {
           "kind": "field",
-          "signature": "Auto",
+          "signature": "Auto = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3801,7 +3811,7 @@
         },
         {
           "kind": "field",
-          "signature": "Star",
+          "signature": "Star = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3819,10 +3829,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Automatic",
+          "signature": "Automatic = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -3830,7 +3841,7 @@
         },
         {
           "kind": "field",
-          "signature": "Manual",
+          "signature": "Manual = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18793,10 +18804,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Alt",
+          "signature": "Alt = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18804,7 +18816,7 @@
         },
         {
           "kind": "field",
-          "signature": "Cmd",
+          "signature": "Cmd = 8",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18812,7 +18824,7 @@
         },
         {
           "kind": "field",
-          "signature": "Ctrl",
+          "signature": "Ctrl = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18820,7 +18832,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18828,7 +18840,7 @@
         },
         {
           "kind": "field",
-          "signature": "Shift",
+          "signature": "Shift = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18836,7 +18848,7 @@
         },
         {
           "kind": "field",
-          "signature": "Windows",
+          "signature": "Windows = 16",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18854,10 +18866,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "All",
+          "signature": "All = -1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18865,7 +18878,7 @@
         },
         {
           "kind": "field",
-          "signature": "CapitalizeCharacter",
+          "signature": "CapitalizeCharacter = 16",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18873,7 +18886,7 @@
         },
         {
           "kind": "field",
-          "signature": "CapitalizeNone",
+          "signature": "CapitalizeNone = 32",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18881,7 +18894,7 @@
         },
         {
           "kind": "field",
-          "signature": "CapitalizeSentence",
+          "signature": "CapitalizeSentence = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18889,7 +18902,7 @@
         },
         {
           "kind": "field",
-          "signature": "CapitalizeWord",
+          "signature": "CapitalizeWord = 8",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18897,7 +18910,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18905,7 +18918,7 @@
         },
         {
           "kind": "field",
-          "signature": "Spellcheck",
+          "signature": "Spellcheck = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18913,7 +18926,7 @@
         },
         {
           "kind": "field",
-          "signature": "Suggestions",
+          "signature": "Suggestions = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18931,10 +18944,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "All",
+          "signature": "All = -1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18942,7 +18956,7 @@
         },
         {
           "kind": "field",
-          "signature": "HeightProportional",
+          "signature": "HeightProportional = 8",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18950,7 +18964,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18958,7 +18972,7 @@
         },
         {
           "kind": "field",
-          "signature": "PositionProportional",
+          "signature": "PositionProportional = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18966,7 +18980,7 @@
         },
         {
           "kind": "field",
-          "signature": "SizeProportional",
+          "signature": "SizeProportional = 12",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18974,7 +18988,7 @@
         },
         {
           "kind": "field",
-          "signature": "WidthProportional",
+          "signature": "WidthProportional = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18982,7 +18996,7 @@
         },
         {
           "kind": "field",
-          "signature": "XProportional",
+          "signature": "XProportional = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -18990,7 +19004,7 @@
         },
         {
           "kind": "field",
-          "signature": "YProportional",
+          "signature": "YProportional = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19054,10 +19068,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Center",
+          "signature": "Center = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19065,7 +19080,7 @@
         },
         {
           "kind": "field",
-          "signature": "End",
+          "signature": "End = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19073,7 +19088,7 @@
         },
         {
           "kind": "field",
-          "signature": "SpaceAround",
+          "signature": "SpaceAround = 6",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19081,7 +19096,7 @@
         },
         {
           "kind": "field",
-          "signature": "SpaceBetween",
+          "signature": "SpaceBetween = 5",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19089,7 +19104,7 @@
         },
         {
           "kind": "field",
-          "signature": "SpaceEvenly",
+          "signature": "SpaceEvenly = 7",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19097,7 +19112,7 @@
         },
         {
           "kind": "field",
-          "signature": "Start",
+          "signature": "Start = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19105,7 +19120,7 @@
         },
         {
           "kind": "field",
-          "signature": "Stretch",
+          "signature": "Stretch = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19123,10 +19138,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Center",
+          "signature": "Center = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19134,7 +19150,7 @@
         },
         {
           "kind": "field",
-          "signature": "End",
+          "signature": "End = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19142,7 +19158,7 @@
         },
         {
           "kind": "field",
-          "signature": "Start",
+          "signature": "Start = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19150,7 +19166,7 @@
         },
         {
           "kind": "field",
-          "signature": "Stretch",
+          "signature": "Stretch = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19168,10 +19184,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Auto",
+          "signature": "Auto = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19179,7 +19196,7 @@
         },
         {
           "kind": "field",
-          "signature": "Center",
+          "signature": "Center = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19187,7 +19204,7 @@
         },
         {
           "kind": "field",
-          "signature": "End",
+          "signature": "End = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19195,7 +19212,7 @@
         },
         {
           "kind": "field",
-          "signature": "Start",
+          "signature": "Start = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19203,7 +19220,7 @@
         },
         {
           "kind": "field",
-          "signature": "Stretch",
+          "signature": "Stretch = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19308,10 +19325,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Column",
+          "signature": "Column = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19319,7 +19337,7 @@
         },
         {
           "kind": "field",
-          "signature": "ColumnReverse",
+          "signature": "ColumnReverse = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19327,7 +19345,7 @@
         },
         {
           "kind": "field",
-          "signature": "Row",
+          "signature": "Row = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19335,7 +19353,7 @@
         },
         {
           "kind": "field",
-          "signature": "RowReverse",
+          "signature": "RowReverse = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19353,10 +19371,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Center",
+          "signature": "Center = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19364,7 +19383,7 @@
         },
         {
           "kind": "field",
-          "signature": "End",
+          "signature": "End = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19372,7 +19391,7 @@
         },
         {
           "kind": "field",
-          "signature": "SpaceAround",
+          "signature": "SpaceAround = 6",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19380,7 +19399,7 @@
         },
         {
           "kind": "field",
-          "signature": "SpaceBetween",
+          "signature": "SpaceBetween = 5",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19388,7 +19407,7 @@
         },
         {
           "kind": "field",
-          "signature": "SpaceEvenly",
+          "signature": "SpaceEvenly = 7",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19396,7 +19415,7 @@
         },
         {
           "kind": "field",
-          "signature": "Start",
+          "signature": "Start = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19453,10 +19472,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Absolute",
+          "signature": "Absolute = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19464,7 +19484,7 @@
         },
         {
           "kind": "field",
-          "signature": "Relative",
+          "signature": "Relative = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19482,10 +19502,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "NoWrap",
+          "signature": "NoWrap = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19493,7 +19514,7 @@
         },
         {
           "kind": "field",
-          "signature": "Reverse",
+          "signature": "Reverse = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -19501,7 +19522,7 @@
         },
         {
           "kind": "field",
-          "signature": "Wrap",
+          "signature": "Wrap = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -20060,6 +20081,149 @@
     },
     {
       "namespace": "Microsoft.Maui.LifecycleEvents",
+      "name": "TizenLifecycle\u002BOnAppControlReceived",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Tizen.Applications.CoreApplication, Tizen.Applications.AppControlReceivedEventArgs) -\u003E void",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.LifecycleEvents",
+      "name": "TizenLifecycle\u002BOnCreate",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Tizen.Applications.CoreApplication) -\u003E void",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.LifecycleEvents",
+      "name": "TizenLifecycle\u002BOnDeviceOrientationChanged",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Tizen.Applications.CoreApplication, Tizen.Applications.DeviceOrientationEventArgs) -\u003E void",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.LifecycleEvents",
+      "name": "TizenLifecycle\u002BOnLocaleChanged",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Tizen.Applications.CoreApplication, Tizen.Applications.LocaleChangedEventArgs) -\u003E void",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.LifecycleEvents",
+      "name": "TizenLifecycle\u002BOnLowBattery",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Tizen.Applications.CoreApplication, Tizen.Applications.LowBatteryEventArgs) -\u003E void",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.LifecycleEvents",
+      "name": "TizenLifecycle\u002BOnLowMemory",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Tizen.Applications.CoreApplication, Tizen.Applications.LowMemoryEventArgs) -\u003E void",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.LifecycleEvents",
+      "name": "TizenLifecycle\u002BOnPause",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Tizen.Applications.CoreApplication) -\u003E void",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.LifecycleEvents",
+      "name": "TizenLifecycle\u002BOnPreCreate",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Tizen.Applications.CoreApplication) -\u003E void",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.LifecycleEvents",
+      "name": "TizenLifecycle\u002BOnRegionFormatChanged",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Tizen.Applications.CoreApplication, Tizen.Applications.RegionFormatChangedEventArgs) -\u003E void",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.LifecycleEvents",
+      "name": "TizenLifecycle\u002BOnResume",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Tizen.Applications.CoreApplication) -\u003E void",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.LifecycleEvents",
+      "name": "TizenLifecycle\u002BOnTerminate",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Tizen.Applications.CoreApplication) -\u003E void",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.LifecycleEvents",
       "name": "TizenLifecycleBuilderExtensions",
       "kind": "class",
       "accessibility": "public",
@@ -20190,10 +20354,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "CharacterWrap",
+          "signature": "CharacterWrap = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -20201,7 +20366,7 @@
         },
         {
           "kind": "field",
-          "signature": "HeadTruncation",
+          "signature": "HeadTruncation = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -20209,7 +20374,7 @@
         },
         {
           "kind": "field",
-          "signature": "MiddleTruncation",
+          "signature": "MiddleTruncation = 5",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -20217,7 +20382,7 @@
         },
         {
           "kind": "field",
-          "signature": "NoWrap",
+          "signature": "NoWrap = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -20225,7 +20390,7 @@
         },
         {
           "kind": "field",
-          "signature": "TailTruncation",
+          "signature": "TailTruncation = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -20233,7 +20398,7 @@
         },
         {
           "kind": "field",
-          "signature": "WordWrap",
+          "signature": "WordWrap = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -20830,10 +20995,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "BottomItems",
+          "signature": "BottomItems = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -20841,7 +21007,7 @@
         },
         {
           "kind": "field",
-          "signature": "LeftItems",
+          "signature": "LeftItems = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -20849,7 +21015,7 @@
         },
         {
           "kind": "field",
-          "signature": "RightItems",
+          "signature": "RightItems = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -20857,7 +21023,7 @@
         },
         {
           "kind": "field",
-          "signature": "TopItems",
+          "signature": "TopItems = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -20875,10 +21041,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "AspectFill",
+          "signature": "AspectFill = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -20886,7 +21053,7 @@
         },
         {
           "kind": "field",
-          "signature": "AspectFit",
+          "signature": "AspectFit = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -20894,7 +21061,7 @@
         },
         {
           "kind": "field",
-          "signature": "Center",
+          "signature": "Center = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -20902,7 +21069,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -20910,7 +21077,7 @@
         },
         {
           "kind": "field",
-          "signature": "Stretch",
+          "signature": "Stretch = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24227,10 +24394,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Center",
+          "signature": "Center = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24238,7 +24406,7 @@
         },
         {
           "kind": "field",
-          "signature": "End",
+          "signature": "End = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24246,7 +24414,7 @@
         },
         {
           "kind": "field",
-          "signature": "Fill",
+          "signature": "Fill = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24254,7 +24422,7 @@
         },
         {
           "kind": "field",
-          "signature": "Start",
+          "signature": "Start = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24695,10 +24863,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24706,7 +24875,7 @@
         },
         {
           "kind": "field",
-          "signature": "Done",
+          "signature": "Done = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24714,7 +24883,7 @@
         },
         {
           "kind": "field",
-          "signature": "Go",
+          "signature": "Go = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24722,7 +24891,7 @@
         },
         {
           "kind": "field",
-          "signature": "Next",
+          "signature": "Next = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24730,7 +24899,7 @@
         },
         {
           "kind": "field",
-          "signature": "Search",
+          "signature": "Search = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24738,7 +24907,7 @@
         },
         {
           "kind": "field",
-          "signature": "Send",
+          "signature": "Send = 5",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24756,10 +24925,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Always",
+          "signature": "Always = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24767,7 +24937,7 @@
         },
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24775,7 +24945,7 @@
         },
         {
           "kind": "field",
-          "signature": "Never",
+          "signature": "Never = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24793,10 +24963,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Both",
+          "signature": "Both = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24804,7 +24975,7 @@
         },
         {
           "kind": "field",
-          "signature": "Horizontal",
+          "signature": "Horizontal = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24812,7 +24983,7 @@
         },
         {
           "kind": "field",
-          "signature": "Neither",
+          "signature": "Neither = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24820,7 +24991,7 @@
         },
         {
           "kind": "field",
-          "signature": "Vertical",
+          "signature": "Vertical = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -24994,10 +25165,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Level1",
+          "signature": "Level1 = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25005,7 +25177,7 @@
         },
         {
           "kind": "field",
-          "signature": "Level2",
+          "signature": "Level2 = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25013,7 +25185,7 @@
         },
         {
           "kind": "field",
-          "signature": "Level3",
+          "signature": "Level3 = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25021,7 +25193,7 @@
         },
         {
           "kind": "field",
-          "signature": "Level4",
+          "signature": "Level4 = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25029,7 +25201,7 @@
         },
         {
           "kind": "field",
-          "signature": "Level5",
+          "signature": "Level5 = 5",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25037,7 +25209,7 @@
         },
         {
           "kind": "field",
-          "signature": "Level6",
+          "signature": "Level6 = 6",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25045,7 +25217,7 @@
         },
         {
           "kind": "field",
-          "signature": "Level7",
+          "signature": "Level7 = 7",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25053,7 +25225,7 @@
         },
         {
           "kind": "field",
-          "signature": "Level8",
+          "signature": "Level8 = 8",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25061,7 +25233,7 @@
         },
         {
           "kind": "field",
-          "signature": "Level9",
+          "signature": "Level9 = 9",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25069,7 +25241,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25398,10 +25570,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Auto",
+          "signature": "Auto = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25409,7 +25582,7 @@
         },
         {
           "kind": "field",
-          "signature": "Close",
+          "signature": "Close = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25417,7 +25590,7 @@
         },
         {
           "kind": "field",
-          "signature": "RemainOpen",
+          "signature": "RemainOpen = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25435,10 +25608,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Down",
+          "signature": "Down = 8",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25446,7 +25620,7 @@
         },
         {
           "kind": "field",
-          "signature": "Left",
+          "signature": "Left = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25454,7 +25628,7 @@
         },
         {
           "kind": "field",
-          "signature": "Right",
+          "signature": "Right = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25462,7 +25636,7 @@
         },
         {
           "kind": "field",
-          "signature": "Up",
+          "signature": "Up = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25480,10 +25654,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Execute",
+          "signature": "Execute = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25491,7 +25666,7 @@
         },
         {
           "kind": "field",
-          "signature": "Reveal",
+          "signature": "Reveal = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25509,10 +25684,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Drag",
+          "signature": "Drag = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -25520,7 +25696,7 @@
         },
         {
           "kind": "field",
-          "signature": "Reveal",
+          "signature": "Reveal = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26157,10 +26333,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Center",
+          "signature": "Center = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26168,7 +26345,7 @@
         },
         {
           "kind": "field",
-          "signature": "End",
+          "signature": "End = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26176,7 +26353,7 @@
         },
         {
           "kind": "field",
-          "signature": "Justify",
+          "signature": "Justify = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26184,7 +26361,7 @@
         },
         {
           "kind": "field",
-          "signature": "Start",
+          "signature": "Start = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26202,10 +26379,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26213,7 +26391,7 @@
         },
         {
           "kind": "field",
-          "signature": "Strikethrough",
+          "signature": "Strikethrough = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26221,7 +26399,7 @@
         },
         {
           "kind": "field",
-          "signature": "Underline",
+          "signature": "Underline = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26239,10 +26417,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Default",
+          "signature": "Default = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26250,7 +26429,7 @@
         },
         {
           "kind": "field",
-          "signature": "Lowercase",
+          "signature": "Lowercase = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26258,7 +26437,7 @@
         },
         {
           "kind": "field",
-          "signature": "None",
+          "signature": "None = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26266,7 +26445,7 @@
         },
         {
           "kind": "field",
-          "signature": "Uppercase",
+          "signature": "Uppercase = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26284,10 +26463,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Html",
+          "signature": "Html = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26295,7 +26475,7 @@
         },
         {
           "kind": "field",
-          "signature": "Text",
+          "signature": "Text = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26609,10 +26789,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Collapsed",
+          "signature": "Collapsed = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26620,7 +26801,7 @@
         },
         {
           "kind": "field",
-          "signature": "Hidden",
+          "signature": "Hidden = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26628,7 +26809,7 @@
         },
         {
           "kind": "field",
-          "signature": "Visible",
+          "signature": "Visible = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26963,10 +27144,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Add",
+          "signature": "Add = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -26974,7 +27156,7 @@
         },
         {
           "kind": "field",
-          "signature": "Remove",
+          "signature": "Remove = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -27114,10 +27296,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Back",
+          "signature": "Back = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -27125,7 +27308,7 @@
         },
         {
           "kind": "field",
-          "signature": "Forward",
+          "signature": "Forward = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -27133,7 +27316,7 @@
         },
         {
           "kind": "field",
-          "signature": "NewPage",
+          "signature": "NewPage = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -27141,7 +27324,7 @@
         },
         {
           "kind": "field",
-          "signature": "Refresh",
+          "signature": "Refresh = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -27159,10 +27342,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Cancel",
+          "signature": "Cancel = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -27170,7 +27354,7 @@
         },
         {
           "kind": "field",
-          "signature": "Failure",
+          "signature": "Failure = 4",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -27178,7 +27362,7 @@
         },
         {
           "kind": "field",
-          "signature": "Success",
+          "signature": "Success = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -27186,7 +27370,7 @@
         },
         {
           "kind": "field",
-          "signature": "Timeout",
+          "signature": "Timeout = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -27489,138 +27673,6 @@
           "isVirtual": false
         }
       ]
-    },
-    {
-      "namespace": "",
-      "name": "OnAppControlReceived",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "OnCreate",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "OnDeviceOrientationChanged",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "OnLocaleChanged",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "OnLowBattery",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "OnLowMemory",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "OnPause",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "OnPreCreate",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "OnRegionFormatChanged",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "OnResume",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": []
-    },
-    {
-      "namespace": "",
-      "name": "OnTerminate",
-      "kind": "delegate",
-      "accessibility": "public",
-      "isStatic": false,
-      "isAbstract": false,
-      "isSealed": true,
-      "arity": 0,
-      "interfaces": [],
-      "members": []
     }
   ]
 }

@@ -196,8 +196,9 @@ fi
 info "Repository invariant tests"
 if [[ $BUILD_OK -eq 1 ]]; then
   check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
+  check "migration tooling tests" "$DOTNET" test tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj --no-build -c Release
 else
-  fail "unit tests skipped - a preceding build failed (running --no-build now would only add cascading noise)"
+  fail "tests skipped - a preceding build failed (running --no-build now would only add cascading noise)"
   FAILURES=$((FAILURES + 1))
 fi
 
@@ -214,16 +215,6 @@ else
   fail "workload detection regressions failed"
   FAILURES=$((FAILURES + 1))
 fi
-
-# ---------------------------------------------------------------------------
-# 4b. Migration inventory / API baseline tooling tests.
-#
-# Offline schema + checksum consistency checks for eng/manifests/source-disposition.json
-# and eng/api-baselines/**: they catch a generated artifact that is stale or was
-# hand-edited without being regenerated via the eng/scripts/*.ps1 generators.
-# ---------------------------------------------------------------------------
-info "Migration tooling tests"
-check "migration tooling tests" "$DOTNET" test tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj --no-build -c Release
 
 # ---------------------------------------------------------------------------
 # 6. Report the Tizen gate explicitly.

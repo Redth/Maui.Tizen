@@ -5,7 +5,7 @@ namespace Migration.Tooling.Tests;
 /// <summary>
 /// Consistency checks for eng/api-baselines/net9.0-tizen7.0 (the last-published MAUI Tizen
 /// NuGet API surface, captured via eng/tools/ApiDump). Offline: only re-hashes already-committed
-/// files, never re-downloads or re-runs ApiDump.
+/// files, never re-downloads a package or re-runs ApiDump.
 /// </summary>
 public class PublishedApiBaselineTests
 {
@@ -24,7 +24,7 @@ public class PublishedApiBaselineTests
     }
 
     [Fact]
-    public void Every_package_with_a_tizen_assembly_has_a_dump_file_with_matching_repository_commit()
+    public void Every_package_is_signed_hash_pinned_and_has_a_dump_file_matching_recorded_hashes()
     {
         using var manifest = TestPaths.LoadJson($"{OutDir}/manifest.json");
         using var baselines = TestPaths.LoadJson("eng/baselines.json");
@@ -35,27 +35,31 @@ public class PublishedApiBaselineTests
 
         foreach (var pkg in packages)
         {
-            var hasAssembly = pkg.GetProperty("hasTizenAssembly").GetBoolean();
-            if (!hasAssembly)
-            {
-                continue;
-            }
-
             Assert.Equal(expectedCommit, pkg.GetProperty("nuspecRepositoryCommit").GetString());
 
-            foreach (var asmFile in pkg.GetProperty("assemblies").EnumerateArray())
-            {
-                var assemblyName = Path.GetFileNameWithoutExtension(asmFile.GetString());
-                var dumpPath = TestPaths.Path_(OutDir, assemblyName + ".json");
-                Assert.True(File.Exists(dumpPath), $"Missing API dump for {assemblyName} at {dumpPath}");
+            // Every recorded package must be signed and have passed structural signature
+            // verification (see eng/scripts/generate-api-baseline.ps1's Test-PackageSignature) --
+            // Microsoft.Maui.* packages are always author/repository-signed, so an unsigned or
+            // signature-invalid entry indicates something went through unverified.
+            Assert.True(pkg.GetProperty("signed").GetBoolean(), $"{pkg.GetProperty("packageId").GetString()} is recorded as unsigned");
+            Assert.True(pkg.GetProperty("signatureStructurallyValid").GetBoolean(), $"{pkg.GetProperty("packageId").GetString()} failed structural signature verification");
+            Assert.Matches("^[0-9a-f]{64}$", pkg.GetProperty("nupkgSha256").GetString()!);
+            Assert.Matches("^[0-9a-f]{64}$", pkg.GetProperty("assemblySha256").GetString()!);
 
-                using var dump = JsonDocument.Parse(File.ReadAllText(dumpPath));
-                var types = dump.RootElement.GetProperty("types");
-                Assert.True(types.GetArrayLength() > 0, $"{assemblyName}.json has no public types recorded");
+            var assemblyName = Path.GetFileNameWithoutExtension(pkg.GetProperty("assembly").GetString());
+            var dumpPath = TestPaths.Path_(OutDir, assemblyName + ".json");
+            Assert.True(File.Exists(dumpPath), $"Missing API dump for {assemblyName} at {dumpPath}");
 
-                var sha256 = dump.RootElement.GetProperty("sha256").GetString();
-                Assert.Matches("^[0-9a-f]{64}$", sha256!);
-            }
+            using var dump = JsonDocument.Parse(File.ReadAllText(dumpPath));
+            var types = dump.RootElement.GetProperty("types");
+            Assert.True(types.GetArrayLength() > 0, $"{assemblyName}.json has no public types recorded");
+
+            var sha256 = dump.RootElement.GetProperty("sha256").GetString();
+            Assert.Matches("^[0-9a-f]{64}$", sha256!);
+
+            // The recorded output hash must match the committed dump file exactly -- this is the
+            // "stale artifact" detector for the dump itself, not just its inputs.
+            Assert.Equal(TestPaths.Sha256Hex(dumpPath), pkg.GetProperty("outputSha256").GetString());
         }
     }
 
@@ -88,5 +92,78 @@ public class PublishedApiBaselineTests
 
             Assert.Equal(sorted, names);
         }
+    }
+
+    [Fact]
+    public void Nested_types_are_qualified_by_their_declaring_type()
+    {
+        // Without qualification, two unrelated nested types with the same simple name (common
+        // for enums/delegates nested inside different handler classes) would be indistinguishable.
+        var anyNestedTypeFound = false;
+        foreach (var file in Directory.GetFiles(TestPaths.Path_(OutDir), "*.json"))
+        {
+            if (Path.GetFileName(file) == "manifest.json") continue;
+
+            using var dump = JsonDocument.Parse(File.ReadAllText(file));
+            foreach (var t in dump.RootElement.GetProperty("types").EnumerateArray())
+            {
+                var name = t.GetProperty("name").GetString()!;
+                if (name.Contains('+'))
+                {
+                    anyNestedTypeFound = true;
+                    var parts = name.Split('+');
+                    Assert.True(parts.Length >= 2, $"Malformed nested type name: {name}");
+                    Assert.All(parts, p => Assert.False(string.IsNullOrWhiteSpace(p)));
+                }
+            }
+        }
+        Assert.True(anyNestedTypeFound, "Expected at least one nested type across the dumped assemblies to exercise declaring-type qualification.");
+    }
+
+    [Fact]
+    public void Delegates_record_their_invoke_signature()
+    {
+        var anyDelegateFound = false;
+        foreach (var file in Directory.GetFiles(TestPaths.Path_(OutDir), "*.json"))
+        {
+            if (Path.GetFileName(file) == "manifest.json") continue;
+
+            using var dump = JsonDocument.Parse(File.ReadAllText(file));
+            foreach (var t in dump.RootElement.GetProperty("types").EnumerateArray())
+            {
+                if (t.GetProperty("kind").GetString() != "delegate") continue;
+                anyDelegateFound = true;
+                Assert.True(t.TryGetProperty("delegateSignature", out var sig) && !string.IsNullOrEmpty(sig.GetString()),
+                    $"Delegate {t.GetProperty("name").GetString()} in {Path.GetFileName(file)} has no recorded Invoke signature");
+                Assert.StartsWith("Invoke(", sig.GetString());
+            }
+        }
+        Assert.True(anyDelegateFound, "Expected at least one delegate type across the dumped assemblies.");
+    }
+
+    [Fact]
+    public void Enums_record_underlying_type_and_numeric_member_values()
+    {
+        var anyEnumFound = false;
+        foreach (var file in Directory.GetFiles(TestPaths.Path_(OutDir), "*.json"))
+        {
+            if (Path.GetFileName(file) == "manifest.json") continue;
+
+            using var dump = JsonDocument.Parse(File.ReadAllText(file));
+            foreach (var t in dump.RootElement.GetProperty("types").EnumerateArray())
+            {
+                if (t.GetProperty("kind").GetString() != "enum") continue;
+                anyEnumFound = true;
+                Assert.True(t.TryGetProperty("underlyingType", out var ut) && !string.IsNullOrEmpty(ut.GetString()),
+                    $"Enum {t.GetProperty("name").GetString()} in {Path.GetFileName(file)} has no recorded underlying type");
+
+                foreach (var member in t.GetProperty("members").EnumerateArray())
+                {
+                    var signature = member.GetProperty("signature").GetString()!;
+                    Assert.Contains(" = ", signature);
+                }
+            }
+        }
+        Assert.True(anyEnumFound, "Expected at least one enum type across the dumped assemblies.");
     }
 }

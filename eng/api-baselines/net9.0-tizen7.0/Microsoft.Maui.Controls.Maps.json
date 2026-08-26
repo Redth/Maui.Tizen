@@ -635,10 +635,11 @@
       "isSealed": true,
       "arity": 0,
       "interfaces": [],
+      "underlyingType": "int",
       "members": [
         {
           "kind": "field",
-          "signature": "Generic",
+          "signature": "Generic = 0",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -646,7 +647,7 @@
         },
         {
           "kind": "field",
-          "signature": "Place",
+          "signature": "Place = 1",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -654,7 +655,7 @@
         },
         {
           "kind": "field",
-          "signature": "SavedPin",
+          "signature": "SavedPin = 2",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
@@ -662,7 +663,7 @@
         },
         {
           "kind": "field",
-          "signature": "SearchResult",
+          "signature": "SearchResult = 3",
           "accessibility": "public",
           "isStatic": true,
           "isAbstract": false,
