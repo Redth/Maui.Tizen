@@ -49,30 +49,58 @@ public class WaveCUpstreamExpiryTests
 
 	/// <summary>
 	/// Expires the flyout-template half of <c>Adapters/ShellTemplateResolver.cs</c>
-	/// (request MAUI-TIZEN-API-0001).
+	/// (request MAUI-TIZEN-API-0001, upstream dotnet/maui#37862).
 	/// </summary>
 	/// <remarks>
-	/// This adapter is only a <em>partial</em> reimplementation: upstream's helper also redirects a
-	/// <c>MenuShellItem</c> to the <c>MenuItem</c> it wraps, and both that type and its
+	/// <para>
+	/// This adapter is only a <em>partial</em> reimplementation. Upstream's internal helper also
+	/// redirects a <c>MenuShellItem</c> to the <c>MenuItem</c> it wraps, and both that type and its
 	/// <c>MenuItem</c> property are internal, so the branch cannot be expressed off-tree at all. A
-	/// bare <c>MenuItem</c> in a flyout therefore falls back to the shell-level template. That makes
-	/// publishing this helper more urgent than the others, not less.
+	/// bare <c>MenuItem</c> in a flyout therefore falls back to the shell-level template.
+	/// </para>
+	/// <para>
+	/// dotnet/maui#37862 ("Add public Shell flyout item template contract for external backends")
+	/// is open and proposes a different shape to the internal helper Wave C reimplemented:
+	/// <c>Shell.IsFlyoutItemTemplateSet</c>, <c>Shell.GetFlyoutItemTemplateSource</c> and
+	/// <c>Shell.GetFlyoutItemTemplateProperty</c>, used alongside the already-public
+	/// <c>IShellController.GetFlyoutItemDataTemplate</c>.
+	/// </para>
+	/// <para>
+	/// So this test watches for the <em>proposed</em> members, not the internal one. Watching
+	/// <c>GetBindableObjectWithFlyoutItemTemplate</c> - which is what an earlier revision did -
+	/// would never have fired, because upstream is not planning to publish that name at all, and
+	/// the adapter would have quietly become permanent.
+	/// </para>
+	/// <para>
+	/// The adapter stays provisional until the API is merged AND available in a referenced package;
+	/// this test firing is the signal to adopt it, not a reason to bake it in early.
+	/// </para>
 	/// </remarks>
 	[Fact]
-	public void ShellTemplateResolverExpiresWhenShellPublishesTheHelper()
+	public void ShellTemplateResolverExpiresWhenShellPublishesTheFlyoutTemplateContract()
 	{
 		var shell = NeutralMaui.Controls.GetType("Microsoft.Maui.Controls.Shell");
 
 		Assert.NotNull(shell);
 
-		var published = shell!
-			.GetMethod("GetBindableObjectWithFlyoutItemTemplate", BindingFlags.Public | BindingFlags.Static);
+		string[] proposed =
+		{
+			"IsFlyoutItemTemplateSet",
+			"GetFlyoutItemTemplateSource",
+			"GetFlyoutItemTemplateProperty",
+		};
+
+		var landed = proposed
+			.Where(name => shell!.GetMethod(name, BindingFlags.Public | BindingFlags.Static) is not null)
+			.ToList();
 
 		Assert.True(
-			published is null,
-			"Shell.GetBindableObjectWithFlyoutItemTemplate is now public. Delete the corresponding "
-				+ "half of Adapters/ShellTemplateResolver.cs, which also closes the known "
-				+ "MenuShellItem flyout-template gap, and remove MAUI-TIZEN-API-0001.");
+			landed.Count == 0,
+			"Shell now publishes " + string.Join(", ", landed) + " (dotnet/maui#37862). Re-point "
+				+ "Adapters/ShellTemplateResolver.cs at the public contract alongside "
+				+ "IShellController.GetFlyoutItemDataTemplate, delete the MenuShellItem workaround "
+				+ "and its documented behaviour gap, and remove MAUI-TIZEN-API-0001 from "
+				+ "Adapters/UpstreamApiRequests.cs.");
 	}
 
 	/// <summary>

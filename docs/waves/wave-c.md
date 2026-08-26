@@ -78,12 +78,25 @@ matching entry, so the list cannot rot.
 
 Two items are not fully resolved and should not be described as "done":
 
-1. **`MenuShellItem` flyout templates (request 0001).** Upstream's helper has a second redirect:
+1. **`MenuShellItem` flyout templates (request 0001, upstream dotnet/maui#37862 — OPEN).** Upstream's helper has a second redirect:
    for a `MenuShellItem` it forwards to the wrapped `MenuItem` when that item sets
    `Shell.MenuItemTemplateProperty`. `MenuShellItem` *and* its `MenuItem` property are both
    `internal`, so an out-of-tree backend cannot express this branch at all — not awkwardly, not at
    all, short of reflection. A bare `MenuItem` in a flyout therefore falls back to the shell-level
-   item template. This is the strongest single argument for publishing the helper.
+   item template.
+
+   Upstream [dotnet/maui#37862](https://github.com/dotnet/maui/pull/37862) proposes a public
+   contract for this — `Shell.IsFlyoutItemTemplateSet`, `Shell.GetFlyoutItemTemplateSource` and
+   `Shell.GetFlyoutItemTemplateProperty`, used with the already-public
+   `IShellController.GetFlyoutItemDataTemplate`. Note the shape differs from the internal helper
+   Wave C reimplemented, so adoption is a rewrite of the adapter rather than a rename.
+
+   **The PR is open, so nothing here adopts it.** The adapter stays provisional until the API is
+   merged *and* present in a referenced package. What did change is the expiry test: it now watches
+   the three proposed members instead of `GetBindableObjectWithFlyoutItemTemplate`. Watching the
+   internal name would never have fired — upstream is not planning to publish it — and the adapter
+   would have quietly become permanent, which is precisely the rot the expiry tests exist to
+   prevent.
 
 2. **`Toolbar.DrawerToggleVisible` (request 0009).** `IToolbar` publishes `BackButtonVisible` and
    `IsVisible` but not `DrawerToggleVisible`, which is the third member of the same concept. Wave C
