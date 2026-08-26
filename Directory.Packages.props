@@ -60,9 +60,9 @@
     <PackageVersion Include="xunit" Version="2.9.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
     <!--
-      Used by tests/Maui.Tizen.SourceTests to parse the migrated backend sources. The
-      backend cannot be compiled until the Samsung workload ships, so Roslyn parsing plus
-      reflection over the neutral MAUI assemblies is how those sources are verified.
+      Used by tests/Maui.Tizen.SourceTests, which parses the migrated backend sources to
+      check mapper parity against the neutral MAUI assemblies. The ref-pack lane proves the
+      sources compile; this proves they map what MAUI declares.
     -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
   </ItemGroup>
