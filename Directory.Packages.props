@@ -17,13 +17,13 @@
       0b3bb76d2d (PR #36657). Bumping this without regenerating the API baselines will
       produce misleading diffs.
     -->
-    <PackageVersion Include="Microsoft.Maui.Core" Version="11.0.0-preview.7.26418.3" />
-    <PackageVersion Include="Microsoft.Maui.Controls" Version="11.0.0-preview.7.26418.3" />
-    <PackageVersion Include="Microsoft.Maui.Controls.Core" Version="11.0.0-preview.7.26418.3" />
-    <PackageVersion Include="Microsoft.Maui.Essentials" Version="11.0.0-preview.7.26418.3" />
-    <PackageVersion Include="Microsoft.Maui.Graphics" Version="11.0.0-preview.7.26418.3" />
-    <PackageVersion Include="Microsoft.Maui.Maps" Version="11.0.0-preview.7.26418.3" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="11.0.0-preview.7.26418.3" />
+    <PackageVersion Include="Microsoft.Maui.Core" Version="11.0.0-preview.7.26426.4" />
+    <PackageVersion Include="Microsoft.Maui.Controls" Version="11.0.0-preview.7.26426.4" />
+    <PackageVersion Include="Microsoft.Maui.Controls.Core" Version="11.0.0-preview.7.26426.4" />
+    <PackageVersion Include="Microsoft.Maui.Essentials" Version="11.0.0-preview.7.26426.4" />
+    <PackageVersion Include="Microsoft.Maui.Graphics" Version="11.0.0-preview.7.26426.4" />
+    <PackageVersion Include="Microsoft.Maui.Maps" Version="11.0.0-preview.7.26426.4" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="11.0.0-preview.7.26426.4" />
   </ItemGroup>
 
   <ItemGroup Label="ASP.NET Core (BlazorWebView dependencies)">
@@ -31,19 +31,21 @@
       DIFFERENT VERSION LINE FROM MAUI, deliberately.
 
       These are ASP.NET Core packages, not MAUI packages, and they do not share MAUI's
-      version stamp. There is no Microsoft.AspNetCore.Components.WebView at
-      11.0.0-preview.7.26418.3 - that version simply does not exist - and pinning it there
-      produced NU1102 for the whole BlazorWebView graph.
+      version stamp. Pinning them to it produced NU1102/NU1603 for the whole BlazorWebView
+      graph, because no ASP.NET Core package exists at a MAUI build number.
 
       11.0.0-preview.7.26381.103 is not a guess: it is what
-      Microsoft.AspNetCore.Components.WebView.Maui 11.0.0-preview.7.26418.3 declares in its
-      own nuspec, and it matches the SDK build we pin in global.json
-      (11.0.100-preview.7.26381.103), so the whole graph stays on one ASP.NET Core build.
+      Microsoft.AspNetCore.Components.WebView.Maui declares in its own nuspec, and it
+      matches the SDK build pinned in global.json (11.0.100-preview.7.26381.103), so the
+      whole graph stays on one ASP.NET Core build.
 
-      A higher version such as 11.0.0-rc.1.26378.118 also resolves, but it silently
-      upgrades the transitive dependency past what MAUI asked for and mixes rc.1 ASP.NET
-      Core bits with preview.7 MAUI bits. Matching the declared dependency is the coherent
-      choice.
+      NOTE: this floor did NOT move when the MAUI baseline was bumped from
+      11.0.0-preview.7.26418.3 to 11.0.0-preview.7.26426.4 - the newer WebView.Maui nuspec
+      declares the same 26381.103 dependencies. Verify against the nuspec before changing
+      it; do not assume it tracks the MAUI stamp.
+
+      A higher version resolves but silently upgrades past what MAUI asked for and mixes
+      version lines. Matching the declared dependency is the coherent choice.
 
       Verified by eng/tests/PackageGraphProbe.
     -->

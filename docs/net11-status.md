@@ -121,10 +121,15 @@ Foundation-owned; flagged rather than changed here.
 dotnet/maui#36657 (`0b3bb76d2d`) merged 2026-08-18. The newest .NET 11 MAUI build on nuget.org is
 `11.0.0-preview.7.26406.9`, which predates it.
 
-Resolved, not blocked: the repository consumes `11.0.0-preview.7.26418.3` from the `dotnet11` dnceng
+Resolved, not blocked: the repository consumes `11.0.0-preview.7.26426.4` from the `dotnet11` dnceng
 feed, pinned centrally in `Directory.Packages.props` and mapped in `nuget.config` via
-`packageSourceMapping`. The frozen source baseline (`ee4d06cde6`) is later than that package, so a
-newer coherent dev build can be dropped in without touching anything else.
+`packageSourceMapping`.
+
+Note that these packages are built from `bedd1b18b7`, which is 46 commits *ahead* of the frozen
+source baseline `ee4d06cde6` that the history import is pinned to. `eng/baselines.json` records the
+consequence in full: the gap is one-directional and applies to imported **source**, not to the
+assemblies this slice compiles against. Nothing in this backend depends on the three Tizen-touching
+commits in that gap.
 
 ### B5 - Runtime packs
 
