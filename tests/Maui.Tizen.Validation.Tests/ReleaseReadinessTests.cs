@@ -245,3 +245,156 @@ public partial class WorkflowReferenceTests
             string.Join(", ", missing.Distinct()));
     }
 }
+
+/// <summary>
+/// Ordering constraints in the device workflow.
+/// </summary>
+/// <remarks>
+/// Two ordering mistakes were found in review, and neither could fail visibly while the device lane
+/// is unavailable: cross-profile gates ran inside a per-profile job, and the agent was queried
+/// before the app was launched. Both are asserted here so they cannot come back unnoticed.
+/// </remarks>
+public class WorkflowOrderingTests
+{
+    static string WorkflowPath =>
+        Path.Combine(RepoLayout.Root, ".github", "workflows", "tizen-device-validation.yml");
+
+    static string Workflow => File.ReadAllText(WorkflowPath);
+
+    /// <summary>Extracts a single job's block, so ordering is asserted within the right job.</summary>
+    static string JobBlock(string jobName)
+    {
+        var text = Workflow;
+        var start = text.IndexOf($"\n  {jobName}:", StringComparison.Ordinal);
+
+        Assert.True(start >= 0, $"Job '{jobName}' not found in {RepoLayout.Relative(WorkflowPath)}.");
+
+        // The next top-level job starts at a line with exactly two spaces of indent.
+        var next = System.Text.RegularExpressions.Regex.Match(
+            text[(start + 1)..], @"\n  [a-z][a-z0-9-]*:\n");
+
+        return next.Success ? text.Substring(start, next.Index + 1) : text[start..];
+    }
+
+    static void AssertOrder(string block, string jobName, params string[] markers)
+    {
+        var previousIndex = -1;
+        var previousMarker = string.Empty;
+
+        foreach (var marker in markers)
+        {
+            var index = block.IndexOf(marker, StringComparison.Ordinal);
+
+            Assert.True(index >= 0, $"'{marker}' is missing from the '{jobName}' job.");
+            Assert.True(
+                index > previousIndex,
+                $"In job '{jobName}', '{marker}' must come after '{previousMarker}'.");
+
+            previousIndex = index;
+            previousMarker = marker;
+        }
+    }
+
+    [Fact]
+    public void CrossProfileReadinessRunsInTheGateAfterAllProfileArtifactsAreDownloaded()
+    {
+        // Run per profile, these gates read a result file that still says status=running for the
+        // current profile and cannot see the other profile's artifact at all - so they could only
+        // ever fail.
+        var gate = JobBlock("release-gate");
+
+        AssertOrder(
+            gate,
+            "release-gate",
+            "Download per-profile results",
+            "Download shipping packages",
+            "Release readiness gates",
+            "Evaluate");
+    }
+
+    [Fact]
+    public void TheDeviceMatrixDoesNotRunCrossProfileReadinessGates()
+    {
+        var matrix = JobBlock("device-matrix");
+
+        Assert.DoesNotContain("Release readiness gates", matrix, StringComparison.Ordinal);
+        Assert.DoesNotContain("MAUI_TIZEN_RELEASE_VALIDATION", matrix, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheAppIsLaunchedAndTheAgentAwaitedBeforeAnyQuery()
+    {
+        // Installing does not start anything, and the agent binds its port during startup.
+        var matrix = JobBlock("device-matrix");
+
+        AssertOrder(
+            matrix,
+            "device-matrix",
+            "tizen-device-lane.sh install",
+            "tizen-device-lane.sh launch",
+            "tizen-device-lane.sh forward",
+            "tizen-device-lane.sh wait-for-agent",
+            "tizen-device-lane.sh agent-status");
+    }
+
+    [Fact]
+    public void InteractionStepsRunAfterTheAgentIsConfirmedReady()
+    {
+        var matrix = JobBlock("device-matrix");
+
+        AssertOrder(
+            matrix,
+            "device-matrix",
+            "Deploy, launch, tunnel and wait for the agent",
+            "On-device conventions",
+            "Capture and compare visual baselines",
+            "Record the result");
+    }
+
+    [Fact]
+    public void TheApplicationIsBuiltWithTheValidationConfiguration()
+    {
+        // A plain Release build excludes AddMauiDevFlowAgent(), which is conventionally '#if DEBUG'.
+        // The lane would then install an app the driver can never talk to.
+        var script = File.ReadAllText(
+            Path.Combine(RepoLayout.ValidationConfig, "scripts", "tizen-device-lane.sh"));
+
+        Assert.Contains("-p:MauiTizenValidation=true", script, StringComparison.Ordinal);
+
+        var buildSection = script[script.IndexOf("cmd_build()", StringComparison.Ordinal)..];
+        var packageIndex = buildSection.IndexOf("-t:Package", StringComparison.Ordinal);
+
+        Assert.True(packageIndex > 0, "cmd_build must produce a TPK.");
+        Assert.Contains(
+            "-p:MauiTizenValidation=true",
+            buildSection[..packageIndex],
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DevFlowQueriesFailOnHttpErrors()
+    {
+        // Without --fail, curl exits 0 on a 5xx and writes the error body to the output file, so a
+        // 501 gets saved as a .png and the capture step reports success.
+        var script = File.ReadAllText(
+            Path.Combine(RepoLayout.ValidationConfig, "scripts", "tizen-device-lane.sh"));
+
+        var devflow = script[script.IndexOf("devflow()", StringComparison.Ordinal)..];
+        var body = devflow[..devflow.IndexOf('}', StringComparison.Ordinal)];
+
+        Assert.Contains("--fail", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BaselineCaptureIsFollowedByComparison()
+    {
+        // Capturing without comparing cannot fail on a rendering regression.
+        var script = File.ReadAllText(
+            Path.Combine(RepoLayout.ValidationConfig, "scripts", "tizen-device-lane.sh"));
+
+        var baselines = script[script.IndexOf("cmd_baselines()", StringComparison.Ordinal)..];
+
+        Assert.Contains("MAUI_TIZEN_COMPARE_BASELINES=1", baselines, StringComparison.Ordinal);
+        Assert.Contains("run-hosted-validation.sh", baselines, StringComparison.Ordinal);
+    }
+}

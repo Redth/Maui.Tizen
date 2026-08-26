@@ -33,6 +33,8 @@
 #   tizen-device-lane.sh build <project>
 #   tizen-device-lane.sh install <tpk>
 #   tizen-device-lane.sh forward | unforward
+#   tizen-device-lane.sh launch
+#   tizen-device-lane.sh wait-for-agent
 #   tizen-device-lane.sh agent-status
 #   tizen-device-lane.sh remote-focus
 #   tizen-device-lane.sh lifecycle
@@ -51,6 +53,7 @@ TIZEN_DEVICE_SERIAL="${TIZEN_DEVICE_SERIAL:-}"
 DEVFLOW_HOST_PORT="${DEVFLOW_HOST_PORT:-9223}"
 DEVFLOW_DEVICE_PORT="${DEVFLOW_DEVICE_PORT:-9223}"
 APP_ID="${APP_ID:-}"
+DEVFLOW_CONVENTIONS_NAMESPACE="maui-tizen"
 
 pass() { printf '\033[1;32m  PASS\033[0m %s\n' "$*"; }
 fail() { printf '\033[1;31m  FAIL\033[0m %s\n' "$*"; }
@@ -142,11 +145,14 @@ cmd_build() {
   local project="${1:?usage: build <project>}"
   require_lane build
 
-  info "Building $project for $TIZEN_TFM"
-  "$DOTNET" build "$project" -c Release -f "$TIZEN_TFM" --nologo
+  # MauiTizenValidation defines MAUITIZEN_DEVFLOW so the app compiles the DevFlow agent in. A
+  # plain Release build excludes it - AddMauiDevFlowAgent() is conventionally '#if DEBUG' - and the
+  # whole lane would then install an app the driver can never talk to.
+  info "Building $project for $TIZEN_TFM (validation configuration)"
+  "$DOTNET" build "$project" -c Release -f "$TIZEN_TFM" -p:MauiTizenValidation=true --nologo
 
   info "Packaging TPK"
-  "$DOTNET" build "$project" -c Release -f "$TIZEN_TFM" -t:Package --nologo
+  "$DOTNET" build "$project" -c Release -f "$TIZEN_TFM" -p:MauiTizenValidation=true -t:Package --nologo
 }
 
 cmd_install() {
@@ -169,7 +175,52 @@ cmd_unforward() {
 }
 
 devflow() {
-  curl -sS --max-time 20 "http://127.0.0.1:$DEVFLOW_HOST_PORT/api/v1/$1" "${@:2}"
+  # --fail is essential: without it curl exits 0 on a 4xx/5xx and happily writes the error body to
+  # the output file, so a 501 gets saved as a .png and the capture step reports success.
+  curl -sS --fail --max-time 20 "http://127.0.0.1:$DEVFLOW_HOST_PORT/api/v1/$1" "${@:2}"
+}
+
+# ---------------------------------------------------------------------------
+# Launch.
+#
+# Installing does not start anything. The previous version installed, forwarded and then queried
+# the agent, which could only ever have worked if something else had already launched the app.
+# ---------------------------------------------------------------------------
+cmd_launch() {
+  local app="${APP_ID:?APP_ID must be set to launch the application under test}"
+
+  info "Launching $app"
+  sdb_cmd shell app_launcher -s "$app"
+}
+
+# ---------------------------------------------------------------------------
+# Wait for the in-app agent.
+#
+# The agent binds its port during application startup, so every query issued before then fails.
+# Polling with a bounded timeout turns "queried too early" into a clear message instead of an
+# intermittent connection error whose cause looks like the tunnel.
+# ---------------------------------------------------------------------------
+cmd_wait_for_agent() {
+  local timeout="${AGENT_TIMEOUT_SECONDS:-60}"
+  local waited=0
+
+  info "Waiting up to ${timeout}s for the DevFlow agent"
+
+  while (( waited < timeout )); do
+    if devflow "agent/status" >/dev/null 2>&1; then
+      pass "Agent responded after ${waited}s"
+      return 0
+    fi
+    sleep 2
+    waited=$((waited + 2))
+  done
+
+  fail "The DevFlow agent did not respond within ${timeout}s."
+  fail "  Confirm the application was built WITH the agent compiled in. AddMauiDevFlowAgent() is"
+  fail "  conventionally guarded by '#if DEBUG', so a Release build excludes it entirely; the"
+  fail "  device lane builds with -p:MauiTizenValidation=true, which defines MAUITIZEN_DEVFLOW."
+  fail "  See docs/validation/device-lane.md."
+  exit 1
 }
 
 cmd_agent_status() {
@@ -358,12 +409,71 @@ cmd_pack() {
 cmd_device_assertions() {
   info "Running on-device conventions inside the deployed app"
 
+  # The route is DISCOVERED, not guessed. DevFlow hosts extension routes
+  # (AgentOptions.RegisterExtension -> AgentExtension.MapPost), but the URL prefix it composes is
+  # its own concern, so the harness confirms the server advertises our extension before calling
+  # anything. Calling a composed URL blind is how you end up asserting against a 404.
+  local capabilities endpoint
+  if ! capabilities="$(devflow "agent/capabilities")"; then
+    fail "Could not read agent capabilities."
+    exit 1
+  fi
+
+  endpoint="$(printf '%s' "$capabilities" | python3 -c "
+import json, sys
+
+NAMESPACE = 'maui-tizen'
+ROUTE = '/conventions/run'
+
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    print(''); raise SystemExit
+
+found_route = None
+found_namespace = False
+
+def walk(node):
+    global found_route, found_namespace
+    if isinstance(node, dict):
+        if node.get('namespace') == NAMESPACE:
+            found_namespace = True
+        for value in node.values():
+            walk(value)
+    elif isinstance(node, list):
+        for item in node:
+            walk(item)
+    elif isinstance(node, str):
+        if node.endswith(ROUTE) and NAMESPACE in node:
+            found_route = node.lstrip('/')
+
+walk(data)
+
+if found_route:
+    print(found_route)
+elif found_namespace:
+    # The extension is advertised but no explicit route was published; compose the conventional
+    # path. Only reached after confirming the server knows the extension.
+    print(f'extensions/{NAMESPACE}{ROUTE}')
+else:
+    print('')
+")"
+
+  if [[ -z "$endpoint" ]]; then
+    fail "The application does not advertise the '$DEVFLOW_CONVENTIONS_NAMESPACE' DevFlow extension."
+    fail "  The app under test must call AddMauiDevFlowAgent() (which registers the extension) and"
+    fail "  register an IConventionAssertionProvider. Mapper parity and Essentials coverage need the"
+    fail "  Tizen backend executing in-process, so they cannot run anywhere else."
+    fail "  See samples/Maui.Tizen.Catalog/README.md."
+    exit 1
+  fi
+
+  info "Using endpoint '$endpoint'"
+
   local response
-  if ! response="$(devflow "extensions/maui-tizen/conventions/run" -X POST)"; then
-    fail "The on-device conventions endpoint did not respond."
-    fail "  The app must register the Maui.Tizen DevFlow conventions extension; without it the"
-    fail "  mapper-parity and Essentials suites cannot run anywhere, because they need the Tizen"
-    fail "  backend executing in-process. See docs/validation/device-lane.md."
+  if ! response="$(devflow "$endpoint" -X POST)"; then
+    fail "The on-device conventions endpoint returned an error."
+    fail "  A 501 means no IConventionAssertionProvider is registered by the application."
     exit 1
   fi
 
@@ -378,7 +488,7 @@ for f in failed:
     print(f'        FAIL {f}')
 for s in skipped:
     print(f'        SKIP {s}')
-# A run that asserted nothing is a failure: it is indistinguishable from a passing run.
+# Zero assertions is not a pass: it is indistinguishable from a run that never happened.
 raise SystemExit(1 if failed or total == 0 else 0)
 "
 
@@ -386,16 +496,37 @@ raise SystemExit(1 if failed or total == 0 else 0)
 }
 
 # ---------------------------------------------------------------------------
-# Visual baselines.
+# Visual baselines: capture AND compare.
 #
-# Screenshots are captured on the device and pulled back to the controller; the comparison itself
-# runs host-side with the deterministic comparer in Maui.Tizen.TestUtils.
+# An earlier version only captured, so the lane could not fail on a rendering regression - it
+# produced images nobody compared to anything.
+#
+# Screenshots land in the same folder shape as the baselines
+# (profile/apiLevel/theme/density/case.png) so the comparison is an unambiguous
+# one-to-one mapping rather than a guess. Comparison itself runs host-side through the
+# deterministic comparer in Maui.Tizen.TestUtils; see VisualBaselineComparisonTests.
 # ---------------------------------------------------------------------------
 cmd_baselines() {
-  local out="$REPO_ROOT/artifacts/screenshots/$TIZEN_PROFILE"
+  local api_level theme density out
+  api_level="$(python3 -c "import json;print(json.load(open('$REPO_ROOT/eng/baselines.json'))['target']['tizenFxApiLevel'])")"
+
+  # Theme and density describe how the DEVICE is configured, so they are supplied by the runner
+  # rather than inferred. Defaults come from the profile matrix.
+  theme="${TIZEN_THEME:-$(python3 -c "
+import json
+m = json.load(open('$REPO_ROOT/eng/validation/profiles/tizen-profiles.json'))
+print(next(p['themes'][0] for p in m['profiles'] if p['id'] == '$TIZEN_PROFILE'))
+")}"
+  density="${TIZEN_DENSITY:-$(python3 -c "
+import json
+m = json.load(open('$REPO_ROOT/eng/validation/profiles/tizen-profiles.json'))
+print(next(p['densities'][0] for p in m['profiles'] if p['id'] == '$TIZEN_PROFILE'))
+")}"
+
+  out="$REPO_ROOT/artifacts/screenshots/$TIZEN_PROFILE/$api_level/$theme/$density"
   mkdir -p "$out"
 
-  info "Capturing visual baselines for $TIZEN_PROFILE"
+  info "Capturing baselines for $TIZEN_PROFILE/$api_level/$theme/$density"
 
   local cases
   cases="$(python3 -c "
@@ -405,28 +536,78 @@ print(' '.join(c['id'] for c in m['cases'] if c.get('capturesBaseline') and '$TI
 ")"
 
   if [[ -z "$cases" ]]; then
-    gate "No baseline cases declared for profile '$TIZEN_PROFILE'."
-    return 0
+    fail "No baseline cases declared for profile '$TIZEN_PROFILE'. Capturing nothing would let the"
+    fail "  comparison pass vacuously."
+    exit 1
   fi
 
   local id
   for id in $cases; do
-    devflow "ui/actions/navigate" \
-      -H 'Content-Type: application/json' \
-      -d "{\"route\":\"$id\"}" >/dev/null
+    if ! devflow "ui/actions/navigate" \
+        -H 'Content-Type: application/json' \
+        -d "{\"route\":\"$id\"}" >/dev/null; then
+      fail "Could not navigate to '$id'."
+      exit 1
+    fi
 
     # Settle before capturing; an in-flight animation is the classic source of a flaky baseline.
     sleep 1
 
-    if devflow "ui/screenshot?format=png" --output "$out/$id.png"; then
-      echo "        captured $id"
-    else
+    if ! devflow "ui/screenshot?format=png" --output "$out/$id.png"; then
       fail "Could not capture '$id'."
       exit 1
     fi
+
+    # --fail already rejects error responses, but a zero-byte file would still slip through and
+    # then fail much later inside the comparer with a confusing decode error.
+    if [[ ! -s "$out/$id.png" ]]; then
+      fail "Capture of '$id' produced an empty file."
+      exit 1
+    fi
+
+    # Emit the metadata sidecar alongside the capture. Without it a capture cannot be promoted
+    # to a baseline, because provenance is what makes a baseline reviewable later.
+    python3 - "$out/$id.png" "$id" "$TIZEN_PROFILE" "$api_level" "$theme" "$density" <<'SIDECAR'
+import json, struct, sys, subprocess, datetime, pathlib
+
+png, case_id, profile, api_level, theme, density = sys.argv[1:7]
+data = pathlib.Path(png).read_bytes()
+# IHDR width/height live at fixed offsets in every PNG.
+width, height = struct.unpack('>II', data[16:24])
+
+try:
+    commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+except Exception:
+    commit = ''
+
+pathlib.Path(png).with_suffix('.json').write_text(json.dumps({
+    'caseId': case_id,
+    'profile': profile,
+    'apiLevel': api_level,
+    'theme': theme,
+    'density': density,
+    'targetFramework': $TIZEN_TFM,
+    'deviceImage': ${TIZEN_DEVICE_IMAGE:-unspecified},
+    'width': width,
+    'height': height,
+    'commit': commit,
+    'capturedUtc': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z'),
+}, indent=2) + '\n')
+SIDECAR
+
+    echo "        captured $id"
   done
 
-  pass "Captured $(echo "$cases" | wc -w | tr -d ' ') screenshot(s) into artifacts/screenshots/$TIZEN_PROFILE"
+  pass "Captured $(echo "$cases" | wc -w | tr -d ' ') screenshot(s)"
+
+  info "Comparing against checked-in baselines"
+
+  # Only the comparison suite. Re-running the whole hosted lane here would spend scarce device
+  # time re-proving things that never touch the device.
+  MAUI_TIZEN_COMPARE_BASELINES=1 \
+  MAUI_TIZEN_SCREENSHOT_PROFILE="$TIZEN_PROFILE" \
+  MAUI_TIZEN_SUITES="Maui.Tizen.Validation.Tests" \
+    "$REPO_ROOT/eng/validation/run-hosted-validation.sh"
 }
 
 case "${1:-}" in
@@ -435,7 +616,9 @@ case "${1:-}" in
   install)      shift; cmd_install "$@" ;;
   forward)      shift; cmd_forward "$@" ;;
   unforward)    shift; cmd_unforward "$@" ;;
-  agent-status) shift; cmd_agent_status "$@" ;;
+  launch)          shift; cmd_launch "$@" ;;
+  wait-for-agent)  shift; cmd_wait_for_agent "$@" ;;
+  agent-status)    shift; cmd_agent_status "$@" ;;
   remote-focus) shift; cmd_remote_focus "$@" ;;
   lifecycle)    shift; cmd_lifecycle "$@" ;;
   pack)              shift; cmd_pack "$@" ;;

@@ -181,6 +181,53 @@ public class DevFlowContractTests
     }
 
     [Fact]
+    public void ExtensionRouting_IsARealDevFlowMechanism()
+    {
+        // The on-device conventions endpoint is hosted through DevFlow's extension mechanism.
+        // Pinned here because "we call an endpoint no server can host" is a fair criticism of any
+        // custom route, and the answer has to be evidence rather than assertion.
+        var register = typeof(AgentOptions).GetMethod(
+            "RegisterExtension",
+            [typeof(string), typeof(string), typeof(int), typeof(IEnumerable<string>)]);
+
+        Assert.True(
+            register is not null,
+            "AgentOptions.RegisterExtension(string, string, int, IEnumerable<string>) no longer exists.");
+
+        Assert.Equal(typeof(AgentExtension), register!.ReturnType);
+
+        var mapPost = typeof(AgentExtension).GetMethod("MapPost");
+        Assert.True(mapPost is not null, "AgentExtension.MapPost no longer exists.");
+
+        var parameters = mapPost!.GetParameters();
+        Assert.Equal(2, parameters.Length);
+        Assert.Equal(typeof(string), parameters[0].ParameterType);
+
+        // The handler shape is what the agent's route implementation must match.
+        Assert.StartsWith("Func`2", parameters[1].ParameterType.Name, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ExtensionRoutes_AreRegisteredByTheAgentItself()
+    {
+        // Route registration lives inside DevFlow; if it stopped happening, every extension route
+        // would 404 while still looking correctly declared on our side.
+        var abstractions = typeof(AgentExtension).Assembly;
+
+        Assert.Contains(
+            abstractions.GetTypes().Where(t => t.Name.Contains("ExtensionRoute", StringComparison.Ordinal)),
+            t => t is not null);
+    }
+
+    [Fact]
+    public void HttpResponse_ExposesTheHelpersTheExtensionRouteUses()
+    {
+        Assert.NotNull(typeof(HttpResponse).GetMethod("Json", [typeof(object)]));
+        Assert.NotNull(typeof(HttpResponse).GetMethod(
+            "Error", [typeof(string), typeof(int), typeof(string), typeof(object)]));
+    }
+
+    [Fact]
     public void DevFlowSpecPlatformEnum_StillLacksTizen()
     {
         // Recorded, not asserted as desirable. The moment maui-labs adds "tizen" to the

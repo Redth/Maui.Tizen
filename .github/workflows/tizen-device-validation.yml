@@ -44,6 +44,13 @@ on:
       release_validation:
         type: boolean
         default: false
+    outputs:
+      gate_passed:
+        description: >-
+          'true' only when every required profile ran on hardware and passed. Fail-closed: any other
+          outcome, including the workflow erroring before the gate runs, leaves this unset, which a
+          caller must treat as a failure.
+        value: ${{ jobs.release-gate.outputs.gate_passed }}
   schedule:
     - cron: '0 3 * * *'
   push:
@@ -119,15 +126,29 @@ jobs:
     timeout-minutes: 120
     strategy:
       fail-fast: false
+      # One profile at a time. Even with distinct host ports, two jobs on the same runner would
+      # contend for sdb and for the single attached target of each kind.
+      max-parallel: 1
       matrix:
-        profile: [mobile, tv]
-        tfm: [net11.0-tizen11.0]
+        include:
+          # Each profile is bound to an explicit device serial, not just a runner label. A label
+          # alone says which machine to use, not which of several attached targets to drive - so a
+          # tv job could silently run against a handset.
+          - profile: mobile
+            tfm: net11.0-tizen11.0
+            serial_var: TIZEN_MOBILE_SERIAL
+            host_port: 9223
+          - profile: tv
+            tfm: net11.0-tizen11.0
+            serial_var: TIZEN_TV_SERIAL
+            host_port: 9224
     env:
       TIZEN_PROFILE: ${{ matrix.profile }}
       TIZEN_TFM: ${{ matrix.tfm }}
       RESULT_FILE: artifacts/device-results/device-result-${{ matrix.profile }}.txt
-      # Release-only gates read this; see ReleaseReadinessTests.
-      MAUI_TIZEN_RELEASE_VALIDATION: ${{ needs.availability.outputs.required == 'true' && '1' || '0' }}
+      TIZEN_DEVICE_SERIAL: ${{ vars[matrix.serial_var] }}
+      # Distinct host ports so a leaked forward from one profile cannot capture the other's traffic.
+      DEVFLOW_HOST_PORT: ${{ matrix.host_port }}
     steps:
       - uses: actions/checkout@v5
 
@@ -206,13 +227,21 @@ jobs:
         if: needs.availability.outputs.required == 'true' && steps.preflight.outputs.lane_available == 'true'
         run: ./eng/validation/scripts/tizen-device-lane.sh pack
 
-      - name: Deploy and start the DevFlow tunnel
+      # Installing does not start anything. The previous version installed, forwarded and then
+      # queried the agent, which could only have worked if something else had already launched
+      # the app. The wait is equally load-bearing: the agent binds its port during startup, so a
+      # query issued immediately after launch fails in a way that looks like a broken tunnel.
+      - name: Deploy, launch, tunnel and wait for the agent
         if: steps.app.outputs.available == 'true'
+        env:
+          APP_ID: ${{ vars.TIZEN_CATALOG_APP_ID }}
         run: |
           set -euo pipefail
           tpk="$(find artifacts -name '*.tpk' -print -quit)"
           ./eng/validation/scripts/tizen-device-lane.sh install "$tpk"
+          ./eng/validation/scripts/tizen-device-lane.sh launch
           ./eng/validation/scripts/tizen-device-lane.sh forward
+          ./eng/validation/scripts/tizen-device-lane.sh wait-for-agent
           ./eng/validation/scripts/tizen-device-lane.sh agent-status
 
       # -------------------------------------------------------------------------------------
@@ -238,13 +267,12 @@ jobs:
         if: steps.app.outputs.available == 'true' && matrix.profile == 'tv'
         run: ./eng/validation/scripts/tizen-device-lane.sh remote-focus
 
+      # Only device-specific work runs on lab hardware. The hosted suites already ran on
+      # ubuntu-latest; repeating them here would consume scarce device time to re-prove something
+      # that has nothing to do with the device.
       - name: Capture and compare visual baselines
         if: steps.app.outputs.available == 'true'
         run: ./eng/validation/scripts/tizen-device-lane.sh baselines
-
-      - name: Release readiness gates
-        if: needs.availability.outputs.required == 'true' && steps.app.outputs.available == 'true'
-        run: ./eng/validation/run-hosted-validation.sh
 
       - name: Record the result
         if: always() && steps.preflight.outputs.lane_available == 'true'
@@ -265,6 +293,8 @@ jobs:
           path: artifacts/device-results/
           if-no-files-found: error
 
+      # Screenshots and diffs are uploaded whatever the outcome: on failure they are the evidence,
+      # and on success they are what a reviewer needs to approve an intentional visual change.
       - name: Upload diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -273,7 +303,16 @@ jobs:
           path: |
             artifacts/test-results/
             artifacts/visual-diffs/
-            artifacts/packages/
+            artifacts/screenshots/
+          if-no-files-found: ignore
+
+      # Packages are uploaded separately so release-gate can download only what it needs.
+      - name: Upload shipping packages
+        if: always() && needs.availability.outputs.required == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: shipping-packages-${{ matrix.profile }}
+          path: artifacts/packages/
           if-no-files-found: ignore
 
   # ---------------------------------------------------------------------------
@@ -284,6 +323,11 @@ jobs:
     needs: [availability, device-matrix]
     if: always()
     runs-on: ubuntu-latest
+    # The approval belongs on the job that actually decides, not on the job that runs the tests.
+    # Attaching it to device-matrix would gate the work while leaving the verdict ungated.
+    environment: ${{ needs.availability.outputs.required == 'true' && 'tizen-release' || '' }}
+    outputs:
+      gate_passed: ${{ steps.evaluate.outputs.gate_passed }}
     steps:
       - uses: actions/checkout@v5
 
@@ -296,10 +340,40 @@ jobs:
           path: artifacts/device-results
         continue-on-error: true
 
+      - name: Download shipping packages
+        if: needs.availability.outputs.required == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: shipping-packages-*
+          merge-multiple: true
+          path: artifacts/packages
+        continue-on-error: true
+
+      - name: Set up .NET
+        if: needs.availability.outputs.required == 'true'
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      # Cross-profile readiness belongs HERE, not inside the matrix.
+      #
+      # Run per profile, these gates read a result file that still says status=running for the
+      # current profile and cannot see the other profile's artifact at all, so they could only ever
+      # fail. They are inherently cross-profile assertions and need every profile finalised first.
+      - name: Release readiness gates
+        if: needs.availability.outputs.required == 'true'
+        env:
+          MAUI_TIZEN_RELEASE_VALIDATION: '1'
+        run: ./eng/validation/run-hosted-validation.sh
+
       - name: Evaluate
+        id: evaluate
         run: |
           set -euo pipefail
           mkdir -p artifacts/device-results
+
+          # gate_passed is written only on success, so any failure or early exit leaves it unset.
+          echo "gate_passed=false" >> "$GITHUB_OUTPUT"
 
           ./eng/validation/scripts/evaluate-release-gate.sh \
             --required "${{ needs.availability.outputs.required }}" \
@@ -307,6 +381,8 @@ jobs:
             --matrix-result "${{ needs.device-matrix.result }}" \
             --required-profiles "${{ needs.availability.outputs.required_profiles }}" \
             --results-dir artifacts/device-results | tee gate.log
+
+          echo "gate_passed=true" >> "$GITHUB_OUTPUT"
 
       - name: Summarise
         if: always()

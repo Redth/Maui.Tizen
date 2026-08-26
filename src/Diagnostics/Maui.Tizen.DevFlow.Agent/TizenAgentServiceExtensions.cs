@@ -38,6 +38,36 @@ public static class TizenAgentServiceExtensions
         var options = new AgentOptions();
         configure(options);
 
+        // Register the on-device convention route through DevFlow's supported extension mechanism.
+        // AgentExtension.MapPost is a real API (DevFlowContractTests pins it) and the agent wires
+        // these routes at startup, so this is not an endpoint invented by the harness.
+        var extension = options.RegisterExtension(
+            TizenDevFlowConventions.Namespace,
+            TizenDevFlowConventions.Description,
+            TizenDevFlowConventions.Version,
+            TizenDevFlowConventions.Features);
+
+        extension.MapPost(TizenDevFlowConventions.RunRoute, async _ =>
+        {
+            var provider = ConventionAssertionProviderRegistry.Current;
+
+            if (provider is null)
+            {
+                // 501 rather than an empty pass: an app that cannot self-assert must fail the
+                // device lane, not look like a clean run.
+                return HttpResponse.Error(
+                    "No convention assertion provider is registered. The application under test must "
+                    + "register one via ConventionAssertionProviderRegistry.Register(...); see "
+                    + "samples/Maui.Tizen.Catalog/README.md.",
+                    501,
+                    DevFlowAgentService.PlatformErrorReasonNotSupported,
+                    null);
+            }
+
+            var report = await provider.RunAsync().ConfigureAwait(false);
+            return HttpResponse.Json(report.ToPayload());
+        });
+
         if (!options.Enabled)
             return builder;
 

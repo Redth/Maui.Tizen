@@ -28,7 +28,9 @@ Environment-specific values arrive at runtime:
 | Variable | Purpose |
 |---|---|
 | `TIZEN_PROFILE` | `mobile` or `tv` |
-| `TIZEN_DEVICE_SERIAL` | `sdb` serial; empty uses the sole attached target |
+| `TIZEN_MOBILE_SERIAL` / `TIZEN_TV_SERIAL` | `sdb` serial per profile. The matrix binds each profile to an explicit serial: a runner label says which *machine* to use, not which of several attached targets to drive, so a `tv` job could otherwise silently run against a handset. |
+| `TIZEN_DEVICE_SERIAL` | Serial used by a manual invocation of the script |
+| `TIZEN_DEVICE_IMAGE` | Recorded in capture sidecars; must name an image, never a machine |
 | `TIZEN_TFM` | Target framework; defaults to `eng/baselines.json > target.targetFramework` |
 | `DEVFLOW_HOST_PORT` / `DEVFLOW_DEVICE_PORT` | Tunnel ports, default `9223` |
 | `APP_ID` | Application id for the lifecycle harness |
@@ -83,6 +85,62 @@ Only `net11.0-tizen11.0` gates a release. `alsoValidTargets` (`tizen10.1`, `10.0
 marked `confirmed: false` and are exercised opportunistically, because they have not been verified
 against real Samsung tooling. A test asserts none of them claims to be confirmed — a confirmed
 target belongs in `eng/baselines.json`, not in an opportunistic list.
+
+## The app must be built with the agent compiled in
+
+`AddMauiDevFlowAgent()` is conventionally guarded by `#if DEBUG`, so a Release build excludes the
+agent entirely and the driver has nothing to talk to. The device lane therefore builds with
+`-p:MauiTizenValidation=true`, and the application is expected to guard registration as:
+
+```csharp
+#if DEBUG || MAUITIZEN_DEVFLOW
+    builder.AddMauiDevFlowAgent();
+#endif
+```
+
+The property is expected to define `MAUITIZEN_DEVFLOW`. This keeps the agent out of shipping builds
+while allowing a Release-configuration build to be driven.
+
+## Install, launch, tunnel, wait - in that order
+
+Installing does not start anything. An earlier version installed, forwarded and then queried the
+agent, which could only have worked if something else had already launched the app.
+
+The wait is equally load-bearing: the agent binds its port during application startup, so a query
+issued immediately after launch fails in a way that looks like a broken tunnel.
+`wait-for-agent` polls with a bounded timeout (`AGENT_TIMEOUT_SECONDS`, default 60) and, on
+timeout, says to check whether the agent was compiled in at all.
+
+`WorkflowOrderingTests` asserts this order.
+
+## Baselines are captured *and* compared
+
+`baselines` captures into the same folder shape as the baselines themselves —
+`{profile}/{apiLevel}/{theme}/{density}/{caseId}.png` — so each capture maps to exactly one
+baseline rather than being matched by guesswork. It then runs the comparison
+(`VisualBaselineComparisonTests`), which uses the deterministic comparer and writes
+`expected.png` / `actual.png` / `diff.png` per failure into `artifacts/visual-diffs/`. The workflow
+uploads screenshots and diffs whatever the outcome: on failure they are the evidence, on success
+they are what a reviewer needs to approve an intentional visual change.
+
+Theme and density describe how the *device* is configured, so they come from `TIZEN_THEME` and
+`TIZEN_DENSITY`, defaulting to the first entry in the profile matrix.
+
+All DevFlow calls use `curl --fail`. Without it curl exits 0 on a 4xx/5xx and writes the error body
+to the output file, so a `501` would be saved as a `.png` and the capture step would report success.
+
+## One profile at a time, on distinct ports
+
+The matrix sets `max-parallel: 1` and gives each profile its own host port (mobile 9223, tv 9224).
+Either alone would be insufficient: distinct ports stop a leaked `sdb forward` from capturing the
+other profile's traffic, and serialising stops two jobs contending for `sdb` and for the attached
+targets.
+
+## Only device work runs on device hardware
+
+The device lane runs the comparison suite (`MAUI_TIZEN_SUITES`), not the whole hosted lane. The
+hosted suites already ran on `ubuntu-latest`; repeating them on scarce lab hardware would spend
+device time re-proving things that never touch a device.
 
 ## Lifecycle is a real suspend/resume
 

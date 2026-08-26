@@ -22,16 +22,6 @@ namespace Maui.Tizen.TestUtils;
 /// </remarks>
 public static class ProductAssemblies
 {
-    /// <summary>Assembly simple names produced by the core vertical slice.</summary>
-    public static readonly IReadOnlyList<string> TizenBackendAssemblyNames =
-    [
-        "Microsoft.Maui",
-        "Microsoft.Maui.Core",
-        "Microsoft.Maui.Controls",
-        "Microsoft.Maui.Essentials",
-        "Microsoft.Maui.Graphics.Tizen",
-    ];
-
     /// <summary>
     /// True when the current process is running on a Tizen host and can therefore execute the
     /// Tizen backend in-process.

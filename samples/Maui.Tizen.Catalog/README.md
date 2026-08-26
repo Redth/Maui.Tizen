@@ -29,6 +29,31 @@ compile would rot silently. The manifest is the part that can be kept honest tod
 The hosted validation suite fails on anything malformed, so a bad entry is caught on the pull
 request rather than at 3am in the nightly device run.
 
+## Contract the app must satisfy
+
+The device lane drives the app through DevFlow, so the application must:
+
+1. **Register the agent under the validation constant.** A plain Release build excludes
+   `AddMauiDevFlowAgent()` if it is guarded by `#if DEBUG` alone, and the lane builds Release with
+   `-p:MauiTizenValidation=true`:
+
+   ```csharp
+   #if DEBUG || MAUITIZEN_DEVFLOW
+       builder.AddMauiDevFlowAgent();
+   #endif
+   ```
+
+2. **Expose the on-device conventions endpoint** at
+   `extensions/maui-tizen/conventions/run`, returning `{ "total": n, "failed": [...], "skipped": [...] }`.
+   Mapper parity and Essentials coverage need the Tizen backend executing in-process, so they can
+   only run inside the app. A response reporting `total: 0` is treated as a failure.
+
+3. **Support route navigation by case id**, so `ui/actions/navigate` with a catalog case id shows
+   that case for capture.
+
+4. **Render deterministically** — no animations still running at capture time, no clocks, no random
+   data, no network.
+
 ## Intended layout
 
 ```

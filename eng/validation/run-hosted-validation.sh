@@ -29,6 +29,9 @@ RESULTS_DIR="${RESULTS_DIR:-$REPO_ROOT/artifacts/test-results}"
 
 # Suites are listed explicitly rather than globbed. A suite that silently stops being discovered is
 # indistinguishable from one that passes.
+# MAUI_TIZEN_SUITES restricts the run to named suites. The device lane uses it so lab hardware
+# runs only device-specific work: the hosted suites already ran on ubuntu-latest, and repeating
+# them on a scarce device runner re-proves something that has nothing to do with the device.
 SUITES=(
   "tests/Maui.Tizen.Validation.Tests/Maui.Tizen.Validation.Tests.csproj"
   "tests/Maui.Tizen.Build.Tests/Maui.Tizen.Build.Tests.csproj"
@@ -47,6 +50,25 @@ if [[ "${MAUI_TIZEN_LOCAL_SEMANTICS:-0}" != "1" ]]; then
   export ContinuousIntegrationBuild=true
 fi
 
+filter_suites() {
+  [[ -z "${MAUI_TIZEN_SUITES:-}" ]] && return 0
+
+  local kept=() suite name
+  for suite in "${SUITES[@]}"; do
+    name="$(basename "$suite" .csproj)"
+    if [[ " $MAUI_TIZEN_SUITES " == *" $name "* ]]; then
+      kept+=("$suite")
+    fi
+  done
+
+  if [[ ${#kept[@]} -eq 0 ]]; then
+    echo "MAUI_TIZEN_SUITES='$MAUI_TIZEN_SUITES' matched no suite." >&2
+    exit 2
+  fi
+
+  SUITES=("${kept[@]}")
+}
+
 pass() { printf '\033[1;32m  PASS\033[0m %s\n' "$*"; }
 fail() { printf '\033[1;31m  FAIL\033[0m %s\n' "$*"; }
 info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
@@ -55,12 +77,15 @@ FAILURES=0
 
 mkdir -p "$RESULTS_DIR"
 
+filter_suites
+
 info "SDK"
 "$DOTNET" --version | sed 's/^/  /'
 
 # The Tizen agent cannot be built for its real TFM anywhere, so it is compiled here against the
 # API15 reference assemblies instead. Building it first means a broken agent fails the lane rather
 # than being reported only by whatever test happens to touch it.
+if [[ -z "${MAUI_TIZEN_SUITES:-}" ]]; then
 info "Compiling the Tizen agent against the API15 reference assemblies"
 if "$DOTNET" build eng/tests/Api15CompileProbe/Api15CompileProbe.csproj -c "$CONFIGURATION" --nologo -v q >/tmp/mt-api15.$$ 2>&1; then
   pass "API15 compile probe"
@@ -70,6 +95,7 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 rm -f /tmp/mt-api15.$$
+fi
 
 info "Building validation suites ($CONFIGURATION)"
 for suite in "${SUITES[@]}"; do
