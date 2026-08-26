@@ -1,0 +1,168 @@
+namespace Maui.Tizen.DevFlow.Agent;
+
+/// <summary>
+/// Tizen privilege URIs the DevFlow agent cares about.
+/// </summary>
+/// <remarks>
+/// Privileges are declared in <c>tizen-manifest.xml</c> and granted at install time. Querying them
+/// at runtime rather than assuming them is what keeps the agent honest: a capability that is
+/// advertised but unusable produces a hang or an opaque native failure at the moment a test tries to
+/// drive the UI, which is the worst possible time to discover it.
+/// </remarks>
+public static class TizenPrivileges
+{
+    /// <summary>
+    /// Required to synthesise native input events (<c>efl_util_input</c>). Without it the agent must
+    /// fall back to framework-level interaction and must not advertise native input.
+    /// </summary>
+    public const string InputGenerator = "http://tizen.org/privilege/inputgenerator";
+
+    /// <summary>Required to bind the agent's TCP listener.</summary>
+    public const string Internet = "http://tizen.org/privilege/internet";
+
+    /// <summary>Required for window manipulation such as resize.</summary>
+    public const string Display = "http://tizen.org/privilege/display";
+
+    /// <summary>Privileges the agent declares by default.</summary>
+    public static IReadOnlyList<string> Default { get; } = [Internet, Display];
+
+    /// <summary>Privileges that unlock optional capabilities when additionally granted.</summary>
+    public static IReadOnlyList<string> Optional { get; } = [InputGenerator];
+}
+
+/// <summary>
+/// What the agent observed about the device it is running on.
+/// </summary>
+/// <remarks>
+/// Represented as plain data with no Tizen types so the capability decisions that depend on it can
+/// be executed and asserted on a hosted runner.
+/// </remarks>
+public sealed class TizenAgentEnvironment
+{
+    /// <summary>Device profile, e.g. <c>mobile</c> or <c>tv</c>.</summary>
+    public string Profile { get; init; } = TizenDeviceProfiles.Mobile;
+
+    /// <summary>Privileges actually granted to the host application.</summary>
+    public IReadOnlyCollection<string> GrantedPrivileges { get; init; } = [];
+
+    /// <summary>True when a NUI window is available to capture and drive.</summary>
+    public bool HasWindow { get; init; } = true;
+
+    /// <summary>
+    /// True when <c>Tizen.NUI.Capture</c> is usable. Emulator images without a GL backend can fail
+    /// capture while everything else works.
+    /// </summary>
+    public bool SupportsCapture { get; init; } = true;
+
+    /// <summary>True when the window manager permits programmatic resize.</summary>
+    public bool SupportsWindowResize { get; init; } = true;
+
+    public bool HasPrivilege(string privilege) =>
+        GrantedPrivileges.Contains(privilege, StringComparer.OrdinalIgnoreCase);
+}
+
+/// <summary>
+/// Computes the capability map published at <c>GET /api/v1/agent/capabilities</c>.
+/// </summary>
+/// <remarks>
+/// DevFlow's contract is that unsupported capabilities report <c>supported: false</c> and their
+/// endpoints answer HTTP 501 with a <c>not_supported</c> payload. Deriving both from one place means
+/// the advertised map and the runtime behaviour cannot disagree.
+/// </remarks>
+public static class TizenAgentCapabilityPolicy
+{
+    /// <summary>Capability keys used by the DevFlow HTTP surface.</summary>
+    public static class Keys
+    {
+        public const string UiTree = "ui.tree";
+        public const string UiQuery = "ui.query";
+        public const string UiHitTest = "ui.hit-test";
+        public const string Screenshot = "ui.screenshot";
+        public const string Tap = "ui.tap";
+        public const string Fill = "ui.fill";
+        public const string Scroll = "ui.scroll";
+        public const string Focus = "ui.focus";
+        public const string Key = "ui.key";
+        public const string Resize = "ui.resize";
+        public const string NativeInput = "ui.native-input";
+        public const string Storage = "storage";
+        public const string Theme = "device.theme";
+    }
+
+    /// <summary>Evaluates every capability for <paramref name="environment"/>.</summary>
+    public static IReadOnlyDictionary<string, TizenCapability> Compute(TizenAgentEnvironment environment)
+    {
+        ArgumentNullException.ThrowIfNull(environment);
+
+        var map = new Dictionary<string, TizenCapability>(StringComparer.Ordinal);
+
+        void Add(string key, bool supported, string? unsupportedReason = null) =>
+            map[key] = new TizenCapability(key, supported, supported ? null : unsupportedReason);
+
+        // Tree walking and querying only need a live window.
+        Add(Keys.UiTree, environment.HasWindow, "No NUI window is attached yet.");
+        Add(Keys.UiQuery, environment.HasWindow, "No NUI window is attached yet.");
+        Add(Keys.UiHitTest, environment.HasWindow, "No NUI window is attached yet.");
+
+        Add(
+            Keys.Screenshot,
+            environment is { HasWindow: true, SupportsCapture: true },
+            "Tizen.NUI.Capture is unavailable on this image; emulator images without a GL backend cannot capture.");
+
+        // Framework-level interaction goes through MAUI/NUI directly and needs no extra privilege.
+        Add(Keys.Tap, environment.HasWindow, "No NUI window is attached yet.");
+        Add(Keys.Fill, environment.HasWindow, "No NUI window is attached yet.");
+        Add(Keys.Scroll, environment.HasWindow, "No NUI window is attached yet.");
+        Add(Keys.Focus, environment.HasWindow, "No NUI window is attached yet.");
+
+        // Synthesised input is privileged; advertising it without the privilege produces silent no-ops.
+        var nativeInput = environment.HasWindow && environment.HasPrivilege(TizenPrivileges.InputGenerator);
+        Add(
+            Keys.NativeInput,
+            nativeInput,
+            $"The '{TizenPrivileges.InputGenerator}' privilege is not granted, so native input events " +
+            "cannot be synthesised. Framework-level tap and fill remain available.");
+
+        // Key events reach the app without privilege; only injecting them system-wide is privileged.
+        Add(Keys.Key, environment.HasWindow, "No NUI window is attached yet.");
+
+        Add(
+            Keys.Resize,
+            environment is { HasWindow: true, SupportsWindowResize: true },
+            "The window manager does not permit programmatic resize on this profile; TV windows are " +
+            "fixed to the panel resolution.");
+
+        Add(Keys.Storage, true);
+
+        // Tizen exposes no per-application theme override equivalent to the other platforms.
+        Add(Keys.Theme, false, "Tizen does not expose a per-application light/dark override.");
+
+        return map;
+    }
+
+    /// <summary>Shapes the capability map the way DevFlow's status endpoint expects.</summary>
+    public static Dictionary<string, object> ToPayload(IReadOnlyDictionary<string, TizenCapability> capabilities)
+    {
+        ArgumentNullException.ThrowIfNull(capabilities);
+
+        var payload = new Dictionary<string, object>(StringComparer.Ordinal);
+
+        foreach (var (key, capability) in capabilities.OrderBy(c => c.Key, StringComparer.Ordinal))
+        {
+            payload[key] = capability.Supported
+                ? new Dictionary<string, object> { ["supported"] = true }
+                : new Dictionary<string, object>
+                {
+                    ["supported"] = false,
+                    ["reason"] = capability.UnsupportedReason ?? "Not supported on Tizen.",
+                };
+        }
+
+        return payload;
+    }
+}
+
+/// <param name="UnsupportedReason">
+/// Human-readable cause, echoed in the HTTP 501 <c>not_supported</c> body. Null when supported.
+/// </param>
+public sealed record TizenCapability(string Key, bool Supported, string? UnsupportedReason);

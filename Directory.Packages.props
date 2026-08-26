@@ -93,4 +93,23 @@
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
 
+  <ItemGroup Label="Validation lane">
+    <!--
+      The validation suites use xunit v3, which runs on Microsoft.Testing.Platform. The
+      .NET 10+ SDK removed VSTest support for that platform, so these projects are executed
+      as binaries by eng/validation/run-hosted-validation.sh rather than through
+      `dotnet test`. tests/UnitTests stays on xunit v2 + VSTest until the two are
+      consolidated. See docs/validation/hosted-lane.md.
+    -->
+    <PackageVersion Include="xunit.v3" Version="4.0.0" />
+    <PackageVersion Include="xunit.v3.assert" Version="4.0.0" />
+
+    <!--
+      DevFlow is consumed from published maui-labs packages; nothing from it is vendored.
+      The Tizen agent plugs into these abstractions, and DevFlowContractTests pins the
+      exact override surface so an upstream change fails the hosted lane immediately.
+    -->
+    <PackageVersion Include="Microsoft.Maui.DevFlow.Agent.Core" Version="0.1.0-preview.12.26421.1" />
+  </ItemGroup>
+
 </Project>

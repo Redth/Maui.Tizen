@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Platform-neutral half of the Tizen DevFlow agent.
+
+    Everything here is decision logic - capability advertisement, privilege gating, platform
+    identity, connection/forwarding descriptors - and deliberately contains no Tizen.NUI or
+    Tizen.Applications references. That split is what lets the hosted lane actually execute and
+    assert this behaviour; the Tizen-targeted sibling project cannot build anywhere until the
+    Samsung workload ships (eng/baselines.json > target.workloadManifest).
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>$(DotNetTfm)</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+    <RootNamespace>Maui.Tizen.DevFlow.Agent</RootNamespace>
+    <AssemblyName>Maui.Tizen.DevFlow.Agent.Shared</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+
+    <!--
+      Opt out of central transitive pinning for this project only.
+
+      DevFlow resolves SkiaSharp >= 3.119.2 while Directory.Packages.props centrally pins
+      3.116.1 for the product graph, and transitive pinning turns that into a hard NU1109
+      downgrade error. Raising the central pin to satisfy a debug-only diagnostics package
+      would let a tool dependency dictate the version the shipping Graphics assemblies build
+      against, which is backwards.
+
+      DevFlow is referenced only by diagnostics projects and never by a shipping package, so
+      letting it resolve its own graph here has no effect on what Maui.Tizen publishes.
+    -->
+    <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <EnableDefaultNoneItems>true</EnableDefaultNoneItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      DevFlow is consumed from published maui-labs packages. Nothing from DevFlow is vendored or
+      reimplemented here; the Tizen backend plugs into the existing abstractions.
+    -->
+    <PackageReference Include="Microsoft.Maui.DevFlow.Agent.Core" />
+
+    <!--
+      Explicit pin required by DevFlow's own dependency graph: Agent.Core depends on
+      Microsoft.Maui.Essentials >= 10.0.20 while also pulling Microsoft.Maui.Core 10.0.41,
+      which requires Essentials >= 10.0.41. NuGet reports that as an NU1605 downgrade unless
+      the consumer states a version. Referencing the centrally pinned net11 Essentials
+      resolves it upward and keeps the diagnostics graph on the same MAUI build as the rest
+      of the repository.
+    -->
+    <PackageReference Include="Microsoft.Maui.Essentials" />
+  </ItemGroup>
+
+</Project>

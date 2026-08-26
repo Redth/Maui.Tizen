@@ -1,0 +1,234 @@
+name: Tizen device validation
+
+# ---------------------------------------------------------------------------------------------
+# The device lane.
+#
+# Runs on self-hosted Samsung / Tizen infrastructure and covers everything that genuinely cannot
+# be validated anywhere else: versioned net11.0-tizen builds, TPK creation, emulator and device
+# deploy/run, live handler parity, visual baselines, lifecycle, and TV remote focus traversal.
+#
+# TWO THINGS GATE THIS LANE, AND THEY ARE INDEPENDENT
+#
+#   1. The Samsung workload manifest 'samsung.net.sdk.tizen.manifest-11.0.100' is unpublished
+#      (eng/baselines.json > target.workloadManifest). Until it ships, nothing here can build.
+#   2. Device infrastructure is not attached to ordinary pull requests.
+#
+# POLICY
+#
+#   Pull requests : tolerated when unavailable. The lane reports "not run" and does not block.
+#   Release       : required. The `release-gate` job fails unless the matrix actually ran and
+#                   passed, and it runs in the `tizen-release` environment so a human approves
+#                   before anything ships.
+#
+# NO SECRETS OR PERSONAL INFRASTRUCTURE LIVE IN THIS FILE. Runner selection uses labels; device
+# selection uses repository variables. Serials, hostnames and accounts stay in the runner's own
+# configuration. See docs/validation/device-lane.md.
+# ---------------------------------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_validation:
+        description: Fail the run if the device lane is unavailable
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      release_validation:
+        type: boolean
+        default: false
+  schedule:
+    # Nightly. The lane is slow and needs real hardware, so it is not on the pull-request path.
+    - cron: '0 3 * * *'
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Is the lane usable at all?
+  #
+  # Runs on a hosted runner so it works even when no self-hosted agent is online. Without this,
+  # an offline agent leaves the whole workflow queued indefinitely and the run looks "in
+  # progress" rather than "unavailable".
+  # ---------------------------------------------------------------------------
+  availability:
+    name: Device lane availability
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+      required: ${{ steps.check.outputs.required }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine availability and whether it is required
+        id: check
+        run: |
+          set -euo pipefail
+
+          enabled="${{ vars.TIZEN_DEVICE_LAB_ENABLED }}"
+          [ "$enabled" = "true" ] || enabled=false
+
+          # A release is either a tag push or an explicit request.
+          required=false
+          case "${{ github.ref }}" in refs/tags/v*) required=true ;; esac
+          [ "${{ inputs.release_validation }}" = "true" ] && required=true
+
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
+          echo "required=$required" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Device lane availability"
+            echo
+            echo "- lab enabled: \`$enabled\`"
+            echo "- required for this run: \`$required\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # The matrix.
+  #
+  # Profiles come from eng/validation/profiles/tizen-profiles.json, which is also what the
+  # baseline layout and the catalog test plan are derived from. Adding a profile is a one-file
+  # change rather than an edit spread across YAML, folder names and assertions.
+  # ---------------------------------------------------------------------------
+  device-matrix:
+    name: ${{ matrix.profile }} / ${{ matrix.tfm }}
+    needs: availability
+    if: needs.availability.outputs.enabled == 'true'
+    runs-on: [self-hosted, tizen]
+    environment: tizen-device-lab
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [mobile, tv]
+        # Only the release-gating target by default. Additional platform versions from
+        # 'alsoValidTargets' are exercised on demand until they are confirmed against real
+        # Samsung tooling; see docs/validation/blockers.md.
+        tfm: [net11.0-tizen11.0]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Preflight
+        id: preflight
+        env:
+          TIZEN_PROFILE: ${{ matrix.profile }}
+          TIZEN_TFM: ${{ matrix.tfm }}
+        run: ./eng/validation/scripts/tizen-device-lane.sh preflight
+
+      # Every step below is conditioned on the preflight result rather than on `continue-on-error`,
+      # so an unavailable lane reports as "not run" instead of as a green step that did nothing.
+      - name: Build and package
+        if: steps.preflight.outputs.lane_available == 'true'
+        env:
+          TIZEN_PROFILE: ${{ matrix.profile }}
+          TIZEN_TFM: ${{ matrix.tfm }}
+        run: ./eng/validation/scripts/tizen-device-lane.sh build samples/Maui.Tizen.Catalog/Maui.Tizen.Catalog.csproj
+
+      - name: Deploy and start the DevFlow tunnel
+        if: steps.preflight.outputs.lane_available == 'true'
+        env:
+          TIZEN_PROFILE: ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
+          tpk="$(find artifacts -name '*.tpk' -print -quit)"
+          ./eng/validation/scripts/tizen-device-lane.sh install "$tpk"
+          ./eng/validation/scripts/tizen-device-lane.sh forward
+          ./eng/validation/scripts/tizen-device-lane.sh agent-status
+
+      - name: Lifecycle harness
+        if: steps.preflight.outputs.lane_available == 'true'
+        env:
+          TIZEN_PROFILE: ${{ matrix.profile }}
+          APP_ID: ${{ vars.TIZEN_CATALOG_APP_ID }}
+        run: ./eng/validation/scripts/tizen-device-lane.sh lifecycle
+
+      - name: TV remote focus traversal
+        if: steps.preflight.outputs.lane_available == 'true' && matrix.profile == 'tv'
+        env:
+          TIZEN_PROFILE: ${{ matrix.profile }}
+        run: ./eng/validation/scripts/tizen-device-lane.sh remote-focus
+
+      - name: On-device convention suites
+        if: steps.preflight.outputs.lane_available == 'true'
+        env:
+          TIZEN_PROFILE: ${{ matrix.profile }}
+        run: |
+          # Live mapper parity and Essentials coverage need the backend executing on Tizen.
+          # On a hosted runner these skip; here they are the real gate.
+          ./eng/validation/run-hosted-validation.sh
+
+      - name: Always tear the tunnel down
+        if: always()
+        run: ./eng/validation/scripts/tizen-device-lane.sh unforward || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: device-${{ matrix.profile }}-${{ matrix.tfm }}
+          path: |
+            artifacts/test-results/
+            artifacts/visual-diffs/
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # The gate.
+  #
+  # This is the job that a branch protection rule should point at. It converts "the device lane
+  # did not run" into a pass for pull requests and a failure for releases, which is the whole
+  # point of separating the lanes.
+  # ---------------------------------------------------------------------------
+  release-gate:
+    name: Device lane release gate
+    needs: [availability, device-matrix]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate
+        run: |
+          set -euo pipefail
+
+          required="${{ needs.availability.outputs.required }}"
+          enabled="${{ needs.availability.outputs.enabled }}"
+          result="${{ needs.device-matrix.result }}"
+
+          echo "required=$required enabled=$enabled matrix=$result"
+
+          if [ "$required" != "true" ]; then
+            {
+              echo "## Device lane release gate"
+              echo
+              echo ":white_check_mark: Not required for this run (not a release)."
+              echo
+              echo "Device lane result: \`$result\` (lab enabled: \`$enabled\`)."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [ "$enabled" != "true" ]; then
+            echo "::error::A release requires the Tizen device lane, but no device lab is attached."
+            echo "::error::Set the TIZEN_DEVICE_LAB_ENABLED repository variable and register a"
+            echo "::error::self-hosted runner labelled 'tizen'. See docs/validation/device-lane.md."
+            exit 1
+          fi
+
+          if [ "$result" != "success" ]; then
+            echo "::error::The Tizen device lane did not pass (result: $result). A release cannot"
+            echo "::error::proceed without it."
+            exit 1
+          fi
+
+          echo ":white_check_mark: Device lane passed and the release may proceed." >> "$GITHUB_STEP_SUMMARY"
