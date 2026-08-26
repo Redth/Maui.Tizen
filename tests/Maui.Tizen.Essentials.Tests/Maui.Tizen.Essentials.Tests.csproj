@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(MauiTizenDotNetTfm)</TargetFramework>
+    <AssemblyName>Maui.Tizen.Essentials.Tests</AssemblyName>
+    <RootNamespace>Maui.Tizen.Essentials.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Maui.Tizen.Essentials\Maui.Tizen.Essentials.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The coverage matrix is asserted against the real DI registrations. -->
+    <None Include="..\..\docs\tizen-essentials-service-coverage.md" Link="tizen-essentials-service-coverage.md" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!--
+    Tizen.NET ships its assemblies as NuGet `ref/` assets, so NuGet never copies them to the output
+    folder. They are real implementation assemblies (not reference assemblies), so copying them here
+    lets the host-side tests load Tizen metadata and run any managed-only code path. Anything that
+    actually P/Invokes into Tizen still requires a device or emulator and is therefore not covered
+    by this project.
+  -->
+  <Target Name="CopyTizenAssembliesForHostTests" AfterTargets="Build" DependsOnTargets="ResolveReferences">
+    <ItemGroup>
+      <_TizenHostAssembly Include="@(ReferencePath)" Condition="'%(ReferencePath.NuGetPackageId)' != '' AND $([System.String]::Copy('%(ReferencePath.NuGetPackageId)').StartsWith('Tizen.NET'))" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_TizenHostAssembly)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

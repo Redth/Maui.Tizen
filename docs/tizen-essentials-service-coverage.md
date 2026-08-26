@@ -1,0 +1,89 @@
+# Tizen Essentials service coverage matrix
+
+`Maui.Tizen.Essentials` provides Tizen implementations of the .NET MAUI Essentials service
+contracts as a standalone platform backend for **.NET 11 and newer**.
+
+Support levels:
+
+| Level | Meaning |
+| --- | --- |
+| `Implemented` | The whole contract is backed by native Tizen APIs. |
+| `Partial` | Part of the contract is backed by native Tizen APIs. The remaining members throw `FeatureNotSupportedException` with an explicit reason. |
+| `Unsupported` | Tizen has no API that can satisfy the contract. Every member throws `FeatureNotSupportedException`. Nothing is faked. |
+
+Nothing in this backend returns a success-shaped fallback (an empty collection, `null`, or a
+completed `Task`) to stand in for a capability the platform does not have.
+
+Profile column values are the Tizen device profiles on which the service is usable:
+`Mobile`, `Wearable`, `TV`, `Common` (IoT headed), or `All`.
+
+<!-- coverage-matrix:begin -->
+
+| Contract | Implementation | Level | Profiles | Notes |
+| --- | --- | --- | --- | --- |
+| `IAccelerometer` | `TizenAccelerometer` | Implemented | All | `Tizen.Sensor.Accelerometer`. Shake detection reimplemented (MAUI's `AccelerometerQueue` is internal). |
+| `IAppActions` | `TizenAppActions` | Unsupported | – | Tizen has no home-screen shortcut / quick action API. `IsSupported` is `false`. |
+| `IAppInfo` | `TizenAppInfo` | Partial | All | `RequestedTheme` is `Unspecified` and `RequestedLayoutDirection` is `LeftToRight`: Tizen exposes neither to applications. |
+| `IAppleSignInAuthenticator` | `TizenAppleSignInAuthenticator` | Unsupported | – | Native Sign in with Apple is Apple-platform only. |
+| `IBarometer` | `TizenBarometer` | Implemented | All | `Tizen.Sensor.PressureSensor`. |
+| `IBattery` | `TizenBattery` | Partial | All | `EnergySaverStatus` / `EnergySaverStatusChanged` throw: Tizen exposes no application-visible power saving state. |
+| `IBrowser` | `TizenBrowser` | Partial | All | Always opens the system browser: Tizen has no in-app browser, so `BrowserLaunchMode` cannot be honoured. |
+| `IClipboard` | `TizenClipboard` | Unsupported | – | Tizen scopes copy/paste to the focused NUI/EFL window selection buffer; there is no headless clipboard service. |
+| `ICompass` | `TizenCompass` | Implemented | All | Azimuth from `Tizen.Sensor.OrientationSensor`. `applyLowPassFilter` has no extra effect (Tizen already fuses and filters). |
+| `IConnectivity` | `TizenConnectivity` | Implemented | All | `Tizen.Network.Connection`. Requires `network.get` + `internet` privileges. |
+| `IContacts` | `TizenContacts` | Implemented | Mobile | `Tizen.Pims.Contacts`. Requires `contact.read`. |
+| `IDeviceDisplay` | `TizenDeviceDisplay` | Implemented | All | Screen metrics from feature keys; `KeepScreenOn` uses `device_power_request_lock` and requires the `display` privilege. |
+| `IDeviceInfo` | `TizenDeviceInfo` | Implemented | All | System / feature information keys. |
+| `IEmail` | `TizenEmail` | Partial | Mobile | Attachments are rejected: the Tizen `compose` AppControl accepts no attachment payload. Gated on the `email` feature key. |
+| `IFilePicker` | `TizenFilePicker` | Partial | All | Tizen's `pick` operation accepts one MIME filter, so only the first entry of `PickOptions.FileTypes` is applied. |
+| `IFileSystem` | `TizenFileSystem` | Implemented | All | Application `DirectoryInfo` data / cache / resource paths. |
+| `IFlashlight` | `TizenFlashlight` | Implemented | Mobile | `Tizen.System.Led`. Gated on `camera.back.flash`; requires the `led` privilege. |
+| `IGeocoding` | `TizenGeocoding` | Implemented | All | `Tizen.Maps` (HERE). Requires a map service token; also registered as `IPlatformGeocoding`. |
+| `IGeolocation` | `TizenGeolocation` | Partial | All | One-shot `GetLocationAsync` works. `StartListeningForegroundAsync` / `StopListeningForeground` throw. |
+| `IGyroscope` | `TizenGyroscope` | Implemented | All | `Tizen.Sensor.Gyroscope`. |
+| `IHapticFeedback` | `TizenHapticFeedback` | Implemented | Mobile, Wearable | `Tizen.System.Feedback`. Unsupported patterns throw instead of silently doing nothing. |
+| `ILauncher` | `TizenLauncher` | Implemented | All | AppControl launch requests, with scheme-based operation selection. |
+| `IMagnetometer` | `TizenMagnetometer` | Implemented | All | `Tizen.Sensor.Magnetometer`. |
+| `IMap` | `TizenMap` | Partial | All | `geo:` AppControl. `MapLaunchOptions.NavigationMode` and the launch name cannot be honoured. |
+| `IMediaPicker` | `TizenMediaPicker` | Implemented | Mobile | Picking delegates to `TizenFilePicker`; capture uses the `image_capture` / `video_capture` AppControls. |
+| `IOrientationSensor` | `TizenOrientationSensor` | Implemented | All | `Tizen.Sensor.RotationVectorSensor`. |
+| `IPasskeys` | `TizenPasskeys` | Unsupported | – | Tizen ships FIDO UAF, not a WebAuthn / CTAP2 credential manager. `IsSupported` is `false`. |
+| `IPermissions` | `TizenPermissions` | Implemented | All | Maps every built-in `Permissions.*` type to its Tizen privileges; runtime privileges go through `PrivacyPrivilegeManager`. |
+| `IPhoneDialer` | `TizenPhoneDialer` | Implemented | Mobile | `tel:` AppControl, gated on the `contact` feature key. |
+| `IPreferences` | `TizenPreferences` | Implemented | All | `Tizen.Applications.Preference`; shared names are emulated with a `{sharedName}~{key}` prefix. |
+| `IScreenshot` | `TizenScreenshot` | Implemented | All | `Tizen.NUI.Capture` plus `Tizen.Multimedia.Util` encoders. Also implements `IViewScreenshot`. |
+| `ISecureStorage` | `TizenSecureStorage` | Implemented | All | Tizen key manager (`Tizen.Security.SecureRepository.DataManager`). |
+| `ISemanticScreenReader` | `TizenSemanticScreenReader` | Implemented | All | `Tizen.NUI.Accessibility`. |
+| `IShare` | `TizenShare` | Implemented | All | `share` / `share_text` AppControls. |
+| `ISms` | `TizenSms` | Implemented | Mobile | `sms:` compose AppControl, gated on `network.telephony.sms`. |
+| `ITextToSpeech` | `TizenTextToSpeech` | Partial | All | Speech works. `GetLocalesAsync` throws (see API gaps below); use `GetSupportedVoiceLanguagesAsync`. `SpeechOptions.Pitch` / `Volume` are rejected. |
+| `IVibration` | `TizenVibration` | Implemented | Mobile, Wearable | `Tizen.System.Vibrator`; requires the `haptic` privilege. |
+| `IWebAuthenticator` | `TizenWebAuthenticator` | Unsupported | – | Tizen has no callback URI registration that returns an external browser response to the app. |
+
+<!-- coverage-matrix:end -->
+
+## Deliberately not provided
+
+| Contract | Why |
+| --- | --- |
+| `IVersionTracking` | MAUI's own `VersionTrackingImplementation` is platform neutral; it is built from `IPreferences` and `IAppInfo`, both of which this package registers. Registering a Tizen-specific version would take facade ownership away from MAUI's lazy `VersionTracking.Default` wrapper for no benefit. |
+| `MainThread` | Main-thread marshalling is bridged from the registered `IDispatcher` by MAUI for platform backends that are not in-box. The Tizen dispatcher supplied by the core Tizen backend is therefore the single source of truth, and this package deliberately ships no `MainThread` platform hook and never touches `EcoreMainloop`. |
+| `IActivityStateManager` | Android only. |
+| `IWindowStateManager` | Windows / Apple only; MAUI does not bridge it elsewhere. |
+
+## MAUI public API gaps found while porting
+
+These are internal-only MAUI APIs that the in-box Tizen backend relied on and that a standalone
+platform backend cannot use. Each one is worked around in this package.
+
+| MAUI API | Accessibility | Impact | Workaround |
+| --- | --- | --- | --- |
+| `Microsoft.Maui.Media.Locale..ctor(string, string, string, string)` | `internal` | **Blocking.** `ITextToSpeech.GetLocalesAsync` must return `IEnumerable<Locale>`, and `SpeechOptions.Locale` must be given one, but no external assembly can construct a `Locale`. | `GetLocalesAsync` throws with an explicit reason; `TizenTextToSpeech.GetSupportedVoiceLanguagesAsync()` and `SpeakAsync(text, language, rate, ct)` expose the same capability. |
+| `Microsoft.Maui.Storage.FileMimeTypes` | `internal` | MIME constants used by pickers and launchers. | `TizenFileMimeTypes`. |
+| `Microsoft.Maui.Devices.Sensors.PlacemarkExtensions.GetEscapedAddress` | `internal` | Address formatting for `geo:0,0?q=` queries. | `TizenPlacemarkExtensions.GetEscapedAddress`. |
+| `Microsoft.Maui.Devices.Sensors.AccelerometerQueue` | `internal` | Shake detection window. | `TizenAccelerometerQueue`. |
+| `Microsoft.Maui.Devices.DeviceDisplay.BaseLogicalDpi` | `internal` | Density calculation. | `TizenDeviceDisplay.BaseLogicalDpi`. |
+| `Microsoft.Maui.ApplicationModel.Permissions.BasePlatformPermission` and the nested `Permissions.Camera`, `Permissions.LocationWhenInUse`, ... types | `public`, but declared `partial` and only implemented per in-box platform | A standalone backend cannot add a platform half to a partial class in another assembly, so the built-in permission types resolve to the neutral implementation whose members throw. | `TizenPermissions` maps the built-in permission types to Tizen privileges itself, and `TizenBasePlatformPermission` is provided for user-defined permissions. |
+| `Microsoft.Maui.ApplicationModel.Platform` (Tizen members: `CurrentPackage`, `MapServiceToken`) | `public`, but the Tizen members are compiled only into the Tizen build | The neutral assembly already declares the type, so the Tizen members cannot be added from outside. | `TizenPlatform.CurrentPackage`; the map token flows through `IPlatformGeocoding.MapServiceToken`. |
+| `Microsoft.Maui.Media.IPlatformScreenshot` | `public`, but declares no members outside an in-box platform build | Cannot carry a Tizen-typed capture contract. | `TizenScreenshot` implements the neutral `IViewScreenshot`; Tizen-typed overloads live on `TizenScreenshotExtensions`. |
+| `Microsoft.Maui.Utils.ParseVersion` | `internal` | Version parsing for `IAppInfo` / `IDeviceInfo`. | `TizenPlatform.ParseVersion`. |

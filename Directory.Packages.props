@@ -1,0 +1,35 @@
+<Project>
+
+  <PropertyGroup>
+    <!--
+      MAUI package version.
+
+      NOTE (blocked requirement): the task asks for a public MAUI package that contains
+      dotnet/maui#36657 ("[Extensibility] Essentials: Bridge DI implementations to static facades",
+      merged into the net11.0 branch on 2026-08-18). At the time of writing, the newest publicly
+      available Microsoft.Maui.* 11.x package on nuget.org / dotnet-public is
+      11.0.0-preview.7.26406.9, which was produced on 2026-08-06 and therefore predates that PR.
+
+      This package only *registers* services into DI; it does not depend on any new API introduced
+      by #36657, so it compiles and packs against preview.7. The DI -> static facade bridging
+      behaviour (Battery.Default, Connectivity.Current, ...) only becomes active once the consuming
+      app uses a Microsoft.Maui.Core build that contains #36657. Bump MauiPackageVersion to the
+      first public preview.8 (or a net11.0 nightly >= 2026-08-18) to light that up.
+    -->
+    <MauiPackageVersion>11.0.0-preview.7.26406.9</MauiPackageVersion>
+    <!-- Tizen.NET 11.0.0.x == Tizen 9.0 / API level 11. -->
+    <TizenNetPackageVersion>11.0.0.18033</TizenNetPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.Maui.Core" Version="$(MauiPackageVersion)" />
+    <PackageVersion Include="Microsoft.Maui.Essentials" Version="$(MauiPackageVersion)" />
+    <PackageVersion Include="Tizen.NET" Version="$(TizenNetPackageVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0-preview.7.26381.103" />
+    <PackageVersion Include="xunit.v3" Version="4.0.0" />
+  </ItemGroup>
+
+</Project>

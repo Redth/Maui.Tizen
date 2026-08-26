@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(MauiTizenDotNetTfm)</TargetFramework>
+    <AssemblyName>Maui.Tizen.Essentials</AssemblyName>
+    <RootNamespace>Microsoft.Maui.Platforms.Tizen.Essentials</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+    <!-- Required by [LibraryImport] source generation (TizenDeviceDisplay power lock). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>Maui.Tizen.Essentials</PackageId>
+    <PackageTags>maui;tizen;essentials;sensors</PackageTags>
+    <Description>Tizen implementations of the .NET MAUI Essentials service contracts, delivered as a standalone platform backend package for .NET 11 and newer.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Core" />
+    <PackageReference Include="Microsoft.Maui.Essentials" />
+    <PackageReference Include="Tizen.NET" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Maui.Tizen.Essentials.Tests" />
+  </ItemGroup>
+
+</Project>

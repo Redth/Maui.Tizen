@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Maui.Tizen.Essentials/Maui.Tizen.Essentials.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj" />
+  </Folder>
+</Solution>
