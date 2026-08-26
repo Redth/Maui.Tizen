@@ -265,6 +265,90 @@ public class TizenModalNavigationPlatformTests
 		Assert.Null(backButton.Handler);
 	}
 
+	// A page can be reused across windows - popped from one and pushed modally on another. Its
+	// existing handler is bound to the ORIGINATING window's IMauiContext, and reusing it would
+	// realize the page into the wrong window's view tree.
+
+	[Fact]
+	public void AHandlerBoundToAnotherWindowIsReplaced()
+	{
+		var realizer = new TizenModalPageRealizer();
+		var originating = StubMauiContext.WithHandlers();
+		var target = StubMauiContext.WithHandlers();
+
+		var page = new ContentPage();
+		var staleHandler = new StubViewHandler(page, mauiContext: originating);
+		((Element)page).Handler = staleHandler;
+
+		realizer.Realize(page, target);
+
+		Assert.True(staleHandler.Disconnected);
+		Assert.NotSame(staleHandler, ((Element)page).Handler);
+		Assert.Same(target, ((Element)page).Handler!.MauiContext);
+	}
+
+	[Fact]
+	public void AHandlerAlreadyBoundToTheTargetWindowIsReused()
+	{
+		var realizer = new TizenModalPageRealizer();
+		var target = StubMauiContext.WithHandlers();
+
+		var page = new ContentPage();
+		var handler = new StubViewHandler(page, mauiContext: target);
+		((Element)page).Handler = handler;
+
+		realizer.Realize(page, target);
+
+		Assert.False(handler.Disconnected);
+		Assert.Same(handler, ((Element)page).Handler);
+	}
+
+	[Fact]
+	public void TheTargetContextIsAlwaysAppliedBeforeRealization()
+	{
+		var realizer = new TizenModalPageRealizer();
+		var target = StubMauiContext.WithHandlers();
+
+		// A handler that exists but never received a context - realizing it without applying one
+		// would produce a platform view belonging to no window.
+		var page = new ContentPage();
+		var handler = new StubViewHandler(page);
+		((Element)page).Handler = handler;
+
+		realizer.Realize(page, target);
+
+		Assert.Same(target, ((Element)page).Handler!.MauiContext);
+	}
+
+	[Fact]
+	public void ThePageIsRealizedAgainstTheTargetWindowsHandlerFactory()
+	{
+		var realizer = new TizenModalPageRealizer();
+		var originating = StubMauiContext.WithHandlers();
+		var target = StubMauiContext.WithHandlers();
+
+		var page = new ContentPage();
+		((Element)page).Handler = new StubViewHandler(page, mauiContext: originating);
+
+		realizer.Realize(page, target);
+
+		// The replacement comes from the TARGET window's factory, not the originating one.
+		Assert.Equal(1, ((StubHandlersFactory)target.Handlers).Created);
+		Assert.Equal(0, ((StubHandlersFactory)originating.Handlers).Created);
+	}
+
+	[Fact]
+	public void TheVirtualViewIsBoundToThePageBeingPresented()
+	{
+		var realizer = new TizenModalPageRealizer();
+		var target = StubMauiContext.WithHandlers();
+		var page = new ContentPage();
+
+		realizer.Realize(page, target);
+
+		Assert.Same(page, ((Element)page).Handler!.VirtualView);
+	}
+
 	sealed class BackHandlingPage : ContentPage
 	{
 		protected override bool OnBackButtonPressed() => true;

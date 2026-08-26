@@ -110,6 +110,25 @@ Two behaviours worth calling out:
 - **Back button.** The handler resolves `host.CurrentPage` on every press rather than capturing it,
   because the current page changes as modals come and go.
 
+### Cross-window page reuse
+
+A page can be popped from one window and pushed modally on another. Its existing handler is bound
+to the *originating* window's `IMauiContext`, and reusing it would realize the page into the wrong
+window's view tree.
+
+`TizenModalPageRealizer` therefore disconnects and discards any handler whose `MauiContext` is not
+the target one, and builds a fresh handler from the target window's handler factory. When the
+handler already belongs to the target window it is reused, but the context is re-applied
+unconditionally so a handler created without one — or whose context was cleared on disconnect — is
+always realized against the right window.
+
+### Awaiting the navigation stack
+
+`ITizenNavigationStack.PushAsync` and `PopAsync` are awaited, never fire-and-forget. Discarding
+those tasks swallows the fault and lets a dialog open over a stack that has not actually taken the
+placeholder, which then unbalances the pop. `TizenModalHostTests` covers both the ordering and the
+push/pop failure paths.
+
 ### Realizing a page without `ToPlatform`
 
 `ModalNavigationManager.Tizen.cs` called `modal.ToPlatform(WindowMauiContext)`.
@@ -175,7 +194,8 @@ create a second, competing source of truth for back-button routing, so
 |---|---|
 | Modal page push/pop, animation flags, batch pop, back button, disposal | `tests/Controls.UnitTests/TizenModalNavigationPlatformTests.cs` |
 | Factory behaviour and per-window isolation | `TizenModalNavigationPlatformFactoryTests` |
-| Dialog placeholder balance, including the fault and buried-placeholder paths | `tests/Controls.UnitTests/TizenModalHostTests.cs` |
+| Dialog placeholder balance, push/pop failure propagation, async completion ordering, buried placeholder | `tests/Controls.UnitTests/TizenModalHostTests.cs` |
+| Cross-window page reuse and target-context application | `TizenModalNavigationPlatformTests` |
 | Window-scoped holder semantics | `TizenScopedWindowServiceTests` |
 | Provisional contract shape, namespace and expiry | `ProvisionalModalNavigationContractTests` |
 | DI registration and lifetimes | `tests/Controls.UnitTests/TizenServiceRegistrationTests.cs` |

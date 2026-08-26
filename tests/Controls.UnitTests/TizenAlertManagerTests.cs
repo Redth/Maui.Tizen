@@ -149,7 +149,7 @@ public class TizenAlertManagerTests
 	}
 
 	[Fact]
-	public async Task UnsubscribeDismissesInFlightDialogs()
+	public async Task UnsubscribeLeavesInFlightDialogsAlone()
 	{
 		var fixture = new Fixture();
 		fixture.Manager.Subscribe();
@@ -160,10 +160,54 @@ public class TizenAlertManagerTests
 		var dialog = fixture.Dialogs.LastAlert!;
 		Assert.True(dialog.Opened);
 
-		// This is the reason the Tizen backend supplies a full IAlertManager rather than only a
-		// subscription: the built-in manager would drop the reference and leave this native popup
-		// on screen with the caller pending forever.
+		// MAUI calls Unsubscribe on ordinary page churn - the window's page handler changing, or
+		// the page being replaced - not only at teardown. Dismissing here would cancel a
+		// DisplayAlertAsync the application is legitimately awaiting across a page swap.
 		fixture.Manager.Unsubscribe();
+
+		Assert.False(dialog.Closed);
+		Assert.False(args.Result.Task.IsCompleted);
+
+		// And the dialog still completes normally afterwards.
+		dialog.CompleteWith(true);
+		Assert.True(await Completed(args.Result.Task));
+	}
+
+	[Fact]
+	public async Task ResubscribingAcrossPageChurnKeepsAnInFlightDialogIntact()
+	{
+		var fixture = new Fixture();
+		fixture.Manager.Subscribe();
+
+		var args = Alert();
+		fixture.Manager.RequestAlert(fixture.Page, args);
+		var dialog = fixture.Dialogs.LastAlert!;
+
+		// The exact sequence MAUI performs when a window's page handler is replaced.
+		fixture.Manager.Unsubscribe();
+		fixture.Manager.Subscribe();
+
+		Assert.False(dialog.Closed);
+
+		dialog.CompleteWith(true);
+		Assert.True(await Completed(args.Result.Task));
+	}
+
+	[Fact]
+	public async Task DisposeDismissesInFlightDialogs()
+	{
+		var fixture = new Fixture();
+		fixture.Manager.Subscribe();
+
+		var args = Alert();
+		fixture.Manager.RequestAlert(fixture.Page, args);
+
+		var dialog = fixture.Dialogs.LastAlert!;
+
+		// Dispose is window-scope teardown, and is the only place dialogs are dismissed. Native
+		// NUI popups stay on screen until explicitly closed, so dropping the reference here would
+		// leave an orphaned overlay and a caller pending forever.
+		fixture.Manager.Dispose();
 
 		Assert.True(dialog.Closed);
 		Assert.False(await Completed(args.Result.Task));

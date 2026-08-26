@@ -45,7 +45,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
-			Dispatcher.SendTapped(Recognizer, view, ToScaledDp(args.LocalPosition));
+			Dispatcher.SendTapped(Recognizer, view, ToScaledDp(args), args.Button);
 		}
 	}
 
@@ -301,7 +301,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			args.Handled = false;
 
-			var position = ToScaledDp(args.LocalPosition);
+			var position = ToScaledDp(args);
 
 			switch (args.State)
 			{
@@ -350,7 +350,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
-			Dispatcher.SendPointer(Recognizer, view, args.PointerAction, ToScaledDp(args.LocalPosition));
+			Dispatcher.SendPointer(Recognizer, view, args.PointerAction, ToScaledDp(args), args.Button);
 		}
 	}
 }

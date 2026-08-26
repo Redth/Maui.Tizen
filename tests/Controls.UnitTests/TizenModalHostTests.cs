@@ -116,6 +116,81 @@ public class TizenModalHostTests
 		Assert.Equal(0, stack.Count);
 	}
 
+	// The stack operations are awaited, not fire-and-forget. A discarded task swallows the fault
+	// and lets the dialog open over a stack that never took the placeholder, unbalancing the pop.
+
+	[Fact]
+	public async Task ThePlaceholderIsOnTheStackBeforeTheDialogRuns()
+	{
+		var stack = new FakeNavigationStack { CompleteAsynchronously = true };
+		var host = new TizenModalHost(stack);
+		var depthDuringDialog = -1;
+
+		await host.RunModalAsync(() =>
+		{
+			depthDuringDialog = stack.Count;
+			return Task.CompletedTask;
+		});
+
+		// Without awaiting the push this observes 0: the dialog would open over a stack that has
+		// not taken the placeholder yet.
+		Assert.Equal(1, depthDuringDialog);
+	}
+
+	[Fact]
+	public async Task AFailedPlaceholderPushSurfacesToTheCaller()
+	{
+		var stack = new FakeNavigationStack { PushFailure = new InvalidOperationException("stack push failed") };
+		var host = new TizenModalHost(stack);
+		var dialogRan = false;
+
+		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+			host.RunModalAsync(() => { dialogRan = true; return Task.CompletedTask; }));
+
+		Assert.Equal("stack push failed", exception.Message);
+
+		// The dialog must not be presented over a stack that failed to take the placeholder.
+		Assert.False(dialogRan);
+	}
+
+	[Fact]
+	public async Task AFailedPlaceholderPushDoesNotLeaveShownBehindPageSet()
+	{
+		var stack = new FakeNavigationStack { PushFailure = new InvalidOperationException("stack push failed") };
+		var host = new TizenModalHost(stack);
+
+		await Assert.ThrowsAsync<InvalidOperationException>(() => host.RunModalAsync(() => Task.CompletedTask));
+
+		// Leaving this set would change how every later push renders.
+		Assert.False(stack.ShownBehindPage);
+	}
+
+	[Fact]
+	public async Task AFailedPlaceholderPopSurfacesToTheCaller()
+	{
+		var stack = new FakeNavigationStack { PopFailure = new InvalidOperationException("stack pop failed") };
+		var host = new TizenModalHost(stack);
+
+		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+			host.RunModalAsync(() => Task.CompletedTask));
+
+		Assert.Equal("stack pop failed", exception.Message);
+	}
+
+	[Fact]
+	public async Task TheStackIsBalancedWhenOperationsCompleteAsynchronously()
+	{
+		var stack = new FakeNavigationStack { CompleteAsynchronously = true };
+		var host = new TizenModalHost(stack);
+
+		await host.RunModalAsync(() => Task.CompletedTask);
+		await host.RunModalAsync(() => Task.CompletedTask);
+
+		Assert.Equal(0, stack.Count);
+		Assert.Equal(2, stack.PushAnimations.Count);
+		Assert.Equal(2, stack.PopAnimations.Count);
+	}
+
 	[Fact]
 	public async Task ANullOperationIsRejected()
 	{

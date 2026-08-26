@@ -44,7 +44,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <param name="recognizer">The recognizer to notify.</param>
 		/// <param name="view">The view the gesture occurred on.</param>
 		/// <param name="position">The tap position, in device-independent units.</param>
-		void SendTapped(TapGestureRecognizer recognizer, View view, Point position);
+		/// <param name="button">The button that produced the tap.</param>
+		/// <remarks>
+		/// Implementations must not raise the event when <paramref name="button"/> is not present
+		/// in <see cref="TapGestureRecognizer.Buttons"/>.
+		/// </remarks>
+		void SendTapped(TapGestureRecognizer recognizer, View view, TizenGesturePosition position, TizenPointerButton button);
 
 		/// <summary>Raises a pan update on <paramref name="recognizer"/>.</summary>
 		/// <param name="recognizer">The recognizer to notify.</param>
@@ -76,14 +81,19 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <param name="view">The view the gesture occurred on.</param>
 		/// <param name="state">The phase the long press is in.</param>
 		/// <param name="position">The press position, in device-independent units.</param>
-		void SendLongPress(LongPressGestureRecognizer recognizer, View view, TizenGestureState state, Point position);
+		void SendLongPress(LongPressGestureRecognizer recognizer, View view, TizenGestureState state, TizenGesturePosition position);
 
 		/// <summary>Raises a pointer transition on <paramref name="recognizer"/>.</summary>
 		/// <param name="recognizer">The recognizer to notify.</param>
 		/// <param name="view">The view the gesture occurred on.</param>
 		/// <param name="action">The pointer transition being reported.</param>
 		/// <param name="position">The pointer position, in device-independent units.</param>
-		void SendPointer(PointerGestureRecognizer recognizer, View view, TizenPointerAction action, Point position);
+		/// <param name="button">The button that produced the transition.</param>
+		/// <remarks>
+		/// Implementations must not raise the event when <paramref name="button"/> is not present
+		/// in <see cref="PointerGestureRecognizer.Buttons"/>.
+		/// </remarks>
+		void SendPointer(PointerGestureRecognizer recognizer, View view, TizenPointerAction action, TizenGesturePosition position, TizenPointerButton button);
 	}
 
 	/// <summary>
@@ -120,10 +130,20 @@ namespace Microsoft.Maui.Platforms.Tizen
 		};
 
 		/// <inheritdoc/>
-		public void SendTapped(TapGestureRecognizer recognizer, View view, Point position)
+		public void SendTapped(TapGestureRecognizer recognizer, View view, TizenGesturePosition position, TizenPointerButton button)
 		{
 			ArgumentNullException.ThrowIfNull(recognizer);
 
+			var mask = ToButtonsMask(button);
+
+			if (!recognizer.Buttons.HasFlag(mask))
+			{
+				// The recognizer asked for a different button, so this tap is not for it.
+				return;
+			}
+
+			// SendTapped takes no button argument - TapGestureRecognizer derives TappedEventArgs.Buttons
+			// from its own Buttons property - so filtering above is what enforces the mask.
 			recognizer.SendTapped(view, relativeTo => ResolvePosition(relativeTo, view, position));
 		}
 
@@ -201,54 +221,87 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// repository does not use private reflection. Detection is wired up so behaviour is
 		/// identical the moment those members become public.
 		/// </remarks>
-		public void SendLongPress(LongPressGestureRecognizer recognizer, View view, TizenGestureState state, Point position) =>
+		public void SendLongPress(LongPressGestureRecognizer recognizer, View view, TizenGestureState state, TizenGesturePosition position) =>
 			ReportUnsupported(TizenGestureKind.LongPress);
 
 		/// <inheritdoc/>
-		public void SendPointer(PointerGestureRecognizer recognizer, View view, TizenPointerAction action, Point position)
+		public void SendPointer(PointerGestureRecognizer recognizer, View view, TizenPointerAction action, TizenGesturePosition position, TizenPointerButton button)
 		{
 			ArgumentNullException.ThrowIfNull(recognizer);
+
+			var mask = ToButtonsMask(button);
+
+			if (!recognizer.Buttons.HasFlag(mask))
+			{
+				return;
+			}
 
 			Func<IElement?, Point?> getPosition = relativeTo => ResolvePosition(relativeTo, view, position);
 
 			switch (action)
 			{
 				case TizenPointerAction.Entered:
-					recognizer.SendPointerEntered(view, getPosition);
+					recognizer.SendPointerEntered(view, getPosition, button: mask);
 					break;
 				case TizenPointerAction.Moved:
-					recognizer.SendPointerMoved(view, getPosition);
+					recognizer.SendPointerMoved(view, getPosition, button: mask);
 					break;
 				case TizenPointerAction.Pressed:
-					recognizer.SendPointerPressed(view, getPosition);
+					recognizer.SendPointerPressed(view, getPosition, button: mask);
 					break;
 				case TizenPointerAction.Released:
-					recognizer.SendPointerReleased(view, getPosition);
+					recognizer.SendPointerReleased(view, getPosition, button: mask);
 					break;
 				case TizenPointerAction.Exited:
-					recognizer.SendPointerExited(view, getPosition);
+					recognizer.SendPointerExited(view, getPosition, button: mask);
 					break;
 			}
 		}
 
 		/// <summary>
+		/// Maps a native Tizen button onto the .NET MAUI button mask.
+		/// </summary>
+		/// <remarks>
+		/// Touch input carries no button, and NUI reports it as <c>MouseButton.Invalid</c>. It is
+		/// mapped to <see cref="ButtonsMask.Primary"/>, matching how .NET MAUI's own touch-based
+		/// backends report a finger press. Anything NUI cannot classify is treated the same way
+		/// rather than being reported as a secondary click, so a stray unknown value can never
+		/// fabricate a right-click.
+		/// </remarks>
+		internal static ButtonsMask ToButtonsMask(TizenPointerButton button) => button switch
+		{
+			TizenPointerButton.Secondary => ButtonsMask.Secondary,
+			_ => ButtonsMask.Primary,
+		};
+
+		/// <summary>
 		/// Resolves the gesture position relative to <paramref name="relativeTo"/>.
 		/// </summary>
 		/// <remarks>
-		/// .NET MAUI asks for the position relative to an arbitrary element and accepts
-		/// <see langword="null"/> for "cannot be determined". The Tizen detectors report a position
-		/// local to the view the gesture occurred on, so that value is correct for the view itself
-		/// and for the <see langword="null"/> (view-relative) request.
-		/// <para>
-		/// For any other element <see langword="null"/> is returned rather than a guess. Translating
-		/// between two elements needs both of their on-screen origins, which requires a native call
-		/// per element that the Tizen platform layer does not expose to this assembly. Returning a
-		/// wrong coordinate would be worse than reporting that it is unknown, which .NET MAUI
-		/// already models.
-		/// </para>
+		/// .NET MAUI documents the parameter as "the element to use as the coordinate reference,
+		/// or <see langword="null"/> for screen coordinates", so the three cases are distinct:
+		/// <list type="bullet">
+		/// <item><description><see langword="null"/> - the screen position.</description></item>
+		/// <item><description>The view the gesture occurred on - the view-local position.</description></item>
+		/// <item><description>Any other element - <see langword="null"/>, meaning "cannot be
+		/// determined". Translating into another element's space needs that element's on-screen
+		/// origin, which requires a native call the Tizen platform layer does not expose to this
+		/// assembly. Returning a wrong coordinate would be worse than reporting it as unknown,
+		/// which .NET MAUI already models.</description></item>
+		/// </list>
+		/// The screen position is also <see langword="null"/> when the native event did not carry
+		/// one; the view-local position is deliberately not substituted, because doing so would
+		/// answer a screen-coordinate question with a view-local number.
 		/// </remarks>
-		static Point? ResolvePosition(IElement? relativeTo, View view, Point position) =>
-			relativeTo is null || ReferenceEquals(relativeTo, view) ? position : null;
+		static Point? ResolvePosition(IElement? relativeTo, View view, TizenGesturePosition position)
+		{
+			if (relativeTo is null)
+			{
+				return position.Screen;
+			}
+
+			return ReferenceEquals(relativeTo, view) ? position.Local : null;
+		}
 
 		void ReportUnsupported(TizenGestureKind kind)
 		{

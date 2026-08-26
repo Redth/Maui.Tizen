@@ -73,11 +73,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 			else
 			{
-				services.TryAddScoped<IAlertManagerSubscription>(static provider => new TizenAlertManagerSubscription(
-					provider.GetRequiredService<ITizenWindowContext>().PlatformWindow,
-					provider.GetRequiredService<ITizenAlertDialogFactory>(),
-					provider.GetRequiredService<ITizenModalHost>(),
-					provider.GetRequiredService<ITizenPlatformWindowProvider>()));
+				services.TryAddScoped<IAlertManagerSubscription>(static provider =>
+				{
+					var windowContext = provider.GetRequiredService<ITizenWindowContext>();
+
+					// Late-bound for the same reason as the full manager: the window may not be
+					// attached yet when this scope is first resolved.
+					return new TizenAlertManagerSubscription(
+						() => windowContext.PlatformWindow,
+						provider.GetRequiredService<ITizenAlertDialogFactory>(),
+						provider.GetRequiredService<ITizenModalHost>(),
+						provider.GetRequiredService<ITizenPlatformWindowProvider>());
+				});
 			}
 
 			return services;
@@ -107,10 +114,54 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			ArgumentNullException.ThrowIfNull(services);
 
+			// Identity scaling. Correct only on a 1x display, and registered with TryAdd so the
+			// platform layer's real scaler - registered earlier by AddTizenNuiControlsPlatform -
+			// always wins. It exists so host-side tests and 1x displays work with no extra
+			// configuration; it is NOT a sensible default for a device.
 			services.TryAddSingleton<ITizenPixelScaler>(static _ => new TizenPixelScaler());
 			services.TryAddSingleton<ITizenGestureDispatcher, TizenGestureDispatcher>();
 			services.TryAddSingleton<ITizenGestureHandlerFactory, TizenGestureHandlerFactory>();
 			services.TryAddSingleton<IGesturePlatformManagerFactory, TizenGesturePlatformManagerFactory>();
+
+			return services;
+		}
+
+		/// <summary>
+		/// Registers the pixel scaler used to convert native gesture coordinates into
+		/// device-independent units.
+		/// </summary>
+		/// <param name="services">The service collection to add to.</param>
+		/// <param name="scalingFactorProvider">
+		/// Returns the display's scaling factor - device pixels per device-independent unit.
+		/// Invoked once, lazily, when the scaler is first resolved.
+		/// </param>
+		/// <returns>The same service collection, for chaining.</returns>
+		/// <remarks>
+		/// <para>
+		/// The platform layer calls this with the real display metrics. It is a separate method so
+		/// that the wiring is executable on the host: the only part that genuinely needs a device
+		/// is reading the scaling factor, which is parameterized here rather than baked in.
+		/// </para>
+		/// <para>
+		/// A non-positive or non-finite factor falls back to 1 rather than throwing. This runs
+		/// during window creation, and a mis-scaled UI is a far better failure than an app that
+		/// will not start.
+		/// </para>
+		/// </remarks>
+		public static IServiceCollection AddTizenPixelScaler(
+			this IServiceCollection services,
+			Func<double> scalingFactorProvider)
+		{
+			ArgumentNullException.ThrowIfNull(services);
+			ArgumentNullException.ThrowIfNull(scalingFactorProvider);
+
+			services.TryAddSingleton<ITizenPixelScaler>(_ =>
+			{
+				var factor = scalingFactorProvider();
+
+				return new TizenPixelScaler(
+					factor > 0 && !double.IsNaN(factor) && !double.IsInfinity(factor) ? factor : 1d);
+			});
 
 			return services;
 		}

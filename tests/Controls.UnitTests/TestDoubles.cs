@@ -263,12 +263,20 @@ internal sealed class RecordingGestureDispatcher : ITizenGestureDispatcher
 
 	public List<Point> Taps { get; } = new();
 
+	public List<TizenGesturePosition> TapPositions { get; } = new();
+
+	public List<TizenGesturePosition> PointerPositions { get; } = new();
+
+	public List<TizenPointerButton> Buttons { get; } = new();
+
 	public bool IsSupported(TizenGestureKind kind) => true;
 
-	public void SendTapped(TapGestureRecognizer recognizer, View view, Point position)
+	public void SendTapped(TapGestureRecognizer recognizer, View view, TizenGesturePosition position, TizenPointerButton button)
 	{
-		Calls.Add($"Tap:{position.X},{position.Y}");
-		Taps.Add(position);
+		Calls.Add($"Tap:{position.Local.X},{position.Local.Y}");
+		Taps.Add(position.Local);
+		TapPositions.Add(position);
+		Buttons.Add(button);
 	}
 
 	public void SendPan(PanGestureRecognizer recognizer, View view, TizenGestureState state, double totalX, double totalY, int gestureId)
@@ -289,15 +297,17 @@ internal sealed class RecordingGestureDispatcher : ITizenGestureDispatcher
 		Swipes.Add((state, totalX, totalY));
 	}
 
-	public void SendLongPress(LongPressGestureRecognizer recognizer, View view, TizenGestureState state, Point position)
+	public void SendLongPress(LongPressGestureRecognizer recognizer, View view, TizenGestureState state, TizenGesturePosition position)
 	{
 		Calls.Add($"LongPress:{state}");
-		LongPresses.Add((state, position));
+		LongPresses.Add((state, position.Local));
 	}
 
-	public void SendPointer(PointerGestureRecognizer recognizer, View view, TizenPointerAction action, Point position)
+	public void SendPointer(PointerGestureRecognizer recognizer, View view, TizenPointerAction action, TizenGesturePosition position, TizenPointerButton button)
 	{
 		Calls.Add($"Pointer:{action}");
-		Pointers.Add((action, position));
+		Pointers.Add((action, position.Local));
+		PointerPositions.Add(position);
+		Buttons.Add(button);
 	}
 }

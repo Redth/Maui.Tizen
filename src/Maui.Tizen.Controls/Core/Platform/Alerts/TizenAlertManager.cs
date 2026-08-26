@@ -81,8 +81,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
+			// The window is resolved per request rather than snapshotted here: MAUI can create the
+			// page handler - and therefore call Subscribe - before the window handler has attached
+			// the native window, and a null snapshot taken in that order would silently drop every
+			// alert for the window's lifetime.
 			_subscription = new TizenAlertManagerSubscription(
-				_windowContext.PlatformWindow,
+				() => _windowContext.PlatformWindow,
 				_dialogs,
 				_modalHost,
 				_windowProvider);
@@ -90,16 +94,21 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		/// <inheritdoc/>
 		/// <remarks>
-		/// Unsubscribing dismisses any dialog that is still on screen. Unsubscribing while not
-		/// subscribed is a safe no-op, and a later <see cref="Subscribe"/> creates a fresh
-		/// subscription bound to the window's current native window.
+		/// <para>
+		/// Unsubscribing is <b>detach only</b>: the subscription is dropped so no further requests
+		/// are serviced, but dialogs already on screen are left alone and their awaiting callers
+		/// keep waiting.
+		/// </para>
+		/// <para>
+		/// This matters because .NET MAUI calls <c>Unsubscribe</c> on ordinary page churn - the
+		/// window's page handler changing, or the page being replaced - not only at teardown.
+		/// Dismissing dialogs here would cancel a <c>DisplayAlertAsync</c> that the application is
+		/// legitimately awaiting across a page swap. Dialogs are dismissed only in
+		/// <see cref="Dispose"/>, which the DI container calls when the window scope is torn down.
+		/// </para>
 		/// </remarks>
-		public void Unsubscribe()
-		{
-			var subscription = _subscription;
+		public void Unsubscribe() =>
 			_subscription = null;
-			subscription?.Dispose();
-		}
 
 		/// <inheritdoc/>
 		public void RequestAlert(Page page, AlertArguments arguments) =>
@@ -126,9 +135,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 #pragma warning restore CS0618
 
 		/// <summary>
-		/// Unsubscribes and releases the manager. Called by the DI container when the window scope
-		/// is disposed.
+		/// Releases the manager and dismisses any dialog still on screen. Called by the DI
+		/// container when the window scope is disposed.
 		/// </summary>
+		/// <remarks>
+		/// This is the only place dialogs are dismissed. Native NUI popups stay on screen until
+		/// explicitly closed, so a window teardown that merely dropped the reference would leave an
+		/// orphaned modal overlay and a caller pending forever. Disposing cancels the pending
+		/// dialogs, completing those callers with the documented cancellation result.
+		/// </remarks>
 		public void Dispose()
 		{
 			if (_disposed)
@@ -137,7 +152,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 
 			_disposed = true;
-			Unsubscribe();
+
+			var subscription = _subscription;
+			_subscription = null;
+			subscription?.Dispose();
 		}
 	}
 }

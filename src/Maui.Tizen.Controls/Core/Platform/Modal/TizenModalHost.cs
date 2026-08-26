@@ -50,8 +50,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 			var placeholder = _stack.CreatePlaceholder();
 
 			_stack.ShownBehindPage = true;
-			_ = _stack.PushAsync(placeholder, false);
-			_stack.ShownBehindPage = false;
+
+			try
+			{
+				// Awaited, not fire-and-forget. A discarded task swallows the fault and lets the
+				// dialog open over a stack that never actually took the placeholder, which then
+				// unbalances the pop.
+				await _stack.PushAsync(placeholder, false).ConfigureAwait(true);
+			}
+			finally
+			{
+				_stack.ShownBehindPage = false;
+			}
 
 			try
 			{
@@ -64,7 +74,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				// was open, which is why the non-top case removes it by identity.
 				if (ReferenceEquals(_stack.Top, placeholder))
 				{
-					_ = _stack.PopAsync(false);
+					await _stack.PopAsync(false).ConfigureAwait(true);
 				}
 				else
 				{

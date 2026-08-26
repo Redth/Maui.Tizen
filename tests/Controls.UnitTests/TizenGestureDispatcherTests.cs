@@ -129,6 +129,8 @@ public class TizenGestureDispatcherTests
 	// dotnet/maui#37420 and #37671. These tests use real recognizers, so they prove the public
 	// path actually delivers events rather than just that it compiles.
 
+	static TizenGesturePosition At(Point local, Point? screen = null) => new(local, screen);
+
 	[Fact]
 	public void TapIsDeliveredThroughThePublicSendTapped()
 	{
@@ -137,40 +139,125 @@ public class TizenGestureDispatcherTests
 		var raised = 0;
 		recognizer.Tapped += (_, _) => raised++;
 
-		dispatcher.SendTapped(recognizer, View, new Point(12, 34));
+		dispatcher.SendTapped(recognizer, View, At(new Point(12, 34), new Point(112, 134)), TizenPointerButton.Primary);
 
 		Assert.Equal(1, raised);
 	}
 
+	// GetPosition(relativeTo) is documented by MAUI as "the element to use as the coordinate
+	// reference, or null for SCREEN coordinates". All three cases are distinct.
+
 	[Fact]
-	public void TapReportsThePositionRelativeToItsOwnView()
+	public void TapGetPositionNullReturnsScreenCoordinates()
 	{
 		var dispatcher = new TizenGestureDispatcher();
 		var recognizer = new TapGestureRecognizer();
 		TappedEventArgs? args = null;
 		recognizer.Tapped += (_, e) => args = e;
 
-		dispatcher.SendTapped(recognizer, View, new Point(12, 34));
+		dispatcher.SendTapped(recognizer, View, At(new Point(12, 34), new Point(112, 134)), TizenPointerButton.Primary);
 
 		Assert.NotNull(args);
-		Assert.Equal(new Point(12, 34), args!.GetPosition(View));
-		Assert.Equal(new Point(12, 34), args.GetPosition(null));
+		Assert.Equal(new Point(112, 134), args!.GetPosition(null));
 	}
 
 	[Fact]
-	public void TapReportsAnUnknownPositionForAnUnrelatedElement()
+	public void TapGetPositionForItsOwnViewReturnsLocalCoordinates()
 	{
 		var dispatcher = new TizenGestureDispatcher();
 		var recognizer = new TapGestureRecognizer();
 		TappedEventArgs? args = null;
 		recognizer.Tapped += (_, e) => args = e;
 
-		dispatcher.SendTapped(recognizer, View, new Point(12, 34));
+		dispatcher.SendTapped(recognizer, View, At(new Point(12, 34), new Point(112, 134)), TizenPointerButton.Primary);
 
-		// Translating between two elements needs both on-screen origins, which the Tizen platform
-		// layer does not expose here. MAUI models "unknown" as null, which is honest; returning a
-		// view-local coordinate for a different element would be silently wrong.
+		Assert.Equal(new Point(12, 34), args!.GetPosition(View));
+	}
+
+	[Fact]
+	public void TapGetPositionForAnUnrelatedElementIsUnknown()
+	{
+		var dispatcher = new TizenGestureDispatcher();
+		var recognizer = new TapGestureRecognizer();
+		TappedEventArgs? args = null;
+		recognizer.Tapped += (_, e) => args = e;
+
+		dispatcher.SendTapped(recognizer, View, At(new Point(12, 34), new Point(112, 134)), TizenPointerButton.Primary);
+
+		// Translating into another element's space needs that element's on-screen origin, which
+		// the Tizen platform layer does not expose here. MAUI models "unknown" as null.
 		Assert.Null(args!.GetPosition(new Label()));
+	}
+
+	[Fact]
+	public void TapScreenPositionIsUnknownWhenTheNativeEventDidNotReportOne()
+	{
+		var dispatcher = new TizenGestureDispatcher();
+		var recognizer = new TapGestureRecognizer();
+		TappedEventArgs? args = null;
+		recognizer.Tapped += (_, e) => args = e;
+
+		dispatcher.SendTapped(recognizer, View, TizenGesturePosition.FromLocal(new Point(12, 34)), TizenPointerButton.Primary);
+
+		// Substituting the local position here would answer a screen-coordinate question with a
+		// view-local number, which is silently wrong.
+		Assert.Null(args!.GetPosition(null));
+		Assert.Equal(new Point(12, 34), args.GetPosition(View));
+	}
+
+	// Button masks: a recognizer configured for one button must not fire for another.
+
+	[Fact]
+	public void TapDoesNotFireForAButtonTheRecognizerDidNotAskFor()
+	{
+		var dispatcher = new TizenGestureDispatcher();
+		var recognizer = new TapGestureRecognizer { Buttons = ButtonsMask.Primary };
+		var raised = false;
+		recognizer.Tapped += (_, _) => raised = true;
+
+		dispatcher.SendTapped(recognizer, View, At(Point.Zero), TizenPointerButton.Secondary);
+
+		Assert.False(raised);
+	}
+
+	[Fact]
+	public void TapFiresForASecondaryClickWhenTheRecognizerAsksForIt()
+	{
+		var dispatcher = new TizenGestureDispatcher();
+		var recognizer = new TapGestureRecognizer { Buttons = ButtonsMask.Secondary };
+		var raised = false;
+		recognizer.Tapped += (_, _) => raised = true;
+
+		dispatcher.SendTapped(recognizer, View, At(Point.Zero), TizenPointerButton.Secondary);
+
+		Assert.True(raised);
+	}
+
+	[Fact]
+	public void TouchInputWithNoButtonIsTreatedAsPrimary()
+	{
+		var dispatcher = new TizenGestureDispatcher();
+		var recognizer = new TapGestureRecognizer { Buttons = ButtonsMask.Primary };
+		var raised = false;
+		recognizer.Tapped += (_, _) => raised = true;
+
+		// A finger has no button; NUI reports MouseButton.Invalid, which must behave as a primary
+		// press rather than being dropped or fabricated into a right-click.
+		dispatcher.SendTapped(recognizer, View, At(Point.Zero), TizenPointerButton.Unknown);
+
+		Assert.True(raised);
+	}
+
+	[Theory]
+	[InlineData(TizenPointerButton.Unknown, ButtonsMask.Primary)]
+	[InlineData(TizenPointerButton.Primary, ButtonsMask.Primary)]
+	[InlineData(TizenPointerButton.Secondary, ButtonsMask.Secondary)]
+	[InlineData(TizenPointerButton.Tertiary, ButtonsMask.Primary)]
+	public void ButtonsMapOntoMauiMasks(TizenPointerButton button, ButtonsMask expected)
+	{
+		// Tertiary has no MAUI equivalent, so it degrades to Primary rather than being reported
+		// as a secondary click.
+		Assert.Equal(expected, TizenGestureDispatcher.ToButtonsMask(button));
 	}
 
 	[Theory]
@@ -191,23 +278,52 @@ public class TizenGestureDispatcherTests
 		recognizer.PointerReleased += (_, _) => fired.Add(nameof(TizenPointerAction.Released));
 		recognizer.PointerExited += (_, _) => fired.Add(nameof(TizenPointerAction.Exited));
 
-		dispatcher.SendPointer(recognizer, View, action, new Point(5, 6));
+		dispatcher.SendPointer(recognizer, View, action, At(new Point(5, 6), new Point(105, 106)), TizenPointerButton.Primary);
 
 		Assert.Equal(action.ToString(), Assert.Single(fired));
 	}
 
 	[Fact]
-	public void PointerReportsThePositionRelativeToItsOwnView()
+	public void PointerGetPositionNullReturnsScreenCoordinates()
 	{
 		var dispatcher = new TizenGestureDispatcher();
 		var recognizer = new PointerGestureRecognizer();
 		PointerEventArgs? args = null;
 		recognizer.PointerMoved += (_, e) => args = e;
 
-		dispatcher.SendPointer(recognizer, View, TizenPointerAction.Moved, new Point(5, 6));
+		dispatcher.SendPointer(recognizer, View, TizenPointerAction.Moved, At(new Point(5, 6), new Point(105, 106)), TizenPointerButton.Primary);
 
 		Assert.NotNull(args);
-		Assert.Equal(new Point(5, 6), args!.GetPosition(View));
+		Assert.Equal(new Point(105, 106), args!.GetPosition(null));
+		Assert.Equal(new Point(5, 6), args.GetPosition(View));
+		Assert.Null(args.GetPosition(new Label()));
+	}
+
+	[Fact]
+	public void PointerReportsTheButtonThatProducedTheTransition()
+	{
+		var dispatcher = new TizenGestureDispatcher();
+		var recognizer = new PointerGestureRecognizer { Buttons = ButtonsMask.Secondary };
+		PointerEventArgs? args = null;
+		recognizer.PointerPressed += (_, e) => args = e;
+
+		dispatcher.SendPointer(recognizer, View, TizenPointerAction.Pressed, At(Point.Zero), TizenPointerButton.Secondary);
+
+		Assert.NotNull(args);
+		Assert.Equal(ButtonsMask.Secondary, args!.Button);
+	}
+
+	[Fact]
+	public void PointerDoesNotFireForAButtonTheRecognizerDidNotAskFor()
+	{
+		var dispatcher = new TizenGestureDispatcher();
+		var recognizer = new PointerGestureRecognizer { Buttons = ButtonsMask.Primary };
+		var raised = false;
+		recognizer.PointerPressed += (_, _) => raised = true;
+
+		dispatcher.SendPointer(recognizer, View, TizenPointerAction.Pressed, At(Point.Zero), TizenPointerButton.Secondary);
+
+		Assert.False(raised);
 	}
 
 	// Long press is the ONE gesture this backend detects but cannot raise:
@@ -223,8 +339,8 @@ public class TizenGestureDispatcherTests
 		recognizer.LongPressed += (_, _) => raised = true;
 		recognizer.LongPressing += (_, _) => raised = true;
 
-		dispatcher.SendLongPress(recognizer, View, TizenGestureState.Started, Point.Zero);
-		dispatcher.SendLongPress(recognizer, View, TizenGestureState.Finished, Point.Zero);
+		dispatcher.SendLongPress(recognizer, View, TizenGestureState.Started, At(Point.Zero));
+		dispatcher.SendLongPress(recognizer, View, TizenGestureState.Finished, At(Point.Zero));
 
 		Assert.False(raised);
 		Assert.False(dispatcher.IsSupported(TizenGestureKind.LongPress));
@@ -254,8 +370,8 @@ public class TizenGestureDispatcherTests
 		// as if it had no gestures, not crash the application.
 		var exception = Record.Exception(() =>
 		{
-			dispatcher.SendLongPress(new LongPressGestureRecognizer(), View, TizenGestureState.Started, Point.Zero);
-			dispatcher.SendLongPress(new LongPressGestureRecognizer(), View, TizenGestureState.Started, Point.Zero);
+			dispatcher.SendLongPress(new LongPressGestureRecognizer(), View, TizenGestureState.Started, At(Point.Zero));
+			dispatcher.SendLongPress(new LongPressGestureRecognizer(), View, TizenGestureState.Started, At(Point.Zero));
 		});
 
 		Assert.Null(exception);

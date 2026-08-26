@@ -60,15 +60,26 @@ internal sealed class StubViewHandler : IViewHandler
 /// </summary>
 internal sealed class StubMauiContext : IMauiContext
 {
-	public StubMauiContext(IServiceProvider services) => Services = services;
+	public StubMauiContext(IServiceProvider services, IMauiHandlersFactory? handlers = null)
+	{
+		Services = services;
+		_handlers = handlers;
+	}
+
+	readonly IMauiHandlersFactory? _handlers;
 
 	public IServiceProvider Services { get; }
 
-	public IMauiHandlersFactory Handlers => throw new NotSupportedException("Handler resolution is not exercised by these tests.");
+	public IMauiHandlersFactory Handlers =>
+		_handlers ?? throw new NotSupportedException("Handler resolution is not exercised by these tests.");
 
 	/// <summary>Creates a context over an empty service provider.</summary>
 	public static StubMauiContext Empty() =>
 		new(new ServiceCollection().BuildServiceProvider());
+
+	/// <summary>Creates a context that can realize page handlers.</summary>
+	public static StubMauiContext WithHandlers() =>
+		new(new ServiceCollection().BuildServiceProvider(), new StubHandlersFactory());
 
 	/// <summary>
 	/// Creates a context over a fresh DI scope, mirroring the per-window scope .NET MAUI creates.
@@ -78,4 +89,31 @@ internal sealed class StubMauiContext : IMauiContext
 		var scope = root.CreateScope();
 		return (new StubMauiContext(scope.ServiceProvider), scope);
 	}
+}
+
+/// <summary>
+/// Hands out <see cref="StubViewHandler"/> instances so modal page realization can be exercised
+/// without any platform.
+/// </summary>
+internal sealed class StubHandlersFactory : IMauiHandlersFactory
+{
+	public int Created { get; private set; }
+
+	public IElementHandler? GetHandler(Type type)
+	{
+		Created++;
+		return new StubViewHandler();
+	}
+
+	public IElementHandler? GetHandler<T>() where T : IElement => GetHandler(typeof(T));
+
+	public Microsoft.Maui.Hosting.IMauiHandlersCollection GetCollection() =>
+		throw new NotSupportedException("Not exercised by these tests.");
+
+	public Type? GetHandlerType(Type iview) => typeof(StubViewHandler);
+
+	public IServiceProvider GetServiceProvider() =>
+		throw new NotSupportedException("Not exercised by these tests.");
+
+	public object? GetService(Type serviceType) => null;
 }

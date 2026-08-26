@@ -137,6 +137,84 @@ public class TizenServiceRegistrationTests
 			provider.GetRequiredService<IGesturePlatformManagerFactory>());
 	}
 
+	// The identity scaler is only correct on a 1x display. Tizen wearables and TVs are not, so a
+	// backend that ships identity scaling gets every pan, swipe, pinch, tap and pointer coordinate
+	// wrong by the display factor. These tests cover the wiring the platform layer actually uses:
+	// AddTizenPixelScaler with a real factor provider, which is exactly what
+	// AddTizenNuiControlsPlatform calls with DeviceInfo.ScalingFactor.
+
+	[Fact]
+	public void TheRealScalerRegistrationConvertsUsingTheDisplayFactor()
+	{
+		using var provider = PresentationServices()
+			.AddTizenPixelScaler(static () => 2.5)
+			.AddTizenGestures()
+			.BuildServiceProvider();
+
+		var scaler = provider.GetRequiredService<ITizenPixelScaler>();
+
+		// 100 device pixels at 2.5x is 40 device-independent units, not 100.
+		Assert.Equal(40d, scaler.ToScaledDp(100));
+	}
+
+	[Fact]
+	public void TheRealScalerBeatsTheIdentityFallback()
+	{
+		// Ordering mirrors AddTizenNuiControlsPlatform: the platform scaler is registered first,
+		// and AddTizenGestures' TryAdd must not overwrite it.
+		using var provider = PresentationServices()
+			.AddTizenPixelScaler(static () => 4)
+			.AddTizenControlsPlatform()
+			.BuildServiceProvider();
+
+		Assert.Equal(25d, provider.GetRequiredService<ITizenPixelScaler>().ToScaledDp(100));
+	}
+
+	[Fact]
+	public void WithoutAPlatformScalerTheFallbackIsIdentity()
+	{
+		using var provider = PresentationServices().AddTizenGestures().BuildServiceProvider();
+
+		Assert.Equal(100d, provider.GetRequiredService<ITizenPixelScaler>().ToScaledDp(100));
+	}
+
+	[Theory]
+	[InlineData(0d)]
+	[InlineData(-1d)]
+	[InlineData(double.NaN)]
+	[InlineData(double.PositiveInfinity)]
+	public void AnUnusableDisplayFactorFallsBackToIdentityRatherThanThrowing(double factor)
+	{
+		// This runs during window creation. A mis-scaled UI is a far better failure than an app
+		// that will not start.
+		using var provider = PresentationServices()
+			.AddTizenPixelScaler(() => factor)
+			.AddTizenGestures()
+			.BuildServiceProvider();
+
+		Assert.Equal(100d, provider.GetRequiredService<ITizenPixelScaler>().ToScaledDp(100));
+	}
+
+	[Fact]
+	public void TheDisplayFactorIsReadLazily()
+	{
+		// DeviceInfo is not usable until the Tizen application has initialised, so the provider
+		// must not be invoked during registration.
+		var reads = 0;
+
+		using var provider = PresentationServices()
+			.AddTizenPixelScaler(() => { reads++; return 2; })
+			.AddTizenGestures()
+			.BuildServiceProvider();
+
+		Assert.Equal(0, reads);
+
+		provider.GetRequiredService<ITizenPixelScaler>();
+		provider.GetRequiredService<ITizenPixelScaler>();
+
+		Assert.Equal(1, reads);
+	}
+
 	[Fact]
 	public void AddTizenControlsPlatformRegistersBothAreas()
 	{

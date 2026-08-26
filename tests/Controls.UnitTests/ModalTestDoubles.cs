@@ -30,30 +30,48 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 
 	public Exception? PushFailure { get; set; }
 
+	public Exception? PopFailure { get; set; }
+
 	public object CreatePlaceholder()
 	{
 		Operations.Add("CreatePlaceholder");
 		return new object();
 	}
 
-	public Task PushAsync(object platformView, bool animated)
+	/// <summary>
+	/// When true, push and pop complete on a later turn of the scheduler. A caller that does not
+	/// await them then observes a stack that has not changed yet, which is what makes
+	/// fire-and-forget bugs visible.
+	/// </summary>
+	public bool CompleteAsynchronously { get; set; }
+
+	public async Task PushAsync(object platformView, bool animated)
 	{
 		Operations.Add($"Push({animated})");
 		PushAnimations.Add(animated);
 
+		if (CompleteAsynchronously)
+		{
+			await Task.Yield();
+		}
+
 		if (PushFailure is not null)
 		{
-			return Task.FromException(PushFailure);
+			throw PushFailure;
 		}
 
 		_entries.Add(platformView);
-		return Task.CompletedTask;
 	}
 
 	public Task PopAsync(bool animated)
 	{
 		Operations.Add($"Pop({animated})");
 		PopAnimations.Add(animated);
+
+		if (PopFailure is not null)
+		{
+			return Task.FromException(PopFailure);
+		}
 
 		if (_entries.Count > 0)
 		{

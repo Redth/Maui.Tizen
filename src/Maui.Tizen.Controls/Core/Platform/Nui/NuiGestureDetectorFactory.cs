@@ -128,6 +128,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 				TapCount = (int)tap.NumberOfTaps,
 				TouchCount = (int)tap.NumberOfTouches,
 				LocalPosition = new GPoint(tap.LocalPoint.X, tap.LocalPoint.Y),
+				ScreenPosition = new GPoint(tap.ScreenPoint.X, tap.ScreenPoint.Y),
 				ViewSize = ViewSizeOf(AttachedView),
 			});
 		}
@@ -156,6 +157,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 			{
 				Displacement = new GPoint(pan.Displacement.X, pan.Displacement.Y),
 				LocalPosition = new GPoint(pan.Position.X, pan.Position.Y),
+				ScreenPosition = new GPoint(pan.ScreenPosition.X, pan.ScreenPosition.Y),
 				TouchCount = (int)pan.NumberOfTouches,
 				ViewSize = ViewSizeOf(AttachedView),
 			});
@@ -182,6 +184,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 			{
 				Scale = pinch.Scale,
 				LocalPosition = new GPoint(pinch.LocalCenterPoint.X, pinch.LocalCenterPoint.Y),
+				ScreenPosition = new GPoint(pinch.ScreenCenterPoint.X, pinch.ScreenCenterPoint.Y),
 				ViewSize = ViewSizeOf(AttachedView),
 			});
 		}
@@ -210,6 +213,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 			var args = Raise(new TizenGestureEventArgs(TizenGestureKind.LongPress, ToState(longPress.State))
 			{
 				LocalPosition = new GPoint(longPress.LocalPoint.X, longPress.LocalPoint.Y),
+				ScreenPosition = new GPoint(longPress.ScreenPoint.X, longPress.ScreenPoint.Y),
 				TouchCount = (int)longPress.NumberOfTouches,
 				ViewSize = ViewSizeOf(AttachedView),
 			});
@@ -303,8 +307,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 				return false;
 			}
 
-			var position = touch.GetLocalPosition(0);
-			Raise(action.Value, new GPoint(position.X, position.Y));
+			var local = touch.GetLocalPosition(0);
+			var screen = touch.GetScreenPosition(0);
+
+			Raise(
+				action.Value,
+				new GPoint(local.X, local.Y),
+				new GPoint(screen.X, screen.Y),
+				ToButton(touch.GetMouseButton(0)));
 
 			// Never consume the touch: doing so would stop the view's own handlers from running.
 			return false;
@@ -332,13 +342,37 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 				return false;
 			}
 
-			var position = hover.GetLocalPosition(0);
-			Raise(action.Value, new GPoint(position.X, position.Y));
+			var local = hover.GetLocalPosition(0);
+			var screen = hover.GetScreenPosition(0);
+
+			// Tizen.NUI.Hover exposes no GetMouseButton: a hover is pointer movement with nothing
+			// pressed, so there is no button to report. Unknown maps to Primary downstream.
+			Raise(
+				action.Value,
+				new GPoint(local.X, local.Y),
+				new GPoint(screen.X, screen.Y),
+				TizenPointerButton.Unknown);
 
 			return false;
 		}
 
-		void Raise(TizenPointerAction action, GPoint position)
+		/// <summary>
+		/// Maps a native NUI mouse button onto the toolkit-neutral enum.
+		/// </summary>
+		/// <remarks>
+		/// Touch input has no button and NUI reports <c>MouseButton.Invalid</c> for it, which maps
+		/// to <see cref="TizenPointerButton.Unknown"/>. The dispatcher then treats it as the
+		/// primary button rather than inventing a secondary click.
+		/// </remarks>
+		static TizenPointerButton ToButton(MouseButton button) => button switch
+		{
+			MouseButton.Primary => TizenPointerButton.Primary,
+			MouseButton.Secondary => TizenPointerButton.Secondary,
+			MouseButton.Tertiary => TizenPointerButton.Tertiary,
+			_ => TizenPointerButton.Unknown,
+		};
+
+		void Raise(TizenPointerAction action, GPoint local, GPoint screen, TizenPointerButton button)
 		{
 			if (_disposed)
 			{
@@ -348,7 +382,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 			Detected?.Invoke(this, new TizenGestureEventArgs(TizenGestureKind.Pointer, TizenGestureState.Finished)
 			{
 				PointerAction = action,
-				LocalPosition = position,
+				LocalPosition = local,
+				ScreenPosition = screen,
+				Button = button,
 				ViewSize = _view is null ? GSize.Zero : new GSize(_view.Size.Width, _view.Size.Height),
 			});
 		}

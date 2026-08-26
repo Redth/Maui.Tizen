@@ -83,15 +83,59 @@ complete `TizenGestureDispatcher` — no handler, detector or lifecycle code has
 
 ### Position resolution
 
-The new tap and pointer members take a `Func<IElement?, Point?> getPosition` rather than a
-plain point, so MAUI can ask for the position relative to an arbitrary element.
+The new tap and pointer members take a `Func<IElement?, Point?> getPosition` rather than a plain
+point, because MAUI documents the parameter as *"the element to use as the coordinate reference,
+or `null` for **screen** coordinates"*. Three distinct cases:
 
-The Tizen detectors report a position local to the view the gesture occurred on. That value is
-returned for the view itself and for the `null` (view-relative) request. For any *other* element
-the resolver returns `null`, which is how MAUI models "cannot be determined": translating between
-two elements needs both on-screen origins, which requires a native call per element that the
-Tizen platform layer does not expose to this assembly. Returning a plausible-looking but wrong
-coordinate would be worse, so it is not done.
+| `relativeTo` | Returned |
+|---|---|
+| `null` | The **screen** position |
+| The view the gesture occurred on | The view-local position |
+| Any other element | `null` — cannot be determined |
+
+Answering the `null` case with a view-local coordinate is silently wrong, which is why the native
+detectors report both spaces: `TapGesture.ScreenPoint`, `LongPressGesture.ScreenPoint`,
+`PanGesture.ScreenPosition`, `PinchGesture.ScreenCenterPoint`, `Touch.GetScreenPosition` and
+`Hover.GetScreenPosition`.
+
+When a native event carries no screen position, the screen case returns `null` rather than
+substituting the local one — an honest "unknown" instead of a wrong number.
+
+The third row is `null` because translating into another element's space needs that element's
+on-screen origin, which requires a native call per element that the Tizen platform layer does not
+expose to this assembly.
+
+### Button masks
+
+`TapGestureRecognizer.Buttons` and `PointerGestureRecognizer.Buttons` let an app ask for a
+specific button. The dispatcher filters on them, so a recognizer configured for `Primary` never
+fires on a right-click and vice versa.
+
+Buttons come from `Touch.GetMouseButton`. `Tizen.NUI.Hover` exposes no equivalent — a hover is
+pointer movement with nothing pressed — so hover transitions report no button.
+
+| Native | Reported |
+|---|---|
+| `MouseButton.Primary` | `ButtonsMask.Primary` |
+| `MouseButton.Secondary` | `ButtonsMask.Secondary` |
+| `MouseButton.Tertiary` | `ButtonsMask.Primary` |
+| `MouseButton.Invalid` (touch) | `ButtonsMask.Primary` |
+
+Touch input has no button, and NUI reports `Invalid` for it. It maps to `Primary`, matching how
+MAUI's own touch backends report a finger press. Anything unclassified maps to `Primary` too, so a
+stray value can never fabricate a right-click — the failure direction that would actually surprise
+a user.
+
+### Pixel scaling
+
+Native coordinates are device pixels; MAUI gesture events are device-independent units. The
+conversion factor comes from `DeviceInfo.ScalingFactor`, registered by
+`AddTizenNuiControlsPlatform` via `AddTizenPixelScaler`.
+
+This is not cosmetic: Tizen wearables and TVs do not run at 1x, so an identity scaler makes every
+pan, swipe, pinch, tap and pointer coordinate wrong by the display factor. The neutral
+`AddTizenGestures` still registers an identity fallback with `TryAdd` so host-side tests work
+unconfigured, but the platform layer registers the real scaler first and therefore always wins.
 
 ### What upstream still needs to change
 
@@ -228,7 +272,8 @@ factory can therefore refine this table without changing any other code.
 |---|---|
 | Gesture translation (totals, scaling, gesture identity, tap counts, pointer mapping) | `tests/Controls.UnitTests/TizenGestureTranslationTests.cs` |
 | Manager and detector lifecycle (attach, detach, enable, dispose, collection changes) | `tests/Controls.UnitTests/TizenGesturePlatformManagerTests.cs` |
-| Dispatch through real MAUI recognizers, position resolution, and the one blocked gesture | `tests/Controls.UnitTests/TizenGestureDispatcherTests.cs` |
+| Dispatch through real MAUI recognizers, screen/local/unknown position resolution, button masks, and the one blocked gesture | `tests/Controls.UnitTests/TizenGestureDispatcherTests.cs` |
+| Pixel scaler registration and lazy display-factor lookup | `tests/Controls.UnitTests/TizenServiceRegistrationTests.cs` |
 | DI registration and lifetimes | `tests/Controls.UnitTests/TizenServiceRegistrationTests.cs` |
 | NUI adapters under `Core/Platform/Nui` | Type-checked against `Samsung.Tizen.Ref.API15` and `Tizen.UIExtensions.NUI` 0.9.2 by `tests/Maui.Tizen.Controls.RefPackCompile`; behaviour needs a device |
 

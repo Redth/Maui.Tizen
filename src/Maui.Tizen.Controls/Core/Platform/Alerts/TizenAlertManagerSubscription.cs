@@ -28,7 +28,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		readonly ITizenAlertDialogFactory _dialogs;
 		readonly ITizenModalHost _modalHost;
 		readonly ITizenPlatformWindowProvider _windowProvider;
-		readonly object? _window;
+		readonly Func<object?> _resolveWindow;
 		readonly List<ITizenAlertDialog> _openDialogs = new();
 		readonly object _sync = new();
 
@@ -37,11 +37,37 @@ namespace Microsoft.Maui.Platforms.Tizen
 		bool _disposed;
 
 		/// <summary>
-		/// Initializes a new subscription bound to <paramref name="platformWindow"/>.
+		/// Initializes a new subscription whose window is resolved lazily.
 		/// </summary>
-		/// <param name="platformWindow">
-		/// The native window this subscription serves. Requests from pages in other windows are ignored.
+		/// <param name="resolveWindow">
+		/// Returns the native window this subscription serves, or <see langword="null"/> when the
+		/// window has not been attached yet. Evaluated on every request rather than captured.
 		/// </param>
+		/// <param name="dialogs">Creates the dialogs used to service requests.</param>
+		/// <param name="modalHost">Coordinates dialogs with the Tizen modal navigation stack.</param>
+		/// <param name="windowProvider">Resolves the native window that a requesting page belongs to.</param>
+		/// <remarks>
+		/// The window is resolved per request, not captured at construction. .NET MAUI can create
+		/// the page handler before the window handler has attached the native window, and a
+		/// snapshot taken in that order would be <see langword="null"/> forever, silently dropping
+		/// every alert for the window's lifetime.
+		/// </remarks>
+		public TizenAlertManagerSubscription(
+			Func<object?> resolveWindow,
+			ITizenAlertDialogFactory dialogs,
+			ITizenModalHost modalHost,
+			ITizenPlatformWindowProvider windowProvider)
+		{
+			_resolveWindow = resolveWindow ?? throw new ArgumentNullException(nameof(resolveWindow));
+			_dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
+			_modalHost = modalHost ?? throw new ArgumentNullException(nameof(modalHost));
+			_windowProvider = windowProvider ?? throw new ArgumentNullException(nameof(windowProvider));
+		}
+
+		/// <summary>
+		/// Initializes a new subscription bound to a known native window.
+		/// </summary>
+		/// <param name="platformWindow">The native window this subscription serves.</param>
 		/// <param name="dialogs">Creates the dialogs used to service requests.</param>
 		/// <param name="modalHost">Coordinates dialogs with the Tizen modal navigation stack.</param>
 		/// <param name="windowProvider">Resolves the native window that a requesting page belongs to.</param>
@@ -50,17 +76,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ITizenAlertDialogFactory dialogs,
 			ITizenModalHost modalHost,
 			ITizenPlatformWindowProvider windowProvider)
+			: this(() => platformWindow, dialogs, modalHost, windowProvider)
 		{
-			_window = platformWindow;
-			_dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
-			_modalHost = modalHost ?? throw new ArgumentNullException(nameof(modalHost));
-			_windowProvider = windowProvider ?? throw new ArgumentNullException(nameof(windowProvider));
 		}
 
 		/// <summary>
 		/// Gets the native window this subscription serves.
 		/// </summary>
-		public object? PlatformWindow => _window;
+		public object? PlatformWindow => _resolveWindow();
 
 		/// <inheritdoc/>
 		public void OnAlertRequested(Page sender, AlertArguments arguments)
@@ -202,8 +225,23 @@ namespace Microsoft.Maui.Platforms.Tizen
 			return PageIsInThisWindow(sender);
 		}
 
-		bool PageIsInThisWindow(IView sender) =>
-			Equals(_windowProvider.GetPlatformWindow(sender.Handler?.MauiContext), _window);
+		bool PageIsInThisWindow(IView sender)
+		{
+			var window = _resolveWindow();
+			var senderWindow = _windowProvider.GetPlatformWindow(sender.Handler?.MauiContext);
+
+			if (window is null)
+			{
+				// The window handler has not attached the native window yet. Treat the request as
+				// ours rather than dropping it: this subscription belongs to exactly one window
+				// scope, and silently swallowing an alert because of handler ordering is the worst
+				// possible outcome. If the requesting page already knows its window, that is
+				// authoritative and is compared normally once we know ours.
+				return true;
+			}
+
+			return Equals(senderWindow, window);
+		}
 
 		async Task ShowAsync<TResult>(
 			ITizenAlertDialog<TResult> dialog,

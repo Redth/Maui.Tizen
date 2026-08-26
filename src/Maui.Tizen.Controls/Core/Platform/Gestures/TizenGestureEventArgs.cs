@@ -74,6 +74,51 @@ namespace Microsoft.Maui.Platforms.Tizen
 	}
 
 	/// <summary>
+	/// A gesture position expressed in both of the coordinate spaces .NET MAUI can ask for.
+	/// </summary>
+	/// <remarks>
+	/// <c>TappedEventArgs.GetPosition</c> and <c>PointerEventArgs.GetPosition</c> take an element
+	/// to measure from and document <see langword="null"/> as meaning <b>screen</b> coordinates,
+	/// so a backend has to carry both values to answer correctly.
+	/// </remarks>
+	/// <param name="Local">The position local to the view the gesture occurred on, in device-independent units.</param>
+	/// <param name="Screen">
+	/// The position in screen coordinates, in device-independent units, or <see langword="null"/>
+	/// when the native event did not report one.
+	/// </param>
+	public readonly record struct TizenGesturePosition(Point Local, Point? Screen)
+	{
+		/// <summary>
+		/// Creates a position with no screen coordinate, for events that do not report one.
+		/// </summary>
+		/// <param name="local">The view-local position.</param>
+		public static TizenGesturePosition FromLocal(Point local) => new(local, null);
+	}
+
+	/// <summary>
+	/// The pointer/mouse button a gesture was produced by.
+	/// </summary>
+	/// <remarks>
+	/// Mirrors <c>Tizen.NUI.MouseButton</c>. Touch input reports
+	/// <see cref="TizenPointerButton.Unknown"/> because a finger has no button; the dispatcher
+	/// treats that as the primary button, which is what .NET MAUI's own touch backends do.
+	/// </remarks>
+	public enum TizenPointerButton
+	{
+		/// <summary>No button information is available, for example for touch input.</summary>
+		Unknown,
+
+		/// <summary>The primary (left) button.</summary>
+		Primary,
+
+		/// <summary>The secondary (right) button.</summary>
+		Secondary,
+
+		/// <summary>The tertiary (middle) button.</summary>
+		Tertiary,
+	}
+
+	/// <summary>
 	/// A toolkit-neutral description of a gesture reported by a native Tizen detector.
 	/// </summary>
 	/// <remarks>
@@ -104,6 +149,23 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// Gets or sets the gesture position local to the view, in device pixels.
 		/// </summary>
 		public Point LocalPosition { get; init; }
+
+		/// <summary>
+		/// Gets or sets the gesture position in screen coordinates, in device pixels.
+		/// </summary>
+		/// <remarks>
+		/// .NET MAUI's <c>GetPosition(null)</c> is documented to return <b>screen</b> coordinates,
+		/// not view-local ones, so the native detectors report both and the dispatcher picks the
+		/// right one. Leaving this at its default means the native event carried no screen
+		/// position, which the dispatcher surfaces as "unknown" rather than substituting the local
+		/// position.
+		/// </remarks>
+		public Point? ScreenPosition { get; init; }
+
+		/// <summary>
+		/// Gets or sets the button that produced the gesture.
+		/// </summary>
+		public TizenPointerButton Button { get; init; } = TizenPointerButton.Unknown;
 
 		/// <summary>
 		/// Gets or sets the movement since the previous event, in device pixels.

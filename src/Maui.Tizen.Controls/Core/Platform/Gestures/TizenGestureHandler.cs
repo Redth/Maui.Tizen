@@ -158,6 +158,20 @@ namespace Microsoft.Maui.Platforms.Tizen
 		protected Point ToScaledDp(Point point) =>
 			new(Scaler.ToScaledDp(point.X), Scaler.ToScaledDp(point.Y));
 
+		/// <summary>
+		/// Converts the native event's local and screen positions into device-independent units.
+		/// </summary>
+		/// <param name="args">The native gesture event.</param>
+		/// <remarks>
+		/// The screen position stays <see langword="null"/> when the native event did not report
+		/// one, so a missing screen coordinate is surfaced as "unknown" rather than being faked
+		/// from the view-local value.
+		/// </remarks>
+		protected TizenGesturePosition ToScaledDp(TizenGestureEventArgs args) =>
+			new(
+				ToScaledDp(args.LocalPosition),
+				args.ScreenPosition is { } screen ? ToScaledDp(screen) : null);
+
 		void OnDetected(object? sender, TizenGestureEventArgs args)
 		{
 			if (_disposed)

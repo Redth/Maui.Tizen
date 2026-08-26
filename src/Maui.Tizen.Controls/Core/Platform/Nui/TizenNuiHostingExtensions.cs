@@ -38,6 +38,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 			ArgumentNullException.ThrowIfNull(services);
 
 			services.TryAddSingleton<ITizenAlertDialogFactory, NuiAlertDialogFactory>();
+
+			// Must be registered before AddTizenGestures, whose TryAdd would otherwise bind the
+			// identity scaler. Identity is only correct on a 1x display; Tizen wearables and TVs
+			// are not, and every pan, swipe, pinch, tap and pointer coordinate would be wrong by
+			// the display factor.
+			//
+			// The factor is read lazily, because DeviceInfo is not usable until the Tizen
+			// application has initialised.
+			services.AddTizenPixelScaler(static () => global::Tizen.UIExtensions.Common.DeviceInfo.ScalingFactor);
 			services.TryAddScoped<ITizenModalHost>(static provider => new TizenModalHost(
 				provider.GetRequiredService<ITizenNavigationStack>(),
 				provider.GetService<ILogger<TizenModalHost>>()));

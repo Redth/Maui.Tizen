@@ -28,6 +28,17 @@ namespace Microsoft.Maui.Platforms.Tizen
 			var element = (Element)page;
 			var handler = element.Handler;
 
+			// A page can be reused across windows - popped from one and pushed modally on another.
+			// Its existing handler is bound to the ORIGINATING window's IMauiContext, and reusing
+			// it would realize the page into the wrong window's view tree. Discard it and build a
+			// fresh one against the target context.
+			if (handler is not null && !ReferenceEquals(handler.MauiContext, mauiContext))
+			{
+				handler.DisconnectHandler();
+				element.Handler = null;
+				handler = null;
+			}
+
 			if (handler is null)
 			{
 				handler = mauiContext.Handlers.GetHandler(page.GetType())
@@ -36,6 +47,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 				handler.SetMauiContext(mauiContext);
 				element.Handler = handler;
+			}
+			else
+			{
+				// Same context, but re-apply it so a handler that was created without one - or
+				// whose context was cleared on disconnect - is always realized against the target.
+				handler.SetMauiContext(mauiContext);
 			}
 
 			if (!ReferenceEquals(handler.VirtualView, page))
