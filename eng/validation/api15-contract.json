@@ -1,0 +1,61 @@
+{
+  "$comment": [
+    "API15 source and reference-pack contract.",
+    "",
+    "Every fact in this file was verified against the pinned reference pack",
+    "Samsung.Tizen.Ref.API15 15.0.0.19396 (eng/baselines.json > target.referencePack), not",
+    "taken from documentation or assumed. Maui.Tizen.Conventions.Tests re-verifies them",
+    "against that pack on the hosted lane, so a wrong entry here fails CI rather than",
+    "quietly misdirecting a migration.",
+    "",
+    "SCOPE. The source guards apply ONLY to files a project actually compiles. The",
+    "src/Maui.Tizen.* projects were imported verbatim from dotnet/maui and currently set",
+    "EnableDefaultCompileItems=false, so their sources are <None> and are deliberately NOT",
+    "scanned: they are raw historical imports, not code this repository has adopted. A",
+    "project comes into scope automatically the moment it opts into compiling."
+  ],
+
+  "schemaVersion": 1,
+  "apiLevel": "API15",
+
+  "bannedSymbols": [
+    {
+      "id": "tizen-maps-removed",
+      "symbols": ["Tizen.Maps", "MapService"],
+      "allowedIdentifiers": ["MapServiceToken"],
+      "reason": "Tizen.Maps was removed in API15. Verified: Tizen.Maps.dll is absent from Samsung.Tizen.Ref.API15 15.0.0.19396, which ships 105 reference assemblies and none of them is a Maps assembly. Code referencing it cannot compile against API15.",
+      "replacement": null,
+      "referencePackAssembly": "Tizen.Maps.dll",
+      "expectedInReferencePack": false
+    },
+    {
+      "id": "nui-window-instance-deprecated",
+      "symbols": ["Window.Instance"],
+      "allowedIdentifiers": [],
+      "reason": "Tizen.NUI.Window.Instance carries [Obsolete(\"This has been deprecated in API12, please use Default instead\")] in API15. The repository builds with TreatWarningsAsErrors in CI, so using it fails the build; it is banned at source level so the failure names the fix instead of surfacing as CS0618.",
+      "replacement": "Window.Default",
+      "referencePackType": "Tizen.NUI.Window",
+      "obsoleteMember": "Instance",
+      "replacementMember": "Default"
+    }
+  ],
+
+  "unsupportedServices": [
+    {
+      "contract": "IGeocoding",
+      "status": "unsupported",
+      "reason": "Geocoding on Tizen was implemented over Tizen.Maps, which no longer exists in API15. There is no replacement platform API, so the Tizen implementation cannot be provided at all rather than being merely degraded.",
+      "behaviour": "Throw PlatformNotSupportedException from every member.",
+      "doNotRegisterInDi": true
+    }
+  ],
+
+  "compatibilityShims": [
+    {
+      "member": "MapServiceToken",
+      "status": "accepted-no-op",
+      "reason": "Existing app startup code and the Essentials DI bridge set a map service token during initialisation. Removing the member would turn a now-meaningless configuration call into a compile break for every consumer, and throwing would turn it into a startup crash. It is therefore still accepted and does nothing.",
+      "notes": "This is why 'MapService' is banned but 'MapServiceToken' is explicitly allowed: a naive substring ban would flag the shim it is meant to preserve."
+    }
+  ]
+}

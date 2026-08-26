@@ -406,7 +406,12 @@ public class RepositoryInvariantTests
 
 		var packages = ReadRepoFile("Directory.Packages.props");
 
+		// Microsoft.Maui.DevFlow.* is deliberately exempt. Those packages come from
+		// dotnet/maui-labs, not from the MAUI product build, and have their own independent
+		// version line (0.1.0-preview.*). Holding them to the MAUI baseline would be asserting
+		// that two unrelated release trains ship in lockstep, which they do not.
 		var mismatched = Regex.Matches(packages, @"Include=""(Microsoft\.Maui\.[^""]+)"" Version=""([^""]+)""")
+			.Where(m => !m.Groups[1].Value.StartsWith("Microsoft.Maui.DevFlow.", StringComparison.Ordinal))
 			.Where(m => m.Groups[2].Value != baseline)
 			.Select(m => $"{m.Groups[1].Value}={m.Groups[2].Value}")
 			.ToList();
@@ -473,9 +478,18 @@ public class RepositoryInvariantTests
 			.Select(m => m.Groups[1].Value.Replace('/', Path.DirectorySeparatorChar))
 			.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+		// tests/fixtures/** is exempt. Those projects are INPUTS to tests - the MSBuild
+		// behaviour suite invokes `dotnet msbuild` on them directly and asserts on evaluated
+		// property values. They ship their own empty Directory.Build.props/targets specifically
+		// so they do NOT inherit this repository's conventions; adding them to the solution
+		// would build them as solution members and destroy the isolation that makes their
+		// results attributable to the targets under test.
+		var fixtures = $"{Path.DirectorySeparatorChar}fixtures{Path.DirectorySeparatorChar}";
+
 		var orphans = Directory
 			.EnumerateFiles(RepoRoot, "*.csproj", SearchOption.AllDirectories)
 			.Where(p => !p.Contains($"{Path.DirectorySeparatorChar}artifacts{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+			.Where(p => !p.Contains(fixtures, StringComparison.Ordinal))
 			.Select(p => Path.GetRelativePath(RepoRoot, p))
 			.Where(p => !referenced.Contains(p))
 			.ToList();

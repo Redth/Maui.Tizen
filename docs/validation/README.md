@@ -48,6 +48,7 @@ unavailable lane is acceptable; for pull requests it is, for releases it is not.
 | Handler mapper/command parity | Both | Engine + fakes hosted; live mappers on device |
 | DI registration, Essentials coverage | Both | Same split |
 | Public API | Hosted (files) + device (analyzer) | See [hosted lane](hosted-lane.md) |
+| API15 removed/deprecated APIs | Hosted | [Source guards](api15-guards.md), verified against the pinned reference pack |
 | Consumer restore | Hosted | Synthetic today, real packages when they exist |
 | DevFlow agent API contract | Hosted | Guards code that cannot be compiled |
 | Screenshots, lifecycle, TV focus | Device | [Baselines](visual-baselines.md), [input](lifecycle-input-tv.md) |
@@ -65,6 +66,7 @@ Current skips on a hosted run: 7 of 133 tests.
 ## Contents
 
 - [Hosted lane](hosted-lane.md)
+- [API15 source guards](api15-guards.md)
 - [Device lane](device-lane.md)
 - [CI and release gating](ci.md)
 - [DevFlow agent](devflow.md)
