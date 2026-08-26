@@ -317,6 +317,52 @@ public class RepositoryInvariantTests
 	}
 
 	[Fact]
+	public void NoProjectTargetsBelowTheDotNetFloor()
+	{
+		// The repository is .NET 11+ only (eng/baselines.json > policy.minimumDotNet), and
+		// that has to hold for tooling and test projects too, not just shipping ones.
+		//
+		// A project targeting net10.0 still builds on a machine that has the pinned .NET 11
+		// SDK, but its testhost then fails at RUN time with "You must install or update
+		// .NET to run this application" - unless the machine happens to also carry a .NET 10
+		// runtime, which GitHub's hosted images do. So it goes green in CI and fails for
+		// anyone whose environment matches global.json exactly. This test closes that gap
+		// at the point the project file is written.
+		var floor = ReadRepoJson("eng/baselines.json")
+			.GetProperty("policy").GetProperty("minimumDotNet").GetString();
+		var floorVersion = Version.Parse(floor!);
+
+		var offenders = new List<string>();
+
+		foreach (var project in Directory.EnumerateFiles(RepoRoot, "*.csproj", SearchOption.AllDirectories))
+		{
+			if (project.Contains($"{Path.DirectorySeparatorChar}artifacts{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+				continue;
+
+			var text = File.ReadAllText(project);
+			var relative = Path.GetRelativePath(RepoRoot, project);
+
+			foreach (Match element in Regex.Matches(text, @"<TargetFrameworks?>([^<]+)</TargetFrameworks?>"))
+			{
+				foreach (var tfm in element.Groups[1].Value.Split(';', StringSplitOptions.RemoveEmptyEntries))
+				{
+					var parsed = Regex.Match(tfm.Trim(), @"^net(\d+)\.(\d+)");
+					if (!parsed.Success)
+						continue; // netstandard2.0 and friends are version-independent.
+
+					var version = new Version(int.Parse(parsed.Groups[1].Value), int.Parse(parsed.Groups[2].Value));
+					if (version < floorVersion)
+						offenders.Add($"{relative} targets {tfm.Trim()}");
+				}
+			}
+		}
+
+		Assert.True(
+			offenders.Count == 0,
+			$"These projects target below the .NET {floor} floor: " + string.Join(", ", offenders));
+	}
+
+	[Fact]
 	public void EveryProjectReferencedBySolutionExists()
 	{
 		var solution = ReadRepoFile("Maui.Tizen.slnx");
