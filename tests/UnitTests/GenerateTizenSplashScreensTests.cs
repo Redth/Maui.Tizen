@@ -1,0 +1,188 @@
+using System;
+using System.IO;
+using System.Linq;
+using Xunit;
+
+using Maui.Tizen.Build.Tasks;
+
+namespace Maui.Tizen.UnitTests;
+
+public class GenerateTizenSplashScreensTests : TestBase
+{
+	private (GenerateTizenSplashScreens Task, RecordingBuildEngine Engine, string Intermediate) CreateTask(
+		string splashName = "splash.png",
+		string? color = "#512BD4",
+		params string[] buckets)
+	{
+		var sourceRoot = CreateTempDirectory();
+		var splashSource = WritePng(Path.Combine(sourceRoot, splashName), 128, 128);
+
+		var processedRoot = CreateTempDirectory();
+		var processed = buckets
+			.Select(bucket => Item(WritePng(
+				Path.Combine(processedRoot, "res", "contents", $"default_All-{bucket}", Path.ChangeExtension(splashName, ".png")),
+				128,
+				128)))
+			.ToArray();
+
+		var metadata = color is null
+			? Array.Empty<(string, string)>()
+			: new[] { ("Color", color) };
+
+		var task = new GenerateTizenSplashScreens
+		{
+			MauiSplashScreen = new[] { Item(splashSource, metadata) },
+			ProcessedImages = processed,
+			IntermediateOutputPath = CreateTempDirectory(),
+		};
+
+		return (task, task.UseRecordingEngine(), task.IntermediateOutputPath);
+	}
+
+	[Fact]
+	public void ComposesPortraitAndLandscapeForEachBucket()
+	{
+		var (task, engine, intermediate) = CreateTask("splash.png", "#512BD4", "MDPI", "HDPI");
+
+		Assert.True(task.Execute(), engine.AllErrors());
+
+		var names = task.SplashScreens.Select(i => Path.GetFileName(i.ItemSpec)).OrderBy(n => n, StringComparer.Ordinal).ToArray();
+
+		Assert.Equal(
+			new[]
+			{
+				"splash.hdpi.landscape.png",
+				"splash.hdpi.portrait.png",
+				"splash.mdpi.landscape.png",
+				"splash.mdpi.portrait.png",
+			},
+			names);
+
+		foreach (var item in task.SplashScreens)
+		{
+			Assert.True(File.Exists(item.ItemSpec));
+			Assert.Equal(Path.Combine("shared", "res", "splash"), item.GetMetadata("TizenTpkSubDir"));
+		}
+
+		Assert.True(File.Exists(Path.Combine(intermediate, GenerateTizenSplashScreens.SplashMapFileName)));
+	}
+
+	[Fact]
+	public void UsesHdCanvasForMdpiAndFhdCanvasForHdpi()
+	{
+		var (task, engine, _) = CreateTask("splash.png", "#512BD4", "MDPI", "HDPI");
+
+		Assert.True(task.Execute(), engine.AllErrors());
+
+		(int Width, int Height) SizeOf(string suffix)
+		{
+			var path = task.SplashScreens.Single(i => i.ItemSpec.EndsWith(suffix, StringComparison.Ordinal)).ItemSpec;
+			using var bitmap = SkiaSharp.SKBitmap.Decode(path);
+			return (bitmap.Width, bitmap.Height);
+		}
+
+		Assert.Equal((720, 1080), SizeOf("splash.mdpi.portrait.png"));
+		Assert.Equal((1080, 720), SizeOf("splash.mdpi.landscape.png"));
+		Assert.Equal((1080, 1920), SizeOf("splash.hdpi.portrait.png"));
+		Assert.Equal((1920, 1080), SizeOf("splash.hdpi.landscape.png"));
+	}
+
+	[Fact]
+	public void WritesADeterministicSortedMap()
+	{
+		var (task, engine, intermediate) = CreateTask("splash.png", "#512BD4", "MDPI", "HDPI");
+
+		Assert.True(task.Execute(), engine.AllErrors());
+
+		var lines = File.ReadAllLines(Path.Combine(intermediate, GenerateTizenSplashScreens.SplashMapFileName));
+
+		Assert.Equal(
+			new[]
+			{
+				"hdpi|landscape|splash/splash.hdpi.landscape.png",
+				"hdpi|portrait|splash/splash.hdpi.portrait.png",
+				"mdpi|landscape|splash/splash.mdpi.landscape.png",
+				"mdpi|portrait|splash/splash.mdpi.portrait.png",
+			},
+			lines);
+	}
+
+	[Fact]
+	public void MapRoundTripsThroughReadMap()
+	{
+		var (task, engine, intermediate) = CreateTask("splash.png", "#512BD4", "MDPI");
+
+		Assert.True(task.Execute(), engine.AllErrors());
+
+		var entries = GenerateTizenSplashScreens.ReadMap(Path.Combine(intermediate, GenerateTizenSplashScreens.SplashMapFileName));
+
+		Assert.Equal(2, entries.Count);
+		Assert.All(entries, e => Assert.Equal("mdpi", e.Resolution));
+		Assert.Contains(entries, e => e.Orientation == "portrait");
+		Assert.Contains(entries, e => e.Orientation == "landscape");
+	}
+
+	[Fact]
+	public void ReadMapToleratesMissingFile()
+	{
+		Assert.Empty(GenerateTizenSplashScreens.ReadMap(Path.Combine(CreateTempDirectory(), "absent.map")));
+	}
+
+	/// <summary>
+	/// Missing processed images mean MAUI image processing was disabled. The task must warn rather
+	/// than fabricate a splash screen from nothing.
+	/// </summary>
+	[Fact]
+	public void WarnsWhenProcessedImagesAreMissing()
+	{
+		var (task, engine, _) = CreateTask("splash.png", "#512BD4");
+
+		Assert.True(task.Execute(), engine.AllErrors());
+		Assert.Empty(task.SplashScreens);
+		Assert.Contains("require MAUI image processing to be enabled", engine.AllWarnings());
+	}
+
+	[Fact]
+	public void FallsBackToWhiteAndWarnsWhenColorIsMissing()
+	{
+		var (task, engine, _) = CreateTask("splash.png", null, "MDPI");
+
+		Assert.True(task.Execute(), engine.AllErrors());
+		Assert.Contains("Unable to parse color", engine.AllWarnings());
+		Assert.NotEmpty(task.SplashScreens);
+	}
+
+	[Fact]
+	public void RemovesStaleOutputsOnRerun()
+	{
+		var (task, engine, intermediate) = CreateTask("splash.png", "#512BD4", "MDPI");
+		Assert.True(task.Execute(), engine.AllErrors());
+
+		var stale = Path.Combine(intermediate, GenerateTizenSplashScreens.SplashDirectoryName, "stale.png");
+		File.WriteAllText(stale, string.Empty);
+
+		Assert.True(task.Execute(), engine.AllErrors());
+		Assert.False(File.Exists(stale));
+	}
+
+	[Fact]
+	public void HonoursTheLinkAliasWhenNamingOutputs()
+	{
+		var sourceRoot = CreateTempDirectory();
+		var source = WritePng(Path.Combine(sourceRoot, "source.png"), 64, 64);
+
+		var processedRoot = CreateTempDirectory();
+		var processed = WritePng(Path.Combine(processedRoot, "res", "contents", "default_All-MDPI", "aliased.png"), 64, 64);
+
+		var task = new GenerateTizenSplashScreens
+		{
+			MauiSplashScreen = new[] { Item(source, ("Link", "aliased.png"), ("Color", "White")) },
+			ProcessedImages = new[] { Item(processed) },
+			IntermediateOutputPath = CreateTempDirectory(),
+		};
+		var engine = task.UseRecordingEngine();
+
+		Assert.True(task.Execute(), engine.AllErrors());
+		Assert.All(task.SplashScreens, i => Assert.StartsWith("aliased.", Path.GetFileName(i.ItemSpec), StringComparison.Ordinal));
+	}
+}

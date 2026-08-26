@@ -124,6 +124,7 @@ check "normalize script is syntactically valid" bash -n eng/import/normalize-lay
 info "Workload-independent projects"
 WORKLOAD_FREE_PROJECTS=(
   "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj"
+  "src/Maui.Tizen.Templates/Maui.Tizen.Templates.csproj"
   "tests/UnitTests/Maui.Tizen.UnitTests.csproj"
 
   # Verification lanes for the ported backend slice. Neither is a Tizen artifact:
@@ -195,6 +196,19 @@ else
   fail "workload detection regressions failed"
   FAILURES=$((FAILURES + 1))
 fi
+
+# ---------------------------------------------------------------------------
+# 5b. Packable shape.
+#
+# Maui.Tizen.Build.Tasks and Maui.Tizen.Templates both ship content in unusual places
+# (buildTransitive/ and content/ rather than lib/), which NuGet will happily pack wrong
+# without complaining. Packing here means the layout is validated on every run rather
+# than at publish time; the package-content tests above then assert the entries.
+# ---------------------------------------------------------------------------
+info "Package shape"
+for proj in "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj" "src/Maui.Tizen.Templates/Maui.Tizen.Templates.csproj"; do
+  check "pack    $(basename "$proj")" "$DOTNET" pack "$proj" --no-build -c Release
+done
 
 # ---------------------------------------------------------------------------
 # 6. Report the Tizen gate explicitly.

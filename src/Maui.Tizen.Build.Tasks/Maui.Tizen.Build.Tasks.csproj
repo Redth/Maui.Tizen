@@ -1,62 +1,188 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Maui.Tizen.Build.Tasks contains the MSBuild tasks that generate tizen-manifest.xml,
-    Tizen resource XML, and splash screen assets - imported from dotnet/maui's Resizetizer.
+    Maui.Tizen.Build.Tasks contains the MSBuild tasks and targets that generate
+    tizen-manifest.xml, the Tizen splash screens and the Tizen resource XML, and that hand
+    the resulting files to the Samsung workload as TPK packaging inputs.
 
-    SOURCES ARE NOT COMPILED YET, for a specific and documented reason.
+    HOW THE DEPENDENCY CLOSURE WAS RESOLVED.
 
-    The three imported task files are Tizen-named, so the history filter brought them
-    across. Their dependencies are not:
+    The foundation import brought three Tizen-named task files across but not their
+    dependencies, because ILogger / ResizeImageInfo / ResizedImageInfo are shared
+    Resizetizer infrastructure whose filenames contain no "tizen":
 
       ILogger            src/SingleProject/Resizetizer/src/ILogger.cs
       ResizeImageInfo    src/SingleProject/Resizetizer/src/ResizeImageInfo.cs
       ResizedImageInfo   src/SingleProject/Resizetizer/src/ResizedImageInfo.cs
 
-    None of those filenames contain "tizen", so they were correctly excluded by the
-    path filter - they are shared Resizetizer infrastructure, not Tizen code.
+    Neither of the two options recorded at import time (vendor them here, or ship these
+    tasks inside Microsoft.Maui.Resizetizer) was taken. Instead the tasks were ported onto
+    the PUBLIC Resizetizer contract added by dotnet/maui PR 36653: ResizetizerPlatformType,
+    MauiProcessedImage / MauiProcessedFont / MauiProcessedAsset, and the
+    ResizetizerAfter*ProcessingTargets packaging hooks. That contract exposes exactly the
+    information the shared types used to carry, so:
 
-    Resolving this is a genuine disposition decision, not a build fix: either vendor
-    those upstream files here (forking code we do not own), or keep them upstream and
-    have these tasks ship inside Microsoft.Maui.Resizetizer instead. That choice belongs
-    in the source-disposition manifest (eng/manifests/), so this project deliberately
-    stops short of pre-empting it.
+      * nothing upstream is forked into this repository, and
+      * these tasks do not have to ship inside Microsoft.Maui.Resizetizer.
 
-    Discovered by eng/build-workload-free.sh, which is exactly the sort of thing that
-    lane exists to catch.
+    The only local types that remain are the small Tizen-specific pieces with no public
+    equivalent: the Tizen DPI table, colour parsing and the Tizen resource layout mapping.
+
+    NAMESPACE. Unlike the src/Maui.Tizen.* package projects, which keep their upstream
+    Microsoft.Maui.* namespaces, these types live in Maui.Tizen.Build.Tasks. The upstream
+    namespace is Microsoft.Maui.Resizetizer, and Microsoft.Maui.Resizetizer.dll is loaded
+    into the same MSBuild process as this assembly, so keeping the upstream namespace would
+    make every UsingTask ambiguous between two loaded assemblies. This is the same
+    assembly-identity-versus-namespace-identity split described in docs/architecture.md,
+    resolved the other way for the same reason: avoiding a collision.
+
+    This project targets netstandard2.0, needs no workload, and is what the workload-free
+    CI lane compiles.
   -->
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <IsTizenProject>false</IsTizenProject>
-    <RootNamespace>Microsoft.Maui.Resizetizer</RootNamespace>
-    <Description>MSBuild tasks for generating Tizen application manifests, resource XML, and splash screens for .NET MAUI.</Description>
-    <PackageId>Maui.Tizen.Build.Tasks</PackageId>
+    <RootNamespace>Maui.Tizen.Build.Tasks</RootNamespace>
     <AssemblyName>Maui.Tizen.Build.Tasks</AssemblyName>
-
-    <!-- See the comment above: unresolved dependency closure on shared Resizetizer types. -->
-    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
-
-    <!-- MSBuild task assemblies ship under tasks/, not lib/. -->
-    <IncludeBuildOutput>false</IncludeBuildOutput>
-    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-    <NoWarn>$(NoWarn);NU5100;NU5128;CS2008</NoWarn>
+    <PackageId>Maui.Tizen.Build.Tasks</PackageId>
+    <Description>MSBuild tasks and targets that build and package .NET MAUI Tizen applications: tizen-manifest.xml generation, Tizen splash screens, Tizen resource XML and TPK packaging inputs.</Description>
+    <PackageTags>$(PackageTags);msbuild;tpk</PackageTags>
 
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 
-    <!-- Nothing to ship until the dependency closure above is resolved. -->
-    <IsPackable>false</IsPackable>
+    <!-- MSBuild task assemblies ship under buildTransitive/, not lib/. -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <!-- No lib/ output, so there is nothing for a symbol package to carry. -->
+    <IncludeSymbols>false</IncludeSymbols>
+    <NoWarn>$(NoWarn);NU5100;NU5128;CS2008</NoWarn>
+
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="**/*.cs" Exclude="bin/**;obj/**" />
+    <InternalsVisibleTo Include="Maui.Tizen.UnitTests" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" />
-    <PackageReference Include="Microsoft.Build.Utilities.Core" ExcludeAssets="runtime" />
-    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Build.Utilities.Core" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="SkiaSharp" PrivateAssets="all" GeneratePathProperty="true" />
+    <PackageReference Include="SkiaSharp.NativeAssets.macOS" PrivateAssets="all" GeneratePathProperty="true" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" PrivateAssets="all" GeneratePathProperty="true" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" PrivateAssets="all" GeneratePathProperty="true" />
   </ItemGroup>
+
+  <!-- The MSBuild entry points shipped with the package. -->
+  <ItemGroup>
+    <None Include="buildTransitive\Maui.Tizen.Build.Tasks.props" Pack="true" PackagePath="buildTransitive\" />
+    <None Include="buildTransitive\Maui.Tizen.Build.Tasks.targets" Pack="true" PackagePath="buildTransitive\" />
+  </ItemGroup>
+
+  <!--
+    Lay the task assembly and its SkiaSharp dependency out flat inside buildTransitive so the
+    task can be loaded directly by MSBuild, and place the native SkiaSharp binaries in the
+    sub-folders SkiaSharp's own native library resolver probes. This mirrors the layout that
+    Microsoft.Maui.Resizetizer itself ships.
+  -->
+  <!--
+    Host native SkiaSharp for running the tasks FROM THE BUILD OUTPUT.
+
+    Two different consumers load these tasks:
+
+      * a consuming app, from the NuGet package - handled by the packing target below, which
+        lays the natives out flat and in architecture sub-folders;
+      * this repository itself - the sample and the MSBuild integration tests point
+        _MauiTizenBuildTasksAssembly at a plain build output directory.
+
+    netstandard2.0 libraries do not copy RID-specific `runtimes/**` assets to their output, so
+    without this the second case has no native Skia at all and the first call into it fails with
+    "The type initializer for 'SkiaSharp.SKData' threw an exception". Only the CURRENT host's
+    binary is copied: this is a build-time tool dependency, not a Tizen application input.
+  -->
+  <PropertyGroup>
+    <_MauiTizenHostArchitecture>$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant())</_MauiTizenHostArchitecture>
+
+    <_MauiTizenHostNativeSkiaSharp Condition="$([MSBuild]::IsOSPlatform('OSX'))">$(PkgSkiaSharp_NativeAssets_macOS)\runtimes\osx\native\libSkiaSharp.dylib</_MauiTizenHostNativeSkiaSharp>
+    <_MauiTizenHostNativeSkiaSharp Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(PkgSkiaSharp_NativeAssets_Win32)\runtimes\win-$(_MauiTizenHostArchitecture)\native\libSkiaSharp.dll</_MauiTizenHostNativeSkiaSharp>
+    <!--
+      Linux picks the folder from the host's own runtime identifier rather than composing
+      "linux-{arch}". On Alpine and other musl distributions the RID is linux-musl-x64, and
+      copying the glibc build there produces a library that cannot be loaded at all - the same
+      opaque SkiaSharp type initializer failure this whole path exists to avoid. The composed
+      value remains as a fallback for hosts that report an unexpected RID.
+    -->
+    <_MauiTizenHostRuntimeIdentifier>$([System.Runtime.InteropServices.RuntimeInformation]::RuntimeIdentifier)</_MauiTizenHostRuntimeIdentifier>
+    <_MauiTizenLinuxNativeRoot>$(PkgSkiaSharp_NativeAssets_Linux_NoDependencies)\runtimes</_MauiTizenLinuxNativeRoot>
+
+    <_MauiTizenHostNativeSkiaSharp Condition="$([MSBuild]::IsOSPlatform('Linux')) And Exists('$(_MauiTizenLinuxNativeRoot)\$(_MauiTizenHostRuntimeIdentifier)\native\libSkiaSharp.so')">$(_MauiTizenLinuxNativeRoot)\$(_MauiTizenHostRuntimeIdentifier)\native\libSkiaSharp.so</_MauiTizenHostNativeSkiaSharp>
+    <_MauiTizenHostNativeSkiaSharp Condition="$([MSBuild]::IsOSPlatform('Linux')) And '$(_MauiTizenHostNativeSkiaSharp)' == ''">$(_MauiTizenLinuxNativeRoot)\linux-$(_MauiTizenHostArchitecture)\native\libSkiaSharp.so</_MauiTizenHostNativeSkiaSharp>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(_MauiTizenHostNativeSkiaSharp)' != '' And Exists('$(_MauiTizenHostNativeSkiaSharp)')">
+    <None Include="$(_MauiTizenHostNativeSkiaSharp)"
+          CopyToOutputDirectory="PreserveNewest"
+          Link="%(Filename)%(Extension)"
+          Pack="false"
+          Visible="false" />
+  </ItemGroup>
+
+  <!--
+    Fail loudly rather than producing a task assembly that cannot rasterize anything. A missing
+    host binary previously surfaced only much later, as a SkiaSharp type initializer error inside
+    an unrelated MSBuild target on one operating system.
+  -->
+  <Target Name="_MauiTizenValidateHostNativeSkiaSharp" AfterTargets="ResolvePackageAssets" Condition="'$(_MauiTizenSkipHostNativeValidation)' != 'true'">
+    <Error Condition="'$(_MauiTizenHostNativeSkiaSharp)' == ''"
+           Code="MAUITIZEN1010"
+           Text="No native SkiaSharp binary is configured for this host operating system, so the Tizen build tasks would fail when rasterizing images." />
+    <Error Condition="!Exists('$(_MauiTizenHostNativeSkiaSharp)')"
+           Code="MAUITIZEN1011"
+           Text="The native SkiaSharp binary for this host was not found at '$(_MauiTizenHostNativeSkiaSharp)'. Check the SkiaSharp.NativeAssets.* package references." />
+  </Target>
+
+  <PropertyGroup>
+    <!--
+      Packing normally has to build first, but a no-build pack sets NoBuild=true and then
+      fails with NETSDK1085 if anything still invokes Build. Expressing the dependency through
+      a property lets both invocations work; the workload-free CI lane packs without building.
+    -->
+    <_MauiTizenPackDependsOn Condition="'$(NoBuild)' != 'true'">Build</_MauiTizenPackDependsOn>
+  </PropertyGroup>
+
+  <Target Name="_MauiTizenAddPackageAssemblies" BeforeTargets="_GetPackageFiles" DependsOnTargets="$(_MauiTizenPackDependsOn)">
+    <ItemGroup>
+      <None Include="$(TargetDir)Maui.Tizen.Build.Tasks.dll" Pack="true" PackagePath="buildTransitive\" />
+      <None Include="$(TargetDir)SkiaSharp.dll" Pack="true" PackagePath="buildTransitive\" />
+
+      <!-- macOS -->
+      <None Include="$(PkgSkiaSharp_NativeAssets_macOS)\runtimes\osx\native\libSkiaSharp.dylib"
+            Pack="true" PackagePath="buildTransitive\" />
+
+      <!-- Windows -->
+      <None Include="$(PkgSkiaSharp_NativeAssets_Win32)\runtimes\win-x64\native\libSkiaSharp.dll"
+            Pack="true" PackagePath="buildTransitive\x64\" />
+      <None Include="$(PkgSkiaSharp_NativeAssets_Win32)\runtimes\win-x86\native\libSkiaSharp.dll"
+            Pack="true" PackagePath="buildTransitive\x86\" />
+      <None Include="$(PkgSkiaSharp_NativeAssets_Win32)\runtimes\win-arm64\native\libSkiaSharp.dll"
+            Pack="true" PackagePath="buildTransitive\arm64\" />
+
+      <!-- Linux -->
+      <None Include="$(PkgSkiaSharp_NativeAssets_Linux_NoDependencies)\runtimes\linux-x64\native\libSkiaSharp.so"
+            Pack="true" PackagePath="buildTransitive\x64\" />
+      <None Include="$(PkgSkiaSharp_NativeAssets_Linux_NoDependencies)\runtimes\linux-arm64\native\libSkiaSharp.so"
+            Pack="true" PackagePath="buildTransitive\arm64\" />
+      <None Include="$(PkgSkiaSharp_NativeAssets_Linux_NoDependencies)\runtimes\linux-musl-x64\native\libSkiaSharp.so"
+            Pack="true" PackagePath="buildTransitive\musl-x64\" />
+      <!-- 32-bit arm: Tizen devices are commonly armv7, so a build agent can be too. -->
+      <None Include="$(PkgSkiaSharp_NativeAssets_Linux_NoDependencies)\runtimes\linux-arm\native\libSkiaSharp.so"
+            Pack="true" PackagePath="buildTransitive\arm\" />
+    </ItemGroup>
+  </Target>
 
 </Project>

@@ -4,11 +4,14 @@
     Template package for `dotnet new` Tizen MAUI projects.
 
     Template packs carry content, not compiled output, so this project deliberately does
-    not participate in the Tizen workload gate: it can be packed on any machine.
+    not participate in the Tizen workload gate: it can be packed on any machine, including
+    ones where the emitted project cannot yet be restored.
 
-    No templates have been authored yet. Authoring them requires the workload contract to
-    be real (a template that emits net11.0-tizen11.0 projects nobody can restore is not
-    useful), so this is a shape-only skeleton for now.
+    The emitted project targets net11.0-tizen11.0 and references Samsung.Tizen.Ref.API15,
+    matching Directory.Build.props and eng/baselines.json. Until the Samsung .NET 11
+    workload ships, a generated project will hit the same external gate every Tizen project
+    in this repository hits; that is the honest shape, and it is why the template pins the
+    versioned TFM rather than an unversioned net11.0-tizen.
   -->
 
   <PropertyGroup>
@@ -17,16 +20,26 @@
     <PackageType>Template</PackageType>
     <PackageId>Maui.Tizen.Templates</PackageId>
     <Description>Project templates for building .NET MAUI applications for Tizen.</Description>
+    <PackageTags>$(PackageTags);templates;dotnet-new</PackageTags>
 
     <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <ContentTargetFolders>content</ContentTargetFolders>
     <NoDefaultExcludes>true</NoDefaultExcludes>
+    <!--
+      Nothing under templates/ is a project item. The files there carry unresolved template
+      placeholders (the project file's TFM is literally net11.0-tizenTIZEN_PLATFORM_VERSION), so
+      they must be packed as content and never globbed into this project's own build.
+    -->
+    <EnableDefaultItems>false</EnableDefaultItems>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <!-- No lib/ output, so there is nothing for a symbol package to carry. -->
+    <IncludeSymbols>false</IncludeSymbols>
     <NoWarn>$(NoWarn);NU5128</NoWarn>
 
-    <!-- Nothing to ship until templates exist. -->
-    <IsPackable>false</IsPackable>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>

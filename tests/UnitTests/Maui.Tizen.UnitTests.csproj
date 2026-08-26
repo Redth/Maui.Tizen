@@ -31,6 +31,57 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
+
+    <!--
+      NOTE: no ExcludeAssets="runtime" on the MSBuild packages. The build task tests
+      construct real TaskItems, so Microsoft.Build.Framework has to be present at runtime;
+      excluding it produces a FileNotFoundException during xunit's type discovery, which
+      surfaces as "no tests found" rather than as an error.
+    -->
+    <PackageReference Include="Microsoft.Build.Framework" />
+    <PackageReference Include="Microsoft.Build.Utilities.Core" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.NativeAssets.macOS" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Maui.Tizen.Build.Tasks\Maui.Tizen.Build.Tasks.csproj" />
+  </ItemGroup>
+
+  <!--
+    Read the pinned Resizetizer version back out of central package management rather than
+    duplicating it, so the generated test projects always restore exactly what the repository
+    builds against.
+  -->
+  <PropertyGroup>
+    <_ResizetizerPinnedVersion>@(PackageVersion->WithMetadataValue('Identity', 'Microsoft.Maui.Resizetizer')->'%(Version)')</_ResizetizerPinnedVersion>
+    <_WebViewPinnedVersion>@(PackageVersion->WithMetadataValue('Identity', 'Microsoft.AspNetCore.Components.WebView')->'%(Version)')</_WebViewPinnedVersion>
+  </PropertyGroup>
+
+  <!--
+    The MSBuild integration tests import the real buildTransitive files straight out of the
+    source tree and generate throwaway projects that reference the Resizetizer package, so
+    they need the repository root and the pinned Resizetizer version at runtime.
+  -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>RepositoryRoot</_Parameter1>
+      <_Parameter2>$(RepositoryRoot)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>MauiResizetizerPackageVersion</_Parameter1>
+      <_Parameter2>$(_ResizetizerPinnedVersion)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>PackageVersion</_Parameter1>
+      <_Parameter2>$(Version)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>WebViewPackageVersion</_Parameter1>
+      <_Parameter2>$(_WebViewPinnedVersion)</_Parameter2>
+    </AssemblyAttribute>
   </ItemGroup>
 
 </Project>

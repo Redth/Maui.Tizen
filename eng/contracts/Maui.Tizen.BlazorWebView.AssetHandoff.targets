@@ -1,0 +1,86 @@
+<Project>
+
+  <!--
+    REFERENCE IMPLEMENTATION of the Maui.Tizen asset-provider contract for Blazor.
+
+    OWNERSHIP. This file is not imported by Maui.Tizen.Build.Tasks and ships in no package built
+    from this directory. It belongs to Maui.Tizen.BlazorWebView, which should ship it (or an
+    equivalent) from its own buildTransitive folder so that a Blazor app gets the behaviour by
+    referencing that package alone. It lives here only so the handoff it depends on is covered by
+    an executable test in tests/UnitTests/TizenBlazorAssetHandoffTests.cs and cannot drift from the
+    snippet handed to that package.
+
+    WHY IT IS NEEDED AT ALL. Microsoft.AspNetCore.Components.WebView.Maui already contains a
+    ConvertStaticWebAssetsToMauiAssets target, but it ships under build/, and NuGet applies build/
+    only to the project that references the package DIRECTLY. An application that references
+    Maui.Tizen.BlazorWebView therefore never receives it, and its wwwroot content silently never
+    becomes an application asset. Re-declaring the conversion in a buildTransitive file of the
+    package the app does reference closes that gap.
+
+    THE HANDOFF, END TO END.
+
+      StaticWebAsset            (Razor SDK: wwwroot content, and _framework/blazor.webview.js
+                                 contributed by the WebView package)
+        -> MauiAsset            (this file, via the SDK's own ComputeStaticWebAssetsTargetPaths
+                                 task, with Link = "wwwroot/<target path>")
+        -> MauiProcessedAsset   (Resizetizer, through the public PR 36653 contract)
+        -> TizenResource        (Maui.Tizen.Build.Tasks, mapping Link to TizenTpkFileName)
+        -> res/wwwroot/...      (Samsung workload, packing TizenResource into the TPK)
+
+    The final location is what TizenAssetFileProvider serves from: it roots itself at the Tizen
+    application's resource directory plus a content root of "wwwroot", so index.html must arrive as
+    res/wwwroot/index.html. No glob in the application project is involved at any point.
+  -->
+
+  <PropertyGroup>
+    <!--
+      Root project mode with a "/" base path is what MAUI Blazor Hybrid apps use, so that app
+      assets are addressed as /index.html rather than under a package base path.
+    -->
+    <StaticWebAssetBasePath Condition="'$(StaticWebAssetBasePath)' == ''">/</StaticWebAssetBasePath>
+    <StaticWebAssetProjectMode Condition="'$(StaticWebAssetProjectMode)' == ''">Root</StaticWebAssetProjectMode>
+  </PropertyGroup>
+
+  <!--
+    Register with Maui.Tizen.Build.Tasks rather than hooking a Resizetizer target directly. The
+    seam guarantees ordering relative to Tizen asset processing without this package needing to
+    know Resizetizer's internal target names.
+  -->
+  <PropertyGroup>
+    <MauiTizenAssetProviderTargets>
+      $(MauiTizenAssetProviderTargets);
+      MauiTizenBlazorConvertStaticWebAssetsToMauiAssets;
+    </MauiTizenAssetProviderTargets>
+  </PropertyGroup>
+
+  <Target Name="MauiTizenBlazorConvertStaticWebAssetsToMauiAssets"
+          DependsOnTargets="ResolveProjectReferences;StaticWebAssetsPrepareForRun">
+
+    <!--
+      ComputeStaticWebAssetsTargetPaths is the SDK's own task. Using it rather than hand-computing
+      BasePath + RelativePath matters: package-provided assets carry fingerprint expressions in
+      their relative path (blazor.webview.js is literally
+      "blazor.webview#[.{fingerprint}]?.js" with a BasePath of "_framework"), and this task is what
+      resolves them to the path the browser will actually request.
+    -->
+    <ComputeStaticWebAssetsTargetPaths Assets="@(StaticWebAsset)" PathPrefix="wwwroot">
+      <Output TaskParameter="AssetsWithTargetPath" ItemName="_MauiTizenStaticWebAssetWithTargetPath" />
+    </ComputeStaticWebAssetsTargetPaths>
+
+    <ItemGroup>
+      <!--
+        Precompressed .gz/.br alternatives are skipped unless compression is explicitly enabled:
+        a Tizen app serves these from local storage, so shipping both costs TPK size for nothing.
+        Mirrors the same filter in dotnet/maui's ConvertStaticWebAssetsToMauiAssets.
+      -->
+      <MauiAsset Include="%(_MauiTizenStaticWebAssetWithTargetPath.Identity)"
+                 Condition="'$(CompressionEnabled)' != 'false' or '%(_MauiTizenStaticWebAssetWithTargetPath.AssetRole)' != 'Alternative' or ('%(_MauiTizenStaticWebAssetWithTargetPath.Extension)' != '.gz' and '%(_MauiTizenStaticWebAssetWithTargetPath.Extension)' != '.br')">
+        <!-- Link is what the Resizetizer turns into the processed asset path, and what
+             Maui.Tizen.Build.Tasks then maps onto TizenTpkFileName. -->
+        <Link>%(_MauiTizenStaticWebAssetWithTargetPath.TargetPath)</Link>
+        <TargetPath>%(_MauiTizenStaticWebAssetWithTargetPath.TargetPath)</TargetPath>
+      </MauiAsset>
+    </ItemGroup>
+  </Target>
+
+</Project>

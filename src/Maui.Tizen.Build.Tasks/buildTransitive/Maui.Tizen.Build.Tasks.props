@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+
+  <!--
+    Evaluation-time configuration for the Tizen backend.
+
+    Everything here is deliberately thin. Tizen is a recognized TargetPlatformIdentifier once the
+    Samsung workload is installed, so the built-in MAUI SingleProject and Resizetizer paths already
+    do the right thing. This package only:
+
+      * registers Platforms/Tizen with the SingleProject platform folder contract,
+      * seeds the Tizen manifest / resource properties, and
+      * opts into the public Resizetizer external backend contract early
+        (dotnet/maui PR 36653) so that the externalized manifest, splash and resource
+        generators can take over once the built-in Tizen branches are removed upstream.
+  -->
+
+  <PropertyGroup>
+    <_MauiTizenBuildTasksAssembly Condition=" '$(_MauiTizenBuildTasksAssembly)' == '' ">$(MSBuildThisFileDirectory)Maui.Tizen.Build.Tasks.dll</_MauiTizenBuildTasksAssembly>
+    <!--
+      Assigned rather than tested inline: MSBuild cannot parse a nested property reference inside a
+      property function argument when it appears directly in a Condition.
+    -->
+    <_MauiTizenPlatformIdentifier>$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)'))</_MauiTizenPlatformIdentifier>
+    <_MauiTizenIsTizenTargetPlatform Condition=" '$(_MauiTizenPlatformIdentifier)' == 'tizen' ">true</_MauiTizenIsTizenTargetPlatform>
+  </PropertyGroup>
+
+  <!--
+    Opt into the Resizetizer external-backend pipeline at evaluation time. The early opt-in path
+    also wires ProcessMauiAssetsDependsOnTargets => ResizetizeCollectItems, which is what makes
+    MauiAsset items coming from referenced projects visible to ProcessMauiAssets.
+  -->
+  <PropertyGroup Condition=" '$(_MauiTizenIsTizenTargetPlatform)' == 'true' And '$(ResizetizerPlatformType)' == '' ">
+    <ResizetizerPlatformType>tizen</ResizetizerPlatformType>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!--
+      NOTE: MauiTizenIntermediateOutputPath is deliberately NOT set here. Package
+      buildTransitive props are imported from Microsoft.Common.props, at which point
+      IntermediateOutputPath does not exist yet, so computing it here would silently
+      produce a project-relative 'maui-tizen/' folder. It is computed in the .targets.
+    -->
+
+    <!-- The user authored manifest that carries the Tizen package identity. -->
+    <TizenManifestFile Condition=" '$(TizenManifestFile)' == '' And Exists('$(MSBuildProjectDirectory)\Platforms\Tizen\tizen-manifest.xml') ">Platforms\Tizen\tizen-manifest.xml</TizenManifestFile>
+    <TizenManifestFile Condition=" '$(TizenManifestFile)' == '' And Exists('$(MSBuildProjectDirectory)\tizen-manifest.xml') ">tizen-manifest.xml</TizenManifestFile>
+  </PropertyGroup>
+
+  <!--
+    Platforms/Tizen participates through the SingleProject platform folder contract using the
+    recognized 'tizen' TargetPlatformIdentifier. No neutral-TFM backend activation metadata is
+    used, because Tizen is a real target platform rather than a neutral-TFM backend.
+  -->
+  <ItemGroup Condition=" '$(SingleProject)' == 'true' ">
+    <MauiPlatformSpecificFolder Include="Platforms\Tizen\" TargetPlatformIdentifiers="tizen" />
+  </ItemGroup>
+
+</Project>

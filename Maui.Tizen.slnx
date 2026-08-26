@@ -50,6 +50,7 @@
     <File Path="PROVENANCE.md" />
     <File Path="THIRD-PARTY-NOTICES.md" />
     <File Path="docs/architecture.md" />
+    <File Path="docs/asset-providers.md" />
     <File Path="docs/migration.md" />
     <File Path="docs/net11-status.md" />
   </Folder>

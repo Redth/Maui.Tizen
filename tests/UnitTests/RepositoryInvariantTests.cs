@@ -476,6 +476,7 @@ public class RepositoryInvariantTests
 		var orphans = Directory
 			.EnumerateFiles(RepoRoot, "*.csproj", SearchOption.AllDirectories)
 			.Where(p => !p.Contains($"{Path.DirectorySeparatorChar}artifacts{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+			.Where(p => !IsTemplateContent(p))
 			.Select(p => Path.GetRelativePath(RepoRoot, p))
 			.Where(p => !referenced.Contains(p))
 			.ToList();
@@ -485,6 +486,62 @@ public class RepositoryInvariantTests
 			"These project files are not in Maui.Tizen.slnx. Either add them, or park them as "
 				+ "'.csproj.orphan' and document them in samples/README.md: "
 				+ string.Join(", ", orphans));
+	}
+
+	/// <summary>
+	/// A `dotnet new` template's project file is package CONTENT, not a project.
+	/// </summary>
+	/// <remarks>
+	/// It cannot be added to the solution: it carries unresolved template placeholders (its TFM is
+	/// literally <c>net11.0-tizenTIZEN_PLATFORM_VERSION</c>), so loading it fails by design. It
+	/// equally must not be parked as <c>.csproj.orphan</c>, because the whole point is that
+	/// instantiating the template produces a real <c>.csproj</c>.
+	///
+	/// The orphan rule's concern - that a folder-level build or IDE scan would try to load it -
+	/// does not apply, because Maui.Tizen.Templates sets EnableDefaultItems/EnableDefaultCompileItems
+	/// to false and packs <c>templates/**</c> purely as content. That is asserted by
+	/// <c>TemplateIsShippedAsContentAndNotBuilt</c> below, so this exclusion cannot silently widen
+	/// into "any csproj under any folder named templates".
+	/// </remarks>
+	static bool IsTemplateContent(string projectPath)
+	{
+		for (var directory = Path.GetDirectoryName(projectPath); directory is not null; directory = Path.GetDirectoryName(directory))
+		{
+			// The marker is the template configuration itself, not the folder name.
+			if (Directory.Exists(Path.Combine(directory, ".template.config")))
+				return true;
+
+			if (string.Equals(directory, RepoRoot, StringComparison.Ordinal))
+				break;
+		}
+
+		return false;
+	}
+
+	[Fact]
+	public void TemplateIsShippedAsContentAndNotBuilt()
+	{
+		var templatesProject = ReadRepoFile(Path.Combine("src", "Maui.Tizen.Templates", "Maui.Tizen.Templates.csproj"));
+
+		// Nothing under templates/ may be compiled or globbed as project items.
+		Assert.Contains("<EnableDefaultItems>false</EnableDefaultItems>", templatesProject);
+		Assert.Contains("<EnableDefaultCompileItems>false</EnableDefaultCompileItems>", templatesProject);
+		Assert.Contains("<PackageType>Template</PackageType>", templatesProject);
+		Assert.Contains("templates\\**\\*", templatesProject.Replace('/', '\\'));
+
+		// And every template project file must sit next to a .template.config, which is what
+		// makes the orphan exclusion above legitimate.
+		var templateRoot = Path.Combine(RepoRoot, "src", "Maui.Tizen.Templates", "templates");
+		if (!Directory.Exists(templateRoot))
+			return;
+
+		foreach (var project in Directory.EnumerateFiles(templateRoot, "*.csproj", SearchOption.AllDirectories))
+		{
+			Assert.True(
+				Directory.Exists(Path.Combine(Path.GetDirectoryName(project)!, ".template.config")),
+				$"'{Path.GetRelativePath(RepoRoot, project)}' is under templates/ but has no .template.config beside it, "
+					+ "so it is an orphan project rather than template content.");
+		}
 	}
 
 	[Fact]

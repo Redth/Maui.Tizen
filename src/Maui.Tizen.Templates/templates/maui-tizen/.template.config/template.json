@@ -1,0 +1,137 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Maui.Tizen Contributors",
+  "classifications": [
+    "MAUI",
+    "Tizen",
+    "Mobile"
+  ],
+  "identity": "Maui.Tizen.App.CSharp",
+  "groupIdentity": "Maui.Tizen.App",
+  "name": ".NET MAUI Tizen App",
+  "shortName": "maui-tizen",
+  "description": "A .NET MAUI application targeting Tizen through the standalone Maui.Tizen backend.",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "MauiTizenApp",
+  "preferNameDirectory": true,
+  "defaultName": "MauiTizenApp",
+  "primaryOutputs": [
+    {
+      "path": "MauiTizenApp.csproj"
+    }
+  ],
+  "symbols": {
+    "TizenPlatformVersion": {
+      "type": "parameter",
+      "description": "The Tizen platform version component of the target framework. Only 11.0 is currently supported; lower platform versions are parameterized here but not offered until package compatibility is proven.",
+      "datatype": "choice",
+      "choices": [
+        {
+          "choice": "11.0",
+          "description": "Tizen 11.0 (TizenFX API15)"
+        }
+      ],
+      "replaces": "TIZEN_PLATFORM_VERSION",
+      "defaultValue": "11.0"
+    },
+    "TizenApiVersion": {
+      "type": "parameter",
+      "description": "The api-version written into tizen-manifest.xml.",
+      "datatype": "text",
+      "replaces": "TIZEN_API_VERSION",
+      "defaultValue": "11"
+    },
+    "TizenRefPackVersion": {
+      "type": "parameter",
+      "description": "The version of the Samsung.Tizen.Ref.API15 reference pack.",
+      "datatype": "text",
+      "replaces": "TIZEN_REF_PACK_VERSION",
+      "defaultValue": "15.0.0.19396"
+    },
+    "MauiTizenVersion": {
+      "type": "parameter",
+      "description": "The version of the Maui.Tizen packages to reference.",
+      "datatype": "text",
+      "replaces": "MAUI_TIZEN_VERSION",
+      "defaultValue": "11.0.0-alpha"
+    },
+    "skipRestore": {
+      "type": "parameter",
+      "datatype": "bool",
+      "description": "If specified, skips the automatic restore of the project on create.",
+      "defaultValue": "false"
+    },
+    "ApplicationId": {
+      "type": "parameter",
+      "datatype": "text",
+      "description": "The Tizen package id. Defaults to com.companyname.<project name>, sanitized to the characters Tizen allows.",
+      "defaultValue": ""
+    },
+    "applicationIdName": {
+      "type": "derived",
+      "valueSource": "name",
+      "valueTransform": "tizenIdLowerSafe",
+      "replaces": "__APPLICATIONID_NAME__"
+    },
+    "generatedApplicationId": {
+      "type": "generated",
+      "generator": "join",
+      "parameters": {
+        "symbols": [
+          {
+            "type": "const",
+            "value": "com.companyname"
+          },
+          {
+            "type": "ref",
+            "value": "applicationIdName"
+          }
+        ],
+        "separator": "."
+      }
+    },
+    "effectiveApplicationId": {
+      "type": "generated",
+      "generator": "coalesce",
+      "parameters": {
+        "sourceVariableName": "ApplicationId",
+        "fallbackVariableName": "generatedApplicationId"
+      },
+      "replaces": "com.companyname.mauitizenapp"
+    }
+  },
+  "postActions": [
+    {
+      "id": "restore",
+      "condition": "(!skipRestore)",
+      "description": "Restore NuGet packages required by this project.",
+      "manualInstructions": [
+        {
+          "text": "Run 'dotnet restore'"
+        }
+      ],
+      "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
+      "continueOnError": true
+    }
+  ],
+  "forms": {
+    "tizenIdLower": {
+      "identifier": "lowerCase"
+    },
+    "tizenIdSafe": {
+      "identifier": "replace",
+      "pattern": "[^a-z0-9]",
+      "replacement": ""
+    },
+    "tizenIdLowerSafe": {
+      "identifier": "chain",
+      "steps": [
+        "tizenIdLower",
+        "tizenIdSafe"
+      ]
+    }
+  }
+}
