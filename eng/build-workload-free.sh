@@ -125,6 +125,8 @@ info "Workload-independent projects"
 WORKLOAD_FREE_PROJECTS=(
   "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj"
   "tests/UnitTests/Maui.Tizen.UnitTests.csproj"
+  "eng/tests/PublicApiOptIn/PublicApiOptIn.csproj"
+  "eng/tests/PackReadmeProbe/PackReadmeProbe.csproj"
 )
 BUILD_OK=1
 for proj in "${WORKLOAD_FREE_PROJECTS[@]}"; do
@@ -148,6 +150,35 @@ done
 # ---------------------------------------------------------------------------
 info "Package graph"
 check "restore package graph probe" "$DOTNET" restore eng/tests/PackageGraphProbe/PackageGraphProbe.csproj
+
+# ---------------------------------------------------------------------------
+# 4c. Packing regression.
+#
+# Proves that a project opting into IsPackable from its own body still receives the
+# README <None Pack="true"> item declared in Directory.Build.props, and therefore does
+# not fail with NU5039. See eng/tests/PackReadmeProbe for why this is pinned rather than
+# assumed - it is the kind of MSBuild evaluation-order question that is easy to reason
+# about incorrectly in either direction.
+# ---------------------------------------------------------------------------
+info "Packing"
+if check "pack README probe" "$DOTNET" pack eng/tests/PackReadmeProbe/PackReadmeProbe.csproj --no-restore -c Release; then
+  README_NUPKG="$(ls -t "$REPO_ROOT"/artifacts/packages/Maui.Tizen.Internal.PackReadmeProbe.*.nupkg 2>/dev/null | head -1 || true)"
+  # NOTE: `unzip -l ... | grep -q` is deliberately avoided. Under `set -o pipefail`,
+  # grep -q exits on first match and closes the pipe, so unzip can die with SIGPIPE and
+  # poison the pipeline's status - reporting a missing README for a package that contains
+  # one. That is the same failure that once made the CI provenance check report a present
+  # commit as missing; `grep -c` consumes all input, so there is no early close.
+  README_COUNT=0
+  if [[ -n "$README_NUPKG" ]]; then
+    README_COUNT="$(unzip -l "$README_NUPKG" 2>/dev/null | grep -c 'README\.md' || true)"
+  fi
+  if [[ "$README_COUNT" -gt 0 ]]; then
+    pass "packed nupkg contains README.md"
+  else
+    fail "packed nupkg is missing README.md (NU5039 risk: the README Pack item did not apply)"
+    FAILURES=$((FAILURES + 1))
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 # 5. Repository invariant tests.
