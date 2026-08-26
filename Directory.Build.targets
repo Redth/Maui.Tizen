@@ -3,25 +3,18 @@
   <!--
     Conventions applied after each project's own content.
 
-    The important piece here is the Tizen workload gate. It is a TARGET, not an
-    evaluation-time error, so that tooling which only evaluates projects (IDE load,
-    `dotnet msbuild -pp`, the manifest validators) keeps working on machines without the
-    workload. Actually building a Tizen project without the workload fails loudly.
+    NOTE: TargetFramework, SupportedOSPlatformVersion, TargetPlatformMinVersion and the
+    TIZEN define are deliberately NOT set here - they live in eng/targets/TizenPackage.props.
+    This file is imported at the end of Microsoft.Common.targets, long after the SDK has
+    already parsed $(TargetFramework) into TargetFrameworkIdentifier/Version, so assigning
+    the TFM here made inference fall back to identifier "_" and version "v0.0". See the
+    comment in TizenPackage.props.
+
+    The workload gate below stays a TARGET rather than an evaluation-time error, so that
+    tooling which only evaluates projects (IDE load, `dotnet msbuild -getProperty`, the
+    manifest validators) keeps working on machines without the workload. Actually building
+    a Tizen project without the workload fails loudly.
   -->
-
-  <PropertyGroup Condition="'$(IsTizenProject)' == 'true'">
-    <TargetFramework>$(MauiTizenTargetFramework)</TargetFramework>
-    <SupportedOSPlatformVersion>$(TizenPlatformVersion)</SupportedOSPlatformVersion>
-    <TargetPlatformMinVersion>$(TizenPlatformVersion)</TargetPlatformMinVersion>
-
-    <!--
-      TIZEN is defined unconditionally. Upstream this is conditional because the same
-      sources compile for six platforms; here every file is Tizen-only, so the #if TIZEN
-      blocks inherited from dotnet/maui must always take the Tizen branch. Leaving it
-      undefined would compile the *wrong* half of every inherited conditional.
-    -->
-    <DefineConstants>$(DefineConstants);TIZEN</DefineConstants>
-  </PropertyGroup>
 
   <!--
     Compile-item conventions inherited from dotnet/maui's src/MultiTargeting.targets.
@@ -35,6 +28,42 @@
   </ItemGroup>
 
   <!--
+    Detects the Samsung Tizen workload.
+
+    Runs at target time rather than during evaluation because item globs are the only
+    layout-agnostic mechanism available, and they only work inside a target. See the
+    Workload detection comment in Directory.Build.props for why the alternatives fail.
+
+    Matches both known manifest layouts under any SDK feature band:
+      sdk-manifests/<band>/samsung.net.sdk.tizen/<version>/WorkloadManifest.json   (current)
+      sdk-manifests/<band>/samsung.net.sdk.tizen/WorkloadManifest.json             (legacy)
+
+    Skipped entirely when TizenWorkloadAvailable was set explicitly, so CI and tests can
+    pin the answer.
+  -->
+  <Target Name="_DetectTizenWorkload" Condition="'$(TizenWorkloadAvailable)' == ''">
+    <ItemGroup Condition="Exists('$(_TizenWorkloadManifestRoot)')">
+      <_TizenWorkloadManifest Include="$(_TizenWorkloadManifestRoot)*/samsung.net.sdk.tizen/*/WorkloadManifest.json" />
+      <_TizenWorkloadManifest Include="$(_TizenWorkloadManifestRoot)*/samsung.net.sdk.tizen/WorkloadManifest.json" />
+    </ItemGroup>
+    <PropertyGroup>
+      <TizenWorkloadAvailable Condition="'@(_TizenWorkloadManifest)' != ''">true</TizenWorkloadAvailable>
+      <TizenWorkloadAvailable Condition="'$(TizenWorkloadAvailable)' == ''">false</TizenWorkloadAvailable>
+    </PropertyGroup>
+  </Target>
+
+  <!--
+    Single source of truth for tooling that needs to know whether the workload is present.
+    eng/build-workload-free.sh calls this instead of parsing `dotnet workload list`, so
+    there is exactly one detection implementation to get right.
+
+      dotnet msbuild <proj> -t:ReportTizenWorkload -nologo -v:m
+  -->
+  <Target Name="ReportTizenWorkload" DependsOnTargets="_DetectTizenWorkload">
+    <Message Importance="High" Text="TizenWorkloadAvailable=$(TizenWorkloadAvailable)" />
+  </Target>
+
+  <!--
     The explicit external gate.
 
     The Samsung .NET 11 workload (samsung.net.sdk.tizen.manifest-11.0.100) is not
@@ -43,20 +72,35 @@
     value 'net11.0-tizen11.0' was not recognized. It may be misspelled."), which sends
     people looking for a typo that isn't there.
 
-    BeforeTargets deliberately includes the SDK's own _CheckForUnsupportedTargetFramework
-    so that this error wins the race against NETSDK1013. Restore and Build are also listed
-    because _CheckForUnsupportedTargetFramework only runs when the SDK has already decided
-    the TFM is unresolvable - once the workload ships, that target stops running and this
-    one must still gate anyone whose workload is merely missing rather than nonexistent.
+    BeforeTargets deliberately lists the SDK's own pre-checks so that this error wins the
+    race against whichever one fires first. Both are needed, and which one you hit depends
+    on how well TFM inference worked:
+
+      _CheckForUnsupportedTargetFramework       raises NETSDK1013 when $(TargetFramework)
+                                                could not be parsed at all
+      _CheckForUnsupportedTargetPlatformIdentifier  raises NETSDK1139 ("target platform
+                                                identifier tizen was not recognized") once
+                                                parsing DOES work but no workload provides
+                                                the platform
+
+    Before the TFM assignment was moved into props, inference failed outright and the
+    symptom was NETSDK1013. Fixing that changed the symptom to NETSDK1139 and this gate
+    silently stopped firing - so both are listed, and a regression test pins it.
+
+    Restore and Build are also listed because the SDK pre-checks stop running once the
+    workload ships, and this gate must still catch anyone whose workload is merely
+    missing rather than nonexistent.
 
     Do NOT resolve a red build here by adding a neutral net11.0 fallback. A neutral build
     would be green and useless: it would produce assemblies that cannot run on Tizen,
     converting a visible external gate into an invisible correctness bug.
   -->
   <Target Name="ValidateTizenWorkloadAvailable"
-          BeforeTargets="_CheckForUnsupportedTargetFramework;Restore;Build;Pack"
-          Condition="'$(IsTizenProject)' == 'true' AND '$(TizenWorkloadAvailable)' != 'true'">
-    <Error Code="MAUITIZEN0001"
+          DependsOnTargets="_DetectTizenWorkload"
+          BeforeTargets="_CheckForUnsupportedTargetFramework;_CheckForUnsupportedTargetPlatformIdentifier;Restore;Build;Pack"
+          Condition="'$(IsTizenProject)' == 'true'">
+    <Error Condition="'$(TizenWorkloadAvailable)' != 'true'"
+           Code="MAUITIZEN0001"
            Text="The Samsung Tizen workload for .NET $(DotNetVersion) is not installed, so '$(MSBuildProjectName)' cannot target $(MauiTizenTargetFramework).%0A%0AThis is a known external gate, not a repository defect and not a typo in the target framework: the workload manifest 'samsung.net.sdk.tizen.manifest-11.0.100' has not been published (only the 9.0.100 and 10.0.100 bands exist). See docs/migration.md and eng/baselines.json.%0A%0ATo build the parts of this repository that do not need the workload, run: eng/build-workload-free.sh%0ATo override detection once the workload ships, pass -p:TizenWorkloadAvailable=true." />
   </Target>
 

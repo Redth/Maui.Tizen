@@ -46,16 +46,28 @@
 
   <PropertyGroup Label="Workload detection">
     <!--
-      Probe for the Samsung Tizen workload. `TizenWorkloadAvailable` may also be forced
-      from the command line or environment, which is how CI pins behaviour rather than
-      depending on whatever happens to be installed on the agent:
+      `TizenWorkloadAvailable` may be forced from the command line or environment, which is
+      how CI pins behaviour rather than depending on whatever happens to be installed:
 
         dotnet build -p:TizenWorkloadAvailable=true
+
+      When not forced, it is detected at TARGET time by _DetectTizenWorkload in
+      Directory.Build.targets. Detection cannot happen here, during evaluation, because
+      every available mechanism is either wrong or unavailable:
+
+        * A constructed path is wrong. The real layout is
+          sdk-manifests/<feature-band>/<manifest-id>/<manifest-version>/WorkloadManifest.json,
+          and the band is NOT $(NETCoreSdkVersion) - an 11.0.100-preview.7.26381.103 SDK
+          installs manifests under band 11.0.100-preview.6.
+        * An item glob is unavailable: during evaluation, item references expand neither in
+          property conditions (MSB4099) nor in property values (`@(x)` stays the literal
+          string "@(x)", which is silently truthy and reports "installed" everywhere).
+        * Directory.GetDirectories with SearchOption is not on MSBuild's property-function
+          allowlist (MSB4186).
+
+      Item globs DO work inside a target, so that is where detection lives.
     -->
-    <_TizenWorkloadManifestDir>$(NetCoreRoot)sdk-manifests/</_TizenWorkloadManifestDir>
-    <TizenWorkloadAvailable Condition="'$(TizenWorkloadAvailable)' == '' AND Exists('$(_TizenWorkloadManifestDir)$(NETCoreSdkVersion)/samsung.net.sdk.tizen/WorkloadManifest.json')">true</TizenWorkloadAvailable>
-    <TizenWorkloadAvailable Condition="'$(TizenWorkloadAvailable)' == '' AND Exists('$(_TizenWorkloadManifestDir)$(BundledNETCoreAppPackageVersion)/samsung.net.sdk.tizen/WorkloadManifest.json')">true</TizenWorkloadAvailable>
-    <TizenWorkloadAvailable Condition="'$(TizenWorkloadAvailable)' == ''">false</TizenWorkloadAvailable>
+    <_TizenWorkloadManifestRoot>$(NetCoreRoot)sdk-manifests/</_TizenWorkloadManifestRoot>
   </PropertyGroup>
 
   <PropertyGroup Label="Language and analysis">

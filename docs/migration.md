@@ -99,7 +99,7 @@ enforces this.
 | Category | Count | Baseline |
 |---|---|---|
 | Tizen-named files | 314 | `net11.0` (`ee4d06cde6`) |
-| Shared files with `#if TIZEN` | 136 | `net11.0` |
+| Shared files with `#if TIZEN` | 135 | `net11.0` |
 | `PublicAPI/net-tizen` baselines | 18 | `net11.0` |
 | Tizen-named files present at `9.0.120` but **absent** at the net11.0 pin | 87 | `9.0.120` only |
 

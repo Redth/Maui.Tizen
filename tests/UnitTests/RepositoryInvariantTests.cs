@@ -15,17 +15,7 @@ namespace Maui.Tizen.UnitTests;
 /// </summary>
 public class RepositoryInvariantTests
 {
-	static readonly string RepoRoot = FindRepositoryRoot();
-
-	static string FindRepositoryRoot()
-	{
-		var dir = new DirectoryInfo(AppContext.BaseDirectory);
-		while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Directory.Build.props")))
-			dir = dir.Parent;
-
-		Assert.NotNull(dir);
-		return dir!.FullName;
-	}
+	static readonly string RepoRoot = RepositoryPaths.Root;
 
 	static string ReadRepoFile(string relativePath)
 	{
@@ -240,14 +230,20 @@ public class RepositoryInvariantTests
 	[Fact]
 	public void WorkloadGateRunsBeforeTheSdkRejectsTheTargetFramework()
 	{
-		// Without the workload, the SDK fails at target-framework inference with
-		// NETSDK1013 ("The TargetFramework value 'net11.0-tizen11.0' was not recognized.
-		// It may be misspelled.") - which sends people hunting for a typo that does not
-		// exist. The gate only produces its explanatory MAUITIZEN0001 error if it is
-		// hooked ahead of the SDK's own _CheckForUnsupportedTargetFramework target.
+		// Without the workload the SDK fails first, and WHICH error it raises depends on
+		// how far inference got:
 		//
-		// This was a real regression: the gate was originally hooked on Build only, and
-		// never fired.
+		//   NETSDK1013  "TargetFramework value 'net11.0-tizen11.0' was not recognized.
+		//                It may be misspelled."      <- inference failed entirely
+		//   NETSDK1139  "The target platform identifier tizen was not recognized."
+		//                                            <- inference worked, no workload
+		//
+		// Both send people hunting for a typo that does not exist. The gate only produces
+		// its explanatory MAUITIZEN0001 if it is hooked ahead of BOTH SDK pre-checks.
+		//
+		// This regressed twice: first the gate was hooked on Build only and never fired;
+		// then fixing TFM inference changed the symptom from NETSDK1013 to NETSDK1139 and
+		// it silently stopped firing again.
 		var targets = ReadRepoFile("Directory.Build.targets");
 
 		var gate = Regex.Match(
@@ -256,8 +252,68 @@ public class RepositoryInvariantTests
 			RegexOptions.Singleline);
 
 		Assert.True(gate.Success, "Directory.Build.targets must define ValidateTizenWorkloadAvailable");
-		Assert.Contains("_CheckForUnsupportedTargetFramework", gate.Groups[1].Value);
-		Assert.Contains("Restore", gate.Groups[1].Value);
+
+		var attributes = gate.Groups[1].Value;
+		Assert.Contains("_CheckForUnsupportedTargetFramework", attributes);
+		Assert.Contains("_CheckForUnsupportedTargetPlatformIdentifier", attributes);
+		Assert.Contains("Restore", attributes);
+	}
+
+	[Fact]
+	public void TargetFrameworkIsAssignedDuringEvaluationNotInTargets()
+	{
+		// Directory.Build.targets is imported at the end of Microsoft.Common.targets, long
+		// after the SDK has parsed $(TargetFramework) into TargetFrameworkIdentifier and
+		// TargetFrameworkVersion. Assigning the TFM there makes inference fall back to
+		// identifier "_" and version "v0.0" while still *looking* correct, so everything
+		// keyed off the identifier - NuGet's restore graph, framework-conditional items -
+		// silently evaluates against a framework that does not exist.
+		//
+		// TizenPackage.props is imported from the project body, before Sdk.targets, so
+		// inference sees the real value.
+		var props = ReadRepoFile("eng/targets/TizenPackage.props");
+		Assert.Matches(@"<TargetFramework\s+Condition[^>]*>\$\(MauiTizenTargetFramework\)</TargetFramework>", props);
+
+		var targets = ReadRepoFile("Directory.Build.targets");
+		Assert.DoesNotMatch(new Regex(@"<TargetFramework>"), targets);
+		Assert.DoesNotMatch(new Regex(@"<TargetFrameworks>"), targets);
+	}
+
+	[Fact]
+	public void WorkloadDetectionDoesNotUseAConstructedManifestPath()
+	{
+		// The original probe built sdk-manifests/$(NETCoreSdkVersion)/samsung.net.sdk.tizen/
+		// by hand. The real layout is sdk-manifests/<feature-band>/<id>/<version>/, and the
+		// band is not the SDK version - an 11.0.100-preview.7.26381.103 SDK installs under
+		// band 11.0.100-preview.6 - so it could never match, producing a permanent false
+		// "workload missing".
+		var props = ReadRepoFile("Directory.Build.props");
+		Assert.DoesNotContain("$(NETCoreSdkVersion)/samsung", props);
+		Assert.DoesNotContain("$(BundledNETCoreAppPackageVersion)/samsung", props);
+
+		// Detection must live in a target, where item globs actually work.
+		var targets = ReadRepoFile("Directory.Build.targets");
+		Assert.Contains("_DetectTizenWorkload", targets);
+		Assert.Contains("samsung.net.sdk.tizen/*/WorkloadManifest.json", targets);
+	}
+
+	[Fact]
+	public void WorkloadReportingDoesNotSubstringMatchWorkloadNames()
+	{
+		// `dotnet workload list | grep -i tizen` matches an unrelated `maui-tizen`
+		// workload and would report the external gate as lifted while Samsung's workload
+		// was still absent. The script asks MSBuild instead, so there is exactly one
+		// detection implementation.
+		//
+		// Comment lines are stripped before matching: the script explains this very bug in
+		// prose, and the first version of this test failed on that comment.
+		var executableLines = ReadRepoFile("eng/build-workload-free.sh")
+			.Split('\n')
+			.Where(line => !line.TrimStart().StartsWith("#", StringComparison.Ordinal));
+		var script = string.Join('\n', executableLines);
+
+		Assert.DoesNotMatch(new Regex(@"workload\s+list"), script);
+		Assert.Contains("ReportTizenWorkload", script);
 	}
 
 	[Fact]
