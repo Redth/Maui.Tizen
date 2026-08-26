@@ -179,7 +179,7 @@ create a second, competing source of truth for back-button routing, so
 | Window-scoped holder semantics | `TizenScopedWindowServiceTests` |
 | Provisional contract shape, namespace and expiry | `ProvisionalModalNavigationContractTests` |
 | DI registration and lifetimes | `tests/Controls.UnitTests/TizenServiceRegistrationTests.cs` |
-| `NuiNavigationStack` | Compile-checked by `eng/verify-nui-sources.sh`; behaviour needs a device |
+| `NuiNavigationStack` | Type-checked against TizenFX by `tests/Maui.Tizen.Controls.RefPackCompile`; behaviour needs a device |
 
 Placeholder balance in particular used to be device-only. It now runs on the host, which matters
 because the failure mode — a stack left permanently unbalanced — wedges every subsequent modal in

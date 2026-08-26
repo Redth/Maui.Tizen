@@ -138,12 +138,17 @@ WORKLOAD_FREE_PROJECTS=(
   #                               Samsung.Tizen.Ref.API15. It is compile-only and unpackable,
   #                               so it cannot become a neutral fallback for the product.
   #
+  #   Maui.Tizen.Controls.RefPackCompile  the same, for the Controls platform layer. Separate
+  #                               from the Core lane because these sources need
+  #                               Microsoft.Maui.Controls, which that lane does not reference.
+  #
   #   Maui.Tizen.Controls.UnitTests   source-includes the NUI-free half of the Controls
   #                               platform layer (alerts, modal coordination and navigation,
   #                               gestures) and EXECUTES it. See the project file for why
   #                               source inclusion rather than a ProjectReference.
   "tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj"
   "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj"
+  "tests/Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj"
   "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj"
 )
 BUILD_OK=1

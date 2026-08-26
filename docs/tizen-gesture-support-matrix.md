@@ -202,10 +202,12 @@ factory can therefore refine this table without changing any other code.
 | Manager and detector lifecycle (attach, detach, enable, dispose, collection changes) | `tests/Controls.UnitTests/TizenGesturePlatformManagerTests.cs` |
 | Dispatch through real MAUI recognizers, and the blocked gestures | `tests/Controls.UnitTests/TizenGestureDispatcherTests.cs` |
 | DI registration and lifetimes | `tests/Controls.UnitTests/TizenServiceRegistrationTests.cs` |
-| NUI adapters under `Core/Platform/Nui` | Compile-checked against `Samsung.Tizen.Ref` API13 and `Tizen.UIExtensions.NUI` 0.9.2; behaviour needs a device |
+| NUI adapters under `Core/Platform/Nui` | Type-checked against `Samsung.Tizen.Ref.API15` and `Tizen.UIExtensions.NUI` 0.9.2 by `tests/Maui.Tizen.Controls.RefPackCompile`; behaviour needs a device |
 
 The NUI adapters cannot be executed until the Samsung .NET 11 workload ships
-(`eng/baselines.json` → `target.workloadManifest`). They *can* be compile-checked without
-it, by compiling the sources against the TizenFX reference assemblies directly; that is how
-the non-existent `SetMinimumHoldingTime` call described above was found. Device tests for
-the adapters are the remaining gap and are blocked on the same workload.
+(`eng/baselines.json` → `target.workloadManifest`). They *can* be type-checked without it:
+`Samsung.Tizen.Ref.API15` publishes real `ref/net8.0` reference assemblies, so
+`tests/Maui.Tizen.Controls.RefPackCompile` compiles the sources against them on a plain
+`net11.0` host. That lane is how the non-existent `SetMinimumHoldingTime` call described
+above was found. Device tests for the adapters are the remaining gap and are blocked on the
+same workload.
