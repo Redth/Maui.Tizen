@@ -4,23 +4,35 @@ name: Release Maui.Tizen packages
 # STATUS: SKELETON / SAFELY GATED — DO NOT ENABLE PUBLISHING YET.
 #
 # This workflow defines the *shape* of the Maui.Tizen release pipeline:
-# build -> validate -> pack (unsigned, always runs) -> sign -> publish, with
-# organization environment approvals gating only the two risk-bearing
-# stages (sign, publish). Ordinary manual runs — build, validate, and pack —
-# succeed with no credentials and produce unsigned CI packages as workflow
-# artifacts for inspection/testing. It intentionally cannot publish a
-# signed, real package today:
+# build -> validate -> pack (unsigned, always runs) -> device-validation ->
+# release-gate -> sign -> publish, with organization environment approvals
+# gating the risk-bearing stages (release-gate, sign, publish). Ordinary
+# manual runs — build, validate, and pack — succeed with no credentials and
+# produce unsigned CI packages as workflow artifacts for inspection/testing.
+# It intentionally cannot publish a signed, real package today:
 #
-#   1. `sign` and `publish` both require the literal "PUBLISH" confirmation
-#      input - a typo-proof, accidental-trigger-proof confirmation, not
-#      just a boolean checkbox. Without it, the run stops after `pack` with
-#      unsigned artifacts only.
-#   2. `sign` requires the `nuget-signing` environment and `publish`
-#      requires the `nuget-production` environment - neither exists in this
-#      repository yet (create them only after
+#   1. `device-validation`, `release-gate`, `sign` and `publish` all require
+#      the literal "PUBLISH" confirmation input - a typo-proof,
+#      accidental-trigger-proof confirmation, not just a boolean checkbox.
+#      Without it, the run stops after `pack` with unsigned artifacts only.
+#   2. `device-validation` calls the reusable
+#      `.github/workflows/tizen-device-validation.yml` workflow with
+#      `release_validation: true`, which fails unless every release-gating
+#      Tizen profile actually ran and passed on real hardware (see that
+#      workflow's own `release-gate` job and
+#      `eng/validation/scripts/evaluate-release-gate.sh`) - a real result,
+#      not a description of one.
+#   3. `release-gate` requires the `tizen-release` environment (human
+#      approval) and only runs once `device-validation` has actually
+#      succeeded.
+#   4. `sign` requires the `nuget-signing` environment and `publish`
+#      requires the `nuget-production` environment - none of the three
+#      environments referenced by this workflow (`tizen-release`,
+#      `nuget-signing`, `nuget-production`) exist in this repository yet
+#      (create them only after
 #      docs/governance/package-metadata-conventions.md's ownership/signing
 #      items are resolved).
-#   3. This workflow only runs on `workflow_dispatch` (manual) - it is not
+#   5. This workflow only runs on `workflow_dispatch` (manual) - it is not
 #      wired to tags/releases yet, so it cannot fire unintentionally from a
 #      push or PR.
 #
@@ -29,8 +41,12 @@ name: Release Maui.Tizen packages
 #     trusted publishing)
 #   - docs/governance/samsung-transfer-checklist.md sections 2, 4, 5 (or the
 #     interim equivalents, if publishing before transfer)
-#   - Create the `nuget-signing` and `nuget-production` GitHub Environments
-#     with required reviewers configured.
+#   - Create the `tizen-release`, `nuget-signing` and `nuget-production`
+#     GitHub Environments with required reviewers configured.
+#   - Provision the self-hosted `[self-hosted, tizen]` device runners and
+#     the `tizen-device-lab` environment that
+#     `.github/workflows/tizen-device-validation.yml` depends on, and set
+#     `vars.TIZEN_DEVICE_LAB_ENABLED`/`vars.TIZEN_CATALOG_PROJECT`.
 # ---------------------------------------------------------------------------
 
 on:
@@ -44,9 +60,10 @@ on:
         type: string
       confirm_publish:
         description: >-
-          Type PUBLISH (all caps) to allow the sign and publish jobs to run.
-          Any other value stops the run after producing unsigned,
-          validated CI packages (build/validate/pack only).
+          Type PUBLISH (all caps) to allow the device-validation,
+          release-gate, sign and publish jobs to run. Any other value stops
+          the run after producing unsigned, validated CI packages
+          (build/validate/pack only).
         required: false
         type: string
         default: ""
@@ -270,10 +287,55 @@ jobs:
           retention-days: 90
 
   # -------------------------------------------------------------------------
+  # Consume the real device validation gate. Only runs when publishing is
+  # requested (device runs are slow and require hardware, so they are not
+  # part of the always-safe build/validate/pack lane). This calls the
+  # reusable workflow directly - it does not merely describe a gate or
+  # trigger validation after the fact on a tag: `release_validation: true`
+  # makes that workflow's own `release-gate` job fail the call unless every
+  # release-gating Tizen profile (per
+  # eng/validation/profiles/tizen-profiles.json) actually ran on real
+  # hardware and passed - see
+  # .github/workflows/tizen-device-validation.yml and
+  # eng/validation/scripts/evaluate-release-gate.sh for how that job
+  # decides pass/fail (per-profile result artifacts, not job outputs, so a
+  # skipped/unavailable profile cannot masquerade as a pass).
+  # -------------------------------------------------------------------------
+  device-validation:
+    name: Tizen device validation (release gate input)
+    needs: pack
+    if: ${{ inputs.confirm_publish == 'PUBLISH' }}
+    uses: ./.github/workflows/tizen-device-validation.yml
+    with:
+      release_validation: true
+
+  # -------------------------------------------------------------------------
+  # Human approval gate. Requires the `tizen-release` GitHub Environment
+  # (required reviewers) and only runs once `device-validation` has
+  # actually succeeded - i.e. real hardware validation passed, not merely
+  # that this workflow was triggered from a tag. This environment does not
+  # exist in the repository yet; creating it (with real reviewers) is
+  # itself a transfer/activation-readiness action tracked in
+  # docs/governance/samsung-transfer-checklist.md.
+  # -------------------------------------------------------------------------
+  release-gate:
+    name: Release approval gate
+    runs-on: ubuntu-latest
+    needs: device-validation
+    if: ${{ inputs.confirm_publish == 'PUBLISH' }}
+    environment: tizen-release
+    steps:
+      - name: Confirm device validation passed
+        run: |
+          echo "Tizen device validation (.github/workflows/tizen-device-validation.yml release-gate job) succeeded."
+          echo "Approved to proceed to signing/publishing via the tizen-release environment."
+
+  # -------------------------------------------------------------------------
   # Code + package signing. Only runs when the caller explicitly typed
-  # "PUBLISH". Requires the `nuget-signing` environment, which should be
-  # configured with required reviewers and an organization-owned signing
-  # credential (never a personal certificate - see
+  # "PUBLISH" and only after the device validation / release approval gate
+  # above has succeeded. Requires the `nuget-signing` environment, which
+  # should be configured with required reviewers and an organization-owned
+  # signing credential (never a personal certificate - see
   # docs/governance/package-metadata-conventions.md section 3). This
   # environment does not exist in the repository yet, so this job cannot
   # currently succeed even when "PUBLISH" is typed - that is intentional.
@@ -281,7 +343,7 @@ jobs:
   sign:
     name: Sign packages (production only)
     runs-on: ubuntu-latest
-    needs: pack
+    needs: release-gate
     if: ${{ inputs.confirm_publish == 'PUBLISH' }}
     environment: nuget-signing
     steps:
