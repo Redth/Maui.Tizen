@@ -203,6 +203,31 @@ if [[ $BUILD_OK -eq 1 ]]; then
   ESSENTIALS_TESTS="artifacts/bin/Maui.Tizen.Essentials.Tests/Release/net11.0/Maui.Tizen.Essentials.Tests"
   check "essentials tests binary was produced" test -x "$ESSENTIALS_TESTS"
   check "essentials tests" "./$ESSENTIALS_TESTS"
+
+  # Assert the test COUNT, not just the exit code.
+  #
+  # This is not belt-and-braces. Discovery over this assembly walks assembly-level attributes
+  # across the loaded closure, and Tizen.NUI's [XmlnsDefinition] constructor P/Invokes and
+  # throws off-device. On the xunit v2 runner that aborted discovery part way through a class
+  # and SILENTLY DROPPED the remaining tests while still reporting success - it hid 4 tests
+  # before it was noticed. v3 handles it, but "the runner reported success" is demonstrably
+  # not sufficient evidence here, so the floor is pinned.
+  #
+  # Raise this when adding tests; never lower it to make a run go green.
+  ESSENTIALS_TESTS_MINIMUM=195
+  check "essentials tests ran at least $ESSENTIALS_TESTS_MINIMUM tests" bash -c '
+    set -euo pipefail
+    total="$("./$1" 2>/dev/null | sed -n "s/^[[:space:]]*total:[[:space:]]*\([0-9][0-9]*\).*/\1/p" | tail -1)"
+    if [ -z "$total" ]; then
+      echo "could not parse a test total from the runner summary"
+      exit 1
+    fi
+    if [ "$total" -lt "$2" ]; then
+      echo "test discovery regressed: ran $total, expected at least $2"
+      exit 1
+    fi
+    echo "ran $total tests"
+  ' _ "$ESSENTIALS_TESTS" "$ESSENTIALS_TESTS_MINIMUM"
 else
   fail "unit tests skipped - a preceding build failed (running --no-build now would only add cascading noise)"
   FAILURES=$((FAILURES + 1))
