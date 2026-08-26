@@ -188,6 +188,37 @@ public class RepositoryInvariantTests
 		Assert.True(File.Exists(Path.Combine(RepoRoot, relativePath)), $"Missing: {relativePath}");
 	}
 
+	[Fact]
+	public void BaselinePinRecordsWhatItExcludes()
+	{
+		// A pin is only genuinely reproducible if what it EXCLUDES is written down too.
+		//
+		// sourceBaseline (ee4d06cde6) is 4 commits after requiredAncestor, none touching
+		// Tizen. But net11.0 continued past the pin, and three later commits do - all of
+		// them touching only src/Controls/src/Core/PublicAPI/net-tizen/PublicAPI.Unshipped.txt.
+		// So the Controls net-tizen Unshipped baseline sits three API additions behind
+		// current net11.0: relevant to API baseline diffing, not to source migration.
+		//
+		// This survived several review-fix rounds by luck rather than design. Whoever
+		// regenerates API baselines needs it, and it is the kind of prose that quietly
+		// disappears in a rebase, so it is pinned here.
+		var gap = ReadRepoJson("eng/baselines.json")
+			.GetProperty("source").GetProperty("sourceBaseline").GetProperty("knownGapAfterThisPin");
+
+		var commits = gap.GetProperty("commits").EnumerateArray().ToList();
+		Assert.Equal(3, commits.Count);
+
+		var pullRequests = commits.Select(c => c.GetProperty("pullRequest").GetInt32()).ToHashSet();
+		Assert.Equal(new HashSet<int> { 37420, 37671, 37755 }, pullRequests);
+
+		// The characterisation matters as much as the list: these are API surface
+		// declarations, not imported implementation. Losing that distinction would make
+		// the gap look like missing code.
+		var provenance = ReadRepoFile("PROVENANCE.md");
+		Assert.Contains("What the pin excludes", provenance);
+		Assert.Contains("PublicAPI.Unshipped.txt", provenance);
+	}
+
 	[Theory]
 	[InlineData("2360")]
 	[InlineData("9619")]
