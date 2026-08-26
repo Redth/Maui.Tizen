@@ -69,6 +69,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			var rootContext = new TizenMauiContext(mauiApp.Services);
 
 			var platformWindow = TizenCoreApplicationExtensions.GetDefaultWindow();
+			platformWindow.InitializePlatformWindow();
 			rootContext.AddSpecific(platformWindow);
 
 			_applicationContext = rootContext.MakeApplicationScope(this);

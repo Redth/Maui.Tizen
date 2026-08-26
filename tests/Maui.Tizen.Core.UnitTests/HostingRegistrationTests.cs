@@ -93,16 +93,55 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		public void TickerIsRegisteredAsTheTizenTicker()
 		{
 			using var app = BuildApp();
+			using var scope = app.Services.CreateScope();
 
-			var ticker = app.Services.GetService<ITicker>();
+			var ticker = scope.ServiceProvider.GetService<ITicker>();
 
 			Assert.NotNull(ticker);
 			Assert.IsType<TizenTicker>(ticker);
 		}
 
 		[Fact]
-		public void AnimationManagerIsRegistered() =>
-			Assert.NotNull(BuildApp().Services.GetService<IAnimationManager>());
+		public void AnimationManagerIsRegistered()
+		{
+			using var app = BuildApp();
+			using var scope = app.Services.CreateScope();
+
+			Assert.NotNull(scope.ServiceProvider.GetService<IAnimationManager>());
+		}
+
+		[Fact]
+		public void TickerIsScopedNotSingletonOrTransient()
+		{
+			// TizenTicker is IDisposable and captures SynchronizationContext.Current in its
+			// constructor. A singleton would pin every animation callback to whichever thread
+			// resolved it first; a transient resolved from the root provider would keep its Timer
+			// alive for the whole process. dotnet/maui registers it scoped for the same reasons.
+			using var app = BuildApp();
+			using var first = app.Services.CreateScope();
+			using var second = app.Services.CreateScope();
+
+            var a1 = first.ServiceProvider.GetRequiredService<ITicker>();
+			var a2 = first.ServiceProvider.GetRequiredService<ITicker>();
+			var b = second.ServiceProvider.GetRequiredService<ITicker>();
+
+			Assert.Same(a1, a2);
+			Assert.NotSame(a1, b);
+		}
+
+		[Fact]
+		public void AnimationManagerIsScopedAndUsesTheScopedTicker()
+		{
+			using var app = BuildApp();
+			using var first = app.Services.CreateScope();
+			using var second = app.Services.CreateScope();
+
+			var a = first.ServiceProvider.GetRequiredService<IAnimationManager>();
+			var b = second.ServiceProvider.GetRequiredService<IAnimationManager>();
+
+			Assert.NotSame(a, b);
+			Assert.Same(first.ServiceProvider.GetRequiredService<ITicker>(), a.Ticker);
+		}
 
 		[Fact]
 		public void ConfigureTizenDoesNotOverrideAnExplicitApplicationRegistration()

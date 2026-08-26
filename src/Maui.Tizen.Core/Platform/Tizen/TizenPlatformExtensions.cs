@@ -44,6 +44,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public static Rect ToDP(this NRect rect) =>
 			new(rect.X.ToScaledDP(), rect.Y.ToScaledDP(), rect.Width.ToScaledDP(), rect.Height.ToScaledDP());
 
+		/// <summary>Converts a NUI pixel rectangle to device-independent units.</summary>
+		/// <param name="rect">The NUI rectangle.</param>
+		/// <returns>The rectangle in device-independent units.</returns>
+		public static Rect ToDP(this Rectangle rect) =>
+			new(((double)rect.X).ToScaledDP(),
+				((double)rect.Y).ToScaledDP(),
+				((double)rect.Width).ToScaledDP(),
+				((double)rect.Height).ToScaledDP());
+
 		/// <summary>Converts a device-independent rectangle to pixels.</summary>
 		/// <param name="rect">The rectangle.</param>
 		/// <returns>The rectangle in pixels.</returns>
@@ -129,16 +138,28 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		/// <summary>Applies a paint to the platform view's background.</summary>
 		/// <remarks>
-		/// Only <see cref="SolidPaint"/> is honoured. dotnet/maui renders gradient and image
-		/// brushes through a <c>WrapperView</c> container, which this backend cannot construct -
+		/// <para>
+		/// A <see langword="null"/> paint is a no-op, matching dotnet/maui's
+		/// <c>ViewExtensions.UpdateBackground</c>, which returns early rather than clearing. This
+		/// matters: <see cref="Handlers.TizenPageHandler"/> gives a page an opaque white background
+		/// at creation and then runs the background mapper, so clearing on null would repaint every
+		/// page transparent at launch.
+		/// </para>
+		/// <para>
+		/// Only solid colours are honoured. dotnet/maui renders gradient and image brushes through a
+		/// <c>WrapperView</c> container, which this backend cannot construct -
 		/// <c>ViewHandler.ContainerView</c> has a <c>private protected</c> setter. See
 		/// docs/net11-status.md ("Required public MAUI API gaps").
+		/// </para>
 		/// </remarks>
 		/// <param name="platformView">The platform view.</param>
-		/// <param name="paint">The paint, or <see langword="null"/> to clear.</param>
+		/// <param name="paint">The paint. <see langword="null"/> leaves the background untouched.</param>
 		public static void UpdateBackground(this TizenNativeView platformView, Paint? paint)
 		{
 			ArgumentNullException.ThrowIfNull(platformView);
+
+			if (paint is null)
+				return;
 
 			if (paint is SolidPaint solid && solid.Color is Color color)
 			{
@@ -146,13 +167,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
-			if (paint?.ToColor() is Color fallback)
-			{
+			if (paint.ToColor() is Color fallback)
 				platformView.UpdateBackgroundColor(fallback.ToTizen());
-				return;
-			}
-
-			platformView.UpdateBackgroundColor(NColor.Transparent);
 		}
 
 		/// <summary>Sets the platform view's background color.</summary>
@@ -346,48 +362,49 @@ namespace Microsoft.Maui.Platforms.Tizen
 		// Window (ported from WindowExtensions).
 		// ---------------------------------------------------------------------------------------
 
-		/// <summary>Applies <see cref="IWindow.X"/>.</summary>
+		/// <summary>Reports the platform frame for <see cref="IWindow.X"/>.</summary>
 		/// <param name="platformWindow">The platform window.</param>
 		/// <param name="window">The cross-platform window.</param>
 		public static void UpdateX(this TizenNativeWindow platformWindow, IWindow window) =>
-			platformWindow.UpdatePosition(window.X, window.Y);
+			platformWindow.UpdateUnsupportedCoordinate(window);
 
-		/// <summary>Applies <see cref="IWindow.Y"/>.</summary>
+		/// <summary>Reports the platform frame for <see cref="IWindow.Y"/>.</summary>
 		/// <param name="platformWindow">The platform window.</param>
 		/// <param name="window">The cross-platform window.</param>
 		public static void UpdateY(this TizenNativeWindow platformWindow, IWindow window) =>
-			platformWindow.UpdatePosition(window.X, window.Y);
+			platformWindow.UpdateUnsupportedCoordinate(window);
 
-		/// <summary>Applies <see cref="IWindow.Width"/>.</summary>
+		/// <summary>Reports the platform frame for <see cref="IWindow.Width"/>.</summary>
 		/// <param name="platformWindow">The platform window.</param>
 		/// <param name="window">The cross-platform window.</param>
 		public static void UpdateWidth(this TizenNativeWindow platformWindow, IWindow window) =>
-			platformWindow.UpdateSize(window.Width, window.Height);
+			platformWindow.UpdateUnsupportedCoordinate(window);
 
-		/// <summary>Applies <see cref="IWindow.Height"/>.</summary>
+		/// <summary>Reports the platform frame for <see cref="IWindow.Height"/>.</summary>
 		/// <param name="platformWindow">The platform window.</param>
 		/// <param name="window">The cross-platform window.</param>
 		public static void UpdateHeight(this TizenNativeWindow platformWindow, IWindow window) =>
-			platformWindow.UpdateSize(window.Width, window.Height);
+			platformWindow.UpdateUnsupportedCoordinate(window);
 
-		static void UpdatePosition(this TizenNativeWindow platformWindow, double x, double y)
+		/// <summary>
+		/// Pushes the real device geometry into the cross-platform window.
+		/// </summary>
+		/// <remarks>
+		/// Tizen windows are owned by the window manager: an application cannot move or resize its
+		/// own window, so X/Y/Width/Height flow *out* of the platform rather than in. dotnet/maui
+		/// names the equivalent helper <c>UpdateUnsupportedCoordinate</c> for the same reason.
+		/// Calling <see cref="IWindow.FrameChanged"/> here is what tells the cross-platform window
+		/// how big it actually is; without it <c>IWindow.Width</c>/<c>Height</c> would stay at
+		/// their initial values forever, because these mappers only run at handler init.
+		/// </remarks>
+		/// <param name="platformWindow">The platform window.</param>
+		/// <param name="window">The cross-platform window.</param>
+		public static void UpdateUnsupportedCoordinate(this TizenNativeWindow platformWindow, IWindow window)
 		{
 			ArgumentNullException.ThrowIfNull(platformWindow);
+			ArgumentNullException.ThrowIfNull(window);
 
-			if (double.IsNaN(x) || double.IsNaN(y))
-				return;
-
-			platformWindow.WindowPosition = new Position2D(x.ToScaledPixel(), y.ToScaledPixel());
-		}
-
-		static void UpdateSize(this TizenNativeWindow platformWindow, double width, double height)
-		{
-			ArgumentNullException.ThrowIfNull(platformWindow);
-
-			if (double.IsNaN(width) || double.IsNaN(height) || width <= 0 || height <= 0)
-				return;
-
-			platformWindow.WindowSize = new Size2D(width.ToScaledPixel(), height.ToScaledPixel());
+			window.FrameChanged(platformWindow.WindowPositionSize.ToDP());
 		}
 
 		// ---------------------------------------------------------------------------------------

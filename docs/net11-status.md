@@ -264,9 +264,34 @@ registered through `IFontRegistrar` will not be resolved until this is addressed
 
 ## 5. Not in this slice
 
-Controls-level remapping (`Layout.RemapForControls` and friends) appends to MAUI's *static*
+**Modal navigation.** dotnet/maui's `WindowExtensions.Initialize` creates a per-window
+`NavigationStack` and routes window content through it. This backend ports the orientation
+registration and the hardware back-key wiring from that method, but not the modal stack: window
+content is parented directly and replaced in place. `GetModalStack` / `IToolbarContainer` and
+anything built on them are therefore absent.
+
+**Container-backed decoration.** See G1 - gradient/image backgrounds, clip and shadow are not
+rendered, because the container hook is not reachable from outside MAUI.
+
+**Controls-level remapping.** `Layout.RemapForControls` and friends append to MAUI's *static*
 `LayoutHandler.Mapper`, not to this backend's mappers, so Controls-specific mappings do not reach
 these handlers. Wiring that up belongs with the `Maui.Tizen.Controls` layer.
 
-All other handlers (button, entry, image, scroll view, web view, navigation, shell, ...) remain as
-raw imported sources and are not yet ported.
+**Everything else.** All other handlers (button, entry, image, scroll view, web view, navigation,
+shell, ...) remain raw imported sources and are not yet ported.
+
+## 6. What is wired for a real device
+
+Recorded explicitly because none of it can be executed by the host lanes, so it rests on comparison
+against the dotnet/maui reference rather than on a passing test:
+
+* Hardware **back key** - `InitializePlatformWindow` subscribes to `Window.KeyEvent` and routes a
+  decline key to `IWindow.BackButtonClicked()`; if the cross-platform window does not handle it, the
+  registered close-request handler runs `CoreApplication.Exit()`.
+* **Rotation** - all four orientations are registered on the platform window.
+* **Window frame** - `UpdateX/Y/Width/Height` call `IWindow.FrameChanged` with the real device
+  geometry rather than trying to move or resize the window, which Tizen does not permit.
+* **Content replacement** - `SetMainContent` removes the previous content before adding the new
+  one, so re-assigning `IWindow.Content` does not stack views.
+* **Page background** - a null `Paint` is a no-op, so the page's opaque white default survives the
+  first mapper pass.
