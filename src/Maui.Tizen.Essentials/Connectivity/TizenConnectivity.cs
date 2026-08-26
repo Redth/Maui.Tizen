@@ -2,12 +2,11 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Networking;
+using TizenCellularState = Tizen.Network.Connection.CellularState;
 using TizenConnectionManager = Tizen.Network.Connection.ConnectionManager;
-using TizenConnectionProfileManager = Tizen.Network.Connection.ConnectionProfileManager;
-using TizenConnectionProfileType = Tizen.Network.Connection.ConnectionProfileType;
+using TizenConnectionState = Tizen.Network.Connection.ConnectionState;
 using TizenConnectionType = Tizen.Network.Connection.ConnectionType;
 using TizenConnectionTypeEventArgs = Tizen.Network.Connection.ConnectionTypeEventArgs;
-using TizenProfileListType = Tizen.Network.Connection.ProfileListType;
 
 namespace Microsoft.Maui.Platforms.Tizen.Essentials
 {
@@ -18,7 +17,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	{
 		readonly object _locker = new();
 
-		List<ConnectionProfile> _profiles = new();
 		EventHandler<ConnectivityChangedEventArgs>? _connectivityChanged;
 		bool _listening;
 
@@ -33,21 +31,65 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				{
 					TizenConnectionType.WiFi or
 					TizenConnectionType.Cellular or
-					TizenConnectionType.Ethernet => NetworkAccess.Internet,
+					TizenConnectionType.Ethernet or
+					TizenConnectionType.Bluetooth => NetworkAccess.Internet,
 					_ => NetworkAccess.None,
 				};
 			}
 		}
 
 		/// <inheritdoc/>
+		/// <remarks>
+		/// Queried on every read from <c>ConnectionManager</c>'s per-transport state properties.
+		/// <para>
+		/// An earlier implementation populated this list only from the profile-list refresh started
+		/// when <see cref="ConnectivityChanged"/> gained its first subscriber, so an application
+		/// that merely asked the question - the common case - always saw an empty sequence and had
+		/// no way to tell that apart from "there are no connections". Reading the state properties
+		/// requires no subscription, no asynchronous work and no cached state.
+		/// </para>
+		/// </remarks>
 		public IEnumerable<ConnectionProfile> ConnectionProfiles
 		{
 			get
 			{
-				lock (_locker)
-					return _profiles.ToArray();
+				TizenPermissions.EnsureDeclared<Permissions.NetworkState>();
+
+				return GetConnectionProfiles();
 			}
 		}
+
+		internal static List<ConnectionProfile> GetConnectionProfiles()
+		{
+			var profiles = new List<ConnectionProfile>(4);
+
+			if (IsConnected(TizenConnectionManager.WiFiState))
+				profiles.Add(ConnectionProfile.WiFi);
+
+			if (TizenConnectionManager.CellularState == TizenCellularState.Connected)
+				profiles.Add(ConnectionProfile.Cellular);
+
+			if (IsConnected(TizenConnectionManager.EthernetState))
+				profiles.Add(ConnectionProfile.Ethernet);
+
+			if (IsConnected(TizenConnectionManager.BluetoothState))
+				profiles.Add(ConnectionProfile.Bluetooth);
+
+			return profiles;
+		}
+
+		internal static bool IsConnected(TizenConnectionState state) =>
+			state == TizenConnectionState.Connected;
+
+		internal static ConnectionProfile? MapProfileType(TizenConnectionType type) =>
+			type switch
+			{
+				TizenConnectionType.Bluetooth => ConnectionProfile.Bluetooth,
+				TizenConnectionType.Cellular => ConnectionProfile.Cellular,
+				TizenConnectionType.Ethernet => ConnectionProfile.Ethernet,
+				TizenConnectionType.WiFi => ConnectionProfile.WiFi,
+				_ => null,
+			};
 
 		/// <inheritdoc/>
 		public event EventHandler<ConnectivityChangedEventArgs> ConnectivityChanged
@@ -82,8 +124,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			TizenConnectionManager.ConnectionTypeChanged += OnConnectionTypeChanged;
 			_listening = true;
-
-			_ = RefreshProfilesAsync(raise: false);
 		}
 
 		void StopListeners()
@@ -95,39 +135,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			_listening = false;
 		}
 
-		void OnConnectionTypeChanged(object? sender, TizenConnectionTypeEventArgs e) =>
-			_ = RefreshProfilesAsync(raise: true);
-
-		async System.Threading.Tasks.Task RefreshProfilesAsync(bool raise)
+		void OnConnectionTypeChanged(object? sender, TizenConnectionTypeEventArgs e)
 		{
-			var list = await TizenConnectionProfileManager.GetProfileListAsync(TizenProfileListType.Connected).ConfigureAwait(false);
+			// Snapshot on the native callback thread, then raise on the main thread.
+			var args = new ConnectivityChangedEventArgs(NetworkAccess, GetConnectionProfiles());
 
-			var profiles = new List<ConnectionProfile>();
-			foreach (var result in list)
+			MainThread.BeginInvokeOnMainThread(() =>
 			{
-				var mapped = MapProfileType(result.Type);
-				if (mapped is { } profile)
-					profiles.Add(profile);
-			}
+				EventHandler<ConnectivityChangedEventArgs>? handler;
+				lock (_locker)
+					handler = _connectivityChanged;
 
-			lock (_locker)
-				_profiles = profiles;
-
-			if (!raise)
-				return;
-
-			var args = new ConnectivityChangedEventArgs(NetworkAccess, profiles);
-			MainThread.BeginInvokeOnMainThread(() => _connectivityChanged?.Invoke(this, args));
+				handler?.Invoke(this, args);
+			});
 		}
-
-		internal static ConnectionProfile? MapProfileType(TizenConnectionProfileType type) =>
-			type switch
-			{
-				TizenConnectionProfileType.Bt => ConnectionProfile.Bluetooth,
-				TizenConnectionProfileType.Cellular => ConnectionProfile.Cellular,
-				TizenConnectionProfileType.Ethernet => ConnectionProfile.Ethernet,
-				TizenConnectionProfileType.WiFi => ConnectionProfile.WiFi,
-				_ => null,
-			};
 	}
 }

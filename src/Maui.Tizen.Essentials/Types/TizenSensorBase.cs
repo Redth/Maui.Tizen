@@ -10,13 +10,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// </summary>
 	/// <typeparam name="TSensor">The native Tizen sensor type.</typeparam>
 	/// <remarks>
-	/// dotnet/maui expressed this logic once per sensor in a <c>*.shared.cs</c> half of a partial
+	/// <para>
+	/// dotnet/maui expressed this logic once per sensor in the <c>*.shared.cs</c> half of a partial
 	/// class. Since this backend ships independently named classes, the common behaviour lives here
 	/// instead of being copied into each implementation.
+	/// </para>
+	/// <para>
+	/// Start and Stop are transactional. A native failure part way through leaves no subscription
+	/// behind and no state claiming the sensor is monitoring when it is not: an earlier version
+	/// restored <see cref="IsMonitoring"/> but left <c>DataUpdated</c> attached if
+	/// <c>sensor.Start()</c> threw, so the next Start would double-subscribe and every reading was
+	/// then raised twice.
+	/// </para>
 	/// </remarks>
 	public abstract class TizenSensorBase<TSensor>
 		where TSensor : TizenSensor
 	{
+		readonly object _locker = new();
+
 		/// <summary>
 		/// Gets a value indicating whether readings should be marshalled to the main thread.
 		/// </summary>
@@ -51,6 +62,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		protected abstract void Unsubscribe(TSensor sensor);
 
 		/// <summary>
+		/// Called after the sensor has started, so derived types can reset per-session state.
+		/// </summary>
+		protected virtual void OnStarted()
+		{
+		}
+
+		/// <summary>
+		/// Called after the sensor has stopped, so derived types can release per-session state.
+		/// </summary>
+		protected virtual void OnStopped()
+		{
+		}
+
+		/// <summary>
 		/// Starts monitoring the sensor.
 		/// </summary>
 		/// <param name="sensorSpeed">The requested reporting speed.</param>
@@ -61,24 +86,47 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			if (!IsSupported)
 				throw TizenEssentialsSupport.NotSupported($"{SensorName}.Start", $"This device has no {SensorName} sensor.");
 
-			if (IsMonitoring)
-				throw new InvalidOperationException($"{SensorName} has already been started.");
-
-			IsMonitoring = true;
-			UseSyncContext = sensorSpeed is SensorSpeed.Default or SensorSpeed.UI;
-
-			try
+			lock (_locker)
 			{
+				if (IsMonitoring)
+					throw new InvalidOperationException($"{SensorName} has already been started.");
+
 				var sensor = Sensor;
-				sensor.Interval = sensorSpeed.ToPlatform();
-				Subscribe(sensor);
-				sensor.Start();
+				var subscribed = false;
+
+				try
+				{
+					sensor.Interval = sensorSpeed.ToPlatform();
+
+					Subscribe(sensor);
+					subscribed = true;
+
+					sensor.Start();
+				}
+				catch
+				{
+					// Roll the whole attempt back. Leaving the handler attached would double-raise
+					// every reading after a later successful Start.
+					if (subscribed)
+					{
+						try
+						{
+							Unsubscribe(sensor);
+						}
+						catch
+						{
+							// Nothing further can be done; surface the original failure.
+						}
+					}
+
+					throw;
+				}
+
+				UseSyncContext = sensorSpeed is SensorSpeed.Default or SensorSpeed.UI;
+				IsMonitoring = true;
 			}
-			catch
-			{
-				IsMonitoring = false;
-				throw;
-			}
+
+			OnStarted();
 		}
 
 		/// <summary>
@@ -90,22 +138,41 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			if (!IsSupported)
 				throw TizenEssentialsSupport.NotSupported($"{SensorName}.Stop", $"This device has no {SensorName} sensor.");
 
-			if (!IsMonitoring)
-				return;
-
-			IsMonitoring = false;
-
-			try
+			lock (_locker)
 			{
+				if (!IsMonitoring)
+					return;
+
 				var sensor = Sensor;
+
+				// Unsubscribe first: once the handler is detached no further readings can be
+				// delivered, so even if Stop() throws the sensor is no longer raising events.
 				Unsubscribe(sensor);
-				sensor.Stop();
+
+				try
+				{
+					sensor.Stop();
+				}
+				catch
+				{
+					// The native sensor is still running, so restore the subscription to keep the
+					// object's state and the platform's state consistent.
+					try
+					{
+						Subscribe(sensor);
+					}
+					catch
+					{
+						// Nothing further can be done; surface the original failure.
+					}
+
+					throw;
+				}
+
+				IsMonitoring = false;
 			}
-			catch
-			{
-				IsMonitoring = true;
-				throw;
-			}
+
+			OnStopped();
 		}
 
 		/// <summary>

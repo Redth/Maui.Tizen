@@ -66,27 +66,45 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		}
 
 		/// <inheritdoc/>
-		public Task<IEnumerable<Contact>> GetAllAsync(CancellationToken cancellationToken = default)
+		/// <remarks>
+		/// <para>
+		/// Requests the runtime <c>contact.read</c> consent before reading, not merely checking that
+		/// the privilege is declared. Declaration alone does not grant a Tizen privacy privilege, so
+		/// the previous implementation could reach the database call and fail there instead of
+		/// prompting.
+		/// </para>
+		/// <para>
+		/// The result is materialised eagerly and the native <c>ContactsList</c> disposed before
+		/// returning. Deferred iteration handed the caller a lazy sequence over an undisposed native
+		/// cursor whose lifetime then depended on whether - and when - the caller finished
+		/// enumerating.
+		/// </para>
+		/// </remarks>
+		public async Task<IEnumerable<Contact>> GetAllAsync(CancellationToken cancellationToken = default)
 		{
-			TizenPermissions.EnsureDeclared<Permissions.ContactsRead>();
+			await TizenPermissions.EnsureGrantedAsync<Permissions.ContactsRead>().ConfigureAwait(false);
 
 			cancellationToken.ThrowIfCancellationRequested();
 
-			var contactsList = Manager.Value.Database.GetAll(TizenContact.Uri, 0, 0);
+			var contacts = new List<Contact>();
 
-			return Task.FromResult(Enumerate());
+			using var contactsList = Manager.Value.Database.GetAll(TizenContact.Uri, 0, 0);
 
-			IEnumerable<Contact> Enumerate()
+			if (contactsList is null)
+				return contacts;
+
+			for (var i = 0; i < contactsList.Count; i++)
 			{
-				for (var i = 0; i < contactsList?.Count; i++)
-				{
-					cancellationToken.ThrowIfCancellationRequested();
+				cancellationToken.ThrowIfCancellationRequested();
 
-					yield return ToContact(contactsList.GetCurrentRecord());
+				using var record = contactsList.GetCurrentRecord();
+				if (record is not null)
+					contacts.Add(ToContact(record));
 
-					contactsList.MoveNext();
-				}
+				contactsList.MoveNext();
 			}
+
+			return contacts;
 		}
 
 		static Contact ToContact(ContactsRecord contactsRecord)

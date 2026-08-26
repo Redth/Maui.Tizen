@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Linq;
 using Microsoft.Maui.Storage;
 using TizenPreference = Tizen.Applications.Preference;
@@ -9,13 +10,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// Tizen implementation of <see cref="IPreferences"/>, backed by <c>Tizen.Applications.Preference</c>.
 	/// </summary>
 	/// <remarks>
-	/// Tizen has a single per-application preference store, so shared names are emulated with a
-	/// <c>{sharedName}~{key}</c> key prefix, matching the in-box dotnet/maui Tizen backend.
+	/// Tizen has a single flat per-application preference store, so shared names are emulated with a
+	/// key prefix. See <see cref="TizenStorageKeyEncoding"/> for why the components are escaped
+	/// rather than simply concatenated.
 	/// </remarks>
 	public sealed class TizenPreferences : IPreferences
 	{
-		const string Separator = "~";
-
 		static readonly object Locker = new();
 
 		/// <inheritdoc/>
@@ -41,6 +41,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		}
 
 		/// <inheritdoc/>
+		/// <remarks>
+		/// Clearing a shared name removes only that store's entries. Because the shared name is
+		/// escaped before being used as a prefix, clearing <c>a</c> cannot remove entries belonging
+		/// to a different shared name such as <c>a~b</c>.
+		/// </remarks>
 		public void Clear(string? sharedName = null)
 		{
 			lock (Locker)
@@ -48,13 +53,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				if (string.IsNullOrEmpty(sharedName))
 				{
 					TizenPreference.RemoveAll();
+					return;
 				}
-				else
-				{
-					var prefix = $"{sharedName}{Separator}";
-					foreach (var key in TizenPreference.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList())
-						TizenPreference.Remove(key);
-				}
+
+				var prefix = TizenStorageKeyEncoding.GetSharedNamePrefix(sharedName);
+
+				foreach (var key in TizenPreference.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList())
+					TizenPreference.Remove(key);
 			}
 		}
 
@@ -77,7 +82,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 						TizenPreference.Set(fullKey, dateTime.ToBinary());
 						break;
 					case DateTimeOffset dateTimeOffset:
-						TizenPreference.Set(fullKey, dateTimeOffset.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+						TizenPreference.Set(fullKey, dateTimeOffset.ToString("O", CultureInfo.InvariantCulture));
 						break;
 					default:
 						TizenPreference.Set(fullKey, value);
@@ -106,8 +111,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					var saved = TizenPreference.Get<string>(fullKey);
 					return DateTimeOffset.TryParse(
 						saved,
-						System.Globalization.CultureInfo.InvariantCulture,
-						System.Globalization.DateTimeStyles.RoundtripKind,
+						CultureInfo.InvariantCulture,
+						DateTimeStyles.RoundtripKind,
 						out var parsed)
 						? (T)(object)parsed
 						: defaultValue;
@@ -118,6 +123,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		}
 
 		internal static string GetFullKey(string key, string? sharedName) =>
-			string.IsNullOrEmpty(sharedName) ? key : $"{sharedName}{Separator}{key}";
+			TizenStorageKeyEncoding.GetFullKey(key, sharedName);
 	}
 }

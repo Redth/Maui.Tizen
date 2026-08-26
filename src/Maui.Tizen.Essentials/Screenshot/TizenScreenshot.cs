@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Maui.Media;
 using Tizen.NUI;
@@ -19,9 +20,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// backed by <c>Tizen.NUI.Capture</c>.
 	/// </summary>
 	/// <remarks>
+	/// <para>
 	/// The in-box dotnet/maui Tizen backend left screenshot unimplemented (every member threw).
-	/// This implementation performs a real offscreen capture of the NUI window or view, then encodes
-	/// the resulting pixel buffer with <c>Tizen.Multimedia.Util</c>.
+	/// This performs a real offscreen capture of the NUI window or view, then encodes the resulting
+	/// pixel buffer with <c>Tizen.Multimedia.Util</c>.
+	/// </para>
 	/// <para>
 	/// <c>IPlatformScreenshot</c> is intentionally not implemented: in the neutral (non platform
 	/// specific) <c>Microsoft.Maui.Essentials</c> assembly that interface declares no members, so it
@@ -32,6 +35,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// </remarks>
 	public sealed class TizenScreenshot : IScreenshot, IViewScreenshot
 	{
+		/// <summary>
+		/// How long to wait for <c>Capture.Finished</c> before giving up.
+		/// </summary>
+		/// <remarks>
+		/// <c>Capture.Finished</c> is the only signal that a capture completed. If the native side
+		/// never raises it - a destroyed window, a driver failure, a zero-sized surface accepted by
+		/// Tizen but never rendered - an un-timed wait would hang the caller forever and leak the
+		/// <see cref="Capture"/> handle and its scratch file. Failing loudly after a bounded wait is
+		/// strictly better than an unkillable task.
+		/// </remarks>
+		public static TimeSpan CaptureTimeout { get; set; } = TimeSpan.FromSeconds(10);
+
 		/// <inheritdoc/>
 		public bool IsCaptureSupported => true;
 
@@ -48,8 +63,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			ArgumentNullException.ThrowIfNull(window);
 
-			var size = window.WindowSize;
-			return await CaptureCoreAsync(window.GetDefaultLayer(), new TizenNUISize(size.Width, size.Height, 0)).ConfigureAwait(false)
+			int width;
+			int height;
+
+			// Size2D is a native handle, not a value type.
+			using (var size = window.WindowSize)
+			{
+				width = size.Width;
+				height = size.Height;
+			}
+
+			return await CaptureCoreAsync(window.GetDefaultLayer(), width, height).ConfigureAwait(false)
 				?? throw new InvalidOperationException("Tizen reported a failed window capture.");
 		}
 
@@ -62,8 +86,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			ArgumentNullException.ThrowIfNull(view);
 
-			var size = view.Size2D;
-			return CaptureCoreAsync(view, new TizenNUISize(size.Width, size.Height, 0));
+			int width;
+			int height;
+
+			using (var size = view.Size2D)
+			{
+				width = size.Width;
+				height = size.Height;
+			}
+
+			return CaptureCoreAsync(view, width, height);
 		}
 
 		/// <inheritdoc/>
@@ -78,9 +110,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		async Task<IScreenshotResult?> CaptureWindowAsync(TizenWindow window) =>
 			await CaptureAsync(window).ConfigureAwait(false);
 
-		static async Task<IScreenshotResult?> CaptureCoreAsync(Container source, TizenNUISize size)
+		static async Task<IScreenshotResult?> CaptureCoreAsync(Container source, int width, int height)
 		{
-			if (size.Width <= 0 || size.Height <= 0)
+			if (width <= 0 || height <= 0)
 				throw new InvalidOperationException("Cannot capture a screenshot of a zero-sized NUI container.");
 
 			var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -99,16 +131,27 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			try
 			{
-				capture.Start(source, size, scratchPath, Color.Transparent);
+				using (var size = new TizenNUISize(width, height, 0))
+				using (var background = Color.Transparent)
+				{
+					capture.Start(source, size, scratchPath, background);
+				}
+
+				var completed = await Task.WhenAny(tcs.Task, Task.Delay(CaptureTimeout)).ConfigureAwait(false);
+
+				if (completed != tcs.Task)
+				{
+					throw new TimeoutException(
+						$"Tizen did not raise Capture.Finished within {CaptureTimeout}. " +
+						"The capture was abandoned rather than waiting indefinitely.");
+				}
 
 				if (!await tcs.Task.ConfigureAwait(false))
 					return null;
 
-				var buffer = capture.GetCapturedBuffer();
-				if (buffer is null)
-					return null;
+				using var buffer = capture.GetCapturedBuffer();
 
-				return TizenScreenshotResult.FromPixelBuffer(buffer);
+				return buffer is null ? null : TizenScreenshotResult.FromPixelBuffer(buffer);
 			}
 			finally
 			{
@@ -120,7 +163,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					if (File.Exists(scratchPath))
 						File.Delete(scratchPath);
 				}
-				catch
+				catch (Exception)
 				{
 					// A leftover scratch file in the cache directory is not worth failing a capture.
 				}
@@ -166,7 +209,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			Marshal.Copy(native, pixels, 0, pixels.Length);
 
+			// RGBX has no Tizen colour space, so the padding byte is promoted to an opaque alpha and
+			// the buffer encoded as RGBA. Encoding it as RGBA without this step would treat whatever
+			// the driver left in the padding byte as transparency.
+			if (format == PixelFormat.RGB8888)
+				MakeOpaque(pixels);
+
 			return new TizenScreenshotResult(pixels, width, height, colorSpace);
+		}
+
+		internal static void MakeOpaque(byte[] pixels)
+		{
+			for (var i = 3; i < pixels.Length; i += 4)
+				pixels[i] = 0xFF;
 		}
 
 		/// <inheritdoc/>
@@ -218,11 +273,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			}
 		}
 
+		/// <summary>
+		/// Maps a NUI pixel format onto the Tizen colour space used to encode it.
+		/// </summary>
+		/// <remarks>
+		/// The X in RGBX/BGRX is padding, not alpha. BGRX has an exact Tizen counterpart
+		/// (<see cref="TizenColorSpace.Bgrx8888"/>); RGBX does not, so it is converted to opaque
+		/// RGBA by <see cref="MakeOpaque"/> before encoding.
+		/// </remarks>
 		internal static TizenColorSpace MapColorSpace(PixelFormat format) =>
 			format switch
 			{
-				PixelFormat.RGBA8888 or PixelFormat.RGB8888 => TizenColorSpace.Rgba8888,
-				PixelFormat.BGRA8888 or PixelFormat.BGR8888 => TizenColorSpace.Bgra8888,
+				PixelFormat.RGBA8888 => TizenColorSpace.Rgba8888,
+				PixelFormat.BGRA8888 => TizenColorSpace.Bgra8888,
+				PixelFormat.BGR8888 => TizenColorSpace.Bgrx8888,
+				PixelFormat.RGB8888 => TizenColorSpace.Rgba8888,
 				PixelFormat.RGB888 => TizenColorSpace.Rgb888,
 				PixelFormat.RGB565 => TizenColorSpace.Rgb565,
 				_ => throw TizenEssentialsSupport.NotSupported(

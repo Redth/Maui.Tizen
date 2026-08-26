@@ -7,7 +7,7 @@ using Microsoft.Maui.Media;
 using Microsoft.Maui.Networking;
 using Microsoft.Maui.Platforms.Tizen.Essentials;
 using Xunit;
-using TizenConnectionProfileType = Tizen.Network.Connection.ConnectionProfileType;
+using TizenConnectionType = Tizen.Network.Connection.ConnectionType;
 using TizenDeviceOrientation = Tizen.Applications.DeviceOrientation;
 using TizenPixelFormat = Tizen.NUI.PixelFormat;
 
@@ -80,12 +80,18 @@ public class TizenTranslationTests
 		Assert.Equal(expected, TizenPreferences.GetFullKey(key, sharedName));
 
 	[Theory]
-	[InlineData(TizenConnectionProfileType.WiFi, ConnectionProfile.WiFi)]
-	[InlineData(TizenConnectionProfileType.Cellular, ConnectionProfile.Cellular)]
-	[InlineData(TizenConnectionProfileType.Ethernet, ConnectionProfile.Ethernet)]
-	[InlineData(TizenConnectionProfileType.Bt, ConnectionProfile.Bluetooth)]
-	public void MapsConnectionProfiles(TizenConnectionProfileType type, ConnectionProfile expected) =>
+	[InlineData(TizenConnectionType.WiFi, ConnectionProfile.WiFi)]
+	[InlineData(TizenConnectionType.Cellular, ConnectionProfile.Cellular)]
+	[InlineData(TizenConnectionType.Ethernet, ConnectionProfile.Ethernet)]
+	[InlineData(TizenConnectionType.Bluetooth, ConnectionProfile.Bluetooth)]
+	public void MapsConnectionProfiles(TizenConnectionType type, ConnectionProfile expected) =>
 		Assert.Equal(expected, TizenConnectivity.MapProfileType(type));
+
+	[Theory]
+	[InlineData(TizenConnectionType.Disconnected)]
+	[InlineData(TizenConnectionType.NetProxy)]
+	public void MapsUnknownConnectionTypesToNoProfile(TizenConnectionType type) =>
+		Assert.Null(TizenConnectivity.MapProfileType(type));
 
 	[Theory]
 	[InlineData(TizenDeviceOrientation.Orientation_0, DisplayRotation.Rotation0, DisplayOrientation.Portrait)]

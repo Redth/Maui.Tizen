@@ -9,14 +9,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// <summary>
 	/// Tizen implementation of <see cref="IAccelerometer"/>, backed by <c>Tizen.Sensor.Accelerometer</c>.
 	/// </summary>
-	public sealed class TizenAccelerometer : IAccelerometer
+	/// <remarks>
+	/// Consolidated onto <see cref="TizenSensorBase{TSensor}"/> so it shares the transactional
+	/// start/stop handling with every other sensor. It previously duplicated that logic and, in
+	/// doing so, missed the subscription rollback on a failed start.
+	/// </remarks>
+	public sealed class TizenAccelerometer : TizenSensorBase<TizenAccelerometerSensor>, IAccelerometer
 	{
 		const double AccelerationThreshold = 169;
 		const double Gravity = 9.81;
 
 		readonly TizenAccelerometerQueue _queue = new();
-
-		bool _useSyncContext;
+		readonly object _queueLocker = new();
 
 		/// <inheritdoc/>
 		public event EventHandler<AccelerometerChangedEventArgs>? ReadingChanged;
@@ -25,75 +29,42 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		public event EventHandler? ShakeDetected;
 
 		/// <inheritdoc/>
-		public bool IsSupported => TizenAccelerometerSensor.IsSupported;
+		public override bool IsSupported => TizenAccelerometerSensor.IsSupported;
 
 		/// <inheritdoc/>
-		public bool IsMonitoring { get; private set; }
+		protected override string SensorName => nameof(IAccelerometer);
 
-		static TizenAccelerometerSensor DefaultSensor =>
+		/// <inheritdoc/>
+		protected override TizenAccelerometerSensor Sensor =>
 			(TizenAccelerometerSensor)TizenSensors.GetDefaultSensor(TizenSensorType.Accelerometer);
 
 		/// <inheritdoc/>
-		public void Start(SensorSpeed sensorSpeed)
-		{
-			if (!IsSupported)
-				throw TizenEssentialsSupport.NotSupported($"{nameof(IAccelerometer)}.{nameof(Start)}", "This device has no accelerometer.");
-
-			if (IsMonitoring)
-				throw new InvalidOperationException("Accelerometer has already been started.");
-
-			IsMonitoring = true;
-			_useSyncContext = sensorSpeed is SensorSpeed.Default or SensorSpeed.UI;
-
-			try
-			{
-				var sensor = DefaultSensor;
-				sensor.Interval = sensorSpeed.ToPlatform();
-				sensor.DataUpdated += OnDataUpdated;
-				sensor.Start();
-			}
-			catch
-			{
-				IsMonitoring = false;
-				throw;
-			}
-		}
+		protected override void Subscribe(TizenAccelerometerSensor sensor) => sensor.DataUpdated += OnDataUpdated;
 
 		/// <inheritdoc/>
-		public void Stop()
+		protected override void Unsubscribe(TizenAccelerometerSensor sensor) => sensor.DataUpdated -= OnDataUpdated;
+
+		/// <inheritdoc/>
+		/// <remarks>
+		/// The shake window is per-session. Carrying samples across a stop/start would let readings
+		/// from before the gap combine with fresh ones and report a shake that never happened.
+		/// </remarks>
+		protected override void OnStarted() => ClearShakeWindow();
+
+		/// <inheritdoc/>
+		protected override void OnStopped() => ClearShakeWindow();
+
+		void ClearShakeWindow()
 		{
-			if (!IsSupported)
-				throw TizenEssentialsSupport.NotSupported($"{nameof(IAccelerometer)}.{nameof(Stop)}", "This device has no accelerometer.");
-
-			if (!IsMonitoring)
-				return;
-
-			IsMonitoring = false;
-
-			try
-			{
-				var sensor = DefaultSensor;
-				sensor.DataUpdated -= OnDataUpdated;
-				sensor.Stop();
-			}
-			catch
-			{
-				IsMonitoring = true;
-				throw;
-			}
+			lock (_queueLocker)
+				_queue.Clear();
 		}
 
-		void OnDataUpdated(object? sender, global::Tizen.Sensor.AccelerometerDataUpdatedEventArgs e) =>
-			RaiseReadingChanged(new AccelerometerData(e.X, e.Y, e.Z));
-
-		void RaiseReadingChanged(AccelerometerData reading)
+		void OnDataUpdated(object? sender, global::Tizen.Sensor.AccelerometerDataUpdatedEventArgs e)
 		{
-			var args = new AccelerometerChangedEventArgs(reading);
+			var reading = new AccelerometerData(e.X, e.Y, e.Z);
 
-			if (_useSyncContext)
-				MainThread.BeginInvokeOnMainThread(() => ReadingChanged?.Invoke(this, args));
-			else
-				ReadingChanged?.Invoke(this, args);
+			Raise(ReadingChanged, new AccelerometerChangedEventArgs(reading));
 
 			if (ShakeDetected is not null)
 				ProcessShakeEvent(reading.Acceleration);
@@ -107,19 +78,31 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			var y = acceleration.Y * Gravity;
 			var z = acceleration.Z * Gravity;
 
-			_queue.Add(now, (x * x) + (y * y) + (z * z) > AccelerationThreshold);
+			bool shaking;
 
-			if (!_queue.IsShaking)
+			// The native sensor may deliver readings concurrently with a Stop() clearing the window.
+			lock (_queueLocker)
+			{
+				_queue.Add(now, (x * x) + (y * y) + (z * z) > AccelerationThreshold);
+
+				shaking = _queue.IsShaking;
+
+				if (shaking)
+					_queue.Clear();
+			}
+
+			if (!shaking)
 				return;
 
-			_queue.Clear();
+			var handler = ShakeDetected;
 
-			var args = EventArgs.Empty;
+			if (handler is null)
+				return;
 
-			if (_useSyncContext)
-				MainThread.BeginInvokeOnMainThread(() => ShakeDetected?.Invoke(this, args));
+			if (UseSyncContext)
+				MainThread.BeginInvokeOnMainThread(() => handler.Invoke(this, EventArgs.Empty));
 			else
-				ShakeDetected?.Invoke(this, args);
+				handler.Invoke(this, EventArgs.Empty);
 		}
 	}
 }

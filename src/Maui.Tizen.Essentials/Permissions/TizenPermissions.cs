@@ -24,6 +24,84 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	public readonly record struct TizenPrivilege(string Privilege, bool IsRuntime);
 
 	/// <summary>
+	/// How a MAUI permission relates to the Tizen privilege model.
+	/// </summary>
+	public enum TizenPermissionKind
+	{
+		/// <summary>
+		/// Tizen gates the capability. <see cref="TizenPermissionMapping.Privileges"/> lists the
+		/// privileges that must be declared, and any privacy privileges among them must also be
+		/// granted by the user at runtime.
+		/// </summary>
+		Requires,
+
+		/// <summary>
+		/// Tizen genuinely does not gate the capability, so it is always available. This is an
+		/// affirmative statement about the platform, not an absence of mapping.
+		/// </summary>
+		Ungated,
+
+		/// <summary>
+		/// Tizen has no equivalent capability, so the permission cannot meaningfully be checked or
+		/// requested. Callers get <see cref="FeatureNotSupportedException"/> rather than a status.
+		/// </summary>
+		Unsupported,
+	}
+
+	/// <summary>
+	/// The Tizen meaning of a single MAUI permission.
+	/// </summary>
+	/// <remarks>
+	/// The three cases are kept distinct on purpose. Collapsing "Tizen does not gate this" and
+	/// "Tizen cannot do this at all" into a single empty privilege list makes both report
+	/// <see cref="PermissionStatus.Granted"/>, which tells an application it may proceed with a
+	/// capability the platform will never provide.
+	/// </remarks>
+	public readonly record struct TizenPermissionMapping
+	{
+		TizenPermissionMapping(TizenPermissionKind kind, TizenPrivilege[] privileges, string? reason)
+		{
+			Kind = kind;
+			Privileges = privileges;
+			Reason = reason;
+		}
+
+		/// <summary>Gets how Tizen treats this permission.</summary>
+		public TizenPermissionKind Kind { get; }
+
+		/// <summary>Gets the required privileges. Empty unless <see cref="Kind"/> is <see cref="TizenPermissionKind.Requires"/>.</summary>
+		public TizenPrivilege[] Privileges { get; }
+
+		/// <summary>Gets why the permission is ungated or unsupported, for diagnostics.</summary>
+		public string? Reason { get; }
+
+		/// <summary>Creates a mapping for a capability Tizen gates behind privileges.</summary>
+		/// <param name="privileges">The required privileges.</param>
+		/// <returns>The mapping.</returns>
+		public static TizenPermissionMapping Requires(params TizenPrivilege[] privileges)
+		{
+			ArgumentNullException.ThrowIfNull(privileges);
+
+			if (privileges.Length == 0)
+				throw new ArgumentException("A 'Requires' mapping must list at least one privilege.", nameof(privileges));
+
+			return new TizenPermissionMapping(TizenPermissionKind.Requires, privileges, null);
+		}
+
+		/// <summary>Creates a mapping for a capability Tizen does not gate.</summary>
+		/// <param name="reason">Why no privilege is required.</param>
+		/// <returns>The mapping.</returns>
+		public static TizenPermissionMapping Ungated(string reason) =>
+			new(TizenPermissionKind.Ungated, Array.Empty<TizenPrivilege>(), reason);
+
+		/// <summary>Creates a mapping for a capability Tizen does not have.</summary>
+		/// <param name="reason">Why Tizen cannot provide the capability.</param>
+		/// <returns>The mapping.</returns>
+		public static TizenPermissionMapping Unsupported(string reason) =>
+			new(TizenPermissionKind.Unsupported, Array.Empty<TizenPrivilege>(), reason);
+	}
+
+	/// <summary>
 	/// Base class for user defined Tizen permissions.
 	/// </summary>
 	/// <remarks>
@@ -70,80 +148,127 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// </remarks>
 	public sealed class TizenPermissions : IPermissions
 	{
-		internal static readonly IReadOnlyDictionary<Type, TizenPrivilege[]> KnownPermissionPrivileges =
-			new Dictionary<Type, TizenPrivilege[]>
+		internal static readonly IReadOnlyDictionary<Type, TizenPermissionMapping> KnownPermissions =
+			new Dictionary<Type, TizenPermissionMapping>
 			{
-				// Declared with no privileges: Tizen requires nothing for these, so they resolve as granted.
-				[typeof(Permissions.Battery)] = Array.Empty<TizenPrivilege>(),
-				[typeof(Permissions.Bluetooth)] = Array.Empty<TizenPrivilege>(),
-				[typeof(Permissions.CalendarRead)] = Array.Empty<TizenPrivilege>(),
-				[typeof(Permissions.CalendarWrite)] = Array.Empty<TizenPrivilege>(),
-				[typeof(Permissions.Media)] = Array.Empty<TizenPrivilege>(),
-				[typeof(Permissions.NearbyWifiDevices)] = Array.Empty<TizenPrivilege>(),
-				[typeof(Permissions.Phone)] = Array.Empty<TizenPrivilege>(),
-				[typeof(Permissions.Photos)] = Array.Empty<TizenPrivilege>(),
-				[typeof(Permissions.PhotosAddOnly)] = Array.Empty<TizenPrivilege>(),
-				[typeof(Permissions.PostNotifications)] = Array.Empty<TizenPrivilege>(),
-				[typeof(Permissions.Reminders)] = Array.Empty<TizenPrivilege>(),
-				[typeof(Permissions.Sensors)] = Array.Empty<TizenPrivilege>(),
-				[typeof(Permissions.Sms)] = Array.Empty<TizenPrivilege>(),
-				[typeof(Permissions.Speech)] = Array.Empty<TizenPrivilege>(),
+				// ---------------------------------------------------------------------------
+				// Genuinely ungated on Tizen.
+				//
+				// Reporting Granted here is a true statement, not a fallback: Tizen.System.Battery
+				// reads require no privilege at all.
+				// ---------------------------------------------------------------------------
+				[typeof(Permissions.Battery)] = TizenPermissionMapping.Ungated(
+					"Tizen.System.Battery requires no privilege."),
 
-				[typeof(Permissions.Camera)] = new[]
-				{
-					new TizenPrivilege("http://tizen.org/privilege/camera", false),
-				},
-				[typeof(Permissions.ContactsRead)] = new[]
-				{
-					new TizenPrivilege("http://tizen.org/privilege/contact.read", true),
-				},
-				[typeof(Permissions.ContactsWrite)] = new[]
-				{
-					new TizenPrivilege("http://tizen.org/privilege/contact.write", true),
-				},
-				[typeof(Permissions.Flashlight)] = new[]
-				{
-					new TizenPrivilege("http://tizen.org/privilege/led", false),
-				},
-				[typeof(Permissions.LaunchApp)] = new[]
-				{
-					new TizenPrivilege("http://tizen.org/privilege/appmanager.launch", false),
-				},
-				[typeof(Permissions.LocationWhenInUse)] = new[]
-				{
-					new TizenPrivilege("http://tizen.org/privilege/location", true),
-				},
-				[typeof(Permissions.LocationAlways)] = new[]
-				{
-					new TizenPrivilege("http://tizen.org/privilege/location", true),
-				},
-				[typeof(Permissions.Maps)] = new[]
-				{
-					new TizenPrivilege("http://tizen.org/privilege/internet", false),
-					new TizenPrivilege("http://tizen.org/privilege/mapservice", false),
+				// ---------------------------------------------------------------------------
+				// Declaration-only privileges. Present in tizen-manifest.xml is sufficient;
+				// Tizen does not prompt the user for these.
+				// ---------------------------------------------------------------------------
+				[typeof(Permissions.Bluetooth)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/bluetooth", false)),
+
+				[typeof(Permissions.Flashlight)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/led", false)),
+
+				[typeof(Permissions.LaunchApp)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/appmanager.launch", false)),
+
+				// MAUI's NearbyWifiDevices models discovering nearby Wi-Fi devices. On Tizen that
+				// is Tizen.Network.WiFi scanning, which is gated by these two.
+				[typeof(Permissions.NearbyWifiDevices)] = TizenPermissionMapping.Requires(
 					new TizenPrivilege("http://tizen.org/privilege/network.get", false),
-				},
-				[typeof(Permissions.Microphone)] = new[]
-				{
-					new TizenPrivilege("http://tizen.org/privilege/recorder", false),
-				},
-				[typeof(Permissions.NetworkState)] = new[]
-				{
+					new TizenPrivilege("http://tizen.org/privilege/network.profile", false)),
+
+				[typeof(Permissions.NetworkState)] = TizenPermissionMapping.Requires(
 					new TizenPrivilege("http://tizen.org/privilege/internet", false),
-					new TizenPrivilege("http://tizen.org/privilege/network.get", false),
-				},
-				[typeof(Permissions.StorageRead)] = new[]
-				{
+					new TizenPrivilege("http://tizen.org/privilege/network.get", false)),
+
+				[typeof(Permissions.Phone)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/telephony", false)),
+
+				[typeof(Permissions.PostNotifications)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/notification", false)),
+
+				[typeof(Permissions.Vibrate)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/haptic", false)),
+
+				// ---------------------------------------------------------------------------
+				// Tizen privacy privileges. Declaration is necessary but NOT sufficient - the
+				// user must also grant them at runtime, so these carry isRuntime: true and are
+				// resolved through PrivacyPrivilegeManager.
+				// ---------------------------------------------------------------------------
+				[typeof(Permissions.CalendarRead)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/calendar.read", true)),
+
+				[typeof(Permissions.CalendarWrite)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/calendar.write", true)),
+
+				[typeof(Permissions.Camera)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/camera", true)),
+
+				[typeof(Permissions.ContactsRead)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/contact.read", true)),
+
+				[typeof(Permissions.ContactsWrite)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/contact.write", true)),
+
+				// Tizen draws no foreground/background distinction for location, so both MAUI
+				// location permissions resolve to the same privilege. LocationAlways therefore
+				// reports the state of the one consent Tizen actually has, rather than implying a
+				// background grant the platform never issued.
+				[typeof(Permissions.LocationWhenInUse)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/location", true)),
+
+				[typeof(Permissions.LocationAlways)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/location", true)),
+
+				[typeof(Permissions.Media)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/mediastorage", true)),
+
+				[typeof(Permissions.Microphone)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/recorder", true)),
+
+				[typeof(Permissions.Photos)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/mediastorage", true)),
+
+				[typeof(Permissions.PhotosAddOnly)] = TizenPermissionMapping.Requires(
 					new TizenPrivilege("http://tizen.org/privilege/mediastorage", true),
-				},
-				[typeof(Permissions.StorageWrite)] = new[]
-				{
-					new TizenPrivilege("http://tizen.org/privilege/mediastorage", true),
-				},
-				[typeof(Permissions.Vibrate)] = new[]
-				{
-					new TizenPrivilege("http://tizen.org/privilege/haptic", false),
-				},
+					new TizenPrivilege("http://tizen.org/privilege/content.write", false)),
+
+				// MAUI's Permissions.Sensors models body sensors. On Tizen the body sensors
+				// (heart rate, pedometer, sleep monitor) are the ones behind healthinfo; the
+				// motion sensors this package exposes need no privilege.
+				[typeof(Permissions.Sensors)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/healthinfo", true)),
+
+				// Reading messages is privacy gated. Composing an SMS through an AppControl is
+				// not - that path only needs appmanager.launch, which TizenSms declares itself.
+				[typeof(Permissions.Sms)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/message.read", true)),
+
+				// Speech recognition on Tizen is Tizen.Uix.Stt, which is gated by recorder.
+				[typeof(Permissions.Speech)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/recorder", true)),
+
+				[typeof(Permissions.StorageRead)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/mediastorage", true)),
+
+				[typeof(Permissions.StorageWrite)] = TizenPermissionMapping.Requires(
+					new TizenPrivilege("http://tizen.org/privilege/mediastorage", true)),
+
+				// ---------------------------------------------------------------------------
+				// No Tizen equivalent. These throw rather than reporting Granted, because a
+				// caller cannot distinguish "granted" from "this platform silently ignored you".
+				// ---------------------------------------------------------------------------
+				[typeof(Permissions.Maps)] = TizenPermissionMapping.Unsupported(
+					"Tizen.Maps (MapService) was deprecated in TizenFX API11 and removed by API15, " +
+					"so the http://tizen.org/privilege/mapservice privilege no longer gates anything " +
+					"this platform can do."),
+
+				[typeof(Permissions.Reminders)] = TizenPermissionMapping.Unsupported(
+					"Tizen has no reminders store. MAUI's Permissions.Reminders models the Apple " +
+					"Reminders database, which has no Tizen counterpart; the calendar permissions " +
+					"cover Tizen's calendar."),
 			};
 
 		/// <inheritdoc/>
@@ -164,23 +289,32 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		static Task<PermissionStatus> ResolveAsync<TPermission>(bool ask)
 			where TPermission : Permissions.BasePermission, new()
 		{
-			if (TryGetKnownPrivileges(typeof(TPermission), out var privileges))
-				return CheckPrivilegesAsync(privileges, ask);
+			if (TryGetKnownMapping(typeof(TPermission), out var mapping))
+			{
+				return mapping.Kind switch
+				{
+					TizenPermissionKind.Requires => CheckPrivilegesAsync(mapping.Privileges, ask),
+					TizenPermissionKind.Ungated => Task.FromResult(PermissionStatus.Granted),
+					_ => throw TizenEssentialsSupport.NotSupported(
+						$"{nameof(Permissions)}.{typeof(TPermission).Name}",
+						mapping.Reason ?? "Tizen has no equivalent capability."),
+				};
+			}
 
 			// Custom permission types own their behaviour (including TizenBasePlatformPermission).
 			var permission = new TPermission();
 			return ask ? permission.RequestAsync() : permission.CheckStatusAsync();
 		}
 
-		internal static bool TryGetKnownPrivileges(Type permissionType, [NotNullWhen(true)] out TizenPrivilege[]? privileges)
+		internal static bool TryGetKnownMapping(Type permissionType, out TizenPermissionMapping mapping)
 		{
 			for (var type = permissionType; type is not null; type = type.BaseType)
 			{
-				if (KnownPermissionPrivileges.TryGetValue(type, out privileges))
+				if (KnownPermissions.TryGetValue(type, out mapping))
 					return true;
 			}
 
-			privileges = null;
+			mapping = default;
 			return false;
 		}
 
@@ -206,10 +340,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		public static void EnsureDeclared<TPermission>()
 			where TPermission : Permissions.BasePermission, new()
 		{
-			if (TryGetKnownPrivileges(typeof(TPermission), out var privileges))
-				EnsureDeclared(privileges);
-			else
+			if (!TryGetKnownMapping(typeof(TPermission), out var mapping))
+			{
 				new TPermission().EnsureDeclared();
+				return;
+			}
+
+			switch (mapping.Kind)
+			{
+				case TizenPermissionKind.Requires:
+					EnsureDeclared(mapping.Privileges);
+					break;
+
+				case TizenPermissionKind.Ungated:
+					break;
+
+				default:
+					throw TizenEssentialsSupport.NotSupported(
+						$"{nameof(Permissions)}.{typeof(TPermission).Name}",
+						mapping.Reason ?? "Tizen has no equivalent capability.");
+			}
 		}
 
 		/// <summary>

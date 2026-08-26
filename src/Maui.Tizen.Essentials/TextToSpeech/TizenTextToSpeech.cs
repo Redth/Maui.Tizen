@@ -14,17 +14,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// </summary>
 	/// <remarks>
 	/// Tizen's TTS client exposes a speed range but no pitch or volume control, so
-	/// <see cref="SpeechOptions.Pitch"/> and <see cref="SpeechOptions.Volume"/> cannot be honoured
-	/// and are rejected rather than silently ignored.
+	/// <see cref="SpeechOptions.Pitch"/> and <see cref="SpeechOptions.Volume"/> are rejected rather
+	/// than silently ignored.
 	/// </remarks>
 	public sealed class TizenTextToSpeech : ITextToSpeech, IDisposable
 	{
 		const float RateMax = 2.0f;
 
 		readonly SemaphoreSlim _speakLock = new(1, 1);
+		readonly SemaphoreSlim _initializeLock = new(1, 1);
 
 		TtsClient? _client;
-		TaskCompletionSource<bool>? _initialize;
+		Task<TtsClient>? _initialization;
 		TaskCompletionSource<bool>? _utterance;
 		bool _disposed;
 
@@ -39,8 +40,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// supports no voices", so this throws rather than reporting a success-shaped result.
 		/// </para>
 		/// <para>
-		/// Use <see cref="GetSupportedVoiceLanguagesAsync"/> to enumerate the languages Tizen reports,
-		/// and pass one of them to <see cref="SpeakWithVoiceAsync"/>.
+		/// Use <see cref="GetSupportedVoiceLanguagesAsync"/> to enumerate the languages Tizen
+		/// reports, and pass one of them to <see cref="SpeakWithVoiceAsync"/>.
 		/// </para>
 		/// </remarks>
 		public Task<IEnumerable<Locale>> GetLocalesAsync() =>
@@ -56,9 +57,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// <returns>The distinct supported voice languages.</returns>
 		public async Task<IReadOnlyList<string>> GetSupportedVoiceLanguagesAsync()
 		{
-			var client = await InitializeAsync().ConfigureAwait(false);
+			var client = await InitializeAsync(CancellationToken.None).ConfigureAwait(false);
 
 			var languages = new List<string>();
+
 			foreach (var voice in client.GetSupportedVoices())
 			{
 				if (!languages.Any(l => string.Equals(l, voice.Language, StringComparison.OrdinalIgnoreCase)))
@@ -111,31 +113,36 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			ArgumentNullException.ThrowIfNull(text);
 
-			var client = await InitializeAsync().ConfigureAwait(false);
+			cancelToken.ThrowIfCancellationRequested();
+
+			var client = await InitializeAsync(cancelToken).ConfigureAwait(false);
 
 			await _speakLock.WaitAsync(cancelToken).ConfigureAwait(false);
 			try
 			{
+				// Re-check after acquiring the lock. Initialization and queuing behind another
+				// utterance can both take arbitrarily long, and starting speech for a request that
+				// was cancelled while waiting is exactly the surprise a cancellation token exists to
+				// prevent.
+				cancelToken.ThrowIfCancellationRequested();
+
 				var utterance = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 				_utterance = utterance;
 
 				using var registration = cancelToken.Register(() =>
 				{
-					try
-					{
-						client.Stop();
-					}
-					catch
-					{
-						// The client may already be idle.
-					}
-
+					StopQuietly(client);
 					utterance.TrySetResult(false);
 				});
 
 				var (resolvedLanguage, voiceType) = ResolveVoice(client, language);
 
 				client.AddText(text, resolvedLanguage, (int)voiceType, ResolveRate(client, rate));
+
+				// One last check: the registration above only fires for cancellation that happens
+				// after it is created, so a token cancelled in between would otherwise still play.
+				cancelToken.ThrowIfCancellationRequested();
+
 				client.Play();
 
 				await utterance.Task.ConfigureAwait(false);
@@ -144,6 +151,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			{
 				_utterance = null;
 				_speakLock.Release();
+			}
+		}
+
+		static void StopQuietly(TtsClient client)
+		{
+			try
+			{
+				client.Stop();
+			}
+			catch (Exception)
+			{
+				// The client may already be idle; nothing actionable.
 			}
 		}
 
@@ -176,47 +195,116 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			return (int)Math.Round(value / RateMax * client.GetSpeedRange().Max, MidpointRounding.AwayFromZero);
 		}
 
-		Task<TtsClient> InitializeAsync()
+		/// <summary>
+		/// Prepares the native TTS client, at most once.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// Serialized behind a semaphore and cached as a single task. The previous implementation
+		/// checked two fields without a lock, so concurrent callers could each construct a
+		/// <see cref="TtsClient"/>; the loser's client was overwritten and leaked, still holding a
+		/// native handle and an unremovable <c>StateChanged</c> subscription.
+		/// </para>
+		/// <para>
+		/// A failed <c>Prepare</c> disposes the client and clears the cached task, so a later call
+		/// retries cleanly instead of awaiting a task that will never complete.
+		/// </para>
+		/// </remarks>
+		async Task<TtsClient> InitializeAsync(CancellationToken cancelToken)
 		{
 			ObjectDisposedException.ThrowIf(_disposed, this);
 
-			if (_client is { } existing && _initialize is { } pending)
-				return WrapAsync(pending, existing);
+			if (_initialization is { } cached)
+				return await cached.WaitAsync(cancelToken).ConfigureAwait(false);
 
+			await _initializeLock.WaitAsync(cancelToken).ConfigureAwait(false);
+			try
+			{
+				ObjectDisposedException.ThrowIf(_disposed, this);
+
+				_initialization ??= PrepareAsync();
+			}
+			finally
+			{
+				_initializeLock.Release();
+			}
+
+			try
+			{
+				return await _initialization.WaitAsync(cancelToken).ConfigureAwait(false);
+			}
+			catch (Exception) when (_initialization?.IsFaulted == true)
+			{
+				// Let the next caller retry rather than caching the failure forever.
+				await _initializeLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+				try
+				{
+					if (_initialization?.IsFaulted == true)
+						_initialization = null;
+				}
+				finally
+				{
+					_initializeLock.Release();
+				}
+
+				throw;
+			}
+		}
+
+		Task<TtsClient> PrepareAsync()
+		{
 			var client = new TtsClient();
-			var initialize = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+			var ready = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-			client.StateChanged += (_, e) =>
+			client.StateChanged += OnStateChanged;
+			client.UtteranceCompleted += OnUtteranceCompleted;
+
+			try
+			{
+				client.Prepare();
+			}
+			catch (Exception)
+			{
+				client.StateChanged -= OnStateChanged;
+				client.UtteranceCompleted -= OnUtteranceCompleted;
+				client.Dispose();
+				throw;
+			}
+
+			_client = client;
+
+			return AwaitReadyAsync();
+
+			void OnStateChanged(object? sender, StateChangedEventArgs e)
 			{
 				if (e.Current == State.Ready)
-					initialize.TrySetResult(true);
-			};
+					ready.TrySetResult(true);
+			}
 
-			client.UtteranceCompleted += (_, _) =>
+			void OnUtteranceCompleted(object? sender, UtteranceEventArgs e)
+			{
+				StopQuietly(client);
+				_utterance?.TrySetResult(true);
+			}
+
+			async Task<TtsClient> AwaitReadyAsync()
 			{
 				try
 				{
-					client.Stop();
+					await ready.Task.ConfigureAwait(false);
+					return client;
 				}
-				catch
+				catch (Exception)
 				{
-					// The client may already be idle.
+					client.StateChanged -= OnStateChanged;
+					client.UtteranceCompleted -= OnUtteranceCompleted;
+					client.Dispose();
+
+					if (ReferenceEquals(_client, client))
+						_client = null;
+
+					throw;
 				}
-
-				_utterance?.TrySetResult(true);
-			};
-
-			_client = client;
-			_initialize = initialize;
-
-			client.Prepare();
-
-			return WrapAsync(initialize, client);
-
-			static async Task<TtsClient> WrapAsync(TaskCompletionSource<bool> tcs, TtsClient client)
-			{
-				await tcs.Task.ConfigureAwait(false);
-				return client;
 			}
 		}
 
@@ -229,7 +317,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			_disposed = true;
 			_client?.Dispose();
 			_client = null;
+			_initialization = null;
 			_speakLock.Dispose();
+			_initializeLock.Dispose();
 		}
 	}
 }

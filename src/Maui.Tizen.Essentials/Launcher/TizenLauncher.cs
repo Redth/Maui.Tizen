@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Storage;
@@ -13,11 +14,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	public sealed class TizenLauncher : ILauncher
 	{
 		/// <inheritdoc/>
+		/// <remarks>
+		/// Asks Tizen whether any installed application actually handles the URI, rather than only
+		/// checking that the string is well formed. The previous implementation returned
+		/// <see langword="true"/> for any syntactically valid URI, so <see cref="TryOpenAsync"/>
+		/// would go on to call <see cref="OpenAsync(Uri)"/> and throw when nothing could handle it -
+		/// which defeats the point of a Try method.
+		/// </remarks>
 		public Task<bool> CanOpenAsync(Uri uri)
 		{
 			ArgumentNullException.ThrowIfNull(uri);
 
-			return Task.FromResult(uri.IsWellFormedOriginalString());
+			if (!uri.IsAbsoluteUri || !uri.IsWellFormedOriginalString())
+				return Task.FromResult(false);
+
+			return Task.FromResult(HasHandler(CreateAppControl(uri)));
 		}
 
 		/// <inheritdoc/>
@@ -27,13 +38,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			TizenPermissions.EnsureDeclared<Permissions.LaunchApp>();
 
-			var appControl = new TizenAppControl
-			{
-				Operation = GetOperation(uri),
-				Uri = uri.AbsoluteUri,
-			};
-
-			TizenAppControl.SendLaunchRequest(appControl);
+			TizenAppControl.SendLaunchRequest(CreateAppControl(uri));
 
 			return Task.FromResult(true);
 		}
@@ -61,14 +66,48 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		}
 
 		/// <inheritdoc/>
-		public async Task<bool> TryOpenAsync(Uri uri)
+		/// <remarks>
+		/// Returns <see langword="false"/> when nothing on the device handles the URI, rather than
+		/// letting the launch attempt throw.
+		/// </remarks>
+		public Task<bool> TryOpenAsync(Uri uri)
 		{
-			var canOpen = await CanOpenAsync(uri).ConfigureAwait(false);
+			ArgumentNullException.ThrowIfNull(uri);
 
-			if (canOpen)
-				await OpenAsync(uri).ConfigureAwait(false);
+			if (!uri.IsAbsoluteUri || !uri.IsWellFormedOriginalString())
+				return Task.FromResult(false);
 
-			return canOpen;
+			TizenPermissions.EnsureDeclared<Permissions.LaunchApp>();
+
+			var appControl = CreateAppControl(uri);
+
+			if (!HasHandler(appControl))
+				return Task.FromResult(false);
+
+			TizenAppControl.SendLaunchRequest(appControl);
+
+			return Task.FromResult(true);
+		}
+
+		static TizenAppControl CreateAppControl(Uri uri) =>
+			new()
+			{
+				Operation = GetOperation(uri),
+				Uri = uri.AbsoluteUri,
+			};
+
+		static bool HasHandler(TizenAppControl appControl)
+		{
+			try
+			{
+				return TizenAppControl.GetMatchedApplicationIds(appControl).Any();
+			}
+			catch (Exception)
+			{
+				// Tizen throws rather than returning an empty set when nothing matches the control.
+				// For a capability probe that is the same answer as "no handler".
+				return false;
+			}
 		}
 
 		static string GetOperation(Uri uri)

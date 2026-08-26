@@ -58,6 +58,17 @@ namespace Microsoft.Maui.Hosting
 		{
 			ArgumentNullException.ThrowIfNull(builder);
 
+			// Installing the Essentials initializer is what actually makes the registrations below
+			// reach the static facades. MauiApp.CreateBuilder(useDefaults: true) installs it via the
+			// internal UseEssentials(); with useDefaults: false nothing does, so registering the
+			// services alone would leave Battery.Default and friends resolving lazy platform
+			// defaults while DI held the real Tizen implementations - two live instances, and the
+			// static API silently wrong.
+			//
+			// ConfigureEssentials is the public entry point onto the same initializer and is
+			// idempotent (it TryAdds), so calling it here is safe alongside useDefaults: true.
+			builder.ConfigureEssentials();
+
 			AddTizenEssentials(builder.Services);
 
 			return builder;

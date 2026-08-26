@@ -217,7 +217,7 @@ if [[ $BUILD_OK -eq 1 ]]; then
   # runner, because console rendering is not a stable contract. A report file is.
   #
   # Raise this when adding tests; never lower it to make a run go green.
-  ESSENTIALS_TESTS_MINIMUM=196
+  ESSENTIALS_TESTS_MINIMUM=283
 
   check "essentials tests" "$ESSENTIALS_TESTS" \
     --report-xunit-junit --report-xunit-junit-filename results.xml \
