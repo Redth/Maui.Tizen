@@ -89,6 +89,38 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Fact]
+		public void SemanticsReachesThePlatformView()
+		{
+			// dotnet/maui's Tizen UpdateSemantics is an empty stub; this backend implements it via
+			// NUI's AccessibilityName/Description. Controls funnels AutomationProperties and the
+			// heading level through this key, so an inert mapper discards every accessibility
+			// annotation an app sets.
+			var (handler, platform, _) = CreateLabel();
+			platform.Applied.Clear();
+
+			handler.UpdateValue(nameof(IView.Semantics));
+
+			Assert.Contains(nameof(IView.Semantics), platform.Applied);
+		}
+
+		[Theory]
+		[InlineData("Description")]
+		[InlineData("Hint")]
+		[InlineData("HeadingLevel")]
+		[InlineData("IsInAccessibleTree")]
+		[InlineData("ExcludedWithChildren")]
+		[InlineData("BackgroundColor")]
+		[InlineData("BackgroundImageSource")]
+		public void ControlsRemappedViewKeyIsReachable(string key)
+		{
+			// These keys exist only after Controls' RemapForControls has run against the static
+			// ViewHandler.ViewMapper. The Tizen base mapper chains it precisely so they resolve.
+			_ = new Microsoft.Maui.Controls.Label();
+
+			Assert.NotNull(TizenViewMappers.ViewMapper.GetProperty(key));
+		}
+
+		[Fact]
 		public void MaximumSizeMappersAreDeliberatelyInertButPresent()
 		{
 			// NUI's MaximumSize misbehaves, so dotnet/maui leaves these empty. Keeping the keys

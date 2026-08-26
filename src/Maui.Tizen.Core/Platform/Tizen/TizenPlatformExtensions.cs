@@ -470,13 +470,37 @@ namespace Microsoft.Maui.Platforms.Tizen
 		}
 
 		/// <summary>
-		/// Applies <see cref="IView.Semantics"/>. Not implemented, matching dotnet/maui's Tizen
-		/// implementation.
+		/// Applies <see cref="IView.Semantics"/> to NUI's accessibility properties.
 		/// </summary>
+		/// <remarks>
+		/// An improvement on dotnet/maui, whose Tizen <c>UpdateSemantics</c> is an empty stub even
+		/// though TizenFX exposes these properties. MAUI Controls funnels its accessibility surface
+		/// (<c>AutomationProperties.Name</c>/<c>HelpText</c>/<c>IsInAccessibleTree</c> and the
+		/// heading level) through <see cref="IView.Semantics"/>, so leaving this empty silently
+		/// discards every accessibility annotation an app sets.
+		/// </remarks>
 		/// <param name="platformView">The platform view.</param>
 		/// <param name="view">The cross-platform view.</param>
 		public static void UpdateSemantics(this TizenNativeView platformView, IView view)
 		{
+			ArgumentNullException.ThrowIfNull(platformView);
+			ArgumentNullException.ThrowIfNull(view);
+
+			var semantics = view.Semantics;
+
+			if (semantics is null)
+			{
+				platformView.AccessibilityName = string.Empty;
+				platformView.AccessibilityDescription = string.Empty;
+				return;
+			}
+
+			platformView.AccessibilityName = semantics.Description ?? string.Empty;
+			platformView.AccessibilityDescription = semantics.Hint ?? string.Empty;
+
+			// A heading is a navigation landmark, so it must be reachable by the screen reader.
+			if (semantics.HeadingLevel != SemanticHeadingLevel.None)
+				platformView.AccessibilityHighlightable = true;
 		}
 
 		/// <summary>Applies <see cref="IView.AutomationId"/>.</summary>
