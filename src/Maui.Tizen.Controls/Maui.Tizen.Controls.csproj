@@ -7,6 +7,33 @@
     <Description>Tizen platform implementation for .NET MAUI Controls: Shell, CollectionView, shapes, gesture and modal navigation managers, and TizenSpecific platform configuration.</Description>
   </PropertyGroup>
 
+  <!--
+    Core/Platform holds reworked implementations rather than raw imports, so it is compiled
+    explicitly instead of waiting for the project-wide EnableDefaultCompileItems flip
+    described in eng/targets/TizenPackage.props.
+
+    The distinction matters: the imported sources are `partial` halves of types that live in
+    Microsoft.Maui.Core and cannot compile across an assembly boundary. These files have no
+    such problem - they are built on the public extensibility contracts that shipped in .NET
+    MAUI 11 (IAlertManager, IAlertManagerSubscription, IGesturePlatformManager,
+    IGesturePlatformManagerFactory) and are verified to type-check against TizenFX by
+    eng/verify-nui-sources.sh.
+
+    They are excluded from the <None> glob so they do not appear twice in the IDE.
+  -->
+  <ItemGroup>
+    <Compile Include="Core/Platform/Alerts/*.cs" />
+    <Compile Include="Core/Platform/Gestures/*.cs" />
+    <Compile Include="Core/Platform/Nui/*.cs" />
+    <Compile Include="Core/Platform/TizenControlsServiceCollectionExtensions.cs" />
+    <None Remove="Core/Platform/Alerts/*.cs;Core/Platform/Gestures/*.cs;Core/Platform/Nui/*.cs;Core/Platform/TizenControlsServiceCollectionExtensions.cs" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <!-- The files above carry XML docs; the imported sources are not compiled yet. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls.Core" />
     <PackageReference Include="Microsoft.Maui.Core" />

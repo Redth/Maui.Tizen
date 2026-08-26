@@ -24,6 +24,7 @@
 
   <Folder Name="/tests/">
     <Project Path="tests/UnitTests/Maui.Tizen.UnitTests.csproj" />
+    <Project Path="tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj" />
   </Folder>
 
   <Folder Name="/eng/">

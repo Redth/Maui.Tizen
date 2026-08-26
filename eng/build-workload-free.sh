@@ -121,6 +121,7 @@ info "Workload-independent projects"
 WORKLOAD_FREE_PROJECTS=(
   "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj"
   "tests/UnitTests/Maui.Tizen.UnitTests.csproj"
+  "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj"
 )
 for proj in "${WORKLOAD_FREE_PROJECTS[@]}"; do
   check "restore $(basename "$proj")" "$DOTNET" restore "$proj"
@@ -128,14 +129,19 @@ for proj in "${WORKLOAD_FREE_PROJECTS[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# 5. Repository invariant tests.
+# 5. Tests that can run without the workload.
 #
-# These are the only tests that can meaningfully run before the workload ships: they
-# check that the migration scaffolding is internally consistent rather than testing
-# Tizen behaviour that nobody can execute yet.
+# tests/UnitTests checks that the migration scaffolding is internally consistent.
+#
+# tests/Controls.UnitTests goes further: the Controls platform layer is written so that
+# alert routing, modal coordination and gesture translation sit behind Tizen-owned
+# contracts, with the NUI implementations isolated under Core/Platform/Nui. Those neutral
+# sources are compiled into the test assembly and exercised for real, so the behaviour is
+# not waiting on Samsung either.
 # ---------------------------------------------------------------------------
-info "Repository invariant tests"
-check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
+info "Tests"
+check "repository invariant tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
+check "controls platform tests" "$DOTNET" test tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj --no-build -c Release
 
 # ---------------------------------------------------------------------------
 # 6. Report the Tizen gate explicitly.
@@ -144,12 +150,26 @@ check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --
 # lane should be promoted to required.
 # ---------------------------------------------------------------------------
 info "Tizen workload gate"
-if "$DOTNET" workload list 2>/dev/null | grep -qi tizen; then
+#
+# Detect the SAMSUNG platform workload, not just any workload whose id contains "tizen".
+#
+# `dotnet workload list | grep -i tizen` also matches MAUI's own `maui-tizen` workload,
+# which is a different thing: it provides the MAUI packs, not the `tizen` target platform
+# identifier. A machine with `maui-tizen` installed but no Samsung SDK still cannot build
+# net11.0-tizen11.0 - it fails with NETSDK1139 ("the target platform identifier tizen was
+# not recognized"). Reporting that machine as ready would promote the Tizen lane to
+# required and break CI.
+#
+# This mirrors the probe in Directory.Build.props, which looks for the manifest directly.
+if "$DOTNET" workload list 2>/dev/null | grep -qE '^\s*samsung\.net\.sdk\.tizen|^\s*tizen\s' ||
+   find "$("$DOTNET" --list-sdks >/dev/null 2>&1 && dirname "$(command -v "$DOTNET")")/sdk-manifests" \
+        -maxdepth 2 -name samsung.net.sdk.tizen -type d 2>/dev/null | grep -q .; then
   pass "Samsung Tizen workload is installed - the Tizen lane can now be made required"
 else
   note "Samsung Tizen workload is NOT installed."
   note "  net11.0-tizen11.0 cannot be restored or built until Samsung publishes"
   note "  'samsung.net.sdk.tizen.manifest-11.0.100'. This is expected; see docs/migration.md."
+  note "  (MAUI's own 'maui-tizen' workload is not the same thing and is not sufficient.)"
 fi
 
 echo

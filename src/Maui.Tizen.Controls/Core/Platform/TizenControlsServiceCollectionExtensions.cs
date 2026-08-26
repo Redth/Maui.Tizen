@@ -1,0 +1,154 @@
+using System;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Maui.Controls.Platform;
+using Microsoft.Maui.Hosting;
+
+namespace Microsoft.Maui.Platforms.Tizen
+{
+	/// <summary>
+	/// Selects how the Tizen backend plugs into .NET MAUI's alert infrastructure.
+	/// </summary>
+	public enum TizenAlertRegistrationMode
+	{
+		/// <summary>
+		/// Register <see cref="TizenAlertManager"/> as the window's <see cref="IAlertManager"/>.
+		/// </summary>
+		/// <remarks>
+		/// This is the default because native NUI popups must be dismissed explicitly. .NET MAUI's
+		/// built-in manager treats unsubscribe as "drop the reference", which on Tizen would leave
+		/// an orphaned modal popup on screen and leave the awaiting caller pending forever.
+		/// </remarks>
+		FullManager,
+
+		/// <summary>
+		/// Register only <see cref="TizenAlertManagerSubscription"/> and let .NET MAUI's built-in
+		/// manager own subscription lifecycle.
+		/// </summary>
+		/// <remarks>
+		/// Use this when application code needs .NET MAUI's default manager semantics, including
+		/// its delegate-based dialog conventions. Dialogs that are open when the window tears down
+		/// are not dismissed in this mode.
+		/// </remarks>
+		SubscriptionOnly,
+	}
+
+	/// <summary>
+	/// Registers the Tizen alert, modal and gesture infrastructure.
+	/// </summary>
+	public static class TizenControlsServiceCollectionExtensions
+	{
+		/// <summary>
+		/// Registers the Tizen alert and modal coordination services.
+		/// </summary>
+		/// <param name="services">The service collection to add to.</param>
+		/// <param name="mode">How the backend plugs into .NET MAUI's alert infrastructure.</param>
+		/// <returns>The same service collection, for chaining.</returns>
+		/// <remarks>
+		/// <para>
+		/// The alert services are registered as <b>scoped</b>. .NET MAUI creates a service scope
+		/// per window and resolves <see cref="IAlertManager"/> from that scope, so a scoped
+		/// lifetime is what gives each window its own window-affine manager. A singleton would
+		/// route every window's dialogs through shared state.
+		/// </para>
+		/// <para>
+		/// <see cref="ITizenAlertDialogFactory"/> and <see cref="ITizenModalHost"/> are not
+		/// registered here because they are the NUI presentation layer. Register them before
+		/// calling this method, or call the NUI hosting extension which does it for you. Every
+		/// registration uses try-add semantics, so an application can override any single piece.
+		/// </para>
+		/// </remarks>
+		public static IServiceCollection AddTizenAlerts(
+			this IServiceCollection services,
+			TizenAlertRegistrationMode mode = TizenAlertRegistrationMode.FullManager)
+		{
+			ArgumentNullException.ThrowIfNull(services);
+
+			services.TryAddScoped<ITizenWindowContext, TizenWindowContext>();
+			services.TryAddSingleton<ITizenPlatformWindowProvider, TizenPlatformWindowProvider>();
+
+			if (mode == TizenAlertRegistrationMode.FullManager)
+			{
+				services.TryAddScoped<IAlertManager, TizenAlertManager>();
+			}
+			else
+			{
+				services.TryAddScoped<IAlertManagerSubscription>(static provider => new TizenAlertManagerSubscription(
+					provider.GetRequiredService<ITizenWindowContext>().PlatformWindow,
+					provider.GetRequiredService<ITizenAlertDialogFactory>(),
+					provider.GetRequiredService<ITizenModalHost>(),
+					provider.GetRequiredService<ITizenPlatformWindowProvider>()));
+			}
+
+			return services;
+		}
+
+		/// <summary>
+		/// Registers the Tizen gesture infrastructure.
+		/// </summary>
+		/// <param name="services">The service collection to add to.</param>
+		/// <returns>The same service collection, for chaining.</returns>
+		/// <remarks>
+		/// <para>
+		/// The gesture services are registered as <b>singletons</b>. Unlike alerts, gesture
+		/// handling has no window affinity: .NET MAUI resolves
+		/// <see cref="IGesturePlatformManagerFactory"/> once per handler connection and the factory
+		/// creates a fresh manager for each, so no per-window state is held.
+		/// </para>
+		/// <para>
+		/// <see cref="ITizenNativeGestureDetectorFactory"/> is not registered here because it is
+		/// the NUI detection layer. A default <see cref="ITizenPixelScaler"/> using a scaling
+		/// factor of one is registered so that host-side tests and non-scaled displays work
+		/// without extra configuration; the NUI hosting extension replaces it with the real
+		/// display metrics.
+		/// </para>
+		/// </remarks>
+		public static IServiceCollection AddTizenGestures(this IServiceCollection services)
+		{
+			ArgumentNullException.ThrowIfNull(services);
+
+			services.TryAddSingleton<ITizenPixelScaler>(static _ => new TizenPixelScaler());
+			services.TryAddSingleton<ITizenGestureDispatcher, TizenGestureDispatcher>();
+			services.TryAddSingleton<ITizenGestureHandlerFactory, TizenGestureHandlerFactory>();
+			services.TryAddSingleton<IGesturePlatformManagerFactory, TizenGesturePlatformManagerFactory>();
+
+			return services;
+		}
+
+		/// <summary>
+		/// Registers both the Tizen alert and gesture infrastructure.
+		/// </summary>
+		/// <param name="services">The service collection to add to.</param>
+		/// <param name="mode">How the backend plugs into .NET MAUI's alert infrastructure.</param>
+		/// <returns>The same service collection, for chaining.</returns>
+		public static IServiceCollection AddTizenControlsPlatform(
+			this IServiceCollection services,
+			TizenAlertRegistrationMode mode = TizenAlertRegistrationMode.FullManager) =>
+			services
+				.AddTizenAlerts(mode)
+				.AddTizenGestures();
+	}
+
+	/// <summary>
+	/// <see cref="MauiAppBuilder"/> conveniences for the Tizen backend.
+	/// </summary>
+	public static class TizenControlsMauiAppBuilderExtensions
+	{
+		/// <summary>
+		/// Registers the Tizen alert, modal and gesture infrastructure.
+		/// </summary>
+		/// <param name="builder">The app builder to configure.</param>
+		/// <param name="mode">How the backend plugs into .NET MAUI's alert infrastructure.</param>
+		/// <returns>The same builder, for chaining.</returns>
+		public static MauiAppBuilder UseTizenControlsPlatform(
+			this MauiAppBuilder builder,
+			TizenAlertRegistrationMode mode = TizenAlertRegistrationMode.FullManager)
+		{
+			ArgumentNullException.ThrowIfNull(builder);
+
+			builder.Services.AddTizenControlsPlatform(mode);
+
+			return builder;
+		}
+	}
+}
