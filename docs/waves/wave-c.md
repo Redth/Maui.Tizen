@@ -159,10 +159,22 @@ acceptance.
 
 Wave C consumes two Tizen platform primitives that the net11 MAUI surface does not publish:
 
-| Missing type | References | Expected core owner |
+| Missing | References | Owner |
 | --- | --- | --- |
-| `Microsoft.Maui.Platform.MauiToolbar` | 38 | `TizenToolbarView` |
-| `Microsoft.Maui.Platform.StackNavigationManager` | 10 | `TizenStackNavigationManager` |
+| `Microsoft.Maui.Platform.MauiToolbar` | 38 | Core — `TizenToolbarView` |
+| `Microsoft.Maui.Platform.StackNavigationManager` | 10 | Core — `TizenStackNavigationManager` |
+| `MauiFlyoutView` / `MauiTVFlyoutView` | 2 | Core — `TizenFlyoutView` / `TizenTVFlyoutView` |
+| `DrawerView` update extensions (6) | 6 | Core |
+| `FlyoutBehavior` → drawer behaviour mapping | 1 | Core |
+
+Ownership was confirmed on 2026-08-26. Wave C owns the Flyout/Shell/navigation **handlers** and two
+pieces of its own cleanup: re-pointing at existing Core/Wave B names (`ToTizenNativeColor`,
+`ToTizenCommonColor`, `TizenWrapperView`, `TizenPlatformExtensions.UpdateBackground`) and inlining
+the handler-specific toolbar attach, since `ViewHandler.MapToolbar` never existed outside MAUI's
+per-platform builds.
+
+That cleanup is deliberately **not** started yet: the names it would re-point at are the same ones
+still under review, so doing it early would mean doing it twice.
 
 These are Core-owned primitives that belong in `Maui.Tizen.Core` beside `TizenViewHandler<,>` and
 `TizenContentViewGroup`. **Wave C must not declare its own** - that would give the repository two
