@@ -162,6 +162,14 @@ WORKLOAD_FREE_PROJECTS=(
   "eng/tools/SourceInventory/SourceInventory.csproj"
   "eng/tools/PackageVerify/PackageVerify.csproj"
   "tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj"
+
+  #   Maui.Tizen.BlazorWebView.Tests  the same two roles for the BlazorWebView package: it
+  #                               compiles the handler sources and the Blazor sample head
+  #                               against the Samsung reference assemblies, and EXECUTES
+  #                               tests for registration order, the asset file provider,
+  #                               request mapping and the static content cache.
+  #                               See docs/blazorwebview.md.
+  "tests/Maui.Tizen.BlazorWebView.Tests/Maui.Tizen.BlazorWebView.Tests.csproj"
 )
 BUILD_OK=1
 for proj in "${WORKLOAD_FREE_PROJECTS[@]}"; do
@@ -264,6 +272,14 @@ else
   fail "snapshot verification regressions failed"
   FAILURES=$((FAILURES + 1))
 fi
+# 5b. BlazorWebView host-side verification.
+#
+# Unlike the invariant tests, these exercise real backend behaviour: registration order,
+# the asset file provider, request mapping and the static content cache. They can run
+# because none of that code needs the native NUI WebView.
+# ---------------------------------------------------------------------------
+info "BlazorWebView host-side tests"
+check "blazorwebview tests" "$DOTNET" test tests/Maui.Tizen.BlazorWebView.Tests/Maui.Tizen.BlazorWebView.Tests.csproj --no-build -c Release
 
 # ---------------------------------------------------------------------------
 # 6. Report the Tizen gate explicitly.

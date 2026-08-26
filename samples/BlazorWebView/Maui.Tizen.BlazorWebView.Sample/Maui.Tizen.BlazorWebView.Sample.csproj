@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!--
+    Minimal Blazor sample for the standalone Tizen backend.
+
+    IsTizenProject brings in the single repository TFM and the shared Samsung workload gate from
+    Directory.Build.targets, so this sample cannot be built until the workload ships. Its host wiring
+    (MauiProgram.cs) and its Razor components are compiled by tests/Maui.Tizen.BlazorWebView.Tests in the
+    meantime, which is what keeps the registration snippet in docs/blazorwebview.md honest.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsTizenProject>true</IsTizenProject>
+    <RootNamespace>Maui.Tizen.BlazorWebView.Sample</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ApplicationId>org.tizen.example.mauitizenblazorsample</ApplicationId>
+    <ApplicationTitle>Maui.Tizen BlazorWebView Sample</ApplicationTitle>
+    <ApplicationVersion>1.0.0</ApplicationVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Maui.Tizen.BlazorWebView/Maui.Tizen.BlazorWebView.csproj" />
+    <PackageReference Include="Microsoft.Maui.Controls" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Served from the Tizen application resource directory; see TizenAssetFileProvider. -->
+    <None Include="wwwroot/**/*" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="tizen-manifest.xml" />
+  </ItemGroup>
+
+</Project>
