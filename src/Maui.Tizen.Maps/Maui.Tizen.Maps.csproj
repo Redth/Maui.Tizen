@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="$(MSBuildThisFileDirectory)../../eng/targets/TizenPackage.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Microsoft.Maui.Maps</RootNamespace>
+    <Description>Tizen platform implementation of Maps for .NET MAUI.</Description>
+  </PropertyGroup>
+
+  <!--
+    Maps is split across two areas upstream (Core-level handlers in src/Core/maps and
+    Controls-level types in src/Controls/Maps). They ship as one package here, so the
+    imported sources live under Core/ and Controls/ subdirectories of this project.
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Maps" />
+    <PackageReference Include="Microsoft.Maui.Controls.Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Maui.Tizen.Core/Maui.Tizen.Core.csproj" />
+  </ItemGroup>
+
+</Project>

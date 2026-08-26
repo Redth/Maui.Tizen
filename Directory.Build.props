@@ -1,0 +1,109 @@
+<Project>
+
+  <!--
+    Root build configuration for Maui.Tizen.
+
+    Two things here are load-bearing and deliberately different from dotnet/maui:
+
+    1. This repository targets a SINGLE framework: net11.0-tizen11.0. There is no
+       multi-targeting, no neutral net11.0 fallback, and no .NET 10 support. A neutral
+       fallback would let the build go green while producing assemblies that cannot
+       actually run on Tizen, which is worse than not building at all.
+
+    2. The Samsung .NET 11 workload does not exist yet (see eng/baselines.json). That is
+       modelled as an EXPLICIT GATE: projects that need it fail with an actionable error
+       rather than silently degrading. Never "fix" a red build here by adding a neutral
+       TFM fallback.
+  -->
+
+  <PropertyGroup Label="Repository layout">
+    <RepositoryRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)'))</RepositoryRoot>
+    <ArtifactsDir>$(RepositoryRoot)artifacts/</ArtifactsDir>
+    <BaseIntermediateOutputPath>$(ArtifactsDir)obj/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(ArtifactsDir)bin/$(MSBuildProjectName)/</BaseOutputPath>
+    <PackageOutputPath>$(ArtifactsDir)packages/</PackageOutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Target framework contract">
+    <!--
+      Values mirror eng/baselines.json > target. Keep them in sync; the CI validation
+      lane checks that they match.
+    -->
+    <DotNetVersion>11.0</DotNetVersion>
+    <DotNetTfm>net$(DotNetVersion)</DotNetTfm>
+
+    <!--
+      Tizen platform version 11.0, i.e. TizenFX API15 (Samsung.Tizen.Ref.API15).
+      NOTE: dotnet/maui still pins tizen7.0, a version the modern Samsung SDK no longer
+      lists as supported. Do not copy that value back in.
+    -->
+    <TizenPlatformVersion>11.0</TizenPlatformVersion>
+    <MauiTizenTargetFramework>$(DotNetTfm)-tizen$(TizenPlatformVersion)</MauiTizenTargetFramework>
+
+    <!-- Floor for the generated tizen-manifest.xml api-version attribute. -->
+    <TizenManifestApiVersion>11</TizenManifestApiVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Workload detection">
+    <!--
+      Probe for the Samsung Tizen workload. `TizenWorkloadAvailable` may also be forced
+      from the command line or environment, which is how CI pins behaviour rather than
+      depending on whatever happens to be installed on the agent:
+
+        dotnet build -p:TizenWorkloadAvailable=true
+    -->
+    <_TizenWorkloadManifestDir>$(NetCoreRoot)sdk-manifests/</_TizenWorkloadManifestDir>
+    <TizenWorkloadAvailable Condition="'$(TizenWorkloadAvailable)' == '' AND Exists('$(_TizenWorkloadManifestDir)$(NETCoreSdkVersion)/samsung.net.sdk.tizen/WorkloadManifest.json')">true</TizenWorkloadAvailable>
+    <TizenWorkloadAvailable Condition="'$(TizenWorkloadAvailable)' == '' AND Exists('$(_TizenWorkloadManifestDir)$(BundledNETCoreAppPackageVersion)/samsung.net.sdk.tizen/WorkloadManifest.json')">true</TizenWorkloadAvailable>
+    <TizenWorkloadAvailable Condition="'$(TizenWorkloadAvailable)' == ''">false</TizenWorkloadAvailable>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Language and analysis">
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors Condition="'$(TreatWarningsAsErrors)' == '' AND '$(ContinuousIntegrationBuild)' == 'true'">true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
+    <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
+    <DebugType>portable</DebugType>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <DeterministicSourcePaths Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</DeterministicSourcePaths>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Package metadata">
+    <!--
+      Package IDs are Maui.Tizen.* because this repository is externally owned and must
+      not publish under the Microsoft.Maui.* IDs. The ASSEMBLY names and NAMESPACES are a
+      separate question and intentionally answered differently - see docs/architecture.md.
+    -->
+    <Authors>Maui.Tizen Contributors</Authors>
+    <Product>Maui.Tizen</Product>
+    <Copyright>Copyright (c) .NET Foundation and Contributors, Maui.Tizen Contributors</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Redth/Maui.Tizen</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Redth/Maui.Tizen</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>maui;tizen;samsung</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+    <!--
+      Nothing publishes from this repository yet. Individual projects opt in explicitly
+      once their disposition is settled; see eng/manifests/.
+    -->
+    <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Versioning">
+    <VersionPrefix Condition="'$(VersionPrefix)' == ''">11.0.0</VersionPrefix>
+    <VersionSuffix Condition="'$(VersionSuffix)' == ''">alpha</VersionSuffix>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <None Include="$(RepositoryRoot)README.md" Pack="true" PackagePath="/" Visible="false" />
+  </ItemGroup>
+
+</Project>

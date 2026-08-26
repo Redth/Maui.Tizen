@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="$(MSBuildThisFileDirectory)../../eng/targets/TizenPackage.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Microsoft.AspNetCore.Components.WebView.Maui</RootNamespace>
+    <Description>Tizen platform implementation of BlazorWebView for .NET MAUI.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView" />
+    <PackageReference Include="Microsoft.Maui.Core" />
+    <PackageReference Include="Tizen.UIExtensions.NUI" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Maui.Tizen.Core/Maui.Tizen.Core.csproj" />
+  </ItemGroup>
+
+</Project>

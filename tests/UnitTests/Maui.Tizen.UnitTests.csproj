@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Repository invariant tests.
+
+    These deliberately test the REPOSITORY, not the Tizen backend. Until the Samsung
+    .NET 11 workload ships, no Tizen code can be compiled or executed by anyone, so
+    backend tests would be untestable theatre.
+
+    What can be tested today is that the migration's own scaffolding is internally
+    consistent: that the pinned baselines are well-formed, that the build configuration
+    and the baselines agree with each other, and that the provenance and import tooling
+    the extraction depends on has not quietly rotted.
+
+    This project targets plain net11.0 - it is a test host, not a Tizen artifact - which
+    is why it is exempt from the Tizen workload gate.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);NETSDK1057</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+</Project>
