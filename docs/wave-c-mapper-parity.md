@@ -15,7 +15,7 @@ so this cannot drift silently.
 | Status | Meaning |
 | --- | --- |
 | `Supported` | The mapper does real work on Tizen. |
-| `NoOp` | The mapping is declared but intentionally empty, because Tizen has no equivalent. Every one of these carries an XML doc comment saying why, and `EveryNoOpMapperDocumentsWhy` enforces that. |
+| `NoOp` | Declared but intentionally empty, because Tizen has no equivalent. Every one carries an XML doc comment saying why, and `EveryNoOpMapperDocumentsWhy` enforces that. |
 
 `UncoveredNeutralKeys` lists keys the neutral MAUI handler declares that the Tizen handler does
 not. These are **recorded gaps, not silent ones**: `EveryNeutralMapperKeyIsImplementedOrRecorded`
@@ -24,13 +24,25 @@ fails if a new one appears without being written down here.
 ## Summary
 
 - 20 migrated handlers
-- 54 supported mappings, 30 documented no-ops
+- 54 supported mappings, 33 documented no-ops
 - 4 handlers with recorded neutral-key gaps
 
 The recorded gaps are all view-level or semantic properties (`BackgroundColor`, `Hint`,
-`HeadingLevel`, `IsInAccessibleTree`, ...). They are supplied at runtime by the chained
-`ViewMapper`/`ElementMapper`, so they are reported here for completeness rather than as missing
-behaviour.
+`HeadingLevel`, `IsInAccessibleTree`, ...) supplied at runtime by the chained
+`ViewMapper`/`ElementMapper`. They are listed for completeness, not as missing behaviour.
+
+## TabbedPage badges
+
+`BadgeText`, `BadgeColor` and `BadgeTextColor` (dotnet/maui#37755) are declared and classified
+`NoOp`. Upstream states that "Tizen exposes the shared API without a platform renderer, matching
+Shell's current support matrix" - Tizen's tab strip is a plain `CollectionView` with a label and
+a selection bar, with no badge decoration to drive. Setting a badge binds and raises property
+changes normally; nothing is drawn.
+
+Their mapper keys are string literals rather than `nameof`, because the compile-verification lane
+targets the repository's behaviourBaseline (MAUI 9.0.120), which predates the API. The literals
+match `BindableProperty.CreateAttached(...)` exactly and should become `nameof` once the
+validation baseline carries the properties.
 
 ## Handlers
 
@@ -302,6 +314,9 @@ behaviour.
 | `ItemTemplate` | NoOp | No-op: ItemTemplate is not used by TabbedPage on Tizen. TabbedPage uses a fixed template for tab items. This mapper exists for API completeness but performs no operation. |
 | `SelectedItem` | NoOp | No-op: SelectedItem is managed through CurrentPage. TabbedPage uses CurrentPage rather than SelectedItem. This mapper exists for API completeness but performs no operation. |
 | `CurrentPage` | Supported |  |
+| `BadgeText` | NoOp | Unsupported: Tizen has no tab badge affordance. Upstream (dotnet/maui#37755) added <c>BadgeText</c>, <c>BadgeColor</c> and "Tizen exposes the shared API without a platform renderer, matching Shell's current support matrix". Tizen's NUI tab strip is a plain is no badge decoration to drive. The mapping is declared rather than omitted so that the gap is an explicit, reviewable classification in the parity artifact instead of a silent miss. Setting a badge on Tizen binds and raises property changes normally; nothing is drawn. |
+| `BadgeColor` | NoOp | Unsupported: Tizen has no tab badge affordance, so there is no badge to colour. See <see cref="MapBadgeText"/> for the full rationale and the upstream reference. |
+| `BadgeTextColor` | NoOp | Unsupported: Tizen has no tab badge affordance, so there is no badge text to colour. See <see cref="MapBadgeText"/> for the full rationale and the upstream reference. |
 
 ### `TizenToolbarHandler`
 

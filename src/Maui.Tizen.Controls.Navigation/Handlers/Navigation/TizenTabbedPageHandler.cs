@@ -41,6 +41,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(TabbedPage.ItemTemplate)] = MapItemTemplate,
 				[nameof(TabbedPage.SelectedItem)] = MapSelectedItem,
 				[nameof(TabbedPage.CurrentPage)] = MapCurrentPage,
+
+				// Badge attached properties, added upstream by dotnet/maui#37755.
+				//
+				// The keys are string literals rather than nameof(TabbedPage.BadgeTextProperty)
+				// on purpose. The compile-verification lane deliberately builds against the
+				// repository's behaviourBaseline (MAUI 9.0.120), which predates these properties,
+				// so a nameof would not compile there. The literals match
+				// BindableProperty.CreateAttached("BadgeText"/"BadgeColor"/"BadgeTextColor", ...)
+				// exactly. Switch them to nameof once the validation baseline carries the API.
+				["BadgeText"] = MapBadgeText,
+				["BadgeColor"] = MapBadgeColor,
+				["BadgeTextColor"] = MapBadgeTextColor,
 			};
 
 		/// <summary>
@@ -169,6 +181,46 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public static void MapItemTemplate(TizenTabbedPageHandler handler, TabbedPage view)
 		{
 			// Fixed template, not configurable
+		}
+
+		/// <summary>
+		/// Unsupported: Tizen has no tab badge affordance.
+		/// </summary>
+		/// <remarks>
+		/// Upstream (dotnet/maui#37755) added <c>BadgeText</c>, <c>BadgeColor</c> and
+		/// <c>BadgeTextColor</c> as attached properties on <see cref="TabbedPage"/> and states that
+		/// "Tizen exposes the shared API without a platform renderer, matching Shell's current
+		/// support matrix". Tizen's NUI tab strip is a plain
+		/// <c>Tizen.UIExtensions.NUI.CollectionView</c> with a text label and a selection bar; there
+		/// is no badge decoration to drive.
+		/// <para>
+		/// The mapping is declared rather than omitted so that the gap is an explicit, reviewable
+		/// classification in the parity artifact instead of a silent miss. Setting a badge on Tizen
+		/// binds and raises property changes normally; nothing is drawn.
+		/// </para>
+		/// </remarks>
+		public static void MapBadgeText(TizenTabbedPageHandler handler, TabbedPage view)
+		{
+		}
+
+		/// <summary>
+		/// Unsupported: Tizen has no tab badge affordance, so there is no badge to colour.
+		/// </summary>
+		/// <remarks>
+		/// See <see cref="MapBadgeText"/> for the full rationale and the upstream reference.
+		/// </remarks>
+		public static void MapBadgeColor(TizenTabbedPageHandler handler, TabbedPage view)
+		{
+		}
+
+		/// <summary>
+		/// Unsupported: Tizen has no tab badge affordance, so there is no badge text to colour.
+		/// </summary>
+		/// <remarks>
+		/// See <see cref="MapBadgeText"/> for the full rationale and the upstream reference.
+		/// </remarks>
+		public static void MapBadgeTextColor(TizenTabbedPageHandler handler, TabbedPage view)
+		{
 		}
 
 		/// <summary>

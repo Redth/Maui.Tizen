@@ -150,9 +150,27 @@ from nuget.org by hand, since Samsung does not ship it through the in-box worklo
   navigation animation and Shell lazy content creation are **unverified at runtime**.
 - API differences between MAUI 9.0.120 and the net11 package set are not covered by this lane.
 
+## MAUI package floor
+
+Wave C is written against the `11.0.0-preview.7.26426.4` (`bedd1b18`) package set, which the
+foundation bumps in `Directory.Packages.props` and `eng/baselines.json`. Wave C deliberately does
+not bump those files itself - they are foundation-owned, and editing them here would only create a
+merge conflict.
+
+Two things in that set were checked against Wave C:
+
+- **TabbedPage badges (dotnet/maui#37755).** `BadgeText`, `BadgeColor` and `BadgeTextColor` are now
+  declared on `TizenTabbedPageHandler` and classified `NoOp`, matching upstream's own statement that
+  "Tizen exposes the shared API without a platform renderer". See
+  [`docs/wave-c-mapper-parity.md`](../wave-c-mapper-parity.md#tabbedpage-badges) for why their keys
+  are string literals rather than `nameof`.
+- **Hardened gesture APIs.** No Wave C impact. The only gesture-adjacent surface Wave C touches is
+  `IFlyoutView.IsGestureEnabled`, a stable core property. Gesture recognizers and
+  `GesturePlatformManager` belong to the alerts/gestures workstream.
+
 ## Coverage at a glance
 
-20 migrated handlers, 54 supported mappings and 30 documented no-ops. Full detail in
+20 migrated handlers, 54 supported mappings and 33 documented no-ops. Full detail in
 [`docs/wave-c-mapper-parity.md`](../wave-c-mapper-parity.md).
 
 While generating it, Wave C also fixed a latent bug in the shared Roslyn parser Wave B introduced:

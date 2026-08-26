@@ -593,6 +593,24 @@
           "Key": "CurrentPage",
           "Method": "MapCurrentPage",
           "Status": "Supported"
+        },
+        {
+          "Key": "BadgeText",
+          "Method": "MapBadgeText",
+          "Status": "NoOp",
+          "Reason": "Unsupported: Tizen has no tab badge affordance. Upstream (dotnet/maui#37755) added \u003Cc\u003EBadgeText\u003C/c\u003E, \u003Cc\u003EBadgeColor\u003C/c\u003E and \u0022Tizen exposes the shared API without a platform renderer, matching Shell\u0027s current support matrix\u0022. Tizen\u0027s NUI tab strip is a plain is no badge decoration to drive. The mapping is declared rather than omitted so that the gap is an explicit, reviewable classification in the parity artifact instead of a silent miss. Setting a badge on Tizen binds and raises property changes normally; nothing is drawn."
+        },
+        {
+          "Key": "BadgeColor",
+          "Method": "MapBadgeColor",
+          "Status": "NoOp",
+          "Reason": "Unsupported: Tizen has no tab badge affordance, so there is no badge to colour. See \u003Csee cref=\u0022MapBadgeText\u0022/\u003E for the full rationale and the upstream reference."
+        },
+        {
+          "Key": "BadgeTextColor",
+          "Method": "MapBadgeTextColor",
+          "Status": "NoOp",
+          "Reason": "Unsupported: Tizen has no tab badge affordance, so there is no badge text to colour. See \u003Csee cref=\u0022MapBadgeText\u0022/\u003E for the full rationale and the upstream reference."
         }
       ],
       "CommandMappers": [],
