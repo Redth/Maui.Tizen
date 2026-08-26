@@ -1,14 +1,51 @@
-﻿using System;
-using PlatformView = Microsoft.Maui.Platform.ContentViewGroup;
+// Ported from dotnet/maui as part of the Maui.Tizen extraction.
+//
+// Upstream this file was the Tizen half of the neutral Microsoft.Maui.Handlers.SwipeItemViewHandler
+// partial class. .NET MAUI 11 ships no Tizen target framework, so this is a standalone
+// handler that owns its own mappers. It is deliberately NOT named SwipeItemViewHandler, which still
+// exists in Microsoft.Maui.Core.
+
+using System;
+using Microsoft.Maui.Platform;
 
 namespace Microsoft.Maui.Handlers
 {
-	public partial class SwipeItemViewHandler : ViewHandler<ISwipeItemView, PlatformView>, ISwipeItemViewHandler
+	/// <summary>Tizen handler for <see cref="ISwipeItemView"/>.</summary>
+	public class TizenSwipeItemViewHandler : ViewHandler<ISwipeItemView, ContentViewGroup>
 	{
+		public static IPropertyMapper<ISwipeItemView, TizenSwipeItemViewHandler> Mapper =
+			new PropertyMapper<ISwipeItemView, TizenSwipeItemViewHandler>(ViewMapper)
+			{
+				[nameof(ISwipeItemView.Content)] = MapContent,
+				[nameof(ISwipeItemView.Visibility)] = MapVisibility,
+			};
+
+		public static CommandMapper<ISwipeItemView, TizenSwipeItemViewHandler> CommandMapper =
+			new(ViewCommandMapper)
+			{
+			};
+
 		IPlatformViewHandler? _contentHandler;
+
+		public TizenSwipeItemViewHandler()
+			: base(Mapper, CommandMapper)
+		{
+		}
+
+		public TizenSwipeItemViewHandler(IPropertyMapper? mapper)
+			: base(mapper ?? Mapper, CommandMapper)
+		{
+		}
+
+		public TizenSwipeItemViewHandler(IPropertyMapper? mapper, CommandMapper? commandMapper)
+			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
+		{
+		}
 
 		protected override ContentViewGroup CreatePlatformView()
 		{
+			_ = VirtualView ?? throw new InvalidOperationException($"{nameof(VirtualView)} must be set to create a ContentViewGroup");
+
 			return new ContentViewGroup(VirtualView)
 			{
 				CrossPlatformMeasure = VirtualView.CrossPlatformMeasure,
@@ -28,12 +65,13 @@ namespace Microsoft.Maui.Handlers
 
 		protected override void Dispose(bool disposing)
 		{
-			base.Dispose(disposing);
 			if (disposing)
 			{
 				_contentHandler?.Dispose();
 				_contentHandler = null;
 			}
+
+			base.Dispose(disposing);
 		}
 
 		void UpdateContent()
@@ -42,7 +80,7 @@ namespace Microsoft.Maui.Handlers
 			_ = VirtualView ?? throw new InvalidOperationException($"{nameof(VirtualView)} should have been set by base class.");
 			_ = MauiContext ?? throw new InvalidOperationException($"{nameof(MauiContext)} should have been set by base class.");
 
-			// Cleanup the old view when reused
+			// Clean up the old view when the item is reused.
 			PlatformView.Children.Clear();
 			_contentHandler?.Dispose();
 			_contentHandler = null;
@@ -57,13 +95,9 @@ namespace Microsoft.Maui.Handlers
 			}
 		}
 
-		public static void MapContent(ISwipeItemViewHandler handler, ISwipeItemView page)
-		{
-			if (handler is SwipeItemViewHandler platformHandler)
-				platformHandler.UpdateContent();
-		}
+		public static void MapContent(TizenSwipeItemViewHandler handler, ISwipeItemView page) => handler.UpdateContent();
 
-		public static void MapVisibility(ISwipeItemViewHandler handler, ISwipeItemView view)
+		public static void MapVisibility(TizenSwipeItemViewHandler handler, ISwipeItemView view)
 		{
 			handler.PlatformView.UpdateVisibility(view);
 

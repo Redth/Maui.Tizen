@@ -23,7 +23,7 @@ namespace Microsoft.Maui.Platform
 
 			try
 			{
-				var service = services.GetRequiredImageSourceService(imageSource);
+				var service = services.GetRequiredTizenImageSourceService(imageSource);
 				var result = await service.GetImageAsync(imageSource, cancellationToken);
 				var tImage = result?.Value;
 

@@ -1,14 +1,26 @@
-﻿#nullable enable
+// Ported from dotnet/maui as part of the Maui.Tizen extraction.
+#nullable enable
 using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Tizen.UIExtensions.NUI;
+using Microsoft.Maui.Platform;
 
 namespace Microsoft.Maui
 {
-	public partial class UriImageSourceService
+	/// <summary>Loads an <see cref="IUriImageSource"/> by handing the URI to the Tizen image loader.</summary>
+	public class TizenUriImageSourceService : TizenImageSourceService, ITizenImageSourceService<IUriImageSource>
 	{
+		public TizenUriImageSourceService()
+			: this(null)
+		{
+		}
+
+		public TizenUriImageSourceService(ILogger<TizenUriImageSourceService>? logger = null)
+			: base(logger)
+		{
+		}
+
 		public override Task<IImageSourceServiceResult<MauiImageSource>?> GetImageAsync(IImageSource imageSource, CancellationToken cancellationToken = default) =>
 			GetImageAsync((IUriImageSource)imageSource, cancellationToken);
 
@@ -35,7 +47,5 @@ namespace Microsoft.Maui
 				throw;
 			}
 		}
-		static Task<IImageSourceServiceResult<MauiImageSource>?> FromResult(IImageSourceServiceResult<MauiImageSource>? result) =>
-			Task.FromResult(result);
 	}
 }

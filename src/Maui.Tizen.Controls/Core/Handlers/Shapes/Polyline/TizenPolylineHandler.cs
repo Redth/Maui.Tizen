@@ -1,0 +1,116 @@
+// Ported from dotnet/maui as part of the Maui.Tizen extraction.
+//
+// Upstream this file was the Tizen half of the neutral Microsoft.Maui.Controls.Handlers.PolylineHandler
+// partial class. .NET MAUI 11 ships no Tizen target framework, so this is a standalone handler.
+// It is deliberately NOT named PolylineHandler, which still exists in Microsoft.Maui.Controls.
+
+using Microsoft.Maui.Controls.Shapes;
+using Microsoft.Maui.Graphics;
+using Microsoft.Maui.Handlers;
+using Microsoft.Maui.Platform;
+using System.Collections.Specialized;
+
+namespace Microsoft.Maui.Controls.Handlers
+{
+	/// <summary>Tizen handler for <see cref="Polyline"/>.</summary>
+	public class TizenPolylineHandler : TizenShapeViewHandler
+	{
+		public static IPropertyMapper<Polyline, TizenPolylineHandler> Mapper =
+			new PropertyMapper<Polyline, TizenPolylineHandler>(TizenShapeViewHandler.Mapper)
+			{
+				[nameof(Polyline.Points)] = MapPoints,
+				[nameof(Polyline.FillRule)] = MapFillRule,
+			};
+
+		public static CommandMapper<Polyline, TizenPolylineHandler> CommandMapper =
+			new(TizenShapeViewHandler.CommandMapper)
+			{
+			};
+
+		public TizenPolylineHandler()
+			: base(Mapper, CommandMapper)
+		{{
+		}}
+
+		public TizenPolylineHandler(IPropertyMapper? mapper)
+			: base(mapper ?? Mapper, CommandMapper)
+		{{
+		}}
+
+		public TizenPolylineHandler(IPropertyMapper? mapper, CommandMapper? commandMapper)
+			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
+		{{
+		}}
+
+		PointCollection? _points;
+
+		protected override void ConnectHandler(MauiShapeView platformView)
+		{
+			if (VirtualView is Polyline polyline)
+			{
+				UpdatePointsSubscription(polyline.Points);
+			}
+
+			base.ConnectHandler(platformView);
+		}
+
+		protected override void DisconnectHandler(MauiShapeView platformView)
+		{
+			ClearPointsSubscription();
+
+			base.DisconnectHandler(platformView);
+		}
+
+		// Upstream this lived in the neutral half of the handler. The points collection is mutable,
+		// so the handler has to redraw on collection changes, not just on Points being reassigned.
+		void UpdatePointsSubscription(PointCollection? points)
+		{
+			ClearPointsSubscription();
+
+			_points = points;
+
+			if (_points is not null)
+			{
+				_points.CollectionChanged += OnPointsCollectionChanged;
+			}
+		}
+
+		void ClearPointsSubscription()
+		{
+			if (_points is not null)
+			{
+				_points.CollectionChanged -= OnPointsCollectionChanged;
+				_points = null;
+			}
+		}
+
+		void OnPointsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+		{
+			if (VirtualView is IShapeView shapeView)
+			{
+				PlatformView?.InvalidateShape(shapeView);
+			}
+		}
+
+		public static void MapPoints(TizenPolylineHandler handler, Polyline polyline)
+		{
+			handler.UpdatePointsSubscription(polyline.Points);
+			handler.PlatformView?.InvalidateShape(polyline);
+		}
+
+		public static void MapFillRule(TizenPolylineHandler handler, Polyline polyline)
+		{
+			IDrawable? drawable = handler.PlatformView?.Drawable;
+
+			if (drawable is null)
+				return;
+
+			if (drawable is ShapeDrawable shapeDrawable)
+			{
+				shapeDrawable.UpdateWindingMode(polyline.FillRule == FillRule.EvenOdd ? WindingMode.EvenOdd : WindingMode.NonZero);
+			}
+
+			handler.PlatformView?.InvalidateShape(polyline);
+		}
+	}
+}
