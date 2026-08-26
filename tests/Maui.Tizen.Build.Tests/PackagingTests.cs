@@ -69,7 +69,8 @@ public class PackagingTests
 
         var result = await DotNetCli
             .RunAsync(["pack", workspace.Combine("Probe", "Probe.csproj"), "--nologo", "--output", output],
-                workingDirectory: workspace.Path)
+                workingDirectory: workspace.Path,
+                cancellationToken: TestContext.Current.CancellationToken)
             .ConfigureAwait(true);
 
         result.EnsureSucceeded();

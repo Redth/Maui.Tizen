@@ -28,7 +28,8 @@ public class MSBuildBehaviorTests
         Assert.True(File.Exists(fixture), $"Missing MSBuild fixture: {RepoLayout.Relative(fixture)}");
 
         var result = await DotNetCli
-            .RunAsync(["msbuild", fixture, $"-getProperty:{property}", "-v:q", .. extraArgs])
+            .RunAsync(["msbuild", fixture, $"-getProperty:{property}", "-v:q", .. extraArgs],
+                cancellationToken: TestContext.Current.CancellationToken)
             .ConfigureAwait(true);
 
         result.EnsureSucceeded();
@@ -103,7 +104,8 @@ public class MSBuildBehaviorTests
 
             var result = await DotNetCli
                 .RunAsync(["msbuild", workspace.Combine("Probe", "Probe.csproj"), "-getProperty:TargetFramework", "-v:q"],
-                    workingDirectory: workspace.Path)
+                    workingDirectory: workspace.Path,
+                    cancellationToken: TestContext.Current.CancellationToken)
                 .ConfigureAwait(true);
 
             Assert.True(
