@@ -74,6 +74,7 @@ Profile column values are the Tizen device profiles on which the service is usab
 | | Status |
 | --- | --- |
 | Sources type-check against the **API15 reference pack** the product targets | Verified, by `tests/Maui.Tizen.Essentials.RefPackCompile` |
+| The declared public API surface matches `PublicAPI.Unshipped.txt` | Verified, by the PublicAPI analyzer in that same lane |
 | Sources compile against loadable Tizen implementation assemblies | Verified, by `src/Maui.Tizen.Essentials.HostVerification` |
 | DI registration, facade/`MainThread` ownership, permission privilege mapping, unsupported classification, ported translation logic | Verified, by `tests/Maui.Tizen.Essentials.Tests` (193 tests) |
 | `src/Maui.Tizen.Essentials` builds for `net11.0-tizen11.0` | **Blocked.** Fails with `MAUITIZEN0001`: the Samsung workload manifest `samsung.net.sdk.tizen.manifest-11.0.100` is unpublished. Nobody can build this TFM anywhere yet. |
@@ -117,7 +118,7 @@ platform backend cannot use. Each one is worked around in this package.
 
 | MAUI API | Accessibility | Impact | Workaround |
 | --- | --- | --- | --- |
-| `Microsoft.Maui.Media.Locale..ctor(string, string, string, string)` | `internal` | **Blocking.** `ITextToSpeech.GetLocalesAsync` must return `IEnumerable<Locale>`, and `SpeechOptions.Locale` must be given one, but no external assembly can construct a `Locale`. | `GetLocalesAsync` throws with an explicit reason; `TizenTextToSpeech.GetSupportedVoiceLanguagesAsync()` and `SpeakAsync(text, language, rate, ct)` expose the same capability. |
+| `Microsoft.Maui.Media.Locale..ctor(string, string, string, string)` | `internal` | **Blocking.** `ITextToSpeech.GetLocalesAsync` must return `IEnumerable<Locale>`, and `SpeechOptions.Locale` must be given one, but no external assembly can construct a `Locale`. | `GetLocalesAsync` throws with an explicit reason; `TizenTextToSpeech.GetSupportedVoiceLanguagesAsync()` and `SpeakWithVoiceAsync(text, language, rate, ct)` expose the same capability. |
 | `Microsoft.Maui.Storage.FileMimeTypes` | `internal` | MIME constants used by pickers and launchers. | `TizenFileMimeTypes`. |
 | `Microsoft.Maui.Devices.Sensors.PlacemarkExtensions.GetEscapedAddress` | `internal` | Address formatting for `geo:0,0?q=` queries. | `TizenPlacemarkExtensions.GetEscapedAddress`. |
 | `Microsoft.Maui.Devices.Sensors.AccelerometerQueue` | `internal` | Shake detection window. | `TizenAccelerometerQueue`. |

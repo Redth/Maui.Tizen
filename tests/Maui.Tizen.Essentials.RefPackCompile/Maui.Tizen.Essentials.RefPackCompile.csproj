@@ -53,11 +53,29 @@
     <PackageReference Include="Microsoft.Maui.Core" />
 
     <!--
+      Runs the PublicAPI analyzer against the Essentials surface HERE rather than only in
+      src/Maui.Tizen.Essentials.
+
+      eng/targets/TizenPackage.props adds this analyzer to every Tizen package project, but
+      those projects cannot build without the Samsung workload, so their baselines are
+      currently unenforceable. This lane compiles the identical sources against the same API15
+      surface with no workload, so it is the only place the baseline can actually be checked
+      today. Without it, an API drift would sit undetected until the workload ships.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+
+    <!--
       PackageDownload rather than PackageReference: the reference pack publishes no
       net11.0-compatible assets, so a normal reference fails restore with NU1202. Only the
       files on disk are wanted.
     -->
     <PackageDownload Include="$(TizenReferencePackId)" Version="[$(TizenReferencePackVersion)]" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The same baseline files src/Maui.Tizen.Essentials carries; one source of truth. -->
+    <AdditionalFiles Include="$(RepositoryRoot)src/Maui.Tizen.Essentials/PublicAPI/net-tizen/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="$(RepositoryRoot)src/Maui.Tizen.Essentials/PublicAPI/net-tizen/PublicAPI.Unshipped.txt" />
   </ItemGroup>
 
   <Target Name="_AddTizenReferenceAssemblies" BeforeTargets="ResolveAssemblyReferences">

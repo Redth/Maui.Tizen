@@ -40,7 +40,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// </para>
 		/// <para>
 		/// Use <see cref="GetSupportedVoiceLanguagesAsync"/> to enumerate the languages Tizen reports,
-		/// and pass one of them to <see cref="SpeakAsync(string, string, float?, CancellationToken)"/>.
+		/// and pass one of them to <see cref="SpeakWithVoiceAsync"/>.
 		/// </para>
 		/// </remarks>
 		public Task<IEnumerable<Locale>> GetLocalesAsync() =>
@@ -76,7 +76,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// <param name="rate">The optional speech rate, in the same 0..2 range as <see cref="SpeechOptions.Rate"/>.</param>
 		/// <param name="cancelToken">A token used to stop playback.</param>
 		/// <returns>A task that completes when the utterance finishes or is cancelled.</returns>
-		public Task SpeakAsync(string text, string language, float? rate = null, CancellationToken cancelToken = default) =>
+		/// <remarks>
+		/// Deliberately not named <c>SpeakAsync</c>. An overload taking a language string alongside
+		/// <see cref="ITextToSpeech.SpeakAsync(string, SpeechOptions?, CancellationToken)"/> would make
+		/// <c>SpeakAsync(text, null)</c> ambiguous between a null <see cref="SpeechOptions"/> and a null
+		/// language, and adds a second optional-parameter overload to the same name (RS0026).
+		/// </remarks>
+		public Task SpeakWithVoiceAsync(string text, string language, float? rate = null, CancellationToken cancelToken = default) =>
 			SpeakCoreAsync(text, language, rate, cancelToken);
 
 		/// <inheritdoc/>

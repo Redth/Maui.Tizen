@@ -38,16 +38,20 @@ info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 note() { printf '\033[1;33m  GATE\033[0m %s\n' "$*"; }
 
 FAILURES=0
+# check <label> <command...> — runs the command, reports, and returns its status so
+# callers can branch (e.g. to skip tests after a failed build).
 check() {
   local label="$1"; shift
   if "$@" >/tmp/mt-check.$$ 2>&1; then
     pass "$label"
-  else
-    fail "$label"
-    sed 's/^/        /' /tmp/mt-check.$$ | tail -30
-    FAILURES=$((FAILURES + 1))
+    rm -f /tmp/mt-check.$$
+    return 0
   fi
+  fail "$label"
+  sed 's/^/        /' /tmp/mt-check.$$ | tail -30
+  FAILURES=$((FAILURES + 1))
   rm -f /tmp/mt-check.$$
+  return 1
 }
 
 info "SDK"
@@ -91,8 +95,13 @@ if actual != expected:
 
 band = baselines["target"]["sdkBand"]
 gj = json.load(open("global.json"))
-if not gj["sdk"]["version"].startswith(band.rsplit('.', 1)[0]):
-    sys.exit(f"global.json SDK '{gj['sdk']['version']}' does not match declared band '{band}'")
+sdk = gj["sdk"]["version"]
+if not sdk.startswith(band):
+    sys.exit(f"global.json SDK '{sdk}' is not in the declared band '{band}'")
+if sdk == band:
+    sys.exit(
+        f"global.json SDK '{sdk}' is a bare band, not a resolvable SDK version. "
+        "actions/setup-dotnet cannot install it. Pin a concrete version within the band.")
 PY
 
 # ---------------------------------------------------------------------------
@@ -145,10 +154,28 @@ WORKLOAD_FREE_PROJECTS=(
   "tests/Maui.Tizen.Essentials.RefPackCompile/Maui.Tizen.Essentials.RefPackCompile.csproj"
   "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj"
 )
+BUILD_OK=1
 for proj in "${WORKLOAD_FREE_PROJECTS[@]}"; do
   check "restore $(basename "$proj")" "$DOTNET" restore "$proj"
-  check "build   $(basename "$proj")" "$DOTNET" build "$proj" --no-restore -c Release
+  if check "build   $(basename "$proj")" "$DOTNET" build "$proj" --no-restore -c Release; then
+    :
+  else
+    BUILD_OK=0
+  fi
 done
+
+# ---------------------------------------------------------------------------
+# 4b. Package graph probe.
+#
+# The real consumers of these packages are the net11.0-tizen11.0 projects, and they
+# cannot restore at all - the workload gate fires before Restore. Without this probe a
+# broken version pin stays invisible until the Samsung workload ships.
+#
+# It already earned its place: Microsoft.AspNetCore.Components.WebView was pinned to
+# MAUI's version stamp, which does not exist for that package.
+# ---------------------------------------------------------------------------
+info "Package graph"
+check "restore package graph probe" "$DOTNET" restore eng/tests/PackageGraphProbe/PackageGraphProbe.csproj
 
 # ---------------------------------------------------------------------------
 # 5. Repository invariant tests.
@@ -156,35 +183,72 @@ done
 # These are the only tests that can meaningfully run before the workload ships: they
 # check that the migration scaffolding is internally consistent rather than testing
 # Tizen behaviour that nobody can execute yet.
+#
+# Skipped when the build failed. `dotnet test --no-build` against missing or stale
+# output produces pages of cascading errors that bury the actual first failure.
 # ---------------------------------------------------------------------------
 info "Repository invariant tests"
-check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
-check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
+if [[ $BUILD_OK -eq 1 ]]; then
+  check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
+  check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
 
-# Essentials behaviour tests. These run against the workload-free host verification
-# harness (src/Maui.Tizen.Essentials.HostVerification), which compiles the same sources
-# the Tizen package will. Anything that P/Invokes into Tizen is out of their reach and is
-# classified in docs/tizen-essentials-service-coverage.md instead of being faked here.
-# Run the self-executing Microsoft.Testing.Platform binary directly. `dotnet test` would
-# need the repository-wide dotnet.config MTP opt-in, which would break tests/UnitTests
-# (xunit v2 on VSTest). See that project's csproj for the full reasoning.
-ESSENTIALS_TESTS="artifacts/bin/Maui.Tizen.Essentials.Tests/Release/net11.0/Maui.Tizen.Essentials.Tests"
-check "essentials tests binary was produced" test -x "$ESSENTIALS_TESTS"
-check "essentials tests" "./$ESSENTIALS_TESTS"
+  # Essentials behaviour tests, run against the workload-free host verification harness
+  # (src/Maui.Tizen.Essentials.HostVerification), which compiles the same sources the Tizen
+  # package will. Anything that P/Invokes into Tizen is out of their reach and is classified
+  # in docs/tizen-essentials-service-coverage.md rather than faked into a green test.
+  #
+  # The self-executing Microsoft.Testing.Platform binary is run directly. `dotnet test` would
+  # need the repository-wide dotnet.config MTP opt-in, which would break tests/UnitTests
+  # (xunit v2 on VSTest). See that project's csproj for the full reasoning.
+  ESSENTIALS_TESTS="artifacts/bin/Maui.Tizen.Essentials.Tests/Release/net11.0/Maui.Tizen.Essentials.Tests"
+  check "essentials tests binary was produced" test -x "$ESSENTIALS_TESTS"
+  check "essentials tests" "./$ESSENTIALS_TESTS"
+else
+  fail "unit tests skipped - a preceding build failed (running --no-build now would only add cascading noise)"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# ---------------------------------------------------------------------------
+# 5. Workload detection regressions.
+#
+# Detection decides whether anything in this repository can build, and it has been wrong
+# in both directions during development. These fixtures pin the behaviour.
+# ---------------------------------------------------------------------------
+info "Workload detection regressions"
+if DOTNET="$DOTNET" "$REPO_ROOT/eng/tests/test-workload-detection.sh"; then
+  :
+else
+  fail "workload detection regressions failed"
+  FAILURES=$((FAILURES + 1))
+fi
 
 # ---------------------------------------------------------------------------
 # 6. Report the Tizen gate explicitly.
 #
 # Reported, never silently skipped. If this ever starts saying "available", the Tizen
 # lane should be promoted to required.
+#
+# This asks MSBuild rather than parsing `dotnet workload list`. There is one detection
+# implementation (the _DetectTizenWorkload target) so there is one thing to get right -
+# and the previous shell probe, `dotnet workload list | grep -qi tizen`, matched an
+# unrelated `maui-tizen` workload by substring and would have reported the gate as lifted
+# while Samsung's workload was still absent.
 # ---------------------------------------------------------------------------
 info "Tizen workload gate"
-if "$DOTNET" workload list 2>/dev/null | grep -qi tizen; then
+WORKLOAD_STATE="$("$DOTNET" msbuild src/Maui.Tizen.Core/Maui.Tizen.Core.csproj \
+  -t:ReportTizenWorkload -nologo -v:m 2>/dev/null \
+  | grep -oE 'TizenWorkloadAvailable=[a-z]+' | head -1 | cut -d= -f2 || true)"
+
+if [[ "$WORKLOAD_STATE" == "true" ]]; then
   pass "Samsung Tizen workload is installed - the Tizen lane can now be made required"
-else
+elif [[ "$WORKLOAD_STATE" == "false" ]]; then
   note "Samsung Tizen workload is NOT installed."
   note "  net11.0-tizen11.0 cannot be restored or built until Samsung publishes"
-  note "  'samsung.net.sdk.tizen.manifest-11.0.100'. This is expected; see docs/migration.md."
+  note "  an 11.0.100-band 'Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7' manifest."
+  note "  This is expected; see docs/migration.md."
+else
+  fail "could not determine workload state (ReportTizenWorkload returned '${WORKLOAD_STATE:-<empty>}')"
+  FAILURES=$((FAILURES + 1))
 fi
 
 echo

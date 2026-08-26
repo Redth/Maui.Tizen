@@ -27,7 +27,7 @@ the platform. This repository separates the two.
 ### The blocker
 
 `net11.0-tizen11.0` cannot be restored or built by anyone right now. The workload manifest
-`samsung.net.sdk.tizen.manifest-11.0.100` has not been published to nuget.org — only the
+`Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7` has not been published to nuget.org — only the
 `9.0.100` and `10.0.100` bands exist.
 
 This is deliberately surfaced rather than worked around. There is no neutral `net11.0`

@@ -16,13 +16,28 @@ Every Tizen-relevant file in both baselines must appear exactly once, with exact
 disposition. The point is to make "we forgot about that file" an impossible outcome
 rather than a discovery made three phases later.
 
-Scale, from the pinned baselines:
+Scale, from the pinned baselines. These are **blob** counts — see the counting note below.
 
 | Category | Count | Baseline |
 |---|---|---|
-| Tizen-named files | 338 | `net11.0` (`ee4d06cde6`) |
-| Shared files with `#if TIZEN` | 136 | `net11.0` |
-| Compatibility Tizen files | 70 | `9.0.120` (`c1f4f7d879`) **only** |
+| Tizen-named files | 314 | `net11.0` (`ee4d06cde6`) |
+| Shared files with `#if TIZEN` | 135 | `net11.0` |
+| Tizen-named files present at `9.0.120` but absent at the net11.0 pin | 87 | `9.0.120` (`c1f4f7d879`) |
+
+The 87 that exist only at `9.0.120`: `src/Compatibility/**` 70 (Core 48, Material 17,
+Maps 5), `src/Controls/docs/…TizenSpecific/*.xml` 9, `src/Templates/**/Platforms/Tizen/**`
+7, and one Essentials multi-target file.
+
+> **Counting note for generators.** The GitHub tree API returns `tree` (directory) entries
+> alongside `blob`s. Filtering on "path contains tizen" without also filtering
+> `type == blob` counts `Tizen/` directories as files, which inflates these figures — it
+> gives 76 for `src/Compatibility` and 102 overall. The manifest is per-file, so directory
+> entries must be dropped or they become bogus manifest rows.
+
+> **Two distinct "Compatibility" locations.** `src/Controls/src/Core/Compatibility/**`
+> (the legacy renderer shim) is **still on `net11.0`**, with an identical 11-file Tizen set
+> at both refs, and was imported normally. Only the top-level `src/Compatibility/**` was
+> removed upstream. Do not collapse them into one disposition.
 
 ## Constraints the schema enforces
 
