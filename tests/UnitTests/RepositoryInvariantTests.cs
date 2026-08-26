@@ -188,6 +188,37 @@ public class RepositoryInvariantTests
 		Assert.True(File.Exists(Path.Combine(RepoRoot, relativePath)), $"Missing: {relativePath}");
 	}
 
+	[Fact]
+	public void BaselinePinRecordsWhatItExcludes()
+	{
+		// A pin is only genuinely reproducible if what it EXCLUDES is written down too.
+		//
+		// sourceBaseline (ee4d06cde6) is 4 commits after requiredAncestor, none touching
+		// Tizen. But net11.0 continued past the pin, and three later commits do - all of
+		// them touching only src/Controls/src/Core/PublicAPI/net-tizen/PublicAPI.Unshipped.txt.
+		// So the Controls net-tizen Unshipped baseline sits three API additions behind
+		// current net11.0: relevant to API baseline diffing, not to source migration.
+		//
+		// This survived several review-fix rounds by luck rather than design. Whoever
+		// regenerates API baselines needs it, and it is the kind of prose that quietly
+		// disappears in a rebase, so it is pinned here.
+		var gap = ReadRepoJson("eng/baselines.json")
+			.GetProperty("source").GetProperty("sourceBaseline").GetProperty("knownGapAfterThisPin");
+
+		var commits = gap.GetProperty("commits").EnumerateArray().ToList();
+		Assert.Equal(3, commits.Count);
+
+		var pullRequests = commits.Select(c => c.GetProperty("pullRequest").GetInt32()).ToHashSet();
+		Assert.Equal(new HashSet<int> { 37420, 37671, 37755 }, pullRequests);
+
+		// The characterisation matters as much as the list: these are API surface
+		// declarations, not imported implementation. Losing that distinction would make
+		// the gap look like missing code.
+		var provenance = ReadRepoFile("PROVENANCE.md");
+		Assert.Contains("What the pin excludes", provenance);
+		Assert.Contains("PublicAPI.Unshipped.txt", provenance);
+	}
+
 	[Theory]
 	[InlineData("2360")]
 	[InlineData("9619")]
@@ -360,6 +391,56 @@ public class RepositoryInvariantTests
 		Assert.True(
 			offenders.Count == 0,
 			$"These projects target below the .NET {floor} floor: " + string.Join(", ", offenders));
+	}
+
+	[Fact]
+	public void MauiPackageVersionsMatchTheDeclaredDevelopmentBaseline()
+	{
+		// Directory.Packages.props and eng/baselines.json both state which MAUI package set
+		// this repository builds against. They are edited at different times for different
+		// reasons, so they drift - and the symptom (API baselines generated against one
+		// version while the build consumes another) is slow and confusing to diagnose.
+		var baseline = ReadRepoJson("eng/baselines.json")
+			.GetProperty("source").GetProperty("developmentPackageBaseline")
+			.GetProperty("version").GetString();
+
+		var packages = ReadRepoFile("Directory.Packages.props");
+
+		var mismatched = Regex.Matches(packages, @"Include=""(Microsoft\.Maui\.[^""]+)"" Version=""([^""]+)""")
+			.Where(m => m.Groups[2].Value != baseline)
+			.Select(m => $"{m.Groups[1].Value}={m.Groups[2].Value}")
+			.ToList();
+
+		Assert.True(
+			mismatched.Count == 0,
+			$"These MAUI packages do not match developmentPackageBaseline ({baseline}): "
+				+ string.Join(", ", mismatched));
+	}
+
+	[Fact]
+	public void AspNetCoreFloorMatchesTheDeclaredDependencyFloor()
+	{
+		// The ASP.NET Core floor is declared by WebView.Maui's own nuspec and does NOT
+		// track the MAUI stamp - it stayed at 26381.103 across the MAUI bump from
+		// 26418.3 to 26426.4. Recorded in baselines.json so a future bump has something
+		// to check against rather than an assumption to make.
+		var floor = ReadRepoJson("eng/baselines.json")
+			.GetProperty("source").GetProperty("developmentPackageBaseline")
+			.GetProperty("aspNetCoreDependencyFloor").GetProperty("version").GetString();
+
+		var packages = ReadRepoFile("Directory.Packages.props");
+
+		foreach (Match m in Regex.Matches(packages, @"Include=""(Microsoft\.AspNetCore\.[^""]+|Microsoft\.JSInterop)"" Version=""([^""]+)"""))
+		{
+			// The .Maui bridge package IS a MAUI package and legitimately uses the MAUI stamp.
+			if (m.Groups[1].Value.EndsWith(".Maui", StringComparison.Ordinal))
+				continue;
+
+			Assert.True(
+				m.Groups[2].Value == floor,
+				$"{m.Groups[1].Value} is pinned to {m.Groups[2].Value} but the declared "
+					+ $"ASP.NET Core floor is {floor}.");
+		}
 	}
 
 	[Fact]

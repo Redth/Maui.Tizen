@@ -34,6 +34,7 @@
           "is also written down."
         ],
         "observedAgainst": "bedd1b18b7682193e05b47267509cec8c49c6853",
+        "$note": "bedd1b18b7 is also developmentPackageBaseline.nuspecRepositoryCommit, so the Microsoft.Maui.* packages this repository compiles against DO contain these three API additions while the imported source baseline does not. The gap therefore applies to imported source only.",
         "commits": [
           { "commit": "62418a4ec4", "pullRequest": 37420, "title": "Expose gesture recognizer dispatch APIs" },
           { "commit": "78502a5325", "pullRequest": 37671, "title": "Harden gesture recognizer dispatch API contracts" },
@@ -60,8 +61,26 @@
       "version": "11.0.0-preview.7.26426.4",
       "feed": "https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet11/nuget/v3/index.json",
       "nuspecRepositoryCommit": "bedd1b18b7682193e05b47267509cec8c49c6853",
-      "role": "Public-feed MAUI package set for net11. Used when building against published MAUI packages rather than source.",
-      "note": "Moved from 11.0.0-preview.7.26418.3 (nuspec commit 0b3bb76d2d) to pick up the public gesture dispatch APIs from dotnet/maui#37420 and #37671. 26418.3 predates both merges, so TapGestureRecognizer.SendTapped and the PointerGestureRecognizer send members are internal there. LongPressGestureRecognizer.SendLongPressed/SendLongPressing remain internal even in 26426.4."
+      "role": "Coherent public-feed MAUI package set for net11. Used when building against published MAUI packages rather than source.",
+      "$comment": [
+        "IMPORTANT: this is a DIFFERENT commit from sourceBaseline, and deliberately so.",
+        "",
+        "  sourceBaseline               ee4d06cde6   what the history import is pinned to",
+        "  nuspecRepositoryCommit       bedd1b18b7   what these packages were built from",
+        "",
+        "bedd1b18b7 is 46 commits ahead of ee4d06cde6 and INCLUDES the three Tizen-touching",
+        "commits recorded in sourceBaseline.knownGapAfterThisPin (#37420, #37671, #37755).",
+        "",
+        "So the gap is one-directional and applies only to imported SOURCE, not to the",
+        "packages we compile against: the referenced Microsoft.Maui.* assemblies already",
+        "carry those three API additions, while the imported PublicAPI.Unshipped.txt",
+        "baseline does not. Anyone diffing our API baselines against these packages should",
+        "expect exactly that delta and should not read it as drift."
+      ],
+      "aspNetCoreDependencyFloor": {
+        "version": "11.0.0-preview.7.26381.103",
+        "note": "Declared by Microsoft.AspNetCore.Components.WebView.Maui's own nuspec at this package version, and unchanged by the MAUI bump. ASP.NET Core packages are on their own version line and must NOT be moved to the MAUI stamp - that version does not exist for them."
+      }
     },
     "provenancePullRequests": [
       { "number": 2360, "title": "Adds Tizen backend", "upstreamCommit": "438aef2e5d" },

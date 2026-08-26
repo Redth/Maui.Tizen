@@ -97,7 +97,7 @@ the few hours the initial import was prepared.
 | `sourceBaseline` | `ee4d06cde6` — dotnet/maui `net11.0` @ 2026-08-18 |
 | `requiredAncestor` | `0b3bb76d2d` — PR #36657, Essentials/MainThread extensibility |
 | `behaviorBaseline` | `c1f4f7d879` — tag `9.0.120`, last published Tizen release |
-| `developmentPackageBaseline` | `11.0.0-preview.7.26418.3` from the dnceng `dotnet11` feed |
+| `developmentPackageBaseline` | `11.0.0-preview.7.26426.4` from the dnceng `dotnet11` feed |
 
 Two traps worth repeating:
 
