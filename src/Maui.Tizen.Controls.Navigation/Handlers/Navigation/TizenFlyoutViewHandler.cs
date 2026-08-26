@@ -40,6 +40,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		IFlyoutView IFlyoutViewHandler.VirtualView => VirtualView;
 
+		object IFlyoutViewHandler.PlatformView => PlatformView;
+
 		protected override DrawerView CreatePlatformView()
 			=> DeviceInfo.IsTV ? new MauiTVFlyoutView() : new MauiFlyoutView();
 

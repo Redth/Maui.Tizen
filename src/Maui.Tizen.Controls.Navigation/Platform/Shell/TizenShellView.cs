@@ -388,7 +388,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				return;
 			}
 
-			if (toolbar.Handler is not IPlatformViewHandler handler)
+			if (toolbar.Handler is not ITizenPlatformViewHandler handler)
 			{
 				_toolbar = (MauiToolbar?)toolbar.ToPlatform(MauiContext);
 			}
@@ -451,7 +451,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		}
 
 		/// <inheritdoc/>
-		public void Dispose()
+		// NUI's BaseHandle already exposes Dispose(); this participates in that chain rather
+		// than shadowing it, which CS0108 would otherwise flag.
+		public new void Dispose()
 		{
 			Dispose(true);
 			GC.SuppressFinalize(this);
@@ -460,7 +462,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// <summary>
 		/// Disposes resources.
 		/// </summary>
-		protected virtual void Dispose(bool disposing)
+		protected override void Dispose(DisposeTypes type)
 		{
 			if (_isDisposed)
 				return;

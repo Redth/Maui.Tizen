@@ -17,7 +17,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>
 		/// Property mapper for <see cref="GroupableItemsView"/> properties.
 		/// </summary>
-		public static new IPropertyMapper<TItemsView, TizenGroupableItemsViewHandler<TItemsView>> GroupableItemsViewMapper =
+		public static IPropertyMapper<TItemsView, TizenGroupableItemsViewHandler<TItemsView>> GroupableItemsViewMapper =
 			new PropertyMapper<TItemsView, TizenGroupableItemsViewHandler<TItemsView>>(SelectableItemsViewMapper)
 			{
 				[nameof(GroupableItemsView.IsGrouped)] = MapIsGrouped,
@@ -28,7 +28,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>
 		/// Command mapper for <see cref="GroupableItemsView"/> commands.
 		/// </summary>
-		public static new CommandMapper<TItemsView, TizenGroupableItemsViewHandler<TItemsView>> GroupableItemsViewCommandMapper =
+		public static CommandMapper<TItemsView, TizenGroupableItemsViewHandler<TItemsView>> GroupableItemsViewCommandMapper =
 			new CommandMapper<TItemsView, TizenGroupableItemsViewHandler<TItemsView>>(SelectableItemsViewCommandMapper);
 
 		protected TizenGroupableItemsViewHandler(IPropertyMapper mapper, CommandMapper? commandMapper = null)

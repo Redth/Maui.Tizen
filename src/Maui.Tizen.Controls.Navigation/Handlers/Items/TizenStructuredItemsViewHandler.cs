@@ -18,7 +18,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>
 		/// Property mapper for <see cref="StructuredItemsView"/> properties.
 		/// </summary>
-		public static new IPropertyMapper<TItemsView, TizenStructuredItemsViewHandler<TItemsView>> StructuredItemsViewMapper =
+		public static IPropertyMapper<TItemsView, TizenStructuredItemsViewHandler<TItemsView>> StructuredItemsViewMapper =
 			new PropertyMapper<TItemsView, TizenStructuredItemsViewHandler<TItemsView>>(ItemsViewMapper)
 			{
 				[nameof(StructuredItemsView.Header)] = MapHeader,
@@ -32,7 +32,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>
 		/// Command mapper for <see cref="StructuredItemsView"/> commands.
 		/// </summary>
-		public static new CommandMapper<TItemsView, TizenStructuredItemsViewHandler<TItemsView>> StructuredItemsViewCommandMapper =
+		public static CommandMapper<TItemsView, TizenStructuredItemsViewHandler<TItemsView>> StructuredItemsViewCommandMapper =
 			new CommandMapper<TItemsView, TizenStructuredItemsViewHandler<TItemsView>>(ItemsViewCommandMapper);
 
 		protected TizenStructuredItemsViewHandler(IPropertyMapper mapper, CommandMapper? commandMapper = null)

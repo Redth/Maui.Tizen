@@ -1,25 +1,23 @@
 # Wave C mapper parity
 
-Companion to [`wave-c-mapper-parity.json`](wave-c-mapper-parity.json), which is **generated from
-source** by `Maui.Tizen.SourceTests`. Regenerate both after an intentional change:
+Companion to [`wave-c-mapper-parity.json`](wave-c-mapper-parity.json), **generated from source**
+by `Maui.Tizen.SourceTests`. Regenerate after an intentional change:
 
 ```bash
 MAUI_TIZEN_UPDATE_PARITY=1 dotnet test tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj
 ```
 
-`WaveCMapperParityTests.ParityManifestMatchesSource` fails if the JSON and the source disagree,
-so this cannot drift silently.
+`ParityManifestMatchesSource` fails if the JSON and the source disagree, so this cannot drift.
 
-## How to read the statuses
+## Statuses
 
 | Status | Meaning |
 | --- | --- |
 | `Supported` | The mapper does real work on Tizen. |
-| `NoOp` | Declared but intentionally empty, because Tizen has no equivalent. Every one carries an XML doc comment saying why, and `EveryNoOpMapperDocumentsWhy` enforces that. |
+| `NoOp` | Declared but intentionally empty. Enforced twice: `EveryNoOpMapperDocumentsWhy` requires a reason, and `EveryNoOpJustificationIsFeatureSpecific` requires that reason to name the property or the specific Tizen limitation rather than a generic "not supported". |
 
-`UncoveredNeutralKeys` lists keys the neutral MAUI handler declares that the Tizen handler does
-not. These are **recorded gaps, not silent ones**: `EveryNeutralMapperKeyIsImplementedOrRecorded`
-fails if a new one appears without being written down here.
+`UncoveredNeutralKeys` are **recorded** gaps, not silent ones:
+`EveryNeutralMapperKeyIsImplementedOrRecorded` fails if a new one appears undocumented.
 
 ## Summary
 
@@ -27,22 +25,17 @@ fails if a new one appears without being written down here.
 - 54 supported mappings, 33 documented no-ops
 - 4 handlers with recorded neutral-key gaps
 
-The recorded gaps are all view-level or semantic properties (`BackgroundColor`, `Hint`,
-`HeadingLevel`, `IsInAccessibleTree`, ...) supplied at runtime by the chained
-`ViewMapper`/`ElementMapper`. They are listed for completeness, not as missing behaviour.
+Recorded gaps are view-level or semantic properties (`BackgroundColor`, `Hint`, `HeadingLevel`,
+`IsInAccessibleTree`, ...) supplied at runtime by the chained `ViewMapper`/`ElementMapper`.
 
 ## TabbedPage badges
 
 `BadgeText`, `BadgeColor` and `BadgeTextColor` (dotnet/maui#37755) are declared and classified
-`NoOp`. Upstream states that "Tizen exposes the shared API without a platform renderer, matching
-Shell's current support matrix" - Tizen's tab strip is a plain `CollectionView` with a label and
-a selection bar, with no badge decoration to drive. Setting a badge binds and raises property
-changes normally; nothing is drawn.
+`NoOp`, matching upstream's own statement that "Tizen exposes the shared API without a platform
+renderer". `TabbedPageBadgeMappersAreDeclaredAndClassified` pins that they stay declared.
 
-Their mapper keys are string literals rather than `nameof`, because the compile-verification lane
-targets the repository's behaviourBaseline (MAUI 9.0.120), which predates the API. The literals
-match `BindableProperty.CreateAttached(...)` exactly and should become `nameof` once the
-validation baseline carries the properties.
+Their mapper keys are string literals rather than `nameof` because the API postdates the
+behaviour baseline; the literals match `BindableProperty.CreateAttached(...)` exactly.
 
 ## Handlers
 
@@ -140,7 +133,7 @@ validation baseline carries the properties.
 
 | Key | Status | Notes |
 | --- | --- | --- |
-| `IsEnabled` | NoOp | Unsupported: there is no menu bar to enable or disable. |
+| `IsEnabled` | NoOp | Unsupported: IsEnabled has no effect because Tizen NUI ships no menu bar widget, so there is no menu bar surface whose interactivity could be toggled. |
 
 ### `TizenMenuBarItemHandler`
 
@@ -151,8 +144,8 @@ validation baseline carries the properties.
 
 | Key | Status | Notes |
 | --- | --- | --- |
-| `Text` | NoOp | Unsupported: there is no menu bar item to label. |
-| `IsEnabled` | NoOp | Unsupported: there is no menu bar item to enable or disable. |
+| `Text` | NoOp | Unsupported: Text has no effect because Tizen NUI ships no menu bar, so there is no menu bar item label to render the string into. |
+| `IsEnabled` | NoOp | Unsupported: IsEnabled has no effect because Tizen NUI ships no menu bar, so there is no menu bar item whose interactivity could be toggled. |
 
 ### `TizenMenuFlyoutHandler`
 
@@ -168,8 +161,8 @@ validation baseline carries the properties.
 
 | Key | Status | Notes |
 | --- | --- | --- |
-| `Text` | NoOp | Unsupported: there is no menu flyout item to label. |
-| `IsEnabled` | NoOp | Unsupported: there is no menu flyout item to enable or disable. |
+| `Text` | NoOp | Unsupported: Text has no effect because Tizen NUI ships no context-menu primitive, so there is no menu flyout item label to render the string into. |
+| `IsEnabled` | NoOp | Unsupported: IsEnabled has no effect because Tizen NUI ships no context-menu primitive, so there is no menu flyout item whose interactivity could be toggled. |
 
 ### `TizenMenuFlyoutSeparatorHandler`
 
@@ -185,7 +178,7 @@ validation baseline carries the properties.
 
 | Key | Status | Notes |
 | --- | --- | --- |
-| `Text` | NoOp | Unsupported: there is no submenu to label. |
+| `Text` | NoOp | Unsupported: Text has no effect because Tizen NUI ships no context-menu primitive, so there is no submenu header to render the string into. |
 
 ### `TizenNavigationViewHandler`
 
@@ -339,5 +332,5 @@ validation baseline carries the properties.
 | `BarBackground` | Supported |  |
 | `BarTextColor` | Supported |  |
 | `BackButtonEnabled` | NoOp | No-op: Tizen's toolbar icon has no separate enabled state. The in-tree backend simply had no mapping, which meant a silent miss. Declaring it as an explicit no-op keeps <c>Parity/MapperParity.json</c> honest and gives the source tests something to assert against. |
-| `DynamicOverflowEnabled` | NoOp | No-op: Tizen has no dynamic overflow concept; overflow is always dynamic. |
+| `DynamicOverflowEnabled` | NoOp | No-op: DynamicOverflowEnabled has no effect because Tizen always collapses secondary toolbar items behind the overflow button; there is no fixed-overflow mode to switch to. |
 

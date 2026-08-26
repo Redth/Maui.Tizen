@@ -14,7 +14,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// navigation view to it.
 	/// </remarks>
 	public partial class TizenNavigationViewHandler
-		: ViewHandler<IStackNavigationView, StackNavigationManager>, INavigationViewHandler, IPlatformViewHandler
+		: ViewHandler<IStackNavigationView, StackNavigationManager>, INavigationViewHandler
 	{
 		public static IPropertyMapper<IStackNavigationView, TizenNavigationViewHandler> Mapper =
 			new PropertyMapper<IStackNavigationView, TizenNavigationViewHandler>(ViewMapper);
@@ -36,6 +36,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		IStackNavigationView INavigationViewHandler.VirtualView => VirtualView;
+
+		object INavigationViewHandler.PlatformView => PlatformView;
 
 		protected override StackNavigationManager CreatePlatformView() => new();
 

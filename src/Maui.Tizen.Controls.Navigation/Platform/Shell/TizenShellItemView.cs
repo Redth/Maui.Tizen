@@ -265,13 +265,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			// Current item is updated through section view
 		}
 
-		public void Dispose()
+		// NUI's BaseHandle already exposes Dispose(); this participates in that chain rather
+		// than shadowing it, which CS0108 would otherwise flag.
+		public new void Dispose()
 		{
 			Dispose(true);
 			GC.SuppressFinalize(this);
 		}
 
-		protected virtual void Dispose(bool disposing)
+		protected override void Dispose(DisposeTypes type)
 		{
 			if (_isDisposed)
 				return;

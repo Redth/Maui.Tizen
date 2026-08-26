@@ -192,4 +192,60 @@ public class WaveCMapperParityTests
 			h => h.UncoveredNeutralKeys.ToHashSet(StringComparer.Ordinal),
 			StringComparer.Ordinal) ?? new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
 	}
+
+	/// <summary>
+	/// A no-op justification must be specific to the feature it is refusing to implement.
+	/// </summary>
+	/// <remarks>
+	/// <c>EveryNoOpMapperDocumentsWhy</c> only proves a comment exists. Thirty mappers all saying
+	/// "not supported on Tizen" would pass it while telling a reviewer nothing. This requires each
+	/// reason to actually name the thing it is about, so the parity artifact stays reviewable.
+	/// </remarks>
+	[Fact]
+	public void EveryNoOpJustificationIsFeatureSpecific()
+	{
+		var failures = new List<string>();
+
+		foreach (var handler in WaveCSource.Handlers)
+		{
+			foreach (var mapper in handler.PropertyMappers.Concat(handler.CommandMappers).Where(m => m.IsNoOp))
+			{
+				var reason = mapper.Reason ?? string.Empty;
+
+				// The reason has to mention the property it is about, or explain the platform
+				// limitation in enough words to be meaningful - not just assert one exists.
+				var namesTheFeature = reason.Contains(mapper.Key, StringComparison.OrdinalIgnoreCase);
+				var wordCount = reason.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+
+				if (!namesTheFeature && wordCount < 12)
+				{
+					failures.Add($"{handler.TypeName}.{mapper.Key}: \"{reason}\" is too generic - name the "
+						+ "property or explain the specific Tizen limitation.");
+				}
+			}
+		}
+
+		Assert.Empty(failures);
+	}
+
+	/// <summary>
+	/// The TabbedPage badge mappers from dotnet/maui#37755 must stay declared and classified.
+	/// </summary>
+	[Fact]
+	public void TabbedPageBadgeMappersAreDeclaredAndClassified()
+	{
+		var tabbed = WaveCSource.Handlers.SingleOrDefault(h => h.TypeName == "TizenTabbedPageHandler");
+
+		Assert.NotNull(tabbed);
+
+		foreach (var key in new[] { "BadgeText", "BadgeColor", "BadgeTextColor" })
+		{
+			var mapper = tabbed!.PropertyMappers.SingleOrDefault(m => m.Key == key);
+
+			Assert.True(mapper is not null, $"TizenTabbedPageHandler must map '{key}' (dotnet/maui#37755).");
+			Assert.True(mapper!.IsNoOp, $"'{key}' is expected to be an explicit no-op on Tizen.");
+			Assert.False(string.IsNullOrWhiteSpace(mapper.Reason), $"'{key}' needs a documented reason.");
+		}
+	}
+
 }

@@ -22,7 +22,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>
 		/// Property mapper for <see cref="ReorderableItemsView"/> properties.
 		/// </summary>
-		public static new IPropertyMapper<TItemsView, TizenReorderableItemsViewHandler<TItemsView>> ReorderableItemsViewMapper =
+		public static IPropertyMapper<TItemsView, TizenReorderableItemsViewHandler<TItemsView>> ReorderableItemsViewMapper =
 			new PropertyMapper<TItemsView, TizenReorderableItemsViewHandler<TItemsView>>(GroupableItemsViewMapper)
 			{
 				[nameof(ReorderableItemsView.CanReorderItems)] = MapCanReorderItems,
@@ -31,7 +31,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>
 		/// Command mapper for <see cref="ReorderableItemsView"/> commands.
 		/// </summary>
-		public static new CommandMapper<TItemsView, TizenReorderableItemsViewHandler<TItemsView>> ReorderableItemsViewCommandMapper =
+		public static CommandMapper<TItemsView, TizenReorderableItemsViewHandler<TItemsView>> ReorderableItemsViewCommandMapper =
 			new CommandMapper<TItemsView, TizenReorderableItemsViewHandler<TItemsView>>(GroupableItemsViewCommandMapper);
 
 		protected TizenReorderableItemsViewHandler(IPropertyMapper mapper, CommandMapper? commandMapper = null)

@@ -107,79 +107,66 @@ items, which upstream presented by pushing onto the modal stack, are routed thro
 `IToolbarSecondaryActionPresenter` seam instead so that the alerts/dialogs area can own that
 presentation without Wave C duplicating it.
 
-## Build status — read this before filing a red build
+## Verification
 
-**The shipping target framework cannot be built anywhere today.**
+### The acceptance gate is the API15 ref-pack lane
 
-`eng/baselines.json` > `target.workloadManifest` records that
-`samsung.net.sdk.tizen.manifest-11.0.100` has not been published; only the `-9.0.100` and
-`-10.0.100` bands exist. `net11.0-tizen11.0` therefore cannot be restored, on any machine, by
-anyone. `Maui.Tizen.Controls.Navigation.csproj` fails with an explicit, actionable error
-(`MAUITIZEN1001`) rather than degrading.
+`tests/Maui.Tizen.Core.RefPackCompile` compiles the backend against the **real net11 public MAUI
+packages** and the **Samsung.Tizen.Ref.API15** reference assemblies. That lane - and only that lane -
+is the acceptance gate for Wave C. Every Wave C source and catalog page is listed for it in
+[`eng/Maui.Tizen.WaveC.Sources.props`](../../eng/Maui.Tizen.WaveC.Sources.props), and
+`WaveCAcceptanceGateTests` fails if a file is missing from that list.
 
-Per `Directory.Build.props`, do **not** "fix" that by adding a neutral `net11.0` TFM. A neutral
-build would go green while producing assemblies that cannot run on Tizen.
+**A previous revision of this document claimed a `net9.0-tizen7.0` compile as acceptance. That was
+wrong and is worth recording rather than quietly deleting.** MAUI 9.0.120 still ships a Tizen build,
+so that lower-band compile resolved `Microsoft.Maui.Platform.MauiToolbar`, `StackNavigationManager`
+and `IPlatformViewHandler` from the MAUI package itself and went green. None of those exist on the
+net11 surface. Pointing the real gate at Wave C immediately surfaced **60 diagnostics** the
+behaviour-baseline compile could not see:
 
-### The validation lane
+| Diagnostic | Cause |
+| --- | --- |
+| 6 × CS9333 | net11 `IToolbarHandler` / `IMenuBarHandler` / `IMenuBarItemHandler` declare `PlatformView` as `object`; the 9.0.120 Tizen build typed it concretely |
+| 4 × CS0246 `IPlatformViewHandler` | Exists only inside MAUI's own `net*-tizen` build; the out-of-tree counterpart is core's `ITizenPlatformViewHandler` |
+| 24 × CS0109 | `new` on per-handler mapper fields that hide nothing out-of-tree |
+| 6 × CS0108 / 6 × CS0114 | NUI `BaseHandle.Dispose()` / `View.Dispose(DisposeTypes)` participation |
+| 14 × CS8766 | net11 `I*Handler.PlatformView` is non-nullable `object`; the base handler's is `object?` |
 
-To keep "it compiles" from being an unverified claim, Wave C adds an opt-in compile lane:
+All 60 are fixed. `9.0.120` is retained **only** as a behaviour/API comparison baseline, never as
+acceptance.
+
+### What is still blocked, and why the gate is currently off
+
+Wave C consumes two Tizen platform primitives that the net11 MAUI surface does not publish:
+
+| Missing type | References | Expected core owner |
+| --- | --- | --- |
+| `Microsoft.Maui.Platform.MauiToolbar` | 38 | `TizenToolbarView` |
+| `Microsoft.Maui.Platform.StackNavigationManager` | 10 | `TizenStackNavigationManager` |
+
+These are Core-owned primitives that belong in `Maui.Tizen.Core` beside `TizenViewHandler<,>` and
+`TizenContentViewGroup`. **Wave C must not declare its own** - that would give the repository two
+authoritative toolbars, which is exactly the ambiguity
+[`eng/manifests/wave-c-superseded.json`](../../eng/manifests/wave-c-superseded.json) exists to
+prevent. `WaveCDoesNotDeclareItsOwnCopyOfABlockedPrimitive` enforces it.
+
+Their transitive blast radius is **25 of 50 files**, so excluding just the six direct consumers
+would leave the lane verifying almost nothing - the same false confidence in a different costume.
+The whole wave is therefore gated on one flag:
 
 ```bash
-./eng/validation/run-validation-lane.sh
+dotnet build tests/Maui.Tizen.Core.RefPackCompile/... -p:MauiTizenWaveCAcceptance=true
 ```
 
-It compiles **the exact same source files** (both projects import
-`src/Maui.Tizen.Controls.Navigation/Sources.props`) against `net9.0-tizen7.0` — the repository's own
-declared `behaviorBaseline` — using the Samsung workload band that *is* published and MAUI 9.0.120.
+With the gate **off** the lane is clean. With it **on**, the only diagnostics are the 48 `CS0246`
+references to those two types - zero warnings, nothing else outstanding.
+`AcceptanceGateMustBeReopenedOnceCoreLandsThePrimitives` fails as soon as core provides either, so
+the flag cannot be left off once the blocker clears.
 
-This is not a neutral fallback: `net9.0-tizen7.0` is a real Tizen target framework compiled against
-real TizenFX reference assemblies, which is the opposite of the failure mode the neutral-TFM rule
-exists to prevent. The lane is compile-only; nothing is packed or published from it.
+### What is still unverified
 
-The script provisions an **isolated** SDK under `artifacts/validation-sdk/` rather than mutating the
-developer's machine-wide dotnet installation, because installing workloads is shared-state mutation
-that can change how unrelated repositories build. It also installs the Samsung workload manifest
-from nuget.org by hand, since Samsung does not ship it through the in-box workload manifests.
-
-### What the validation lane does and does not prove
-
-- It **does** prove the migrated code compiles against real TizenFX and real public MAUI API, and
-  that no internal API is reachable — the internals coupling above was found *by the compiler*.
-- It **does not** prove runtime behaviour. There is no Tizen emulator or device in this
-  environment, so nothing here has been executed. Item recycling, virtualization performance,
-  navigation animation and Shell lazy content creation are **unverified at runtime**.
-- API differences between MAUI 9.0.120 and the net11 package set are not covered by this lane.
-
-## MAUI package floor
-
-Wave C is written against the `11.0.0-preview.7.26426.4` (`bedd1b18`) package set, which the
-foundation bumps in `Directory.Packages.props` and `eng/baselines.json`. Wave C deliberately does
-not bump those files itself - they are foundation-owned, and editing them here would only create a
-merge conflict.
-
-Two things in that set were checked against Wave C:
-
-- **TabbedPage badges (dotnet/maui#37755).** `BadgeText`, `BadgeColor` and `BadgeTextColor` are now
-  declared on `TizenTabbedPageHandler` and classified `NoOp`, matching upstream's own statement that
-  "Tizen exposes the shared API without a platform renderer". See
-  [`docs/wave-c-mapper-parity.md`](../wave-c-mapper-parity.md#tabbedpage-badges) for why their keys
-  are string literals rather than `nameof`.
-- **Hardened gesture APIs.** No Wave C impact. The only gesture-adjacent surface Wave C touches is
-  `IFlyoutView.IsGestureEnabled`, a stable core property. Gesture recognizers and
-  `GesturePlatformManager` belong to the alerts/gestures workstream.
-
-## Coverage at a glance
-
-20 migrated handlers, 54 supported mappings and 33 documented no-ops. Full detail in
-[`docs/wave-c-mapper-parity.md`](../wave-c-mapper-parity.md).
-
-While generating it, Wave C also fixed a latent bug in the shared Roslyn parser Wave B introduced:
-it only recognised mapper fields named exactly `Mapper` / `CommandMapper`. Handlers that shadow a
-generic base mapper must give the field a distinct name (`CarouselViewMapper`,
-`ItemsViewCommandMapper`, ...), and those were being reported as having **no** mapper coverage at
-all - which surfaced as dozens of fictitious parity gaps. The parser now matches on suffix.
-`docs/wave-b-mapper-parity.json` is regenerated as part of that fix and legitimately reports more
-coverage than before; it is a correction, not drift.
+Runtime behaviour. There is no Tizen emulator or device here, so item recycling, virtualization
+performance, navigation animation and Shell lazy content are **compile-verified only**.
 
 ## Testing
 
@@ -188,9 +175,11 @@ Wave C adds `WaveCSource`, `WaveCSourceIntegrityTests` and `WaveCMapperParityTes
 B's Roslyn parser (`WaveBSource.Parse`, widened from `static` to `public static`) so there is only
 one implementation of the mapper-extraction rules to keep correct.
 
-These are source tests on purpose: until the Samsung .NET 11 workload ships, the Tizen assemblies
-cannot be compiled or executed by anyone, so a reflection-based test over the built handlers is not
-an option. They run on a plain TFM in the existing workload-free CI lane:
+The suite runs in the existing workload-free CI lane. Note that it depends on
+`Maui.Tizen.Core.RefPackCompile` having been built first - `EmittedTypeTests` reflects over that
+lane's output. An earlier revision of this document described those tests as having "pre-existing
+environmental failures"; they were simply being run without that dependency built. Built properly,
+the whole suite passes.
 
 - no `Microsoft.Maui.Controls.Internals` usings and no internal API use
 - no reflection (`System.Reflection`, `BindingFlags`, `GetMethod`/`GetProperty`/`GetField`)
@@ -203,6 +192,13 @@ an option. They run on a plain TFM in the existing workload-free CI lane:
 - every empty no-op mapper carries an XML doc comment explaining why
 - every adapter has a matching `UpstreamApiRequests` entry, and the request IDs stay unique and
   sequential
+- every no-op justification is *feature-specific* - it must name the property or the concrete Tizen
+  limitation, so thirty mappers cannot all say "not supported"
+- the provisional adapters carry **expiry tests** (`WaveCUpstreamExpiryTests`) that reflect over the
+  referenced MAUI assemblies and fail the moment the upstream API lands, forcing the adapter to be
+  deleted rather than kept as a diverging parallel implementation
+- superseded raw sources never reach a compiled item list
+  (`WaveCSupersededSourceTests`)
 - the validation lane still targets a real Tizen TFM and still compiles the same sources as the
   shipping project
 

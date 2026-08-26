@@ -1,0 +1,144 @@
+<Project>
+
+  <!--
+    Wave C source list: navigation, Shell, CollectionView, toolbar and menu handlers.
+
+    Factored out, like eng/Maui.Tizen.Core.Sources.props, so that the product project and the
+    ref-pack compile lane consume exactly the same files and cannot drift.
+
+    ACCEPTANCE LANE
+
+    These are compiled by tests/Maui.Tizen.Core.RefPackCompile against the real net11 public MAUI
+    packages and the Samsung.Tizen.Ref.API15 reference assemblies. That lane - not any lower-band
+    compile - is the acceptance gate for this backend: it is the only place the sources are
+    type-checked against the surface they will actually ship on.
+
+    Listed explicitly rather than globbed, matching the convention in
+    eng/Maui.Tizen.Core.Sources.props. Wave C lives in its own directory with no raw import in it,
+    so a glob would be safe today - but an explicit list is what keeps the compiled set
+    unambiguous as the superseded raw sources under src/Maui.Tizen.Controls/Core are retired.
+  -->
+
+  <!--
+    ACCEPTANCE GATE - currently OFF, and deliberately so.
+
+    Wave C consumes two Tizen platform primitives that the in-tree backend got from
+    Microsoft.Maui.dll's own net*-tizen build:
+
+      * Microsoft.Maui.Platform.MauiToolbar            (38 references, 6 files)
+      * Microsoft.Maui.Platform.StackNavigationManager (10 references, 3 files)
+
+    Neither exists on the net11 public MAUI surface, because that surface has no Tizen build. They
+    are Core-owned primitives and belong to Maui.Tizen.Core alongside TizenViewHandler<,> and
+    TizenContentViewGroup - Wave C must NOT declare its own, or the repository ends up with two
+    authoritative toolbars and a genuinely ambiguous compiled set.
+
+    Until Core lands them (expected names: TizenToolbarView, TizenStackNavigationManager), Wave C
+    cannot be type-checked here. The transitive blast radius is 25 of 50 files, so excluding just
+    the six direct consumers would leave the lane verifying almost nothing - which is the same
+    false confidence the lower-band lane gave, in a different costume.
+
+    So the whole wave is gated on one flag rather than silently half-verified:
+
+      dotnet build tests/Maui.Tizen.Core.RefPackCompile/... -p:MauiTizenWaveCAcceptance=true
+
+    WaveCAcceptanceGateTests pins the blocked-type list and FAILS once those types resolve, so this
+    flag cannot be quietly left off after Core lands them.
+
+    Everything else about Wave C is already verified against this surface: wiring it up found and
+    fixed 60 real diagnostics (net11 I*Handler contracts declare PlatformView as `object`,
+    IPlatformViewHandler is in-tree-only, NUI Dispose overrides, redundant `new` mappers) that the
+    net9.0-tizen7.0 behaviour-baseline compile could not see.
+  -->
+  <PropertyGroup>
+    <MauiTizenWaveCAcceptance Condition="'$(MauiTizenWaveCAcceptance)' == ''">false</MauiTizenWaveCAcceptance>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <MauiTizenNavigationDir Condition="'$(MauiTizenNavigationDir)' == ''">$(MSBuildThisFileDirectory)../src/Maui.Tizen.Controls.Navigation/</MauiTizenNavigationDir>
+    <MauiTizenCatalogDir Condition="'$(MauiTizenCatalogDir)' == ''">$(MSBuildThisFileDirectory)../samples/Controls/Catalog/</MauiTizenCatalogDir>
+  </PropertyGroup>
+
+  <!--
+    Public-API replacements for the Microsoft.Maui.Controls internals the in-tree Tizen backend
+    reached. No NUI dependency, but they are Controls-facing so they only build where
+    Microsoft.Maui.Controls is referenced.
+  -->
+  <ItemGroup Condition="'$(MauiTizenWaveCAcceptance)' == 'true'" Label="Wave C adapters">
+    <MauiTizenWaveCAdapterCompile Include="$(MauiTizenNavigationDir)Adapters/ItemSelectionState.cs" />
+    <MauiTizenWaveCAdapterCompile Include="$(MauiTizenNavigationDir)Adapters/ShellElementTree.cs" />
+    <MauiTizenWaveCAdapterCompile Include="$(MauiTizenNavigationDir)Adapters/ShellTemplateResolver.cs" />
+    <MauiTizenWaveCAdapterCompile Include="$(MauiTizenNavigationDir)Adapters/ToolbarDrawerToggle.cs" />
+    <MauiTizenWaveCAdapterCompile Include="$(MauiTizenNavigationDir)Adapters/UpstreamApiRequests.cs" />
+  </ItemGroup>
+
+  <!--
+    Toolbar, items/CollectionView and Shell platform surfaces. Every file here touches Tizen.NUI or
+    Tizen.UIExtensions directly, so they are type-checked against the real TizenFX API15 reference
+    assemblies rather than host stubs.
+  -->
+  <ItemGroup Condition="'$(MauiTizenWaveCAcceptance)' == 'true'" Label="Wave C platform views and adaptors">
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Items/TizenCarouselViewControl.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Items/TizenCollectionViewControl.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Items/TizenCollectionViewExtensions.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Items/TizenCollectionViewSelectionChangedEventArgs.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Items/TizenDisplayExtensions.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Items/TizenEmptyItemAdaptor.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Items/TizenGroupItemSource.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Items/TizenGroupItemTemplateAdaptor.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Items/TizenItemTemplateAdaptor.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Navigation/TizenTabbedPageView.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/ITizenNavigationContentView.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/ITizenNavigationView.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/TizenItemAppearance.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/TizenMoreItem.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/TizenNavigationContentView.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/TizenNavigationView.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/TizenShellContentItemAdaptor.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/TizenShellContentItemView.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/TizenShellFlyoutItemAdaptor.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/TizenShellFlyoutItemView.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/TizenShellItemView.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/TizenShellSearchItemAdaptor.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/TizenShellSearchView.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/TizenShellSectionItemAdaptor.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/TizenShellSectionItemView.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/TizenShellSectionStackManager.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/TizenShellSectionView.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/TizenShellView.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Toolbar/IToolbarSecondaryActionPresenter.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Toolbar/TizenToolbarExtensions.cs" />
+  </ItemGroup>
+
+  <!--
+    Navigation, Shell, CollectionView, toolbar and menu handlers.
+  -->
+  <ItemGroup Condition="'$(MauiTizenWaveCAcceptance)' == 'true'" Label="Wave C handlers">
+    <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)Handlers/Items/TizenCarouselViewHandler.cs" />
+    <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)Handlers/Items/TizenCollectionViewHandler.cs" />
+    <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)Handlers/Items/TizenGroupableItemsViewHandler.cs" />
+    <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)Handlers/Items/TizenItemsViewHandler.cs" />
+    <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)Handlers/Items/TizenReorderableItemsViewHandler.cs" />
+    <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)Handlers/Items/TizenSelectableItemsViewHandler.cs" />
+    <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)Handlers/Items/TizenStructuredItemsViewHandler.cs" />
+    <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)Handlers/Menu/TizenMenuHandlers.cs" />
+    <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)Handlers/Navigation/TizenFlyoutViewHandler.cs" />
+    <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)Handlers/Navigation/TizenNavigationViewHandler.cs" />
+    <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)Handlers/Navigation/TizenTabbedPageHandler.cs" />
+    <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)Handlers/Shell/TizenShellHandler.cs" />
+    <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)Handlers/Shell/TizenShellItemHandler.cs" />
+    <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)Handlers/Shell/TizenShellSectionHandler.cs" />
+    <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)Handlers/Toolbar/TizenToolbarHandler.cs" />
+  </ItemGroup>
+
+  <!--
+    Catalog pages. Plain C# rather than XAML precisely so they can be compiler-verified today;
+    compiling them here is what makes that claim true.
+  -->
+  <ItemGroup Condition="'$(MauiTizenWaveCAcceptance)' == 'true'" Label="Wave C catalog sources">
+    <MauiTizenWaveCCatalogCompile Include="$(MauiTizenCatalogDir)Navigation/CollectionViewCatalogPage.cs" />
+    <MauiTizenWaveCCatalogCompile Include="$(MauiTizenCatalogDir)Navigation/NavigationCatalogPage.cs" />
+    <MauiTizenWaveCCatalogCompile Include="$(MauiTizenCatalogDir)Navigation/ShellCatalogPage.cs" />
+  </ItemGroup>
+
+</Project>

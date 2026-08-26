@@ -188,7 +188,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			UnBinding(native);
 			if (_nativeMauiTable.TryGetValue(native, out View? view))
 			{
-				if (view.Handler is IPlatformViewHandler handler)
+				if (view.Handler is ITizenPlatformViewHandler handler)
 				{
 					_nativeMauiTable.Remove(handler.PlatformView!);
 					handler.Dispose();
@@ -289,7 +289,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				view = CreateItemView(index);
 			}
 
-			using var handler = (IPlatformViewHandler)view.Handler!;
+			using var handler = (ITizenPlatformViewHandler)view.Handler!;
 			if (data != null)
 				view.BindingContext = data;
 			view.Parent = _itemsView;

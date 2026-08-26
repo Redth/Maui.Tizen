@@ -73,12 +73,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		IMenuBar IMenuBarHandler.VirtualView => VirtualView;
 
-		NView IMenuBarHandler.PlatformView => PlatformView;
+		object IMenuBarHandler.PlatformView => PlatformView;
 
 		protected override NView CreatePlatformElement() => TizenMenuSupport.CreateInertPlatformView();
 
 		/// <summary>
-		/// Unsupported: there is no menu bar to enable or disable.
+		/// Unsupported: IsEnabled has no effect because Tizen NUI ships no menu bar widget, so there
+		/// is no menu bar surface whose interactivity could be toggled.
 		/// </summary>
 		public static void MapIsEnabled(TizenMenuBarHandler handler, IMenuBar view)
 		{
@@ -127,19 +128,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		IMenuBarItem IMenuBarItemHandler.VirtualView => VirtualView;
 
-		NView IMenuBarItemHandler.PlatformView => PlatformView;
+		object IMenuBarItemHandler.PlatformView => PlatformView;
 
 		protected override NView CreatePlatformElement() => TizenMenuSupport.CreateInertPlatformView();
 
 		/// <summary>
-		/// Unsupported: there is no menu bar item to label.
+		/// Unsupported: Text has no effect because Tizen NUI ships no menu bar, so there is no menu
+		/// bar item label to render the string into.
 		/// </summary>
 		public static void MapText(TizenMenuBarItemHandler handler, IMenuBarItem view)
 		{
 		}
 
 		/// <summary>
-		/// Unsupported: there is no menu bar item to enable or disable.
+		/// Unsupported: IsEnabled has no effect because Tizen NUI ships no menu bar, so there is no
+		/// menu bar item whose interactivity could be toggled.
 		/// </summary>
 		public static void MapIsEnabled(TizenMenuBarItemHandler handler, IMenuBarItem view)
 		{
@@ -231,17 +234,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		IMenuFlyoutItem IMenuFlyoutItemHandler.VirtualView => VirtualView;
 
+		object IMenuFlyoutItemHandler.PlatformView => PlatformView;
+
 		protected override NView CreatePlatformElement() => TizenMenuSupport.CreateInertPlatformView();
 
 		/// <summary>
-		/// Unsupported: there is no menu flyout item to label.
+		/// Unsupported: Text has no effect because Tizen NUI ships no context-menu primitive, so
+		/// there is no menu flyout item label to render the string into.
 		/// </summary>
 		public static void MapText(TizenMenuFlyoutItemHandler handler, IMenuFlyoutItem view)
 		{
 		}
 
 		/// <summary>
-		/// Unsupported: there is no menu flyout item to enable or disable.
+		/// Unsupported: IsEnabled has no effect because Tizen NUI ships no context-menu primitive, so
+		/// there is no menu flyout item whose interactivity could be toggled.
 		/// </summary>
 		public static void MapIsEnabled(TizenMenuFlyoutItemHandler handler, IMenuFlyoutItem view)
 		{
@@ -273,10 +280,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		IMenuFlyoutSubItem IMenuFlyoutSubItemHandler.VirtualView => VirtualView;
 
+		object IMenuFlyoutSubItemHandler.PlatformView => PlatformView;
+
 		protected override NView CreatePlatformElement() => TizenMenuSupport.CreateInertPlatformView();
 
 		/// <summary>
-		/// Unsupported: there is no submenu to label.
+		/// Unsupported: Text has no effect because Tizen NUI ships no context-menu primitive, so there
+		/// is no submenu header to render the string into.
 		/// </summary>
 		public static void MapText(TizenMenuFlyoutSubItemHandler handler, IMenuFlyoutSubItem view)
 		{

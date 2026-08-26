@@ -28,7 +28,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// </remarks>
 	public partial class TizenToolbarHandler : ElementHandler<Toolbar, MauiToolbar>, IToolbarHandler
 	{
-		IPlatformViewHandler? _titleViewHandler;
+		ITizenPlatformViewHandler? _titleViewHandler;
 
 		public static IPropertyMapper<Toolbar, TizenToolbarHandler> Mapper =
 			new PropertyMapper<Toolbar, TizenToolbarHandler>(ElementMapper)
@@ -62,7 +62,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		IToolbar IToolbarHandler.VirtualView => VirtualView;
 
-		MauiToolbar IToolbarHandler.PlatformView => PlatformView;
+		// net11 declares IToolbarHandler.PlatformView as `object`; the 9.0.120 Tizen build typed it
+		// as MauiToolbar. Matching the shipping contract, not the behaviour baseline.
+		object IToolbarHandler.PlatformView => PlatformView;
 
 		protected override MauiToolbar CreatePlatformElement() => new();
 
@@ -139,7 +141,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		/// <summary>
-		/// No-op: Tizen has no dynamic overflow concept; overflow is always dynamic.
+		/// No-op: DynamicOverflowEnabled has no effect because Tizen always collapses secondary
+		/// toolbar items behind the overflow button; there is no fixed-overflow mode to switch to.
 		/// </summary>
 		public static void MapDynamicOverflowEnabled(TizenToolbarHandler handler, Toolbar toolbar)
 		{
@@ -164,7 +167,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			}
 
 			global::Tizen.NUI.BaseComponents.View platformTitleView = titleView.ToPlatform(mauiContext);
-			_titleViewHandler = titleView.Handler as IPlatformViewHandler;
+			_titleViewHandler = titleView.Handler as ITizenPlatformViewHandler;
 
 			PlatformView.Title = string.Empty;
 			PlatformView.Content = platformTitleView;

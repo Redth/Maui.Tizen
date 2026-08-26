@@ -223,7 +223,7 @@
           "Key": "IsEnabled",
           "Method": "MapIsEnabled",
           "Status": "NoOp",
-          "Reason": "Unsupported: there is no menu bar to enable or disable."
+          "Reason": "Unsupported: IsEnabled has no effect because Tizen NUI ships no menu bar widget, so there is no menu bar surface whose interactivity could be toggled."
         }
       ],
       "CommandMappers": [],
@@ -238,13 +238,13 @@
           "Key": "Text",
           "Method": "MapText",
           "Status": "NoOp",
-          "Reason": "Unsupported: there is no menu bar item to label."
+          "Reason": "Unsupported: Text has no effect because Tizen NUI ships no menu bar, so there is no menu bar item label to render the string into."
         },
         {
           "Key": "IsEnabled",
           "Method": "MapIsEnabled",
           "Status": "NoOp",
-          "Reason": "Unsupported: there is no menu bar item to enable or disable."
+          "Reason": "Unsupported: IsEnabled has no effect because Tizen NUI ships no menu bar, so there is no menu bar item whose interactivity could be toggled."
         }
       ],
       "CommandMappers": [],
@@ -267,13 +267,13 @@
           "Key": "Text",
           "Method": "MapText",
           "Status": "NoOp",
-          "Reason": "Unsupported: there is no menu flyout item to label."
+          "Reason": "Unsupported: Text has no effect because Tizen NUI ships no context-menu primitive, so there is no menu flyout item label to render the string into."
         },
         {
           "Key": "IsEnabled",
           "Method": "MapIsEnabled",
           "Status": "NoOp",
-          "Reason": "Unsupported: there is no menu flyout item to enable or disable."
+          "Reason": "Unsupported: IsEnabled has no effect because Tizen NUI ships no context-menu primitive, so there is no menu flyout item whose interactivity could be toggled."
         }
       ],
       "CommandMappers": [],
@@ -296,7 +296,7 @@
           "Key": "Text",
           "Method": "MapText",
           "Status": "NoOp",
-          "Reason": "Unsupported: there is no submenu to label."
+          "Reason": "Unsupported: Text has no effect because Tizen NUI ships no context-menu primitive, so there is no submenu header to render the string into."
         }
       ],
       "CommandMappers": [],
@@ -682,7 +682,7 @@
           "Key": "DynamicOverflowEnabled",
           "Method": "MapDynamicOverflowEnabled",
           "Status": "NoOp",
-          "Reason": "No-op: Tizen has no dynamic overflow concept; overflow is always dynamic."
+          "Reason": "No-op: DynamicOverflowEnabled has no effect because Tizen always collapses secondary toolbar items behind the overflow button; there is no fixed-overflow mode to switch to."
         }
       ],
       "CommandMappers": [],

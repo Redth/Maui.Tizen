@@ -199,7 +199,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			{
 				_headerCache.Parent = Element;
 
-				if (_headerCache.Handler is IPlatformViewHandler nativeHandler)
+				if (_headerCache.Handler is ITizenPlatformViewHandler nativeHandler)
 					nativeHandler.Dispose();
 				_headerCache.Handler = null;
 				_headerCache.MeasureInvalidated += OnHeaderFooterMeasureInvalidated;
@@ -220,7 +220,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (_footerCache != null)
 			{
 				_footerCache.Parent = Element;
-				if (_footerCache.Handler is IPlatformViewHandler nativeHandler)
+				if (_footerCache.Handler is ITizenPlatformViewHandler nativeHandler)
 					nativeHandler.Dispose();
 				_footerCache.Handler = null;
 				_footerCache.MeasureInvalidated += OnHeaderFooterMeasureInvalidated;
@@ -234,7 +234,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			UnBinding(native);
 			if (_nativeMauiTable.TryGetValue(native, out View? view))
 			{
-				if (view.Handler is IPlatformViewHandler handler)
+				if (view.Handler is ITizenPlatformViewHandler handler)
 				{
 					_nativeMauiTable.Remove(handler.PlatformView!);
 					handler.Dispose();
@@ -300,7 +300,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				view = (View)ItemTemplate.CreateContent();
 			}
 
-			using var handler = (IPlatformViewHandler)view.Handler!;
+			using var handler = (ITizenPlatformViewHandler)view.Handler!;
 			if (Count > index)
 				view.BindingContext = this[index];
 			view.Parent = Element;

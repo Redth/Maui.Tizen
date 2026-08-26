@@ -25,7 +25,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>
 		/// Property mapper for <see cref="CarouselView"/>.
 		/// </summary>
-		public static new IPropertyMapper<CarouselView, TizenCarouselViewHandler> CarouselViewMapper =
+		public static IPropertyMapper<CarouselView, TizenCarouselViewHandler> CarouselViewMapper =
 			new PropertyMapper<CarouselView, TizenCarouselViewHandler>(ItemsViewMapper)
 			{
 				[nameof(CarouselView.CurrentItem)] = MapCurrentItem,
@@ -40,7 +40,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>
 		/// Command mapper for <see cref="CarouselView"/> commands.
 		/// </summary>
-		public static new CommandMapper<CarouselView, TizenCarouselViewHandler> CarouselViewCommandMapper =
+		public static CommandMapper<CarouselView, TizenCarouselViewHandler> CarouselViewCommandMapper =
 			new CommandMapper<CarouselView, TizenCarouselViewHandler>(ItemsViewCommandMapper);
 
 		/// <summary>

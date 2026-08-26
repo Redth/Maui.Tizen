@@ -46,7 +46,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			UnBinding(native);
 			if (_nativeTable.TryGetValue(native, out View? view))
 			{
-				if (view.Handler is IPlatformViewHandler handler)
+				if (view.Handler is ITizenPlatformViewHandler handler)
 				{
 					_nativeTable.Remove(handler.PlatformView!);
 					handler.Dispose();

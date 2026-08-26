@@ -19,6 +19,7 @@
 
   <Import Project="$(RepositoryRoot)eng/Maui.props" />
   <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.WaveC.Sources.props" />
 
   <PropertyGroup>
     <TargetFramework>$(DotNetTfm)</TargetFramework>
@@ -79,6 +80,10 @@
     <Compile Include="@(MauiTizenSampleCompile)" LinkBase="Sample" />
     <Compile Include="@(MauiTizenWaveBCompile)" LinkBase="WaveB" />
     <Compile Include="@(MauiTizenWaveBControlsCompile)" LinkBase="WaveBControls" />
+    <Compile Include="@(MauiTizenWaveCAdapterCompile)" LinkBase="WaveC" />
+    <Compile Include="@(MauiTizenWaveCPlatformCompile)" LinkBase="WaveC" />
+    <Compile Include="@(MauiTizenWaveCCompile)" LinkBase="WaveC" />
+    <Compile Include="@(MauiTizenWaveCCatalogCompile)" LinkBase="WaveCCatalog" />
   </ItemGroup>
 
 </Project>

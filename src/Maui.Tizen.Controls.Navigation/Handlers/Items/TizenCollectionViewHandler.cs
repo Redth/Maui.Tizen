@@ -24,13 +24,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>
 		/// Property mapper for <see cref="CollectionView"/>.
 		/// </summary>
-		public static new IPropertyMapper<CollectionView, TizenCollectionViewHandler> CollectionViewMapper =
+		public static IPropertyMapper<CollectionView, TizenCollectionViewHandler> CollectionViewMapper =
 			new PropertyMapper<CollectionView, TizenCollectionViewHandler>(ReorderableItemsViewMapper);
 
 		/// <summary>
 		/// Command mapper for <see cref="CollectionView"/> commands.
 		/// </summary>
-		public static new CommandMapper<CollectionView, TizenCollectionViewHandler> CollectionViewCommandMapper =
+		public static CommandMapper<CollectionView, TizenCollectionViewHandler> CollectionViewCommandMapper =
 			new CommandMapper<CollectionView, TizenCollectionViewHandler>(ReorderableItemsViewCommandMapper);
 
 		/// <summary>

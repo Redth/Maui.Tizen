@@ -19,7 +19,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>
 		/// Property mapper for <see cref="SelectableItemsView"/> properties.
 		/// </summary>
-		public static new IPropertyMapper<TItemsView, TizenSelectableItemsViewHandler<TItemsView>> SelectableItemsViewMapper =
+		public static IPropertyMapper<TItemsView, TizenSelectableItemsViewHandler<TItemsView>> SelectableItemsViewMapper =
 			new PropertyMapper<TItemsView, TizenSelectableItemsViewHandler<TItemsView>>(StructuredItemsViewMapper)
 			{
 				[nameof(SelectableItemsView.SelectedItem)] = MapSelectedItem,
@@ -30,7 +30,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>
 		/// Command mapper for <see cref="SelectableItemsView"/> commands.
 		/// </summary>
-		public static new CommandMapper<TItemsView, TizenSelectableItemsViewHandler<TItemsView>> SelectableItemsViewCommandMapper =
+		public static CommandMapper<TItemsView, TizenSelectableItemsViewHandler<TItemsView>> SelectableItemsViewCommandMapper =
 			new CommandMapper<TItemsView, TizenSelectableItemsViewHandler<TItemsView>>(StructuredItemsViewCommandMapper);
 
 		protected TizenSelectableItemsViewHandler(IPropertyMapper mapper, CommandMapper? commandMapper = null)
