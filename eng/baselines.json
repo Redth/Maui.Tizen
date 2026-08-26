@@ -1,0 +1,78 @@
+{
+  "$comment": [
+    "Frozen baselines for the dotnet/maui -> Maui.Tizen extraction.",
+    "",
+    "Every ref here is a pinned commit SHA or an exact version string, never a branch",
+    "name. origin/net11.0 advanced from ee4d06cde6 to bedd1b18b7 during the few hours",
+    "the initial import was prepared, which is exactly why branch names are unusable",
+    "as baselines.",
+    "",
+    "Consumed by eng/import/filter-maui-tizen.sh and by the inventory/API baseline",
+    "tooling. Changing any value here invalidates the generated baselines and should",
+    "be accompanied by regenerating them."
+  ],
+  "schemaVersion": 1,
+  "source": {
+    "repository": "https://github.com/dotnet/maui",
+    "sourceBaseline": {
+      "commit": "ee4d06cde6b49e297631b08426a33fb34f3152ef",
+      "branch": "net11.0",
+      "date": "2026-08-18",
+      "role": "Forward source baseline. All net11-era Tizen sources are taken from here."
+    },
+    "requiredAncestor": {
+      "commit": "0b3bb76d2dd68d76b7c1302f43a76270d5949564",
+      "pullRequest": 36657,
+      "title": "[Extensibility] Essentials: Bridge DI implementations to static facades",
+      "role": "Minimum API floor. The import script hard-fails if this is not an ancestor of sourceBaseline.",
+      "note": "This commit is NOT on dotnet/maui main. It lives on net11.0 and release/11.0.1xx-rc1."
+    },
+    "behaviorBaseline": {
+      "commit": "c1f4f7d879f6126029009902289efd6a4bb1bda9",
+      "tag": "9.0.120",
+      "localTag": "upstream/9.0.120",
+      "targetFramework": "net9.0-tizen7.0",
+      "role": "Last published Tizen behaviour/API baseline.",
+      "note": "This is the ONLY ref that still carries src/Compatibility Tizen sources (70 files). They were deleted upstream on net11.0, so a net11.0-only baseline loses them silently."
+    },
+    "developmentPackageBaseline": {
+      "version": "11.0.0-preview.7.26418.3",
+      "feed": "https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet11/nuget/v3/index.json",
+      "nuspecRepositoryCommit": "0b3bb76d2dd68d76b7c1302f43a76270d5949564",
+      "role": "First coherent public-feed MAUI package set for net11. Used when building against published MAUI packages rather than source."
+    },
+    "provenancePullRequests": [
+      { "number": 2360, "title": "Adds Tizen backend", "upstreamCommit": "438aef2e5d" },
+      { "number": 9619, "title": "[main][Tizen] Replace Tizen Backend engine", "upstreamCommit": "9ee62c1b12" }
+    ]
+  },
+  "target": {
+    "$comment": "The workload contract this repository builds against.",
+    "dotNetVersion": "11.0",
+    "targetFramework": "net11.0-tizen11.0",
+    "tizenPlatformVersion": "11.0",
+    "sdkBand": "11.0.100-preview.7",
+    "tizenManifestApiVersion": "11",
+    "tizenFxApiLevel": "API15",
+    "referencePack": {
+      "id": "Samsung.Tizen.Ref.API15",
+      "version": "15.0.0.19396"
+    },
+    "workloadManifest": {
+      "id": "samsung.net.sdk.tizen.manifest-11.0.100",
+      "status": "unavailable",
+      "note": "Not published to nuget.org as of 2026-08-26. Only the -9.0.100 and -10.0.100 bands exist; the newest Samsung.Tizen.Sdk is 10.0.128. This is an explicit external gate: the net11.0-tizen11.0 TFM cannot be restored or built anywhere until Samsung publishes this manifest. See docs/migration.md."
+    },
+    "notes": [
+      "No API16 or new reference pack is required; API15 is sufficient.",
+      "Tizen.UIExtensions requires republishing solely to drop its .NET 6-era Microsoft.Maui.Graphics dependencies. No API surface change is expected."
+    ]
+  },
+  "policy": {
+    "minimumDotNet": "11.0",
+    "supportsDotNet10": false,
+    "preservedNamespacePrefix": "Microsoft.Maui",
+    "newImplementationNamespacePrefix": "Microsoft.Maui.Platforms.Tizen",
+    "packageIdPrefix": "Maui.Tizen"
+  }
+}

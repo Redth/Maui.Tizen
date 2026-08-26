@@ -3,6 +3,13 @@
 `Maui.Tizen.Essentials` provides Tizen implementations of the .NET MAUI Essentials service
 contracts as a standalone platform backend for **.NET 11 and newer**.
 
+Registration is the whole integration surface: `AddTizenEssentials(MauiAppBuilder)` adds every
+service below as a `TryAdd` singleton, and .NET 11 MAUI bridges DI-registered Essentials
+services onto their static facades during `MauiApp` initialization (dotnet/maui#36657, first
+available publicly in `11.0.0-preview.7.26418.3`). This package therefore performs no
+`SetDefault` reflection, and ships no `MainThread` platform hook: main-thread marshalling is
+bridged from the registered `IDispatcher`.
+
 Support levels:
 
 | Level | Meaning |
@@ -61,6 +68,19 @@ Profile column values are the Tizen device profiles on which the service is usab
 | `IWebAuthenticator` | `TizenWebAuthenticator` | Unsupported | – | Tizen has no callback URI registration that returns an external browser response to the app. |
 
 <!-- coverage-matrix:end -->
+
+## What is verified, and what is not
+
+| | Status |
+| --- | --- |
+| Sources compile against the real Tizen and MAUI APIs | Verified, by `src/Maui.Tizen.Essentials.HostVerification` |
+| DI registration, facade/`MainThread` ownership, permission privilege mapping, unsupported classification, ported translation logic | Verified, by `tests/Maui.Tizen.Essentials.Tests` (193 tests) |
+| `src/Maui.Tizen.Essentials` builds for `net11.0-tizen11.0` | **Blocked.** Fails with `MAUITIZEN0001`: the Samsung workload manifest `samsung.net.sdk.tizen.manifest-11.0.100` is unpublished. Nobody can build this TFM anywhere yet. |
+| Any behaviour that P/Invokes into Tizen (sensors, AppControl, key manager, NUI capture, TTS, geocoding, ...) | **Blocked.** Requires a Tizen device or emulator, which in turn requires the workload. |
+
+The blocked rows are gates, not gaps in this work, and they are reported rather than papered
+over. The host verification harness deliberately does not pack or publish anything, so it cannot
+be mistaken for a shippable neutral build.
 
 ## Deliberately not provided
 

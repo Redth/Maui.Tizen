@@ -1,31 +1,49 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="$(MSBuildThisFileDirectory)../../eng/targets/TizenPackage.props" />
+
   <PropertyGroup>
-    <TargetFramework>$(MauiTizenDotNetTfm)</TargetFramework>
-    <AssemblyName>Maui.Tizen.Essentials</AssemblyName>
     <RootNamespace>Microsoft.Maui.Platforms.Tizen.Essentials</RootNamespace>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <IsAotCompatible>true</IsAotCompatible>
+    <Description>Tizen platform implementation for .NET MAUI Essentials: sensors, device info, connectivity, storage, media, and application model APIs.</Description>
+
+    <!--
+      Enabled per eng/targets/TizenPackage.props: the imported dotnet/maui `*.tizen.cs`
+      fragments have been reworked into independently named classes that implement the
+      public Essentials contracts, so this project now has real sources to compile.
+
+      The originals are not lost: see PROVENANCE.md and
+      `git log` with a deleted-paths filter on this directory. They are just no longer
+      what ships. They were `partial` halves of Microsoft.Maui.Essentials types and could
+      never have compiled from here.
+
+      This project is still gated on the Samsung .NET 11 workload and will fail with
+      MAUITIZEN0001 until it ships. That gate is deliberate; do not add a neutral
+      net11.0 fallback here. The workload-free verification of these same sources lives
+      in src/Maui.Tizen.Essentials.HostVerification, which packs nothing.
+    -->
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+    <IsPackable>true</IsPackable>
+    <IsAotCompatible Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">true</IsAotCompatible>
     <IsTrimmable>true</IsTrimmable>
+
     <!-- Required by [LibraryImport] source generation (TizenDeviceDisplay power lock). -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <IsPackable>true</IsPackable>
-    <PackageId>Maui.Tizen.Essentials</PackageId>
-    <PackageTags>maui;tizen;essentials;sensors</PackageTags>
-    <Description>Tizen implementations of the .NET MAUI Essentials service contracts, delivered as a standalone platform backend package for .NET 11 and newer.</Description>
-  </PropertyGroup>
-
   <ItemGroup>
-    <PackageReference Include="Microsoft.Maui.Core" />
+    <!--
+      The net11 Essentials extensibility work (PR #36657, commit 0b3bb76d2d) is the
+      minimum API floor for this project: it bridges DI implementations to the static
+      facades, which is what makes an out-of-tree platform implementation possible at
+      all. See eng/baselines.json > requiredAncestor.
+    -->
     <PackageReference Include="Microsoft.Maui.Essentials" />
-    <PackageReference Include="Tizen.NET" />
+    <!-- MauiAppBuilder, used by AddTizenEssentials. -->
+    <PackageReference Include="Microsoft.Maui.Core" />
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Maui.Tizen.Essentials.Tests" />
+    <InternalsVisibleTo Include="Maui.Tizen.Essentials.HostVerification" />
   </ItemGroup>
 
 </Project>

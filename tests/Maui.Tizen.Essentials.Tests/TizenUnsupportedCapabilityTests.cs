@@ -47,7 +47,10 @@ public class TizenUnsupportedCapabilityTests
 	{
 		var authenticator = new TizenWebAuthenticator();
 
+		// The token-less overload is part of the contract under test, so it is called as declared.
+#pragma warning disable xUnit1051
 		Assert.Throws<FeatureNotSupportedException>(() => { _ = authenticator.AuthenticateAsync(null!); });
+#pragma warning restore xUnit1051
 		Assert.Throws<FeatureNotSupportedException>(
 			() => { _ = authenticator.AuthenticateAsync(null!, TestContext.Current.CancellationToken); });
 	}
