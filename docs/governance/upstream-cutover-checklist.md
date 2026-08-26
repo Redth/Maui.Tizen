@@ -42,18 +42,23 @@ the upstream repo(s) being cut over.
 ## 2. .NET SDK workload manifests
 
 - [ ] Confirm whether the Tizen workload manifest currently ships as part
-      of the in-box `maui` workload or a separate `maui-tizen` workload.
-      If in-box today, plan the split to a standalone `maui-tizen`
-      workload manifest owned alongside this repo (aligns with
-      `docs/governance/versioning-policy.md` §3). Coordinate this
-      confirmation with whichever workstream owns workload/CI
+      of the in-box `maui` workload or as the separate `tizen` workload
+      identity (Samsung-owned). If in-box today, plan the split to a
+      standalone `tizen` workload manifest owned alongside this repo
+      (aligns with `docs/governance/versioning-policy.md` §3). Coordinate
+      this confirmation with whichever workstream owns workload/CI
       scaffolding, since the manifest split is a build-time concern, not
       a governance one.
 - [ ] Ensure the .NET SDK's workload resolver can bundle the standalone
-      `maui-tizen` workload without requiring a full SDK release
-      out-of-band (i.e., it can ship via a workload manifest update,
-      following the same pattern as other out-of-band MAUI platform
-      workloads).
+      `tizen` workload without requiring a full SDK release out-of-band
+      (i.e., it can ship via a workload manifest update, following the
+      same pattern as other out-of-band MAUI platform workloads).
+- [ ] Document the actual supported installation path for the `tizen`
+      workload (today: Samsung's installer scripts / private manifest
+      flow, not a public `dotnet workload install` command) in
+      `docs/governance/tizen-support-matrix.md`, and only reference a
+      specific `dotnet workload install` invocation here once that path is
+      confirmed and stable.
 - [ ] Update any `dotnet new` templates that assume in-tree Tizen support
       to instead reference the `Maui.Tizen.*` package set once stable.
 

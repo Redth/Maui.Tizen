@@ -4,27 +4,32 @@ name: Release Maui.Tizen packages
 # STATUS: SKELETON / SAFELY GATED — DO NOT ENABLE PUBLISHING YET.
 #
 # This workflow defines the *shape* of the Maui.Tizen release pipeline:
-# build -> test -> sign -> pack -> validate -> publish, with organization
-# environment approvals between each risk-bearing stage. It intentionally
-# cannot publish a package today:
+# build -> validate -> pack (unsigned, always runs) -> sign -> publish, with
+# organization environment approvals gating only the two risk-bearing
+# stages (sign, publish). Ordinary manual runs — build, validate, and pack —
+# succeed with no credentials and produce unsigned CI packages as workflow
+# artifacts for inspection/testing. It intentionally cannot publish a
+# signed, real package today:
 #
-#   1. `publish` requires the `nuget-production` environment, which does not
-#      exist in this repository yet (create it only after
+#   1. `sign` and `publish` both require the literal "PUBLISH" confirmation
+#      input - a typo-proof, accidental-trigger-proof confirmation, not
+#      just a boolean checkbox. Without it, the run stops after `pack` with
+#      unsigned artifacts only.
+#   2. `sign` requires the `nuget-signing` environment and `publish`
+#      requires the `nuget-production` environment - neither exists in this
+#      repository yet (create them only after
 #      docs/governance/package-metadata-conventions.md's ownership/signing
 #      items are resolved).
-#   2. `publish` is additionally gated behind the `confirm_publish` manual
-#      input, which must literally be the string "PUBLISH" - a typo-proof,
-#      accidental-trigger-proof confirmation, not just a boolean checkbox.
 #   3. This workflow only runs on `workflow_dispatch` (manual) - it is not
 #      wired to tags/releases yet, so it cannot fire unintentionally from a
 #      push or PR.
 #
-# Before enabling real publishing, complete:
+# Before enabling real signing/publishing, complete:
 #   - docs/governance/package-metadata-conventions.md (package IDs, signing,
 #     trusted publishing)
 #   - docs/governance/samsung-transfer-checklist.md sections 2, 4, 5 (or the
 #     interim equivalents, if publishing before transfer)
-#   - Create the `nuget-production` (and `nuget-signing`) GitHub Environments
+#   - Create the `nuget-signing` and `nuget-production` GitHub Environments
 #     with required reviewers configured.
 # ---------------------------------------------------------------------------
 
@@ -39,8 +44,9 @@ on:
         type: string
       confirm_publish:
         description: >-
-          Type PUBLISH (all caps) to allow the publish job to run. Any other
-          value keeps the run in build/validate-only mode.
+          Type PUBLISH (all caps) to allow the sign and publish jobs to run.
+          Any other value stops the run after producing unsigned,
+          validated CI packages (build/validate/pack only).
         required: false
         type: string
         default: ""
@@ -51,7 +57,13 @@ permissions:
 env:
   DOTNET_NOLOGO: "true"
   DOTNET_CLI_TELEMETRY_OPTOUT: "true"
-  DOTNET_SDK_VERSION: "11.0.100" # placeholder - update to the released .NET 11 SDK band per versioning-policy.md
+  # Tracks the .NET 11 SDK band pinned for this repo. There is no stable
+  # .NET 11 release yet, so this intentionally follows the current preview
+  # band rather than inventing a nonexistent stable version number. Once
+  # the foundation workstream publishes a `global.json`, this should read
+  # from that file (e.g. via a small script step) instead of a hardcoded
+  # value, so the two never drift apart.
+  DOTNET_SDK_VERSION: "11.0.100-preview.7"
 
 jobs:
   # -------------------------------------------------------------------------
@@ -115,15 +127,50 @@ jobs:
           echo "for any profile targeted by this release. Intentionally non-blocking until wired up."
 
   # -------------------------------------------------------------------------
-  # Code + package signing. Requires the `nuget-signing` environment, which
-  # should be configured with required reviewers and an organization-owned
-  # signing credential (never a personal certificate - see
-  # docs/governance/package-metadata-conventions.md section 3).
+  # Pack the validated build output into UNSIGNED .nupkg/.snupkg artifacts
+  # and upload them for inspection/testing. No environment gate - this is
+  # the normal end state of a manual run that does not request publishing,
+  # so contributors can produce and inspect CI packages without needing any
+  # signing credential or approval.
+  # -------------------------------------------------------------------------
+  pack:
+    name: Pack (unsigned CI packages)
+    runs-on: ubuntu-latest
+    needs: [build, validate]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Pack (placeholder)
+        run: |
+          echo "TODO: dotnet pack for each Maui.Tizen.* project, version ${{ needs.build.outputs.package_version }}"
+          echo "Conventions: docs/governance/package-metadata-conventions.md section 2."
+          echo "Output here is UNSIGNED and not suitable for production publish - see the sign job."
+
+      - name: Upload unsigned package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: maui-tizen-packages-unsigned-${{ needs.build.outputs.package_version }}
+          path: |
+            **/*.nupkg
+            **/*.snupkg
+          if-no-files-found: warn
+          retention-days: 90
+
+  # -------------------------------------------------------------------------
+  # Code + package signing. Only runs when the caller explicitly typed
+  # "PUBLISH". Requires the `nuget-signing` environment, which should be
+  # configured with required reviewers and an organization-owned signing
+  # credential (never a personal certificate - see
+  # docs/governance/package-metadata-conventions.md section 3). This
+  # environment does not exist in the repository yet, so this job cannot
+  # currently succeed even when "PUBLISH" is typed - that is intentional.
   # -------------------------------------------------------------------------
   sign:
-    name: Sign packages
+    name: Sign packages (production only)
     runs-on: ubuntu-latest
-    needs: validate
+    needs: pack
+    if: ${{ inputs.confirm_publish == 'PUBLISH' }}
     environment: nuget-signing
     steps:
       - name: Checkout
@@ -137,43 +184,17 @@ jobs:
           exit 1
 
   # -------------------------------------------------------------------------
-  # Pack the (signed) build output into .nupkg/.snupkg artifacts and upload
-  # them as workflow artifacts for audit, regardless of whether publish runs.
-  # -------------------------------------------------------------------------
-  pack:
-    name: Pack
-    runs-on: ubuntu-latest
-    needs: [build, sign]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Pack (placeholder)
-        run: |
-          echo "TODO: dotnet pack for each Maui.Tizen.* project, version ${{ needs.build.outputs.package_version }}"
-          echo "Conventions: docs/governance/package-metadata-conventions.md section 2."
-
-      - name: Upload package artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: maui-tizen-packages-${{ needs.build.outputs.package_version }}
-          path: |
-            **/*.nupkg
-            **/*.snupkg
-          if-no-files-found: warn
-          retention-days: 90
-
-  # -------------------------------------------------------------------------
   # Publish. Double-gated: requires both the `nuget-production` environment
-  # (required reviewers) AND the literal "PUBLISH" confirmation input.
-  # This environment does not exist in the repository yet - creating it is
-  # itself a transfer-readiness action tracked in
+  # (required reviewers) AND the literal "PUBLISH" confirmation input, and
+  # only runs after `sign` has produced signed artifacts. This environment
+  # does not exist in the repository yet - creating it is itself a
+  # transfer-readiness action tracked in
   # docs/governance/samsung-transfer-checklist.md.
   # -------------------------------------------------------------------------
   publish:
     name: Publish to NuGet (disabled until ownership/signing finalized)
     runs-on: ubuntu-latest
-    needs: pack
+    needs: sign
     if: ${{ inputs.confirm_publish == 'PUBLISH' }}
     environment: nuget-production
     steps:

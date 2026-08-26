@@ -95,8 +95,9 @@ both the transferring and receiving org.
       a defined window, in case of an issue only discoverable from
       pre-transfer context.
 - [ ] Incident/security contact path in `SECURITY.md` updated to Samsung's
-      designated channel (see `SECURITY.md` §"Post-transfer" note) with
-      the MSRC fallback only removed once the new channel is tested.
+      designated channel (see `SECURITY.md` §"Post-transfer requirement")
+      with the interim GitHub private-vulnerability-reporting channel only
+      removed once the new Samsung channel is tested and confirmed.
 
 ## 8. Mandatory rehearsal release
 

@@ -39,8 +39,8 @@ evaluating whether raising a minimum API level is a breaking change.
 | Dependency | Minimum version | Notes |
 | --- | --- | --- |
 | `Tizen.NET.Sdk` | TBD | Samsung-published SDK; pin range per `docs/governance/versioning-policy.md` §3 |
-| Tizen workload manifest (`maui-tizen`) | TBD | Published once workload authoring lands (separate workstream) |
-| .NET SDK | `11.0.1xx` (band TBD) | Must match the .NET train this release line targets |
+| Tizen workload manifest (`tizen`) | TBD | Samsung-published workload identity; install path is Samsung's installer scripts/private manifest flow, not a public `dotnet workload install` today — record the exact confirmed steps here once validated |
+| .NET SDK | pinned via `global.json` once published (target: .NET 11 preview band, e.g. `11.0.100-preview.7`) | Must match the .NET train this release line targets |
 | Emulator / device images used for validation | TBD | List specific emulator image versions, not just "latest" |
 
 ## Process for updating this file

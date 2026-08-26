@@ -20,23 +20,22 @@ tracked in `docs/governance/tizen-support-matrix.md`.
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Please report suspected security vulnerabilities using one of the following
-channels, in order of preference:
+Please report suspected security vulnerabilities using GitHub's private
+vulnerability reporting:
 
-1. **GitHub private vulnerability reporting**: use the "Report a
-   vulnerability" button under this repository's Security tab
-   (Security → Advisories → "Report a vulnerability"). This is the preferred
-   channel once the transfer to the target GitHub org is complete and
-   private reporting is enabled.
-2. **Microsoft Security Response Center (MSRC)**: while this repository is
-   maintained under a Microsoft-affiliated org, vulnerabilities may also be
-   reported via <https://msrc.microsoft.com/create-report>, following the
-   [Microsoft `SECURITY.md` guidance](https://github.com/microsoft/repo-templates/blob/main/shared/SECURITY.md).
-3. **Post-transfer**: once ownership moves to Samsung (see
-   `docs/governance/samsung-transfer-checklist.md`), this section must be
-   updated with Samsung's designated security contact/process before the
-   MSRC channel is removed. Do not remove the MSRC channel until a
-   replacement contact is confirmed and tested.
+- Use the **"Report a vulnerability"** button under this repository's
+  Security tab (Security → Advisories → "Report a vulnerability"). This is
+  the interim reporting channel for `Redth/Maui.Tizen` today.
+
+**Post-transfer requirement**: once ownership moves to Samsung (see
+`docs/governance/samsung-transfer-checklist.md`), this section **must** be
+updated with Samsung's designated security contact/process (e.g. a
+Samsung PSIRT alias or equivalent) as a required transfer item — do not
+leave this pointing at the interim maintainer's private-reporting channel
+after transfer. No other reporting channel (e.g. MSRC) is authorized for
+this repository unless a future repository owner explicitly documents that
+authorization here; this repository is not currently affiliated with, nor
+does it route reports to, Microsoft.
 
 Please include as much detail as possible:
 

@@ -12,10 +12,15 @@ own release cadence.
 Maui.Tizen tracks the **.NET 11** release train as its baseline, matching
 .NET MAUI's own major-version alignment with .NET:
 
-- **Target Framework Moniker (TFM)**: packages target
-  `net11.0-tizen` (platform-specific TFM, mirroring the pattern of
-  `net11.0-android`, `net11.0-ios`, etc. in `dotnet/maui`), plus a
-  `net11.0` reference/facade target only where a package is purely
+- **Target Framework Moniker (TFM)**: packages target the **versioned**
+  platform TFM `net11.0-tizen11.0` as the primary, always-built target
+  (mirroring versioned platform TFMs such as `net11.0-android35.0` /
+  `net11.0-ios18.0` in `dotnet/maui` — Tizen platform TFMs are versioned,
+  not bare `net11.0-tizen`). Lower Tizen API-level TFMs (e.g.
+  `net11.0-tizen9.0`, `net11.0-tizen8.0`) are **optional matrix entries**,
+  added only when `docs/governance/tizen-support-matrix.md` records a
+  concrete, validated need to multi-target down-level, not by default. A
+  `net11.0` reference/facade target is used only where a package is purely
   abstractions with no Tizen-specific implementation.
 - **MAUI version alignment**: the `Microsoft.Maui.*` package versions
   referenced by `Maui.Tizen.*` packages must be within the same .NET 11
@@ -55,12 +60,23 @@ for consumers picking Tizen packages alongside core MAUI packages.
 
 ## 3. MAUI / Tizen workload dependency policy
 
-- **Workload manifest pinning**: `Maui.Tizen.*` packages declare a minimum
-  and, where necessary, maximum supported Tizen workload manifest version
-  (via the `maui-tizen` workload, once published) in package metadata /
+- **Workload identity**: the Samsung-published Tizen workload identity is
+  `tizen` (not a `maui-tizen`-prefixed identity). `Maui.Tizen.*` packages
+  declare a minimum and, where necessary, maximum supported `tizen`
+  workload manifest version in package metadata /
   `PackageValidationBaselineVersion`-style tracking. The workload manifest
-  version must be published and versioned independently but stay within the
-  same .NET 11 SDK band.
+  version is published and versioned independently by Samsung but must
+  stay within the same .NET 11 SDK band.
+- **Installation path**: workload installation currently does **not** go
+  through a plain `dotnet workload install <id>` against the public NuGet
+  feed — Samsung's Tizen .NET tooling is installed via Samsung's own
+  installer scripts and a private/side-loaded workload manifest flow (the
+  exact command and manifest source depend on the Samsung Tizen .NET SDK
+  release being targeted). Do not document a specific `dotnet workload
+  install` invocation here until that flow is confirmed and stable; the
+  authoritative, version-specific install instructions belong in
+  `docs/governance/tizen-support-matrix.md` (or a linked Samsung doc) once
+  populated, not hardcoded into this policy.
 - **No implicit floating dependencies**: package references to
   `Microsoft.Maui.*` and Tizen SDK/NuGet dependencies use exact or
   minimum-inclusive version ranges (`[11.0.0, 12.0.0)`-style floors are
@@ -70,10 +86,10 @@ for consumers picking Tizen packages alongside core MAUI packages.
   with Samsung's `Tizen.NET.Sdk` and `Tizen.NET.API*` packages is tracked
   explicitly in `docs/governance/tizen-support-matrix.md` and must be
   updated any time the minimum supported Tizen API level changes.
-- **Workload install requirement**: packages that require the Tizen
-  workload (`dotnet workload install maui-tizen` or equivalent, once
-  defined) must fail fast with an actionable build error rather than a
-  silent restore failure when the workload is missing. This is a build-time
+- **Workload install requirement**: packages that require the `tizen`
+  workload must fail fast with an actionable build error (pointing at the
+  install path documented in the support matrix) rather than a silent
+  restore failure when the workload is missing. This is a build-time
   requirement tracked against the (separately owned) core scaffolding, not
   this policy directly — flagged here so release validation
   (`.github/workflows/release.yml`) can assert it.
