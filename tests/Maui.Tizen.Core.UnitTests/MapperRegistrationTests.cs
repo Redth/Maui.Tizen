@@ -90,10 +90,17 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		{
 			// Guards against quietly losing a core IView property when re-basing off MAUI's mapper.
 			// The exclusions are deliberate and each has a recorded reason.
+			// Force MAUI Controls to run RemapForControls before comparing. It mutates the STATIC
+			// ViewHandler.ViewMapper at runtime, so without this the comparison silently depends on
+			// whether some other test happened to touch Controls first - which is exactly how this
+			// test passed locally and failed in CI.
+			_ = new Microsoft.Maui.Controls.Label();
+
 			var excluded = new HashSet<string>(StringComparer.Ordinal)
 			{
 				// Both require a container view, which an out-of-repo backend cannot construct -
-				// ViewHandler.ContainerView has a private protected setter. See G1.
+				// ViewHandler.ContainerView has a private protected setter. See G1. These are the
+				// ONLY exclusions; anything else must be genuinely reachable.
 				"ContainerView",
 				"Border",
 			};
@@ -123,12 +130,12 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Theory]
-		[InlineData(nameof(ITizenLayoutHandler.Add))]
-		[InlineData(nameof(ITizenLayoutHandler.Remove))]
-		[InlineData(nameof(ITizenLayoutHandler.Clear))]
-		[InlineData(nameof(ITizenLayoutHandler.Insert))]
-		[InlineData(nameof(ITizenLayoutHandler.Update))]
-		[InlineData(nameof(ITizenLayoutHandler.UpdateZIndex))]
+		[InlineData(nameof(ILayoutHandler.Add))]
+		[InlineData(nameof(ILayoutHandler.Remove))]
+		[InlineData(nameof(ILayoutHandler.Clear))]
+		[InlineData(nameof(ILayoutHandler.Insert))]
+		[InlineData(nameof(ILayoutHandler.Update))]
+		[InlineData(nameof(ILayoutHandler.UpdateZIndex))]
 		public void LayoutCommandMapperDefinesKey(string key) =>
 			Assert.NotNull(TizenLayoutHandler.CommandMapper.GetCommand(key));
 

@@ -148,13 +148,27 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Fact]
-		public void CreateRaisesCreatedThenActivated()
+		public void CreateRaisesOnlyCreated()
 		{
+			// Activated must NOT come from OnCreate. Tizen always follows OnCreate with OnResume,
+			// and MAUI's contract everywhere else is Created -> Resumed -> Activated.
 			var (bridge, window) = CreateBridge();
 
 			bridge.OnCreate();
 
-			Assert.Equal(new[] { "Created", "Activated" }, window.Events);
+			Assert.Equal(new[] { "Created" }, window.Events);
+		}
+
+		[Fact]
+		public void StartupOrderIsCreatedThenResumedThenActivated()
+		{
+			// The real Tizen startup sequence, in order.
+			var (bridge, window) = CreateBridge();
+
+			bridge.OnCreate();
+			bridge.OnResume();
+
+			Assert.Equal(new[] { "Created", "Resumed", "Activated" }, window.Events);
 		}
 
 		[Fact]
@@ -162,6 +176,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		{
 			var (bridge, window) = CreateBridge();
 			bridge.OnCreate();
+			bridge.OnResume();
 			window.Events.Clear();
 
 			bridge.OnPause();
@@ -174,6 +189,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		{
 			var (bridge, window) = CreateBridge();
 			bridge.OnCreate();
+			bridge.OnResume();
 			bridge.OnPause();
 			window.Events.Clear();
 
@@ -187,6 +203,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		{
 			var (bridge, window) = CreateBridge();
 			bridge.OnCreate();
+			bridge.OnResume();
 			window.Events.Clear();
 
 			bridge.OnTerminate();
@@ -221,6 +238,29 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			bridge.OnCreate();
 
 			Assert.Single(window.Events.FindAll(e => e == "Created"));
+		}
+
+		[Fact]
+		public void FullLifecycleSequenceIsOrdered()
+		{
+			var (bridge, window) = CreateBridge();
+
+			bridge.OnCreate();
+			bridge.OnResume();
+			bridge.OnPause();
+			bridge.OnResume();
+			bridge.OnTerminate();
+
+			Assert.Equal(
+				new[]
+				{
+					"Created",
+					"Resumed", "Activated",
+					"Deactivated", "Stopped",
+					"Resumed", "Activated",
+					"Deactivated", "Destroying",
+				},
+				window.Events);
 		}
 
 		[Fact]

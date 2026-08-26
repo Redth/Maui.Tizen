@@ -7,31 +7,39 @@ These files **replace** dotnet/maui's inherited `Microsoft.Maui.*` baselines und
 
 The inherited baselines describe ~3,270 members of a completely different assembly. This project
 exports `Microsoft.Maui.Platforms.Tizen.*`. With `Microsoft.CodeAnalysis.PublicApiAnalyzers` also
-referenced, leaving them attached makes the real product build fail twice over:
-
-* **RS0017** for every one of the ~3,270 inherited entries, none of which exist here.
-* **RS0016** for every type this assembly actually does export.
-
-Neither diagnostic would say anything useful about a genuine API change, so the baselines would be
-noise that has to be suppressed wholesale - which is worse than having none.
+referenced, leaving them attached makes the real product build fail twice over: **RS0017** for
+every inherited entry that does not exist here, and **RS0016** for every type this assembly does
+export.
 
 The inherited files are deliberately kept on disk: they are the imported baseline for the sources
 that have not been ported yet, and the API-comparison tooling in `eng/api-baselines/` consumes
 them. They are simply detached from the analyzer for this project.
 
-## Why these files are empty, and what is still enforced
+## How these were generated
 
-`RS0016` (undeclared public symbol) is suppressed, with the reason recorded in both
-`Maui.Tizen.Core.csproj` and `tests/Maui.Tizen.Core.RefPackCompile`. The assembly cannot be built
-until Samsung publishes the .NET 11 Tizen workload, so the analyzer's own code fix cannot enumerate
-its public surface. Hand-writing ~1,000 signatures that no build can verify would produce a
-baseline nobody should trust - a worse outcome than an explicitly empty one.
+Not by hand. They are the output of the analyzer's own code fix, applied to the real compiled
+assembly:
 
-**`RS0017` is left enabled**, and that is the check that matters today: it fires immediately if the
-inherited baselines are re-attached by mistake, which is the actual defect this directory exists to
-prevent.
+```bash
+dotnet format analyzers tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj \
+  --diagnostics RS0016 --severity warn
+```
 
-## What to do when the workload ships
+`tests/Maui.Tizen.Core.RefPackCompile` compiles the exact product sources against the real TizenFX
+reference assemblies, so the entries are the genuine emitted surface - not a transcription that no
+build could verify. RS0016 is **not** suppressed anywhere.
 
-Run the analyzer code fix (`Add to public API`) over `src/Maui.Tizen.Core`, remove the `RS0016`
-suppression from both projects, and commit the populated files. See `docs/net11-status.md`.
+## What is enforced
+
+The analyzer runs over the real product sources in the ref-pack lane on every CI run, with
+**RS0016**, **RS0017** and **RS0036** all active. `ProjectEvaluationTests` additionally pins that
+the inherited baselines stay detached, and `PublicApiBaselineTests` pins the content of these files
+against the compiled assembly so a public API change cannot land without updating them.
+
+The sample's API lives in `samples/Maui.Tizen.Sample/PublicAPI/`, kept separate so this file
+describes only what the package would actually ship.
+
+## Regenerating
+
+Re-run the command above after any intentional public API change, then review the diff - an
+unexpected entry is the signal this baseline exists to give you.

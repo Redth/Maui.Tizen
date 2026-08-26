@@ -30,8 +30,6 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
     <NoWarn>$(NoWarn);CS1591;NU1701</NoWarn>
-    <!-- See PublicAPI/slice/PublicAPI.Unshipped.txt for why RS0016 is suppressed and RS0017 is not. -->
-    <NoWarn>$(NoWarn);RS0016</NoWarn>
 
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
 
@@ -49,8 +47,20 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <!--
+      The product baseline. This is the one that matters: it is what src/Maui.Tizen.Core itself
+      consumes, and what a reviewer should read to see this package's public surface.
+    -->
     <AdditionalFiles Include="$(RepositoryRoot)src/Maui.Tizen.Core/PublicAPI/slice/PublicAPI.Shipped.txt" />
     <AdditionalFiles Include="$(RepositoryRoot)src/Maui.Tizen.Core/PublicAPI/slice/PublicAPI.Unshipped.txt" />
+
+    <!--
+      The sample's baseline, kept separate so the product baseline is not polluted with app types.
+      This lane compiles the sample sources too (so they are type-checked against real TizenFX), and
+      the analyzer sees one merged API surface, hence both files.
+    -->
+    <AdditionalFiles Include="$(RepositoryRoot)samples/Maui.Tizen.Sample/PublicAPI/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="$(RepositoryRoot)samples/Maui.Tizen.Sample/PublicAPI/PublicAPI.Unshipped.txt" />
   </ItemGroup>
 
   <ItemGroup>

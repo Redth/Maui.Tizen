@@ -1,0 +1,146 @@
+#nullable enable
+Maui.Tizen.Sample.MauiProgram
+Maui.Tizen.Sample.SampleApplication
+Maui.Tizen.Sample.SampleApplication.ActivateWindow(Microsoft.Maui.IWindow! window) -> void
+Maui.Tizen.Sample.SampleApplication.CloseWindow(Microsoft.Maui.IWindow! window) -> void
+Maui.Tizen.Sample.SampleApplication.CreateWindow(Microsoft.Maui.IActivationState? activationState) -> Microsoft.Maui.IWindow!
+Maui.Tizen.Sample.SampleApplication.Handler.get -> Microsoft.Maui.IElementHandler?
+Maui.Tizen.Sample.SampleApplication.Handler.set -> void
+Maui.Tizen.Sample.SampleApplication.OpenWindow(Microsoft.Maui.IWindow! window) -> void
+Maui.Tizen.Sample.SampleApplication.Parent.get -> Microsoft.Maui.IElement?
+Maui.Tizen.Sample.SampleApplication.Parent.set -> void
+Maui.Tizen.Sample.SampleApplication.SampleApplication() -> void
+Maui.Tizen.Sample.SampleApplication.ThemeChanged() -> void
+Maui.Tizen.Sample.SampleApplication.UserAppTheme.get -> Microsoft.Maui.ApplicationModel.AppTheme
+Maui.Tizen.Sample.SampleApplication.UserAppTheme.set -> void
+Maui.Tizen.Sample.SampleApplication.Windows.get -> System.Collections.Generic.IReadOnlyList<Microsoft.Maui.IWindow!>!
+Maui.Tizen.Sample.SampleLabel
+Maui.Tizen.Sample.SampleLabel.CharacterSpacing.get -> double
+Maui.Tizen.Sample.SampleLabel.CharacterSpacing.set -> void
+Maui.Tizen.Sample.SampleLabel.Font.get -> Microsoft.Maui.Font
+Maui.Tizen.Sample.SampleLabel.Font.set -> void
+Maui.Tizen.Sample.SampleLabel.HorizontalTextAlignment.get -> Microsoft.Maui.TextAlignment
+Maui.Tizen.Sample.SampleLabel.HorizontalTextAlignment.set -> void
+Maui.Tizen.Sample.SampleLabel.LineHeight.get -> double
+Maui.Tizen.Sample.SampleLabel.LineHeight.set -> void
+Maui.Tizen.Sample.SampleLabel.Padding.get -> Microsoft.Maui.Thickness
+Maui.Tizen.Sample.SampleLabel.SampleLabel() -> void
+Maui.Tizen.Sample.SampleLabel.Text.get -> string!
+Maui.Tizen.Sample.SampleLabel.Text.set -> void
+Maui.Tizen.Sample.SampleLabel.TextColor.get -> Microsoft.Maui.Graphics.Color!
+Maui.Tizen.Sample.SampleLabel.TextColor.set -> void
+Maui.Tizen.Sample.SampleLabel.TextDecorations.get -> Microsoft.Maui.TextDecorations
+Maui.Tizen.Sample.SampleLabel.TextDecorations.set -> void
+Maui.Tizen.Sample.SampleLabel.VerticalTextAlignment.get -> Microsoft.Maui.TextAlignment
+Maui.Tizen.Sample.SampleLabel.VerticalTextAlignment.set -> void
+Maui.Tizen.Sample.SamplePage
+Maui.Tizen.Sample.SamplePage.Content.get -> object?
+Maui.Tizen.Sample.SamplePage.CrossPlatformArrange(Microsoft.Maui.Graphics.Rect bounds) -> Microsoft.Maui.Graphics.Size
+Maui.Tizen.Sample.SamplePage.CrossPlatformMeasure(double widthConstraint, double heightConstraint) -> Microsoft.Maui.Graphics.Size
+Maui.Tizen.Sample.SamplePage.Padding.get -> Microsoft.Maui.Thickness
+Maui.Tizen.Sample.SamplePage.PresentedContent.get -> Microsoft.Maui.IView?
+Maui.Tizen.Sample.SamplePage.SamplePage(Microsoft.Maui.IView! content) -> void
+Maui.Tizen.Sample.SampleStackLayout
+Maui.Tizen.Sample.SampleStackLayout.Add(Microsoft.Maui.IView! item) -> void
+Maui.Tizen.Sample.SampleStackLayout.Clear() -> void
+Maui.Tizen.Sample.SampleStackLayout.ClipsToBounds.get -> bool
+Maui.Tizen.Sample.SampleStackLayout.Contains(Microsoft.Maui.IView! item) -> bool
+Maui.Tizen.Sample.SampleStackLayout.CopyTo(Microsoft.Maui.IView![]! array, int arrayIndex) -> void
+Maui.Tizen.Sample.SampleStackLayout.Count.get -> int
+Maui.Tizen.Sample.SampleStackLayout.CrossPlatformArrange(Microsoft.Maui.Graphics.Rect bounds) -> Microsoft.Maui.Graphics.Size
+Maui.Tizen.Sample.SampleStackLayout.CrossPlatformMeasure(double widthConstraint, double heightConstraint) -> Microsoft.Maui.Graphics.Size
+Maui.Tizen.Sample.SampleStackLayout.GetEnumerator() -> System.Collections.Generic.IEnumerator<Microsoft.Maui.IView!>!
+Maui.Tizen.Sample.SampleStackLayout.IgnoreSafeArea.get -> bool
+Maui.Tizen.Sample.SampleStackLayout.IndexOf(Microsoft.Maui.IView! item) -> int
+Maui.Tizen.Sample.SampleStackLayout.Insert(int index, Microsoft.Maui.IView! item) -> void
+Maui.Tizen.Sample.SampleStackLayout.IsReadOnly.get -> bool
+Maui.Tizen.Sample.SampleStackLayout.Padding.get -> Microsoft.Maui.Thickness
+Maui.Tizen.Sample.SampleStackLayout.Padding.set -> void
+Maui.Tizen.Sample.SampleStackLayout.Remove(Microsoft.Maui.IView! item) -> bool
+Maui.Tizen.Sample.SampleStackLayout.RemoveAt(int index) -> void
+Maui.Tizen.Sample.SampleStackLayout.SampleStackLayout() -> void
+Maui.Tizen.Sample.SampleStackLayout.Spacing.get -> double
+Maui.Tizen.Sample.SampleStackLayout.Spacing.set -> void
+Maui.Tizen.Sample.SampleStackLayout.this[int index].get -> Microsoft.Maui.IView!
+Maui.Tizen.Sample.SampleStackLayout.this[int index].set -> void
+Maui.Tizen.Sample.SampleView
+Maui.Tizen.Sample.SampleView.DesiredSize.get -> Microsoft.Maui.Graphics.Size
+Maui.Tizen.Sample.SampleView.DesiredSize.set -> void
+Maui.Tizen.Sample.SampleView.Focus() -> bool
+Maui.Tizen.Sample.SampleView.Frame.get -> Microsoft.Maui.Graphics.Rect
+Maui.Tizen.Sample.SampleView.Frame.set -> void
+Maui.Tizen.Sample.SampleView.Handler.get -> Microsoft.Maui.IViewHandler?
+Maui.Tizen.Sample.SampleView.Handler.set -> void
+Maui.Tizen.Sample.SampleView.InvalidateArrange() -> void
+Maui.Tizen.Sample.SampleView.InvalidateMeasure() -> void
+Maui.Tizen.Sample.SampleView.IsFocused.get -> bool
+Maui.Tizen.Sample.SampleView.IsFocused.set -> void
+Maui.Tizen.Sample.SampleView.Parent.get -> Microsoft.Maui.IElement?
+Maui.Tizen.Sample.SampleView.Parent.set -> void
+Maui.Tizen.Sample.SampleView.SampleView() -> void
+Maui.Tizen.Sample.SampleView.Unfocus() -> void
+Maui.Tizen.Sample.SampleWindow
+Maui.Tizen.Sample.SampleWindow.Activated() -> void
+Maui.Tizen.Sample.SampleWindow.AddOverlay(Microsoft.Maui.IWindowOverlay! overlay) -> bool
+Maui.Tizen.Sample.SampleWindow.BackButtonClicked() -> bool
+Maui.Tizen.Sample.SampleWindow.Backgrounding(Microsoft.Maui.IPersistedState! state) -> void
+Maui.Tizen.Sample.SampleWindow.Content.get -> Microsoft.Maui.IView!
+Maui.Tizen.Sample.SampleWindow.Created() -> void
+Maui.Tizen.Sample.SampleWindow.Deactivated() -> void
+Maui.Tizen.Sample.SampleWindow.Destroying() -> void
+Maui.Tizen.Sample.SampleWindow.DisplayDensityChanged(float displayDensity) -> void
+Maui.Tizen.Sample.SampleWindow.FlowDirection.get -> Microsoft.Maui.FlowDirection
+Maui.Tizen.Sample.SampleWindow.FrameChanged(Microsoft.Maui.Graphics.Rect frame) -> void
+Maui.Tizen.Sample.SampleWindow.Handler.get -> Microsoft.Maui.IElementHandler?
+Maui.Tizen.Sample.SampleWindow.Handler.set -> void
+Maui.Tizen.Sample.SampleWindow.Height.get -> double
+Maui.Tizen.Sample.SampleWindow.MaximumHeight.get -> double
+Maui.Tizen.Sample.SampleWindow.MaximumWidth.get -> double
+Maui.Tizen.Sample.SampleWindow.MinimumHeight.get -> double
+Maui.Tizen.Sample.SampleWindow.MinimumWidth.get -> double
+Maui.Tizen.Sample.SampleWindow.Overlays.get -> System.Collections.Generic.IReadOnlyCollection<Microsoft.Maui.IWindowOverlay!>!
+Maui.Tizen.Sample.SampleWindow.Parent.get -> Microsoft.Maui.IElement?
+Maui.Tizen.Sample.SampleWindow.PersistedState.get -> Microsoft.Maui.IPersistedState!
+Maui.Tizen.Sample.SampleWindow.RemoveOverlay(Microsoft.Maui.IWindowOverlay! overlay) -> bool
+Maui.Tizen.Sample.SampleWindow.RequestDisplayDensity() -> float
+Maui.Tizen.Sample.SampleWindow.Resumed() -> void
+Maui.Tizen.Sample.SampleWindow.SampleWindow() -> void
+Maui.Tizen.Sample.SampleWindow.Stopped() -> void
+Maui.Tizen.Sample.SampleWindow.Title.get -> string!
+Maui.Tizen.Sample.SampleWindow.VisualDiagnosticsOverlay.get -> Microsoft.Maui.IVisualDiagnosticsOverlay!
+Maui.Tizen.Sample.SampleWindow.Width.get -> double
+Maui.Tizen.Sample.SampleWindow.X.get -> double
+Maui.Tizen.Sample.SampleWindow.Y.get -> double
+static Maui.Tizen.Sample.MauiProgram.CreateMauiApp() -> Microsoft.Maui.Hosting.MauiApp!
+virtual Maui.Tizen.Sample.SampleView.AnchorX.get -> double
+virtual Maui.Tizen.Sample.SampleView.AnchorY.get -> double
+virtual Maui.Tizen.Sample.SampleView.Arrange(Microsoft.Maui.Graphics.Rect bounds) -> Microsoft.Maui.Graphics.Size
+virtual Maui.Tizen.Sample.SampleView.AutomationId.get -> string!
+virtual Maui.Tizen.Sample.SampleView.Background.get -> Microsoft.Maui.Graphics.Paint?
+virtual Maui.Tizen.Sample.SampleView.Clip.get -> Microsoft.Maui.Graphics.IShape?
+virtual Maui.Tizen.Sample.SampleView.FlowDirection.get -> Microsoft.Maui.FlowDirection
+virtual Maui.Tizen.Sample.SampleView.Height.get -> double
+virtual Maui.Tizen.Sample.SampleView.HorizontalLayoutAlignment.get -> Microsoft.Maui.Primitives.LayoutAlignment
+virtual Maui.Tizen.Sample.SampleView.InputTransparent.get -> bool
+virtual Maui.Tizen.Sample.SampleView.IsEnabled.get -> bool
+virtual Maui.Tizen.Sample.SampleView.Margin.get -> Microsoft.Maui.Thickness
+virtual Maui.Tizen.Sample.SampleView.MaximumHeight.get -> double
+virtual Maui.Tizen.Sample.SampleView.MaximumWidth.get -> double
+virtual Maui.Tizen.Sample.SampleView.Measure(double widthConstraint, double heightConstraint) -> Microsoft.Maui.Graphics.Size
+virtual Maui.Tizen.Sample.SampleView.MinimumHeight.get -> double
+virtual Maui.Tizen.Sample.SampleView.MinimumWidth.get -> double
+virtual Maui.Tizen.Sample.SampleView.Opacity.get -> double
+virtual Maui.Tizen.Sample.SampleView.Rotation.get -> double
+virtual Maui.Tizen.Sample.SampleView.RotationX.get -> double
+virtual Maui.Tizen.Sample.SampleView.RotationY.get -> double
+virtual Maui.Tizen.Sample.SampleView.Scale.get -> double
+virtual Maui.Tizen.Sample.SampleView.ScaleX.get -> double
+virtual Maui.Tizen.Sample.SampleView.ScaleY.get -> double
+virtual Maui.Tizen.Sample.SampleView.Semantics.get -> Microsoft.Maui.Semantics?
+virtual Maui.Tizen.Sample.SampleView.Shadow.get -> Microsoft.Maui.IShadow?
+virtual Maui.Tizen.Sample.SampleView.TranslationX.get -> double
+virtual Maui.Tizen.Sample.SampleView.TranslationY.get -> double
+virtual Maui.Tizen.Sample.SampleView.VerticalLayoutAlignment.get -> Microsoft.Maui.Primitives.LayoutAlignment
+virtual Maui.Tizen.Sample.SampleView.Visibility.get -> Microsoft.Maui.Visibility
+virtual Maui.Tizen.Sample.SampleView.Width.get -> double
+virtual Maui.Tizen.Sample.SampleView.ZIndex.get -> int

@@ -16,13 +16,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// mapper keys intentionally match <c>Microsoft.Maui.ILayoutHandler</c> member names because
 	/// MAUI Controls raises child operations by key string.
 	/// </remarks>
-	public class TizenLayoutHandler : TizenViewHandler<ILayout, TizenLayoutViewGroup>, ITizenLayoutHandler
+	public class TizenLayoutHandler : TizenViewHandler<ILayout, TizenLayoutViewGroup>, ILayoutHandler
 	{
 		readonly List<IView> _children = new();
 
 		/// <summary>Property mapper for <see cref="ILayout"/> on Tizen.</summary>
-		public static readonly IPropertyMapper<ILayout, ITizenLayoutHandler> Mapper =
-			new PropertyMapper<ILayout, ITizenLayoutHandler>(TizenViewMappers.ViewMapper)
+		public static readonly IPropertyMapper<ILayout, ILayoutHandler> Mapper =
+			new PropertyMapper<ILayout, ILayoutHandler>(TizenViewMappers.ViewMapper, LayoutHandler.Mapper)
 			{
 				[nameof(ILayout.Background)] = MapBackground,
 				[nameof(ILayout.ClipsToBounds)] = MapClipsToBounds,
@@ -30,15 +30,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		/// <summary>Command mapper for <see cref="ILayout"/> on Tizen.</summary>
-		public static readonly CommandMapper<ILayout, ITizenLayoutHandler> CommandMapper =
+		public static readonly CommandMapper<ILayout, ILayoutHandler> CommandMapper =
 			new(TizenViewMappers.ViewCommandMapper)
 			{
-				[nameof(ITizenLayoutHandler.Add)] = MapAdd,
-				[nameof(ITizenLayoutHandler.Remove)] = MapRemove,
-				[nameof(ITizenLayoutHandler.Clear)] = MapClear,
-				[nameof(ITizenLayoutHandler.Insert)] = MapInsert,
-				[nameof(ITizenLayoutHandler.Update)] = MapUpdate,
-				[nameof(ITizenLayoutHandler.UpdateZIndex)] = MapUpdateZIndex,
+				[nameof(ILayoutHandler.Add)] = MapAdd,
+				[nameof(ILayoutHandler.Remove)] = MapRemove,
+				[nameof(ILayoutHandler.Clear)] = MapClear,
+				[nameof(ILayoutHandler.Insert)] = MapInsert,
+				[nameof(ILayoutHandler.Update)] = MapUpdate,
+				[nameof(ILayoutHandler.UpdateZIndex)] = MapUpdateZIndex,
 			};
 
 		/// <summary>Initializes a new instance of the <see cref="TizenLayoutHandler"/> class.</summary>
@@ -55,9 +55,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 		}
 
-		ILayout ITizenLayoutHandler.VirtualView => VirtualView;
+		ILayout ILayoutHandler.VirtualView => VirtualView;
 
-		TizenLayoutViewGroup ITizenLayoutHandler.PlatformView => PlatformView;
+		object ILayoutHandler.PlatformView => PlatformView;
 
 		/// <inheritdoc />
 		protected override TizenLayoutViewGroup CreatePlatformView()
@@ -226,20 +226,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>Maps <see cref="IView.Background"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="layout">The layout.</param>
-		public static void MapBackground(ITizenLayoutHandler handler, ILayout layout)
+		public static void MapBackground(ILayoutHandler handler, ILayout layout)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateBackground(layout);
+			((TizenLayoutViewGroup?)handler.PlatformView)?.UpdateBackground(layout);
 #endif
 		}
 
 		/// <summary>Maps <see cref="ILayout.ClipsToBounds"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="layout">The layout.</param>
-		public static void MapClipsToBounds(ITizenLayoutHandler handler, ILayout layout)
+		public static void MapClipsToBounds(ILayoutHandler handler, ILayout layout)
 		{
 #if TIZEN
-			handler.PlatformView.ClippingMode = layout.ClipsToBounds
+			((TizenLayoutViewGroup)handler.PlatformView).ClippingMode = layout.ClipsToBounds
 				? global::Tizen.NUI.ClippingModeType.ClipToBoundingBox
 				: global::Tizen.NUI.ClippingModeType.Disabled;
 #endif
@@ -248,43 +248,46 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>Maps <see cref="IView.InputTransparent"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="layout">The layout.</param>
-		public static void MapInputTransparent(ITizenLayoutHandler handler, ILayout layout)
+		public static void MapInputTransparent(ILayoutHandler handler, ILayout layout)
 		{
 			if (handler.PlatformView is TizenLayoutViewGroup viewGroup)
 				viewGroup.InputTransparent = layout.InputTransparent;
 		}
 
-		static void MapAdd(ITizenLayoutHandler handler, ILayout layout, object? arg)
+		static void MapAdd(ILayoutHandler handler, ILayout layout, object? arg)
 		{
 			if (arg is LayoutHandlerUpdate args)
 				handler.Add(args.View);
 		}
 
-		static void MapRemove(ITizenLayoutHandler handler, ILayout layout, object? arg)
+		static void MapRemove(ILayoutHandler handler, ILayout layout, object? arg)
 		{
 			if (arg is LayoutHandlerUpdate args)
 				handler.Remove(args.View);
 		}
 
-		static void MapClear(ITizenLayoutHandler handler, ILayout layout, object? arg) =>
+		static void MapClear(ILayoutHandler handler, ILayout layout, object? arg) =>
 			handler.Clear();
 
-		static void MapInsert(ITizenLayoutHandler handler, ILayout layout, object? arg)
+		static void MapInsert(ILayoutHandler handler, ILayout layout, object? arg)
 		{
 			if (arg is LayoutHandlerUpdate args)
 				handler.Insert(args.Index, args.View);
 		}
 
-		static void MapUpdate(ITizenLayoutHandler handler, ILayout layout, object? arg)
+		static void MapUpdate(ILayoutHandler handler, ILayout layout, object? arg)
 		{
 			if (arg is LayoutHandlerUpdate args)
 				handler.Update(args.Index, args.View);
 		}
 
-		static void MapUpdateZIndex(ITizenLayoutHandler handler, ILayout layout, object? arg)
+		static void MapUpdateZIndex(ILayoutHandler handler, ILayout layout, object? arg)
 		{
-			if (arg is LayoutHandlerUpdate args)
-				handler.UpdateZIndex(args.View);
+			// The argument is the child IView itself, NOT a LayoutHandlerUpdate: both MAUI's
+			// ViewHandler.MapZIndex and this backend's TizenViewMappers.MapZIndex forward the view
+			// directly. Matching MAUI's own MapUpdateZIndex, which does `if (arg is IView view)`.
+			if (arg is IView view)
+				handler.UpdateZIndex(view);
 		}
 
 		/// <inheritdoc />

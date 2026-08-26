@@ -247,6 +247,40 @@ public class PackageContentTests : TestBase
 		}
 	}
 
+	/// <summary>
+	/// Every packable project declares <c>PackageReadmeFile</c>, so the readme must actually be in
+	/// the package or pack fails with NU5039.
+	/// </summary>
+	/// <remarks>
+	/// The readme is contributed by a shared <c>ItemGroup</c> in Directory.Build.props whose
+	/// condition reads <c>$(IsPackable)</c>, a property each project sets in its own body - which
+	/// looks like it should not work, because Directory.Build.props is imported first.
+	///
+	/// It does work: MSBuild evaluates ALL properties, across the project body and every import,
+	/// before it evaluates ANY items. A property assigned inside Directory.Build.props sees the
+	/// pre-body value, but an item condition in that same file sees the final one.
+	///
+	/// This test deliberately asserts the OUTCOME rather than where the item is declared, so it
+	/// keeps protecting against NU5039 if that ItemGroup is ever moved to Directory.Build.targets
+	/// or restructured.
+	/// </remarks>
+	[Theory]
+	[InlineData("Maui.Tizen.Build.Tasks")]
+	[InlineData("Maui.Tizen.Templates")]
+	public void PackageShipsTheReadmeItDeclares(string packageId)
+	{
+		var nuspec = ReadNuspec(packageId);
+
+		var declared = System.Text.RegularExpressions.Regex.Match(nuspec, "<readme>([^<]+)</readme>");
+		Assert.True(declared.Success, $"'{packageId}' does not declare a <readme> element.");
+
+		var readmePath = declared.Groups[1].Value.Replace('\\', '/');
+
+		Assert.Contains(
+			readmePath,
+			EntriesOf(packageId));
+	}
+
 	[Fact]
 	public void BuildTasksPackageIsMarkedAsADevelopmentDependency()
 	{
