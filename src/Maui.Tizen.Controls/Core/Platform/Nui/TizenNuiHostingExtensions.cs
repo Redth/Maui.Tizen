@@ -27,8 +27,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 		/// them rather than to a placeholder.
 		/// </para>
 		/// <para>
-		/// <see cref="ITizenModalHost"/> is scoped because it resolves the window's
-		/// <see cref="NavigationStack"/> from the window scope it was created in.
+		/// <see cref="ITizenModalHost"/> is scoped because it drives the window's navigation stack,
+		/// which is itself registered scoped and filled in by <see cref="AttachTizenWindow"/>.
 		/// </para>
 		/// </remarks>
 		public static IServiceCollection AddTizenNuiControlsPlatform(
@@ -38,9 +38,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 			ArgumentNullException.ThrowIfNull(services);
 
 			services.TryAddSingleton<ITizenAlertDialogFactory, NuiAlertDialogFactory>();
-			services.TryAddScoped<ITizenModalHost>(static provider => new NuiModalHost(
-				provider,
-				provider.GetService<ILogger<NuiModalHost>>()));
+			services.TryAddScoped<ITizenModalHost>(static provider => new TizenModalHost(
+				provider.GetRequiredService<ITizenNavigationStack>(),
+				provider.GetService<ILogger<TizenModalHost>>()));
 			services.TryAddSingleton<ITizenPlatformWindowProvider, NuiPlatformWindowProvider>();
 			services.TryAddSingleton<ITizenNativeGestureDetectorFactory, NuiGestureDetectorFactory>();
 
@@ -65,22 +65,54 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 		}
 
 		/// <summary>
-		/// Associates a native window and its modal navigation stack with the window scope
-		/// described by <paramref name="mauiContext"/>.
+		/// Associates a native window and its navigation stack with the window scope described by
+		/// <paramref name="mauiContext"/>.
 		/// </summary>
 		/// <param name="mauiContext">The window's context.</param>
 		/// <param name="window">The native window.</param>
+		/// <param name="navigationStack">The window's navigation stack.</param>
+		/// <param name="backButton">
+		/// Routes the hardware back button to the current page. Optional.
+		/// </param>
 		/// <remarks>
-		/// This is the single call the Tizen window handler needs to make for window-affine alert
-		/// routing to work. The navigation stack is resolved from the same scope, so it does not
-		/// need to be passed here.
+		/// <para>
+		/// This is what the Tizen window handler calls so that window-affine alert routing, dialog
+		/// modal coordination and modal page navigation all resolve the right window. The window
+		/// scope must already contain the scoped registrations added by
+		/// <see cref="AddTizenNuiControlsPlatform"/>; when it does not, this is a no-op rather than
+		/// a throw, so a partially configured host degrades instead of failing at window creation.
+		/// </para>
+		/// <para>
+		/// No back-button implementation is supplied by this layer. Upstream, the handler registry
+		/// lives in <c>Microsoft.Maui.Platform.WindowExtensions</c> and is consumed by
+		/// <c>MauiApplication</c>, both of which belong to the Tizen Core layer rather than to
+		/// Controls. Duplicating that registry here would create a second, competing source of
+		/// truth for back-button routing. Pass the Core layer's implementation instead; when it is
+		/// omitted, back presses fall through to the platform default.
+		/// </para>
 		/// </remarks>
-		public static void AttachTizenWindow(IMauiContext mauiContext, TWindow window)
+		public static void AttachTizenWindow(
+			IMauiContext mauiContext,
+			TWindow window,
+			NavigationStack navigationStack,
+			ITizenWindowBackButton? backButton = null)
 		{
 			ArgumentNullException.ThrowIfNull(mauiContext);
 			ArgumentNullException.ThrowIfNull(window);
+			ArgumentNullException.ThrowIfNull(navigationStack);
+
+			var services = mauiContext.Services;
 
 			TizenWindowContext.AttachTo(mauiContext, window);
+
+			(services?.GetService<ITizenNavigationStack>() as TizenScopedNavigationStack)
+				?.Attach(new NuiNavigationStack(navigationStack));
+
+			if (backButton is not null)
+			{
+				(services?.GetService<ITizenWindowBackButton>() as TizenScopedWindowBackButton)
+					?.Attach(backButton);
+			}
 		}
 	}
 }

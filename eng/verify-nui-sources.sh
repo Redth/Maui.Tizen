@@ -124,6 +124,7 @@ cat > "$PROJ_DIR/NuiCompileCheck.csproj" <<PROJ
   <ItemGroup>
     <Compile Include="\$(SourceRoot)Alerts/*.cs" />
     <Compile Include="\$(SourceRoot)Gestures/*.cs" />
+    <Compile Include="\$(SourceRoot)Modal/*.cs" />
     <Compile Include="\$(SourceRoot)Nui/*.cs" />
     <Compile Include="\$(SourceRoot)TizenControlsServiceCollectionExtensions.cs" />
   </ItemGroup>

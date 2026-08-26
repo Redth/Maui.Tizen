@@ -1,6 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Internals;
 using global::Tizen.NUI;
@@ -213,87 +212,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 			}
 
 			return TKeyboard.Normal;
-		}
-	}
-
-	/// <summary>
-	/// Coordinates NUI dialogs with the Tizen modal navigation stack.
-	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// Ported from <c>Microsoft.Maui.Platform.NavigationStackExtensions.PushDummyPopupPage</c> in
-	/// dotnet/maui. A placeholder page is pushed behind the popup so the modal stack knows
-	/// something modal is on screen, and popped once the dialog closes.
-	/// </para>
-	/// <para>
-	/// One deliberate deviation from the original: exceptions are not swallowed. The original
-	/// published the dialog result from inside this scope, so swallowing was preferable to
-	/// crashing but left the awaiting caller pending forever. The placeholder is still always
-	/// popped, but the failure now propagates so the alert subscription can fault the caller
-	/// instead of hanging it.
-	/// </para>
-	/// </remarks>
-	public sealed class NuiModalHost : ITizenModalHost
-	{
-		readonly IServiceProvider _windowServices;
-		readonly ILogger<NuiModalHost>? _logger;
-		bool _warnedAboutMissingStack;
-
-		/// <summary>
-		/// Initializes a new instance of the <see cref="NuiModalHost"/> class.
-		/// </summary>
-		/// <param name="windowServices">
-		/// The window-scoped services the Tizen window handler registers the window's
-		/// <see cref="NavigationStack"/> into.
-		/// </param>
-		/// <param name="logger">Optional logger.</param>
-		public NuiModalHost(IServiceProvider windowServices, ILogger<NuiModalHost>? logger = null)
-		{
-			_windowServices = windowServices ?? throw new ArgumentNullException(nameof(windowServices));
-			_logger = logger;
-		}
-
-		/// <inheritdoc/>
-		public async Task RunModalAsync(Func<Task> dialogOperation)
-		{
-			ArgumentNullException.ThrowIfNull(dialogOperation);
-
-			if (_windowServices.GetService(typeof(NavigationStack)) is not NavigationStack stack)
-			{
-				if (!_warnedAboutMissingStack)
-				{
-					_warnedAboutMissingStack = true;
-					_logger?.LogWarning(
-						"No NavigationStack is registered for this window, so dialogs run without modal-stack coordination. " +
-						"The Tizen window handler is expected to register the window's NavigationStack in the window scope.");
-				}
-
-				await dialogOperation().ConfigureAwait(true);
-				return;
-			}
-
-			var placeholder = new NView();
-
-			stack.ShownBehindPage = true;
-			_ = stack.Push(placeholder, false);
-			stack.ShownBehindPage = false;
-
-			try
-			{
-				await dialogOperation().ConfigureAwait(true);
-			}
-			finally
-			{
-				// Always unwind, otherwise the modal stack is left permanently unbalanced.
-				if (ReferenceEquals(stack.Top, placeholder))
-				{
-					_ = stack.Pop(false);
-				}
-				else
-				{
-					stack.Pop(placeholder);
-				}
-			}
 		}
 	}
 

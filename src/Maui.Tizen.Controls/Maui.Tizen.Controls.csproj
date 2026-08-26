@@ -24,9 +24,10 @@
   <ItemGroup>
     <Compile Include="Core/Platform/Alerts/*.cs" />
     <Compile Include="Core/Platform/Gestures/*.cs" />
+    <Compile Include="Core/Platform/Modal/*.cs" />
     <Compile Include="Core/Platform/Nui/*.cs" />
     <Compile Include="Core/Platform/TizenControlsServiceCollectionExtensions.cs" />
-    <None Remove="Core/Platform/Alerts/*.cs;Core/Platform/Gestures/*.cs;Core/Platform/Nui/*.cs;Core/Platform/TizenControlsServiceCollectionExtensions.cs" />
+    <None Remove="Core/Platform/Alerts/*.cs;Core/Platform/Gestures/*.cs;Core/Platform/Modal/*.cs;Core/Platform/Nui/*.cs;Core/Platform/TizenControlsServiceCollectionExtensions.cs" />
   </ItemGroup>
 
   <PropertyGroup>

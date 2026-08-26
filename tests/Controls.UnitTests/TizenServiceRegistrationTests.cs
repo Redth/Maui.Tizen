@@ -145,6 +145,82 @@ public class TizenServiceRegistrationTests
 
 		Assert.NotNull(scope.ServiceProvider.GetService<IAlertManager>());
 		Assert.NotNull(scope.ServiceProvider.GetService<IGesturePlatformManagerFactory>());
+		Assert.NotNull(scope.ServiceProvider.GetService<IModalNavigationPlatformFactory>());
+	}
+
+	[Fact]
+	public void AddTizenModalNavigationRegistersTheFactory()
+	{
+		using var provider = PresentationServices().AddTizenModalNavigation().BuildServiceProvider();
+
+		Assert.IsType<TizenModalNavigationPlatformFactory>(provider.GetService<IModalNavigationPlatformFactory>());
+	}
+
+	[Fact]
+	public void EachWindowScopeGetsItsOwnNavigationStackHolder()
+	{
+		using var provider = PresentationServices().AddTizenModalNavigation().BuildServiceProvider();
+
+		using var firstWindow = provider.CreateScope();
+		using var secondWindow = provider.CreateScope();
+
+		// The navigation stack belongs to the window, so two windows must never share one.
+		Assert.NotSame(
+			firstWindow.ServiceProvider.GetRequiredService<ITizenNavigationStack>(),
+			secondWindow.ServiceProvider.GetRequiredService<ITizenNavigationStack>());
+	}
+
+	[Fact]
+	public void TheNavigationStackHolderStartsUnattached()
+	{
+		using var provider = PresentationServices().AddTizenModalNavigation().BuildServiceProvider();
+		using var scope = provider.CreateScope();
+
+		// Registration happens at host-build time; the native stack only exists once the window
+		// handler runs and calls AttachTizenWindow.
+		var stack = Assert.IsType<TizenScopedNavigationStack>(scope.ServiceProvider.GetRequiredService<ITizenNavigationStack>());
+		Assert.False(stack.IsAttached);
+	}
+
+	[Fact]
+	public void EachWindowScopeGetsItsOwnBackButtonHolder()
+	{
+		using var provider = PresentationServices().AddTizenModalNavigation().BuildServiceProvider();
+
+		using var firstWindow = provider.CreateScope();
+		using var secondWindow = provider.CreateScope();
+
+		Assert.NotSame(
+			firstWindow.ServiceProvider.GetRequiredService<ITizenWindowBackButton>(),
+			secondWindow.ServiceProvider.GetRequiredService<ITizenWindowBackButton>());
+	}
+
+	[Fact]
+	public void TheModalNavigationFactoryIsASingleton()
+	{
+		using var provider = PresentationServices().AddTizenModalNavigation().BuildServiceProvider();
+
+		// dotnet/maui#37853 calls the factory once per window and the returned platform holds the
+		// per-window state, so the factory itself needs none.
+		Assert.Same(
+			provider.GetRequiredService<IModalNavigationPlatformFactory>(),
+			provider.GetRequiredService<IModalNavigationPlatformFactory>());
+	}
+
+	[Fact]
+	public void TheModalNavigationFactoryResolvesAPlatformFromAConfiguredWindowScope()
+	{
+		using var provider = PresentationServices().AddTizenModalNavigation().BuildServiceProvider();
+		using var scope = provider.CreateScope();
+
+		var context = new StubMauiContext(scope.ServiceProvider);
+		((TizenScopedNavigationStack)scope.ServiceProvider.GetRequiredService<ITizenNavigationStack>())
+			.Attach(new FakeNavigationStack());
+
+		var factory = provider.GetRequiredService<IModalNavigationPlatformFactory>();
+		using var platform = factory.CreateModalNavigationPlatform(new FakeModalNavigationHost(context));
+
+		Assert.IsType<TizenModalNavigationPlatform>(platform);
 	}
 
 	[Fact]

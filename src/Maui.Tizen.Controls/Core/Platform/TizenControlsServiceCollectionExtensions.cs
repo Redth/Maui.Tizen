@@ -116,7 +116,42 @@ namespace Microsoft.Maui.Platforms.Tizen
 		}
 
 		/// <summary>
-		/// Registers both the Tizen alert and gesture infrastructure.
+		/// Registers the Tizen modal page navigation services.
+		/// </summary>
+		/// <param name="services">The service collection to add to.</param>
+		/// <returns>The same service collection, for chaining.</returns>
+		/// <remarks>
+		/// <para>
+		/// The factory is a singleton: dotnet/maui#37853 calls it once per window and the returned
+		/// platform holds the per-window state, so the factory itself needs none.
+		/// </para>
+		/// <para>
+		/// <see cref="ITizenNavigationStack"/> and <see cref="ITizenWindowBackButton"/> are scoped,
+		/// because both wrap objects the window owns. They are registered as holders that the Tizen
+		/// window handler fills in once the native window exists, so dependents can be resolved
+		/// from the window scope before the window is realized.
+		/// </para>
+		/// <para>
+		/// Note that <see cref="IModalNavigationPlatformFactory"/> is currently the provisional
+		/// contract in this repository rather than the one from dotnet/maui#37853, which has not
+		/// shipped. .NET MAUI will not resolve it until that PR lands and the registration is
+		/// pointed at the real interface.
+		/// </para>
+		/// </remarks>
+		public static IServiceCollection AddTizenModalNavigation(this IServiceCollection services)
+		{
+			ArgumentNullException.ThrowIfNull(services);
+
+			services.TryAddSingleton<ITizenModalPageRealizer, TizenModalPageRealizer>();
+			services.TryAddScoped<ITizenNavigationStack, TizenScopedNavigationStack>();
+			services.TryAddScoped<ITizenWindowBackButton, TizenScopedWindowBackButton>();
+			services.TryAddSingleton<IModalNavigationPlatformFactory, TizenModalNavigationPlatformFactory>();
+
+			return services;
+		}
+
+		/// <summary>
+		/// Registers the Tizen alert, modal and gesture infrastructure.
 		/// </summary>
 		/// <param name="services">The service collection to add to.</param>
 		/// <param name="mode">How the backend plugs into .NET MAUI's alert infrastructure.</param>
@@ -126,6 +161,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			TizenAlertRegistrationMode mode = TizenAlertRegistrationMode.FullManager) =>
 			services
 				.AddTizenAlerts(mode)
+				.AddTizenModalNavigation()
 				.AddTizenGestures();
 	}
 
