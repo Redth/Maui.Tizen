@@ -360,7 +360,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			Applied(handler, nameof(IView.ZIndex));
 
 			if (view.Parent is ILayout layout)
-				layout.Handler?.Invoke(nameof(ITizenLayoutHandler.UpdateZIndex), view);
+				layout.Handler?.Invoke(nameof(ILayoutHandler.UpdateZIndex), view);
 		}
 
 		static void MapInvalidateMeasure(IViewHandler handler, IView view, object? args)

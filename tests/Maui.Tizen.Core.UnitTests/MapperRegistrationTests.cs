@@ -123,12 +123,12 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Theory]
-		[InlineData(nameof(ITizenLayoutHandler.Add))]
-		[InlineData(nameof(ITizenLayoutHandler.Remove))]
-		[InlineData(nameof(ITizenLayoutHandler.Clear))]
-		[InlineData(nameof(ITizenLayoutHandler.Insert))]
-		[InlineData(nameof(ITizenLayoutHandler.Update))]
-		[InlineData(nameof(ITizenLayoutHandler.UpdateZIndex))]
+		[InlineData(nameof(ILayoutHandler.Add))]
+		[InlineData(nameof(ILayoutHandler.Remove))]
+		[InlineData(nameof(ILayoutHandler.Clear))]
+		[InlineData(nameof(ILayoutHandler.Insert))]
+		[InlineData(nameof(ILayoutHandler.Update))]
+		[InlineData(nameof(ILayoutHandler.UpdateZIndex))]
 		public void LayoutCommandMapperDefinesKey(string key) =>
 			Assert.NotNull(TizenLayoutHandler.CommandMapper.GetCommand(key));
 

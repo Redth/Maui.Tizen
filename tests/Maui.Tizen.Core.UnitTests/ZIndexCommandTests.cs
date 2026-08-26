@@ -68,7 +68,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var handler = new RecordingLayoutHandler(layout);
 
 			TizenLayoutHandler.CommandMapper.Invoke(
-				handler, layout, nameof(ITizenLayoutHandler.UpdateZIndex), child);
+				handler, layout, nameof(ILayoutHandler.UpdateZIndex), child);
 
 			Assert.Equal(new object[] { child }, handler.ReorderedChildren);
 		}
@@ -85,7 +85,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var handler = new RecordingLayoutHandler(layout);
 
 			TizenLayoutHandler.CommandMapper.Invoke(
-				handler, layout, nameof(ITizenLayoutHandler.UpdateZIndex), new LayoutHandlerUpdate(0, child));
+				handler, layout, nameof(ILayoutHandler.UpdateZIndex), new LayoutHandlerUpdate(0, child));
 
 			Assert.Empty(handler.ReorderedChildren);
 		}
@@ -109,7 +109,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(2, layout.GetLayoutHandlerIndex(front));
 		}
 
-		sealed class RecordingLayoutHandler : ITizenLayoutHandler
+		sealed class RecordingLayoutHandler : ILayoutHandler
 		{
 			readonly ILayout _layout;
 
@@ -119,13 +119,15 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			public ILayout VirtualView => _layout;
 
-			public TizenLayoutViewGroup PlatformView { get; } = new(null);
+			public TizenLayoutViewGroup TizenPlatformView { get; } = new(null);
+
+			object ILayoutHandler.PlatformView => TizenPlatformView;
 
 			IView? IViewHandler.VirtualView => _layout;
 
 			IElement? IElementHandler.VirtualView => _layout;
 
-			object? IElementHandler.PlatformView => PlatformView;
+			object? IElementHandler.PlatformView => TizenPlatformView;
 
 			public bool HasContainer { get => false; set { } }
 
