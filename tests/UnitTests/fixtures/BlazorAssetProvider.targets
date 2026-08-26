@@ -1,35 +1,28 @@
 <Project>
 
   <!--
-    REFERENCE IMPLEMENTATION of the Maui.Tizen asset-provider contract for Blazor.
+    TEST FIXTURE. This is not a shipping file and is imported by nothing except
+    tests/UnitTests/TizenBlazorAssetHandoffTests.cs.
 
-    OWNERSHIP. This file is not imported by Maui.Tizen.Build.Tasks and ships in no package built
-    from this directory. It belongs to Maui.Tizen.BlazorWebView, which should ship it (or an
-    equivalent) from its own buildTransitive folder so that a Blazor app gets the behaviour by
-    referencing that package alone. It lives here only so the handoff it depends on is covered by
-    an executable test in tests/UnitTests/TizenBlazorAssetHandoffTests.cs and cannot drift from the
-    snippet handed to that package.
+    The real implementation lives in Maui.Tizen.BlazorWebView:
+    src/Maui.Tizen.BlazorWebView/buildTransitive/Maui.Tizen.BlazorWebView.targets, which owns the
+    StaticWebAsset -> MauiAsset half and ships it to applications. This fixture is a stand-in for
+    "some package registers an asset provider", kept deliberately close to that implementation so
+    the tests exercise a realistic provider, but it is NOT a second source of truth: if the two
+    disagree, the shipping one in Maui.Tizen.BlazorWebView wins.
 
-    WHY IT IS NEEDED AT ALL. Microsoft.AspNetCore.Components.WebView.Maui already contains a
-    ConvertStaticWebAssetsToMauiAssets target, but it ships under build/, and NuGet applies build/
-    only to the project that references the package DIRECTLY. An application that references
-    Maui.Tizen.BlazorWebView therefore never receives it, and its wwwroot content silently never
-    becomes an application asset. Re-declaring the conversion in a buildTransitive file of the
-    package the app does reference closes that gap.
+    What these tests actually own is the half on this side of the boundary:
 
-    THE HANDOFF, END TO END.
+        MauiAsset -> (Resizetizer ProcessMauiAssets) -> MauiProcessedAsset -> TizenResource
+                  -> res/wwwroot/... in the TPK
 
-      StaticWebAsset            (Razor SDK: wwwroot content, and _framework/blazor.webview.js
-                                 contributed by the WebView package)
-        -> MauiAsset            (this file, via the SDK's own ComputeStaticWebAssetsTargetPaths
-                                 task, with Link = "wwwroot/<target path>")
-        -> MauiProcessedAsset   (Resizetizer, through the public PR 36653 contract)
-        -> TizenResource        (Maui.Tizen.Build.Tasks, mapping Link to TizenTpkFileName)
-        -> res/wwwroot/...      (Samsung workload, packing TizenResource into the TPK)
+    plus the MauiTizenAssetProviderTargets seam itself and the de-duplication of resources by
+    destination path.
 
-    The final location is what TizenAssetFileProvider serves from: it roots itself at the Tizen
-    application's resource directory plus a content root of "wwwroot", so index.html must arrive as
-    res/wwwroot/index.html. No glob in the application project is involved at any point.
+    The runtime contract they encode is fixed by TizenAssetFileProvider, which resolves
+    Application.Current.DirectoryInfo.Resource + contentRootDir + subpath: a HostPage of
+    "wwwroot/index.html" therefore requires res/wwwroot/index.html on device, and nested paths
+    must survive the pipeline rather than being flattened.
   -->
 
   <PropertyGroup>

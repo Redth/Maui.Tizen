@@ -24,15 +24,21 @@ namespace Maui.Tizen.UnitTests;
 [Trait("Category", "MSBuild")]
 public class TizenBlazorAssetHandoffTests : TestBase
 {
-	private static string AssetHandoffContract =>
-		Path.Combine(RepositoryRoot, "eng", "contracts", "Maui.Tizen.BlazorWebView.AssetHandoff.targets");
+	/// <summary>
+	/// A stand-in for a package that registers an asset provider. The shipping implementation of
+	/// this half lives in Maui.Tizen.BlazorWebView; see the fixture's own header.
+	/// </summary>
+	private static string AssetProviderFixture =>
+		Path.Combine(RepositoryRoot, "tests", "UnitTests", "fixtures", "BlazorAssetProvider.targets");
 
 	/// <summary>
 	/// Builds a Razor application that references the WebView package and imports both the
 	/// reference asset provider and this package's targets, exactly as a real app would end up
 	/// after referencing Maui.Tizen.BlazorWebView.
 	/// </summary>
-	private (MSBuildProjectBuilder App, BuildResult Result) BuildBlazorApp(bool includeDuplicateProvider = false)
+	private (MSBuildProjectBuilder App, BuildResult Result) BuildBlazorApp(
+		bool includeDuplicateProvider = false,
+		bool includeImage = false)
 	{
 		var app = new MSBuildProjectBuilder(CreateTempDirectory("maui-tizen-blazor"))
 		{
@@ -52,17 +58,25 @@ public class TizenBlazorAssetHandoffTests : TestBase
 		app.WriteText("wwwroot/css/app.css", "body { font-family: sans-serif; }");
 		app.WriteTizenManifest();
 
+		if (includeImage)
+		{
+			// A MauiImage is what causes res.xml to be generated at all, so it has to be present
+			// for the "web assets stay out of res.xml" assertion to mean anything.
+			app.WriteSvg("Resources/Images/logo.svg", "#00FF00");
+			app.WithItem("MauiImage", "Resources\\Images\\logo.svg");
+		}
+
 		app
 			.WithProperty("ApplicationId", "com.contoso.blazorapp")
 			.WithProperty("ApplicationTitle", "Contoso Blazor")
 			.WithPackageReference("Microsoft.AspNetCore.Components.WebView", WebViewPackageVersion)
-			.WithImport(AssetHandoffContract);
+			.WithImport(AssetProviderFixture);
 
 		if (includeDuplicateProvider)
 		{
 			// Simulates an app that ALSO picks the conversion up from somewhere else, which is what
 			// a direct Microsoft.AspNetCore.Components.WebView.Maui reference would do.
-			app.WithImport(AssetHandoffContract, alias: "duplicate");
+			app.WithImport(AssetProviderFixture, alias: "duplicate");
 		}
 
 		app.Generate();
@@ -166,6 +180,39 @@ public class TizenBlazorAssetHandoffTests : TestBase
 
 		Assert.True(byPath.Count == 0, "Duplicate Tizen resources: " + string.Join(", ", byPath));
 
+		Assert.Contains(result.ItemsOf("TizenResource"), i => TpkPathOf(i) == "wwwroot/index.html");
+	}
+
+	/// <summary>
+	/// Static web assets must NOT appear in res.xml.
+	/// </summary>
+	/// <remarks>
+	/// res.xml exists to tell Tizen which resource bucket to pick for a given screen DPI, and only
+	/// describes the DPI-variant image folders under res/contents. Blazor content is addressed by
+	/// URL, not by DPI: listing it there would be meaningless at best. Two independent things keep
+	/// it out - assets travel as MauiProcessedAsset and never reach the generator, which is only
+	/// given MauiProcessedImage, and the generator additionally only accepts folders whose parent
+	/// is "contents". This asserts the observable outcome rather than either mechanism.
+	/// </remarks>
+	[Fact]
+	public void StaticWebAssetsAreNotDescribedInTheResourceManifest()
+	{
+		var (_, result) = BuildBlazorApp(includeImage: true);
+
+		var resourceManifest = result.ItemsOf("TizenTpkUserIncludeFiles")
+			.SingleOrDefault(i => Path.GetFileName(i.Identity) == "res.xml");
+
+		Assert.True(resourceManifest is not null, "res.xml was not generated, so this assertion would be vacuous.");
+
+		var xml = File.ReadAllText(resourceManifest!.Identity);
+
+		Assert.DoesNotContain("wwwroot", xml, StringComparison.OrdinalIgnoreCase);
+		Assert.DoesNotContain("blazor", xml, StringComparison.OrdinalIgnoreCase);
+
+		// The DPI buckets it does describe are still there.
+		Assert.Contains("contents/default_All-", xml, StringComparison.Ordinal);
+
+		// And the web content is still packaged, just through TizenResource instead.
 		Assert.Contains(result.ItemsOf("TizenResource"), i => TpkPathOf(i) == "wwwroot/index.html");
 	}
 

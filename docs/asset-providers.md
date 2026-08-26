@@ -60,16 +60,17 @@ globs or MSBuild snippets to copy into the app project.
 
 ## Worked example: Blazor static web assets
 
-`eng/contracts/Maui.Tizen.BlazorWebView.AssetHandoff.targets` is a working reference implementation
-for `Maui.Tizen.BlazorWebView`. It converts Razor `StaticWebAsset` items into `MauiAsset` items
-using the SDK's own `ComputeStaticWebAssetsTargetPaths` task, so that `wwwroot/**` content and the
-package-provided `_framework/blazor.webview.js` both arrive at `res/wwwroot/...`, which is where
+`Maui.Tizen.BlazorWebView` ships the provider for Blazor, in
+`src/Maui.Tizen.BlazorWebView/buildTransitive/Maui.Tizen.BlazorWebView.targets`. It converts Razor
+`StaticWebAsset` items into `MauiAsset` items using the SDK's own
+`ComputeStaticWebAssetsTargetPaths` task, so that `wwwroot/**` content and the package-provided
+`_framework/blazor.webview.js` both arrive at `res/wwwroot/...`, which is where
 `TizenAssetFileProvider` serves from.
 
-That file is **not** shipped by `Maui.Tizen.Build.Tasks`. It lives here so that
-`tests/UnitTests/TizenBlazorAssetHandoffTests.cs` can execute it against the real Razor SDK and the
-real WebView package, which keeps it honest; `Maui.Tizen.BlazorWebView` owns shipping it from its
-own `buildTransitive` folder.
+`tests/UnitTests/fixtures/BlazorAssetProvider.targets` is a **test fixture** that mimics it, so
+`tests/UnitTests/TizenBlazorAssetHandoffTests.cs` can exercise this side of the boundary against
+the real Razor SDK and the real WebView package without depending on another package's sources. It
+is not a second implementation: where the two differ, the shipping one wins.
 
 ### Why the Blazor package has to ship it
 
