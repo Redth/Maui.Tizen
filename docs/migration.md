@@ -98,10 +98,31 @@ enforces this.
 
 | Category | Count | Baseline |
 |---|---|---|
-| Tizen-named files | 338 | `net11.0` |
+| Tizen-named files | 314 | `net11.0` (`ee4d06cde6`) |
 | Shared files with `#if TIZEN` | 136 | `net11.0` |
 | `PublicAPI/net-tizen` baselines | 18 | `net11.0` |
-| Compatibility Tizen files | 70 | `9.0.120` only |
+| Tizen-named files present at `9.0.120` but **absent** at the net11.0 pin | 87 | `9.0.120` only |
+
+The 87 files that exist only at `9.0.120` break down as:
+
+| Path | Count | Note |
+|---|---|---|
+| `src/Compatibility/**` | 70 | Core 48, Material 17, Maps 5 — the old top-level Xamarin.Forms compatibility stack |
+| `src/Controls/docs/…TizenSpecific/*.xml` | 9 | API documentation XML |
+| `src/Templates/**/Platforms/Tizen/**` | 7 | Template platform assets |
+| `src/Essentials/**` | 1 | `AppleSignInAuthenticator.netstandard.android.tvos.watchos.uwp.tizen.macos.cs` |
+
+> **Do not confuse the two "Compatibility" locations.**
+> `src/Controls/src/Core/Compatibility/**` — the legacy renderer shim (`FrameRenderer`,
+> `ViewRenderer`, ListView/TableView adapters) — is **still present on `net11.0`** with an
+> identical 11-file Tizen set at both refs, and was imported normally. Only the top-level
+> `src/Compatibility/**` was removed.
+
+> **Counting note.** These are **blob** counts. The GitHub tree API returns `tree`
+> (directory) entries alongside blobs, so filtering on "path contains tizen" without also
+> filtering `type == blob` inflates every figure — it yields 76 for `src/Compatibility`
+> and 102 overall by counting `Tizen/` directories as if they were files. The manifest is
+> per-file, so blobs are the correct unit.
 
 ## Known open decisions
 
