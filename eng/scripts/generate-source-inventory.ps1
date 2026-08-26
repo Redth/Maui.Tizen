@@ -19,9 +19,10 @@
 .PARAMETER PrimaryRoot
     Path to an existing net11 source checkout (sourceBaseline), produced by
     Get-MauiSourceSnapshot.ps1. Its .mt-snapshot.json provenance marker is validated against
-    eng/baselines.json's pinned commit -- a directory that is not a verified snapshot of exactly
-    that commit is rejected rather than silently scanned. If omitted, one is downloaded to a cache
-    directory under -CacheDir.
+    eng/baselines.json's pinned commit by RECOMPUTING its tree hash from the files currently on
+    disk (not merely reading the marker) -- a directory that is not a verified, unmodified snapshot
+    of exactly that commit is rejected rather than silently scanned. If omitted, one is downloaded
+    to a cache directory under -CacheDir.
 
 .PARAMETER LegacyRoot
     Path to an existing 9.0.120 source checkout (behaviorBaseline), validated the same way. If
@@ -50,19 +51,30 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $Baselines = Get-Content (Join-Path $RepoRoot 'eng/baselines.json') -Raw | ConvertFrom-Json
 $repository = $Baselines.source.repository -replace '^https://github.com/', ''
+. (Join-Path $PSScriptRoot 'lib/Snapshot.ps1')
 
 # A caller-supplied root must be a verified snapshot of exactly the pinned ref -- an arbitrary
 # directory (an unrelated checkout, a stale snapshot from a different commit, a directory that
-# merely looks right) is rejected rather than silently scanned, which would generate a manifest
-# that looks legitimate but describes the wrong tree.
+# merely looks right, or a directory whose marker is right but whose files have since been added,
+# removed, or modified) is rejected rather than silently scanned, which would generate a manifest
+# that looks legitimate but describes the wrong tree. Test-SnapshotIntegrity RECOMPUTES the tree
+# hash from the files currently on disk; it never trusts the marker's claims on their own.
 function Assert-VerifiedSnapshot([string]$dir, [string]$repo, [string]$ref, [string]$label) {
-    $markerPath = Join-Path $dir '.mt-snapshot.json'
-    if (-not (Test-Path $markerPath)) {
-        throw "-$label '$dir' has no .mt-snapshot.json provenance marker (produced by Get-MauiSourceSnapshot.ps1), so it cannot be verified as $repo@$ref. Refusing to scan an unverified directory."
+    $verification = Test-SnapshotIntegrity -Dir $dir -Repo $repo -Ref $ref
+    if ($verification.ok) {
+        return
     }
-    $marker = Get-Content $markerPath -Raw | ConvertFrom-Json
-    if ($marker.repository -ne $repo -or $marker.ref -ne $ref) {
-        throw "-$label '$dir' is a verified snapshot of $($marker.repository)@$($marker.ref), not the pinned $repo@$ref. Refusing to scan a mismatched snapshot."
+
+    switch ($verification.reason) {
+        'wrong-repo-or-ref' {
+            throw "-$label '$dir' is a verified snapshot of $($verification.marker.repository)@$($verification.marker.ref), not the pinned $repo@$ref. Refusing to scan a mismatched snapshot."
+        }
+        'tree-modified' {
+            throw "-$label '$dir' claims to be a snapshot of $repo@$ref, but its recomputed tree hash ($($verification.computed.treeHash)) does not match its marker ($($verification.marker.treeHash)) -- a file was added, removed, or modified since it was extracted. Refusing to scan a directory whose contents no longer match its own provenance record."
+        }
+        default {
+            throw "-$label '$dir' has no valid .mt-snapshot.json provenance marker (produced by Get-MauiSourceSnapshot.ps1), so it cannot be verified as $repo@$ref. Refusing to scan an unverified directory."
+        }
     }
 }
 

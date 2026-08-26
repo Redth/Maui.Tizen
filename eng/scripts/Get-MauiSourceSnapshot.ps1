@@ -11,21 +11,22 @@
 
     Requires only network access to github.com -- no Tizen workload, no git.
 
-    Integrity/provenance:
+    Integrity/provenance (see eng/scripts/lib/Snapshot.ps1 for the shared implementation):
       - Extraction is atomic: the tarball is expanded into a fresh sibling temp directory and only
         moved into place at -OutDir once fully extracted, so a killed/failed run can never leave a
         half-extracted snapshot at -OutDir for a caller to mistake for a complete one.
       - -OutDir is always fully cleared before extracting into it (whether or not -Force was
         passed to overwrite an existing snapshot) -- a snapshot directory is either absent, or a
         complete, verified extraction of exactly Repo@Ref; it is never a merge of two extractions.
-      - A `.mt-snapshot.json` marker (repository, ref, file count, and a manifest hash covering
-        every extracted file's relative path + content hash) is written into -OutDir after
-        extraction and is what -Repo/-Ref get validated against on every subsequent call,
-        including by callers that pass an existing -OutDir without -Force: if the marker is
-        missing or does not match the requested Repo/Ref, the directory is rejected rather than
-        silently treated as already-populated (this is also what generate-source-inventory.ps1 and
-        fetch-net11-publicapi-inputs.ps1 check when a caller supplies -PrimaryRoot/-LegacyRoot
-        directly instead of letting this script download one).
+      - A `.mt-snapshot.json` marker (repository, ref, file count, and a tree hash covering every
+        extracted file's relative path + content) is written into -OutDir after extraction.
+      - On every reuse -- including a cache hit here, AND every caller elsewhere in this
+        repository's tooling that accepts a caller-supplied snapshot directory instead of
+        downloading its own -- the tree hash is RECOMPUTED from the files currently on disk and
+        compared against the marker. A marker that merely claims the right repository/ref is not
+        enough: if a file was added, removed, or modified after the marker was written (a partial
+        re-extraction, a stray edit, tampering), the recomputed hash will not match, and the
+        directory is rejected exactly as if it had no marker at all.
 
 .PARAMETER Repo
     GitHub "owner/name" of the source repository. Defaults to dotnet/maui.
@@ -35,10 +36,11 @@
     accepted for the published-baseline case (e.g. 9.0.120) where the tag itself is immutable.
 
 .PARAMETER OutDir
-    Directory to extract the snapshot into. Created if missing. If it already contains a valid
-    .mt-snapshot.json marker matching -Repo/-Ref, the download is skipped (idempotent re-runs). If
-    it contains anything else (no marker, or a marker for a different repo/ref), the call fails
-    unless -Force is passed, in which case the directory is cleared and re-extracted.
+    Directory to extract the snapshot into. Created if missing. If it already contains a snapshot
+    that recomputes to match -Repo/-Ref exactly, the download is skipped (idempotent re-runs). If
+    it contains anything else (no marker, a marker for a different repo/ref, or a marker whose
+    claims no longer match the files on disk), the call fails unless -Force is passed, in which
+    case the directory is cleared and re-extracted.
 
 .EXAMPLE
     ./Get-MauiSourceSnapshot.ps1 -Ref ee4d06cde6b49e297631b08426a33fb34f3152ef -OutDir /tmp/maui-net11
@@ -52,80 +54,30 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-
-function Get-SnapshotMarkerPath([string]$dir) { Join-Path $dir '.mt-snapshot.json' }
-
-function Test-SnapshotMarker([string]$dir, [string]$repo, [string]$ref) {
-    $markerPath = Get-SnapshotMarkerPath $dir
-    if (-not (Test-Path $markerPath)) { return $false }
-    try {
-        $marker = Get-Content $markerPath -Raw | ConvertFrom-Json
-    }
-    catch {
-        return $false
-    }
-    return $marker.repository -eq $repo -and $marker.ref -eq $ref
-}
-
-function New-SnapshotMarker([string]$dir, [string]$repo, [string]$ref) {
-    # Streams every file directly through one incremental SHA-256 (path + content), rather than
-    # invoking Get-FileHash per file (its per-call pipeline/process overhead makes a ~30k-file
-    # tree like dotnet/maui impractically slow). This still hashes every byte of every file --
-    # it is just done as one continuous stream instead of thousands of separate cmdlet calls.
-    $files = [System.IO.Directory]::EnumerateFiles($dir, '*', [System.IO.SearchOption]::AllDirectories) |
-        Sort-Object -Culture 'invariant'
-
-    $incremental = [System.Security.Cryptography.IncrementalHash]::CreateHash([System.Security.Cryptography.HashAlgorithmName]::SHA256)
-    $fileCount = 0
-    foreach ($f in $files) {
-        $rel = [System.IO.Path]::GetRelativePath($dir, $f).Replace('\', '/')
-        $incremental.AppendData([System.Text.Encoding]::UTF8.GetBytes("$rel`n"))
-        $stream = [System.IO.File]::OpenRead($f)
-        try {
-            $buffer = New-Object byte[] 1048576
-            while (($read = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-                if ($read -eq $buffer.Length) {
-                    $incremental.AppendData($buffer)
-                }
-                else {
-                    $incremental.AppendData($buffer, 0, $read)
-                }
-            }
-        }
-        finally {
-            $stream.Dispose()
-        }
-        $fileCount++
-    }
-    $treeHashBytes = $incremental.GetHashAndReset()
-    $treeHash = [System.BitConverter]::ToString($treeHashBytes).Replace('-', '').ToLowerInvariant()
-
-    $marker = [ordered]@{
-        repository = $repo
-        ref        = $ref
-        fileCount  = $fileCount
-        treeHash   = $treeHash
-    }
-    $marker | ConvertTo-Json | Set-Content -Path (Get-SnapshotMarkerPath $dir) -Encoding utf8
-    return $marker
-}
+. (Join-Path $PSScriptRoot 'lib/Snapshot.ps1')
 
 if (Test-Path $OutDir) {
-    if (Test-SnapshotMarker -dir $OutDir -repo $Repo -ref $Ref) {
-        Write-Host "Skipping download: '$OutDir' already contains a verified snapshot of $Repo@$Ref."
+    $verification = Test-SnapshotIntegrity -Dir $OutDir -Repo $Repo -Ref $Ref
+    if ($verification.ok) {
+        Write-Host "Skipping download: '$OutDir' already contains a verified snapshot of $Repo@$Ref (recomputed tree hash matches)."
         return
     }
 
     if (-not $Force) {
-        $markerPath = Get-SnapshotMarkerPath $OutDir
-        if (Test-Path $markerPath) {
-            $marker = Get-Content $markerPath -Raw | ConvertFrom-Json
-            throw "'$OutDir' contains a snapshot of $($marker.repository)@$($marker.ref), not the requested $Repo@$Ref. Refusing to reuse a mismatched snapshot -- pass -Force to overwrite, or point at a different -OutDir."
+        switch ($verification.reason) {
+            'wrong-repo-or-ref' {
+                throw "'$OutDir' contains a snapshot of $($verification.marker.repository)@$($verification.marker.ref), not the requested $Repo@$Ref. Refusing to reuse a mismatched snapshot -- pass -Force to overwrite, or point at a different -OutDir."
+            }
+            'tree-modified' {
+                throw "'$OutDir' claims to be a snapshot of $Repo@$Ref, but its recomputed tree hash ($($verification.computed.treeHash)) does not match its marker ($($verification.marker.treeHash)) -- a file was added, removed, or modified since it was extracted. Refusing to reuse a directory whose contents no longer match its own provenance record -- pass -Force to re-extract, or point at a different -OutDir."
+            }
+            default {
+                throw "'$OutDir' exists but has no valid .mt-snapshot.json provenance marker, so it cannot be verified as $Repo@$Ref. Refusing to trust an arbitrary directory -- pass -Force to overwrite, or point at a different -OutDir."
+            }
         }
-        throw "'$OutDir' exists but has no .mt-snapshot.json provenance marker, so it cannot be verified as $Repo@$Ref. Refusing to trust an arbitrary directory -- pass -Force to overwrite, or point at a different -OutDir."
     }
 
-    Write-Host "Clearing '$OutDir' (-Force)"
+    Write-Host "Clearing '$OutDir' (-Force, reason: $($verification.reason))"
     Remove-Item -Path $OutDir -Recurse -Force
 }
 
@@ -160,7 +112,7 @@ try {
     Move-Item -Path $stagingDir -Destination $OutDir
     $stagingDir = $null # moved; nothing left to clean up.
 
-    $marker = New-SnapshotMarker -dir $OutDir -repo $Repo -ref $Ref
+    $marker = New-SnapshotMarker -Dir $OutDir -Repo $Repo -Ref $Ref
     Write-Host "Snapshot of $Repo@$Ref ready at $OutDir ($($marker.fileCount) files, treeHash $($marker.treeHash.Substring(0,12))...)"
 }
 finally {

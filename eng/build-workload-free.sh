@@ -129,6 +129,7 @@ WORKLOAD_FREE_PROJECTS=(
   "eng/tests/PackReadmeProbe/PackReadmeProbe.csproj"
   "eng/tools/ApiDump/ApiDump.csproj"
   "eng/tools/SourceInventory/SourceInventory.csproj"
+  "eng/tools/PackageVerify/PackageVerify.csproj"
   "tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj"
 )
 BUILD_OK=1
@@ -213,6 +214,22 @@ if DOTNET="$DOTNET" "$REPO_ROOT/eng/tests/test-workload-detection.sh"; then
   :
 else
   fail "workload detection regressions failed"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# ---------------------------------------------------------------------------
+# 5b. Snapshot verification regressions.
+#
+# eng/scripts/lib/Snapshot.ps1's Test-SnapshotIntegrity is what stands between "we downloaded
+# the right dotnet/maui commit" and "we scanned whatever happened to be on disk". These
+# fixtures exercise tamper/add/delete scenarios a marker-only (no-recompute) check would
+# silently accept, entirely offline (synthetic directories, no network).
+# ---------------------------------------------------------------------------
+info "Snapshot verification regressions"
+if pwsh -NoProfile -File "$REPO_ROOT/eng/tests/test-snapshot-verification.ps1"; then
+  :
+else
+  fail "snapshot verification regressions failed"
   FAILURES=$((FAILURES + 1))
 fi
 

@@ -28,23 +28,37 @@ public class PublishedApiBaselineTests
     {
         using var manifest = TestPaths.LoadJson($"{OutDir}/manifest.json");
         using var baselines = TestPaths.LoadJson("eng/baselines.json");
+        using var trustAnchor = TestPaths.LoadJson("eng/api-baselines/net9.0-tizen7.0-package-trust.json");
         var expectedCommit = baselines.RootElement.GetProperty("source").GetProperty("behaviorBaseline").GetProperty("commit").GetString();
+
+        var trustedHashes = trustAnchor.RootElement.GetProperty("packages").EnumerateArray()
+            .ToDictionary(p => p.GetProperty("packageId").GetString()!, p => p.GetProperty("nupkgSha256").GetString()!);
 
         var packages = manifest.RootElement.GetProperty("packages").EnumerateArray().ToList();
         Assert.NotEmpty(packages);
 
         foreach (var pkg in packages)
         {
+            var packageId = pkg.GetProperty("packageId").GetString()!;
             Assert.Equal(expectedCommit, pkg.GetProperty("nuspecRepositoryCommit").GetString());
 
-            // Every recorded package must be signed and have passed structural signature
-            // verification (see eng/scripts/generate-api-baseline.ps1's Test-PackageSignature) --
-            // Microsoft.Maui.* packages are always author/repository-signed, so an unsigned or
-            // signature-invalid entry indicates something went through unverified.
-            Assert.True(pkg.GetProperty("signed").GetBoolean(), $"{pkg.GetProperty("packageId").GetString()} is recorded as unsigned");
-            Assert.True(pkg.GetProperty("signatureStructurallyValid").GetBoolean(), $"{pkg.GetProperty("packageId").GetString()} failed structural signature verification");
+            // Every recorded package must be signed and have passed REAL NuGet signature
+            // verification (integrity + trust -- see eng/tools/PackageVerify), not just a bare
+            // SignedCms check on the isolated .signature.p7s blob. Microsoft.Maui.* packages are
+            // always author/repository-signed, so an unsigned or invalid entry indicates
+            // something went through unverified.
+            Assert.True(pkg.GetProperty("signed").GetBoolean(), $"{packageId} is recorded as unsigned");
+            Assert.True(pkg.GetProperty("signatureIntegrityAndTrustValid").GetBoolean(), $"{packageId} failed NuGet package signature verification (integrity + trust)");
             Assert.Matches("^[0-9a-f]{64}$", pkg.GetProperty("nupkgSha256").GetString()!);
             Assert.Matches("^[0-9a-f]{64}$", pkg.GetProperty("assemblySha256").GetString()!);
+
+            // The manifest's recorded hash must match the pinned repository trust anchor exactly
+            // -- this is the "reject unknown/mismatched package before generation" contract,
+            // checked here as an offline cross-check that generation actually enforced it (rather
+            // than only trusting the live script to have done so at generation time).
+            Assert.True(trustedHashes.TryGetValue(packageId, out var pinnedHash), $"{packageId} has no entry in the trust anchor");
+            Assert.Equal(pinnedHash, pkg.GetProperty("nupkgSha256").GetString());
+            Assert.Equal(pinnedHash, pkg.GetProperty("pinnedNupkgSha256").GetString());
 
             var assemblyName = Path.GetFileNameWithoutExtension(pkg.GetProperty("assembly").GetString());
             var dumpPath = TestPaths.Path_(OutDir, assemblyName + ".json");

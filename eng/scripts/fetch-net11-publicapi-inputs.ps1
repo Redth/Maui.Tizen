@@ -14,9 +14,11 @@
 
 .PARAMETER PrimaryRoot
     Path to an existing net11 source checkout, produced by Get-MauiSourceSnapshot.ps1. Its
-    .mt-snapshot.json provenance marker is validated against eng/baselines.json's pinned commit --
-    a directory that is not a verified snapshot of exactly that commit is rejected. If omitted, one
-    is downloaded using the commit pinned in eng/baselines.json (source.sourceBaseline.commit).
+    .mt-snapshot.json provenance marker is validated against eng/baselines.json's pinned commit by
+    RECOMPUTING its tree hash from the files currently on disk (not merely reading the marker) --
+    a directory that is not a verified, unmodified snapshot of exactly that commit is rejected. If
+    omitted, one is downloaded using the commit pinned in eng/baselines.json
+    (source.sourceBaseline.commit).
 #>
 [CmdletBinding()]
 param(
@@ -30,19 +32,26 @@ $Baselines = Get-Content (Join-Path $RepoRoot 'eng/baselines.json') -Raw | Conve
 $repository = $Baselines.source.repository -replace '^https://github.com/', ''
 $primaryRef = $Baselines.source.sourceBaseline.commit
 $primaryLabel = $Baselines.source.sourceBaseline.branch
+. (Join-Path $PSScriptRoot 'lib/Snapshot.ps1')
 
 if (-not $PrimaryRoot) {
     $PrimaryRoot = Join-Path $CacheDir "maui-$primaryRef"
     & (Join-Path $PSScriptRoot 'Get-MauiSourceSnapshot.ps1') -Repo $repository -Ref $primaryRef -OutDir $PrimaryRoot
 }
 else {
-    $markerPath = Join-Path $PrimaryRoot '.mt-snapshot.json'
-    if (-not (Test-Path $markerPath)) {
-        throw "-PrimaryRoot '$PrimaryRoot' has no .mt-snapshot.json provenance marker, so it cannot be verified as $repository@$primaryRef. Refusing to read an unverified directory."
-    }
-    $marker = Get-Content $markerPath -Raw | ConvertFrom-Json
-    if ($marker.repository -ne $repository -or $marker.ref -ne $primaryRef) {
-        throw "-PrimaryRoot '$PrimaryRoot' is a verified snapshot of $($marker.repository)@$($marker.ref), not the pinned $repository@$primaryRef. Refusing to read a mismatched snapshot."
+    $verification = Test-SnapshotIntegrity -Dir $PrimaryRoot -Repo $repository -Ref $primaryRef
+    if (-not $verification.ok) {
+        switch ($verification.reason) {
+            'wrong-repo-or-ref' {
+                throw "-PrimaryRoot '$PrimaryRoot' is a verified snapshot of $($verification.marker.repository)@$($verification.marker.ref), not the pinned $repository@$primaryRef. Refusing to read a mismatched snapshot."
+            }
+            'tree-modified' {
+                throw "-PrimaryRoot '$PrimaryRoot' claims to be a snapshot of $repository@$primaryRef, but its recomputed tree hash ($($verification.computed.treeHash)) does not match its marker ($($verification.marker.treeHash)) -- a file was added, removed, or modified since it was extracted. Refusing to read a directory whose contents no longer match its own provenance record."
+            }
+            default {
+                throw "-PrimaryRoot '$PrimaryRoot' has no valid .mt-snapshot.json provenance marker, so it cannot be verified as $repository@$primaryRef. Refusing to read an unverified directory."
+            }
+        }
     }
 }
 

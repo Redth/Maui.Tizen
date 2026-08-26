@@ -5,36 +5,44 @@
 
 .DESCRIPTION
     Downloads the last-published MAUI NuGet packages that ship a net9.0-tizen7.0 assembly (per
-    eng/baselines.json's behaviorBaseline), verifies each download, extracts the Tizen-TFM
-    assembly from each, and runs eng/tools/ApiDump against it. ApiDump reads assemblies purely via
-    System.Reflection.Metadata (never loads/executes them), so this requires only NuGet network
-    access -- no Tizen workload, emulator, or device.
+    eng/baselines.json's behaviorBaseline), verifies each against a checked-in trust anchor,
+    extracts the Tizen-TFM assembly from each, and runs eng/tools/ApiDump against it. ApiDump reads
+    assemblies purely via System.Reflection.Metadata (never loads/executes them), so this requires
+    only NuGet network access -- no Tizen workload, emulator, or device.
 
-    Verification performed on every package before it is trusted:
-      - SHA-256 of the downloaded .nupkg is computed and pinned to a sidecar file in -CacheDir on
-        first download; a cache hit is only trusted if its hash still matches that sidecar (a
-        nonempty cache file is never trusted on its own -- see the corruption/tamper case below).
-      - The package's NuGet author/repository signature (the embedded .signature.p7s) is checked
-        for presence and decoded with System.Security.Cryptography.Pkcs.SignedCms to confirm it is
-        a structurally valid, non-corrupt PKCS#7 blob. This is NOT full certificate-chain/
-        revocation validation (that requires network access to CRL/OCSP endpoints and the NuGet
-        client's trust-policy stack, which is out of scope for an offline-capable generator) --
-        it catches truncated/corrupted downloads and confirms the package is actually signed.
-      - The set of net9.0-tizen7.0 assemblies extracted must exactly equal the single expected
-        filename recorded in $ExpectedAssemblies below; anything else fails loudly rather than
-        silently picking "whichever .dll happens to be there".
+    Trust model (deliberately NOT trust-on-first-use):
+      - eng/api-baselines/net9.0-tizen7.0-package-trust.json is the source of truth for which
+        package+version+hash combinations this script will ever accept. Every package this script
+        downloads MUST already have a pinned SHA-256 entry there; an unknown package+version pair
+        is refused outright rather than silently trusted and recorded. See that file's header
+        comment for how its pinned hashes were originally established.
+      - After downloading (or reusing a cached copy), the file's SHA-256 is compared against the
+        pinned value. Any mismatch -- corruption, a compromised feed, a tampered local cache -- is
+        a hard failure. The local cache is purely a performance shortcut for skipping a redundant
+        download when the cached bytes already match the pin; it is never itself a trust source.
+      - Independently of the hash pin, every package's NuGet signature is verified via
+        eng/tools/PackageVerify, which performs REAL package-signature verification (integrity:
+        does the current package content still match what was signed; trust: does the signing
+        certificate chain to a trusted root) rather than a bare
+        System.Security.Cryptography.Pkcs.SignedCms check on the isolated .signature.p7s blob --
+        which only proves that blob is internally self-consistent, not that it still matches the
+        package around it. This is defense-in-depth alongside the hash pin, not a replacement: the
+        two checks fail for different reasons (hash pin catches "this isn't the file we trust";
+        signature verification catches "this file's content no longer matches its own signature",
+        which would also be caught by the hash pin here, but is the check that generalizes to any
+        future package this repository has never seen a pinned hash for).
 
     Output is cleared and fully regenerated on every run -- never merged with a previous run's
     files, so a renamed/removed source assembly cannot leave a stale dump behind.
 
 .PARAMETER PackageVersion
     NuGet package version to download. Defaults to eng/baselines.json's behaviorBaseline tag
-    (9.0.120). Override only for exploratory/manual runs; the checked-in baseline should always
-    correspond to the pinned version.
+    (9.0.120), which must match the trust anchor file's packageVersion. Override only for
+    exploratory/manual runs -- the checked-in baseline should always correspond to the pinned
+    version and its own trust anchor.
 
 .PARAMETER CacheDir
-    Directory used to cache downloaded .nupkg files (and their pinned .sha256 sidecars) across
-    repeated runs.
+    Directory used to cache downloaded .nupkg files across repeated runs.
 #>
 [CmdletBinding()]
 param(
@@ -48,6 +56,19 @@ $Baselines = Get-Content (Join-Path $RepoRoot 'eng/baselines.json') -Raw | Conve
 
 if (-not $PackageVersion) {
     $PackageVersion = $Baselines.source.behaviorBaseline.tag
+}
+
+$trustAnchorPath = Join-Path $RepoRoot 'eng/api-baselines/net9.0-tizen7.0-package-trust.json'
+if (-not (Test-Path $trustAnchorPath)) {
+    throw "Missing trust anchor: $trustAnchorPath. Every package this script downloads must have a pinned SHA-256 there before this script will run at all."
+}
+$trustAnchor = Get-Content $trustAnchorPath -Raw | ConvertFrom-Json
+if ($trustAnchor.packageVersion -ne $PackageVersion) {
+    throw "Trust anchor is pinned to version '$($trustAnchor.packageVersion)' but -PackageVersion is '$PackageVersion'. Regenerate $trustAnchorPath for the new version (see its header comment) before changing versions."
+}
+$trustedHashes = @{}
+foreach ($p in $trustAnchor.packages) {
+    $trustedHashes[$p.packageId] = $p.nupkgSha256.ToLowerInvariant()
 }
 
 # Every Microsoft.Maui.* package that ships a net9.0-tizen7.0 asset at this version, and the
@@ -66,81 +87,43 @@ $ExpectedAssemblies = [ordered]@{
 }
 $tfm = 'net9.0-tizen7.0'
 
+foreach ($id in $ExpectedAssemblies.Keys) {
+    if (-not $trustedHashes.ContainsKey($id)) {
+        throw "'$id' has no pinned hash in $trustAnchorPath -- refusing to download an unpinned package. Add it to the trust anchor (with a hash established the same way as its siblings) before adding it here."
+    }
+}
+
 function Get-Sha256Hex([string]$path) {
     (Get-FileHash -Path $path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 
-# Trust-on-first-use pinning: a nonempty cache file is NOT trusted merely for existing. Its hash
-# must match a sidecar recorded the first time it was downloaded and verified; any mismatch means
-# the cache is stale, corrupted, or tampered with, and is treated as a hard failure rather than
-# silently redownloading over it (silently overwriting would hide exactly the tamper case this
-# exists to catch).
-function Get-VerifiedNupkg([string]$idLower, [string]$version, [string]$cacheDir) {
+# Download-or-reuse against the PINNED hash, not trust-on-first-use: the cache is purely a
+# performance shortcut. A cached file is only reused if it ALREADY matches the pin; otherwise it
+# is re-downloaded and the fresh copy is what gets checked against the pin (never blindly trusted
+# just because it came from the network either -- see the caller's hash comparison afterward).
+function Get-PinnedNupkg([string]$idLower, [string]$version, [string]$cacheDir) {
     $nupkgPath = Join-Path $cacheDir "$idLower.$version.nupkg"
-    $hashSidecar = "$nupkgPath.sha256"
 
     if (Test-Path $nupkgPath) {
-        if (-not (Test-Path $hashSidecar)) {
-            throw "Cache tamper/corruption guard: '$nupkgPath' exists with no pinned .sha256 sidecar. Refusing to trust an arbitrary nonempty cache file -- delete it and re-run to redownload cleanly."
-        }
-        $actual = Get-Sha256Hex $nupkgPath
-        $pinned = (Get-Content $hashSidecar -Raw).Trim()
-        if ($actual -ne $pinned) {
-            throw "Cache tamper/corruption guard: '$nupkgPath' hash ($actual) no longer matches its pinned sidecar ($pinned). Refusing to use it -- delete it and re-run to redownload cleanly."
-        }
-        Write-Host "  using cached $idLower.$version.nupkg (sha256 verified against pinned sidecar)"
+        Write-Host "  found cached $idLower.$version.nupkg (verifying against pin before reuse)"
         return $nupkgPath
     }
 
     $url = "https://api.nuget.org/v3-flatcontainer/$idLower/$version/$idLower.$version.nupkg"
     Write-Host "  downloading $url"
     Invoke-WebRequest -Uri $url -OutFile $nupkgPath -UseBasicParsing
-    $hash = Get-Sha256Hex $nupkgPath
-    Set-Content -Path $hashSidecar -Value $hash -NoNewline
-    Write-Host "  sha256 $hash (pinned to $([System.IO.Path]::GetFileName($hashSidecar)))"
     return $nupkgPath
-}
-
-# Partial signature verification: confirms the package is NuGet-signed and that the embedded
-# PKCS#7 blob is structurally well-formed (decodes cleanly, self-consistent). This deliberately
-# does NOT validate the certificate chain or check revocation -- both require network access to
-# CRL/OCSP endpoints and NuGet's full client trust-policy stack, which would make this generator
-# not offline-capable. It IS sufficient to catch a truncated, corrupted, or non-Microsoft-signed
-# package slipping through.
-function Test-PackageSignature([string]$nupkgPath) {
-    Add-Type -AssemblyName System.Security.Cryptography.Pkcs -ErrorAction SilentlyContinue
-
-    $zip = [System.IO.Compression.ZipFile]::OpenRead($nupkgPath)
-    try {
-        $sigEntry = $zip.Entries | Where-Object { $_.FullName -eq '.signature.p7s' } | Select-Object -First 1
-        if (-not $sigEntry) {
-            return [ordered]@{ signed = $false; signatureStructurallyValid = $false }
-        }
-
-        $ms = New-Object System.IO.MemoryStream
-        $stream = $sigEntry.Open()
-        try { $stream.CopyTo($ms) } finally { $stream.Dispose() }
-        $bytes = $ms.ToArray()
-
-        try {
-            $cms = [System.Security.Cryptography.Pkcs.SignedCms]::new()
-            $cms.Decode($bytes)
-            $cms.CheckSignature($true) # verifySignatureOnly: skip certificate chain/revocation (offline-safe).
-            return [ordered]@{ signed = $true; signatureStructurallyValid = $true }
-        }
-        catch {
-            return [ordered]@{ signed = $true; signatureStructurallyValid = $false; error = $_.Exception.Message }
-        }
-    }
-    finally {
-        $zip.Dispose()
-    }
 }
 
 New-Item -ItemType Directory -Path $CacheDir -Force | Out-Null
 $extractDir = Join-Path $CacheDir "extract-$PackageVersion"
 if (Test-Path $extractDir) { Remove-Item $extractDir -Recurse -Force }
 New-Item -ItemType Directory -Path $extractDir -Force | Out-Null
+
+$verifyToolDir = Join-Path $RepoRoot 'eng/tools/PackageVerify'
+Write-Host "Building PackageVerify tool"
+dotnet build $verifyToolDir -c Release -v quiet | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "dotnet build failed for PackageVerify" }
 
 $assemblies = @()
 $packageManifest = @()
@@ -149,14 +132,26 @@ foreach ($entry in $ExpectedAssemblies.GetEnumerator()) {
     $id = $entry.Key
     $expectedAssemblyName = $entry.Value
     $idLower = $id.ToLowerInvariant()
+    $expectedHash = $trustedHashes[$id]
 
     Write-Host "$id"
-    $nupkgPath = Get-VerifiedNupkg -idLower $idLower -version $PackageVersion -cacheDir $CacheDir
-    $nupkgHash = Get-Sha256Hex $nupkgPath
-    $sigResult = Test-PackageSignature $nupkgPath
-    if ($sigResult.signed -and -not $sigResult.signatureStructurallyValid) {
-        throw "$id.$PackageVersion.nupkg has a .signature.p7s that failed structural verification: $($sigResult.error)"
+    $nupkgPath = Get-PinnedNupkg -idLower $idLower -version $PackageVersion -cacheDir $CacheDir
+    $actualHash = Get-Sha256Hex $nupkgPath
+
+    if ($actualHash -ne $expectedHash) {
+        throw "$id.$PackageVersion.nupkg SHA-256 is $actualHash but the trust anchor pins $expectedHash. Refusing to use this file -- this is either NuGet feed corruption/tampering or a stale local cache; delete '$nupkgPath' and re-run to redownload, or if nuget.org genuinely republished this version's bytes, that is itself a serious integrity problem worth investigating rather than silently accepting."
     }
+    Write-Host "  sha256 $actualHash matches pinned trust anchor"
+
+    $verifyOutput = & dotnet run --no-build -c Release --project $verifyToolDir -- $nupkgPath 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "$id.${PackageVersion}: PackageVerify tool itself failed to run: $verifyOutput"
+    }
+    $verifyResult = $verifyOutput | Select-Object -Last 1 | ConvertFrom-Json
+    if (-not $verifyResult.isValid) {
+        throw "$id.${PackageVersion}: NuGet package signature verification failed despite matching the pinned hash: $($verifyResult.errors -join '; '). This should not happen for a hash that matches the pin -- investigate before proceeding."
+    }
+    Write-Host "  signature verified (signed=$($verifyResult.isSigned) type=$($verifyResult.signatureType) valid=$($verifyResult.isValid))"
 
     $pkgExtractDir = Join-Path $extractDir $idLower
     Expand-Archive -Path $nupkgPath -DestinationPath $pkgExtractDir -Force
@@ -183,9 +178,11 @@ foreach ($entry in $ExpectedAssemblies.GetEnumerator()) {
         packageId               = $id
         version                 = $PackageVersion
         source                  = "https://api.nuget.org/v3-flatcontainer/$idLower/$PackageVersion/$idLower.$PackageVersion.nupkg"
-        nupkgSha256             = $nupkgHash
-        signed                  = $sigResult.signed
-        signatureStructurallyValid = $sigResult.signatureStructurallyValid
+        pinnedNupkgSha256       = $expectedHash
+        nupkgSha256             = $actualHash
+        signed                  = $verifyResult.isSigned
+        signatureType           = $verifyResult.signatureType
+        signatureIntegrityAndTrustValid = $verifyResult.isValid
         nuspecRepositoryCommit  = $repoCommit
         tizenTfm                = $tfm
         assembly                = $expectedAssemblyName
@@ -221,6 +218,7 @@ $manifest = [ordered]@{
     schemaVersion   = 1
     packageVersion  = $PackageVersion
     targetFramework = $tfm
+    trustAnchor     = 'eng/api-baselines/net9.0-tizen7.0-package-trust.json'
     packages        = $packageManifest
 }
 $manifestPath = Join-Path $outDir 'manifest.json'
