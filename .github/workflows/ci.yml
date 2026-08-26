@@ -1,0 +1,174 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # The lane that must stay green.
+  #
+  # It builds and tests everything that does not depend on the Samsung Tizen workload,
+  # which is what stops the repository's build configuration from sitting untested
+  # while we wait on an external dependency.
+  # ---------------------------------------------------------------------------
+  workload-free:
+    name: Build and test (no Tizen workload)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Full history: the provenance tests and any history verification need the
+          # imported commits, not a shallow tip.
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Build and validate
+        run: ./eng/build-workload-free.sh
+        env:
+          ContinuousIntegrationBuild: true
+
+  # ---------------------------------------------------------------------------
+  # Provenance integrity.
+  #
+  # The import's value is entirely in the history it preserves. If a future rebase or
+  # force-push flattens it, everything still compiles and nothing else notices - so it
+  # is checked explicitly.
+  # ---------------------------------------------------------------------------
+  provenance:
+    name: Verify imported history
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Verify provenance commits are still reachable
+        run: |
+          set -euo pipefail
+          fail=0
+
+          check_pr() {
+            local pr="$1" desc="$2" matches
+            # NOTE: deliberately NOT `git log ... | grep -q .`. Under `set -o pipefail`,
+            # `grep -q` exits on the first match and closes the pipe, so `git log` can die
+            # with SIGPIPE and poison the pipeline's exit status - nondeterministically,
+            # depending on how much it had already written. That is exactly how this check
+            # first failed in CI: #2360 passed and #9619 "went missing" in the same run.
+            # `wc -l` consumes all input, so there is no early close and no race.
+            matches="$(git log --all --format='%H' --grep="#${pr})" | wc -l)"
+            if [ "$matches" -gt 0 ]; then
+              echo "  OK   PR #${pr} (${desc}) is present in history"
+            else
+              echo "  FAIL PR #${pr} (${desc}) is missing - imported history has been flattened or rewritten"
+              fail=1
+            fi
+          }
+
+          check_pr 2360 "Adds Tizen backend"
+          check_pr 9619 "Replace Tizen Backend engine"
+
+          # The import should carry well over a thousand commits. A shallow or squashed
+          # history is the failure this guards against.
+          commits=$(git rev-list --count HEAD)
+          echo "  INFO $commits commits reachable from HEAD"
+          if [ "$commits" -lt 1000 ]; then
+            echo "  FAIL history looks truncated (expected >1000 commits from the Tizen import)"
+            fail=1
+          fi
+
+          # Attribution is the point of a history-preserving import.
+          authors=$(git log --format='%aN' | sort -u | wc -l)
+          echo "  INFO $authors distinct authors preserved"
+          if [ "$authors" -lt 50 ]; then
+            echo "  FAIL author attribution looks lost (expected >50 distinct authors)"
+            fail=1
+          fi
+
+          exit $fail
+
+  # ---------------------------------------------------------------------------
+  # The external gate.
+  #
+  # This job does NOT silently skip. It runs on every build and reports, in the job
+  # summary, whether the Samsung .NET 11 workload has shipped yet. The moment it starts
+  # succeeding, this job should be promoted to a required check and the Tizen projects
+  # built for real.
+  #
+  # continue-on-error is used rather than `if:` so the gate stays visible in the checks
+  # list instead of disappearing.
+  # ---------------------------------------------------------------------------
+  tizen-workload-gate:
+    name: Tizen workload availability (external gate)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Probe for the Samsung Tizen workload
+        id: probe
+        run: |
+          set +e
+          dotnet workload install tizen --skip-manifest-update 2>workload.log
+          status=$?
+          set -e
+
+          {
+            echo "## Tizen workload gate"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ $status -eq 0 ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            {
+              echo ":white_check_mark: **The Samsung Tizen workload installed successfully.**"
+              echo
+              echo "This gate has lifted. Next steps:"
+              echo "1. Promote this job to a required check."
+              echo "2. Build the \`net11.0-tizen11.0\` projects for real."
+              echo "3. Regenerate the API baselines against a real Tizen build."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            {
+              echo ":hourglass: **Blocked on an external dependency — this is expected.**"
+              echo
+              echo "The workload manifest \`samsung.net.sdk.tizen.manifest-11.0.100\` has not been"
+              echo "published. Only the \`9.0.100\` and \`10.0.100\` bands exist on nuget.org."
+              echo
+              echo "Until Samsung publishes it, \`net11.0-tizen11.0\` cannot be restored or built"
+              echo "by anyone. See \`docs/migration.md\`."
+              echo
+              echo "<details><summary>Workload install output</summary>"
+              echo
+              echo '```'
+              tail -30 workload.log || true
+              echo '```'
+              echo
+              echo "</details>"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Build Tizen projects
+        if: steps.probe.outputs.available == 'true'
+        run: dotnet build Maui.Tizen.slnx -c Release

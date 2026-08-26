@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Template package for `dotnet new` Tizen MAUI projects.
+
+    Template packs carry content, not compiled output, so this project deliberately does
+    not participate in the Tizen workload gate: it can be packed on any machine.
+
+    No templates have been authored yet. Authoring them requires the workload contract to
+    be real (a template that emits net11.0-tizen11.0 projects nobody can restore is not
+    useful), so this is a shape-only skeleton for now.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+    <PackageType>Template</PackageType>
+    <PackageId>Maui.Tizen.Templates</PackageId>
+    <Description>Project templates for building .NET MAUI applications for Tizen.</Description>
+
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <ContentTargetFolders>content</ContentTargetFolders>
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+
+    <!-- Nothing to ship until templates exist. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="templates/**/*" Exclude="templates/**/bin/**;templates/**/obj/**" />
+  </ItemGroup>
+
+</Project>

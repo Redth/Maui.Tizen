@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Maui.Tizen.Build.Tasks contains the MSBuild tasks that generate tizen-manifest.xml,
+    Tizen resource XML, and splash screen assets - imported from dotnet/maui's Resizetizer.
+
+    SOURCES ARE NOT COMPILED YET, for a specific and documented reason.
+
+    The three imported task files are Tizen-named, so the history filter brought them
+    across. Their dependencies are not:
+
+      ILogger            src/SingleProject/Resizetizer/src/ILogger.cs
+      ResizeImageInfo    src/SingleProject/Resizetizer/src/ResizeImageInfo.cs
+      ResizedImageInfo   src/SingleProject/Resizetizer/src/ResizedImageInfo.cs
+
+    None of those filenames contain "tizen", so they were correctly excluded by the
+    path filter - they are shared Resizetizer infrastructure, not Tizen code.
+
+    Resolving this is a genuine disposition decision, not a build fix: either vendor
+    those upstream files here (forking code we do not own), or keep them upstream and
+    have these tasks ship inside Microsoft.Maui.Resizetizer instead. That choice belongs
+    in the source-disposition manifest (eng/manifests/), so this project deliberately
+    stops short of pre-empting it.
+
+    Discovered by eng/build-workload-free.sh, which is exactly the sort of thing that
+    lane exists to catch.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+    <RootNamespace>Microsoft.Maui.Resizetizer</RootNamespace>
+    <Description>MSBuild tasks for generating Tizen application manifests, resource XML, and splash screens for .NET MAUI.</Description>
+    <PackageId>Maui.Tizen.Build.Tasks</PackageId>
+    <AssemblyName>Maui.Tizen.Build.Tasks</AssemblyName>
+
+    <!-- See the comment above: unresolved dependency closure on shared Resizetizer types. -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+
+    <!-- MSBuild task assemblies ship under tasks/, not lib/. -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <NoWarn>$(NoWarn);NU5100;NU5128;CS2008</NoWarn>
+
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+
+    <!-- Nothing to ship until the dependency closure above is resolved. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="**/*.cs" Exclude="bin/**;obj/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.Build.Utilities.Core" ExcludeAssets="runtime" />
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+
+</Project>

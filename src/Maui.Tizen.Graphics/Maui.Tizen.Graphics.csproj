@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="$(MSBuildThisFileDirectory)../../eng/targets/TizenPackage.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Microsoft.Maui.Graphics</RootNamespace>
+    <Description>Tizen platform implementation for Microsoft.Maui.Graphics (Skia views).</Description>
+  </PropertyGroup>
+
+  <!--
+    PROVISIONAL. Microsoft.Maui.Graphics is upstreamed from dotnet/Microsoft.Maui.Graphics
+    and only carries a single Tizen view here (SkiaGraphicsView.Tizen.cs) plus API
+    baselines. The likely correct disposition is keep-upstream - i.e. this project is
+    deleted and the Tizen view is contributed back to the Graphics repository instead.
+
+    It exists so the imported file is not orphaned while that decision is made. The
+    source-disposition manifest records the outcome; see eng/manifests/.
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Graphics" />
+  </ItemGroup>
+
+</Project>
