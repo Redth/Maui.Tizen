@@ -5,8 +5,11 @@
 // It is deliberately NOT named BoxViewHandler, which still exists in Microsoft.Maui.Controls.
 
 using Microsoft.Maui.Handlers;
+using Microsoft.Maui;
+using Microsoft.Maui.Controls.Handlers;
+using Microsoft.Maui.Platform;
 
-namespace Microsoft.Maui.Controls.Handlers
+namespace Microsoft.Maui.Platforms.Tizen
 {
 	/// <summary>Tizen handler for <see cref="BoxView"/>.</summary>
 	/// <remarks>

@@ -9,8 +9,10 @@ using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Platform;
 using System.Collections.Specialized;
+using Microsoft.Maui;
+using Microsoft.Maui.Controls.Handlers;
 
-namespace Microsoft.Maui.Controls.Handlers
+namespace Microsoft.Maui.Platforms.Tizen
 {
 	/// <summary>Tizen handler for <see cref="Polyline"/>.</summary>
 	public class TizenPolylineHandler : TizenShapeViewHandler

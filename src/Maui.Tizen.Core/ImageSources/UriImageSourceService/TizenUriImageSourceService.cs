@@ -5,8 +5,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Platform;
+using Microsoft.Maui;
 
-namespace Microsoft.Maui
+namespace Microsoft.Maui.Platforms.Tizen
 {
 	/// <summary>Loads an <see cref="IUriImageSource"/> by handing the URI to the Tizen image loader.</summary>
 	public class TizenUriImageSourceService : TizenImageSourceService, ITizenImageSourceService<IUriImageSource>

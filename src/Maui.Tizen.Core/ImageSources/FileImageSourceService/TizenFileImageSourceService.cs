@@ -8,8 +8,9 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Platform;
 using AppFW = Tizen.Applications;
+using Microsoft.Maui;
 
-namespace Microsoft.Maui
+namespace Microsoft.Maui.Platforms.Tizen
 {
 	/// <summary>Loads an <see cref="IFileImageSource"/> from the application's resource directories.</summary>
 	public class TizenFileImageSourceService : TizenImageSourceService, ITizenImageSourceService<IFileImageSource>

@@ -14,6 +14,7 @@ public sealed record MapperEntry(string Key, string Method, bool IsNoOp, string?
 public sealed record HandlerSource(
 	string TypeName,
 	string BaseType,
+	string Namespace,
 	string RelativePath,
 	IReadOnlyList<MapperEntry> PropertyMappers,
 	IReadOnlyList<MapperEntry> CommandMappers);
@@ -109,6 +110,8 @@ public static class WaveBSource
 				yield return new HandlerSource(
 					type.Identifier.Text,
 					type.BaseList?.Types.FirstOrDefault()?.Type.ToString() ?? string.Empty,
+					root.DescendantNodes().OfType<BaseNamespaceDeclarationSyntax>()
+						.FirstOrDefault()?.Name.ToString() ?? string.Empty,
 					Path.GetRelativePath(RepoPaths.Root, path).Replace('\\', '/'),
 					property,
 					command);

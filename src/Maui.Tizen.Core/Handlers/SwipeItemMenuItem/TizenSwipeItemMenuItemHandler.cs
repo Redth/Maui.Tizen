@@ -9,8 +9,10 @@ using System.Threading.Tasks;
 using Microsoft.Maui.Platform;
 using Tizen.UIExtensions.NUI;
 using TColor = Tizen.UIExtensions.Common.Color;
+using Microsoft.Maui;
+using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Handlers
+namespace Microsoft.Maui.Platforms.Tizen
 {
 	/// <summary>Tizen handler for <see cref="ISwipeItemMenuItem"/>.</summary>
 	public class TizenSwipeItemMenuItemHandler : ElementHandler<ISwipeItemMenuItem, Button>

@@ -51,6 +51,22 @@ public class SourceIntegrityTests
 		Assert.Empty(collisions);
 	}
 
+	/// <summary>
+	/// docs/architecture.md reserves <c>Microsoft.Maui.Platforms.Tizen</c> for types written here
+	/// rather than inherited, precisely because that namespace is unused throughout dotnet/maui and
+	/// therefore cannot collide now or later. Every rebuilt Wave B type must live in it.
+	/// </summary>
+	[Fact]
+	public void MigratedTypesLiveInTheReservedTizenNamespace()
+	{
+		var offenders = WaveBSource.Handlers
+			.Where(h => h.Namespace != "Microsoft.Maui.Platforms.Tizen")
+			.Select(h => $"{h.TypeName} is in '{h.Namespace}' ({h.RelativePath})")
+			.ToList();
+
+		Assert.Empty(offenders);
+	}
+
 	[Fact]
 	public void MigratedHandlersAreTizenPrefixed()
 	{

@@ -6,8 +6,10 @@
 // exists in Microsoft.Maui.Core.
 
 using Microsoft.Maui.Platform;
+using Microsoft.Maui;
+using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Handlers
+namespace Microsoft.Maui.Platforms.Tizen
 {
 	/// <summary>Tizen handler for <see cref="IShapeView"/>, drawn through Skia.</summary>
 	/// <remarks>

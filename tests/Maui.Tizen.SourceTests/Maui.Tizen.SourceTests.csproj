@@ -1,35 +1,44 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Host-side verification for the Tizen backend sources.
+    Host-side verification of the migrated Tizen backend sources.
 
-    This project does NOT target Tizen and never will. Samsung's Tizen platform SDK provides the
-    'tizen' TargetPlatformIdentifier and no .NET 11 Tizen workload exists yet, so the backend itself
-    cannot be compiled here. Rather than let that mean "no verification at all", these tests parse
-    the backend sources with Roslyn and check them against the real MAUI assemblies via reflection.
+    This project deliberately does NOT target Tizen, and is therefore exempt from the
+    workload gate. The backend itself cannot be compiled by anyone until the Samsung
+    .NET 11 workload ships, but "cannot compile it" does not have to mean "cannot verify
+    it": these tests parse the backend sources with Roslyn and check them against the
+    real MAUI assemblies by reflection, so the expectations are derived rather than
+    transcribed by hand.
 
-    Package versions are pinned locally and central package management is opted out of, so this
-    project keeps working whether or not the repository root adds Directory.Packages.props.
+    Complements tests/UnitTests, which guards repository-level invariants. This project
+    guards the migrated handler sources themselves.
   -->
+
   <PropertyGroup>
     <TargetFramework>net11.0</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <IsPackable>false</IsPackable>
-    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <NoWarn>$(NoWarn);NETSDK1057</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
-    <PackageReference Include="xunit" Version="2.9.2" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
 
-    <!-- Reflected over to derive the authoritative neutral mapper key sets. -->
-    <PackageReference Include="Microsoft.Maui.Core" Version="11.0.0-preview.7.26418.3" />
-    <PackageReference Include="Microsoft.Maui.Controls" Version="11.0.0-preview.7.26418.3" />
+    <!-- Parses the migrated sources. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+
+    <!--
+      Reflected over to derive the authoritative neutral mapper key sets: the same neutral
+      MAUI assemblies the backend will compile against.
+    -->
+    <PackageReference Include="Microsoft.Maui.Core" />
+    <PackageReference Include="Microsoft.Maui.Controls" />
   </ItemGroup>
 
 </Project>

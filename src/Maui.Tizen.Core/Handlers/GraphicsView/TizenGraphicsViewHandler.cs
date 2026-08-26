@@ -9,8 +9,10 @@
 // and re-declaring the name would be ambiguous for consumers referencing both assemblies.
 
 using Microsoft.Maui.Platform;
+using Microsoft.Maui;
+using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Handlers
+namespace Microsoft.Maui.Platforms.Tizen
 {
 	/// <summary>Tizen handler for <see cref="IGraphicsView"/>, backed by the Skia drawing surface.</summary>
 	public class TizenGraphicsViewHandler : ViewHandler<IGraphicsView, PlatformTouchGraphicsView>

@@ -8,8 +8,10 @@
 using System;
 using System.Threading.Tasks;
 using Microsoft.Maui.Platform;
+using Microsoft.Maui;
+using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Handlers
+namespace Microsoft.Maui.Platforms.Tizen
 {
 	/// <summary>Tizen handler for <see cref="IImageButton"/>.</summary>
 	public class TizenImageButtonHandler : ViewHandler<IImageButton, MauiImageButton>

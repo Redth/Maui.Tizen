@@ -12,8 +12,10 @@ using System;
 using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Platform;
 using Tizen.UIExtensions.NUI;
+using Microsoft.Maui;
+using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Handlers
+namespace Microsoft.Maui.Platforms.Tizen
 {
 	/// <summary>Tizen handler for <see cref="IScrollView"/>.</summary>
 	public class TizenScrollViewHandler : ViewHandler<IScrollView, ScrollView>

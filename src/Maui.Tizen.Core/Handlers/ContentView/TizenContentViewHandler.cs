@@ -10,8 +10,10 @@
 
 using System;
 using Microsoft.Maui.Platform;
+using Microsoft.Maui;
+using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Handlers
+namespace Microsoft.Maui.Platforms.Tizen
 {
 	/// <summary>Tizen handler for <see cref="IContentView"/>.</summary>
 	public class TizenContentViewHandler : ViewHandler<IContentView, ContentViewGroup>

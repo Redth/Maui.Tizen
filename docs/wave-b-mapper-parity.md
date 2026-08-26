@@ -27,10 +27,12 @@ assemblies, so the Tizen half can never be reunited with its neutral half.
 The neutral handler names, however, *do* still exist in `Microsoft.Maui.Core`. Declaring
 `Microsoft.Maui.Handlers.ScrollViewHandler` here would produce two types with the same full name in
 any app referencing both assemblies. Every migrated handler is therefore a standalone type with a
-`Tizen` prefix that owns its own property and command mappers.
+`Tizen` prefix that owns its own property and command mappers, declared in the
+`Microsoft.Maui.Platforms.Tizen` namespace that `docs/architecture.md` reserves for rebuilt types.
 
 `SourceIntegrityTests.MigratedHandlerNamesDoNotCollideWithNeutralMauiTypes` enforces this by
-reflecting over the shipped MAUI assemblies rather than trusting a hard-coded list.
+reflecting over the shipped MAUI assemblies rather than trusting a hard-coded list, and
+`MigratedTypesLiveInTheReservedTizenNamespace` enforces the namespace contract.
 
 ## Parity summary
 

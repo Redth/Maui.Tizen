@@ -5,8 +5,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Platform;
+using Microsoft.Maui;
 
-namespace Microsoft.Maui
+namespace Microsoft.Maui.Platforms.Tizen
 {
 	/// <summary>
 	/// Resolves an <see cref="IFontImageSource"/> on Tizen.
