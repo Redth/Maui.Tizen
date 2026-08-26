@@ -47,11 +47,15 @@
       Explicit pin required by DevFlow's own dependency graph: Agent.Core depends on
       Microsoft.Maui.Essentials >= 10.0.20 while also pulling Microsoft.Maui.Core 10.0.41,
       which requires Essentials >= 10.0.41. NuGet reports that as an NU1605 downgrade unless
-      the consumer states a version. Referencing the centrally pinned net11 Essentials
-      resolves it upward and keeps the diagnostics graph on the same MAUI build as the rest
-      of the repository.
+      the consumer states a version.
+
+      Deliberately NOT pinned to the repository's net11 MAUI preview. DevFlow's preview
+      packages were built against MAUI 10.0.x, and forcing them onto the net11 preview drags in
+      Microsoft.Extensions.* preview versions that are not published to any feed this
+      repository maps. Diagnostics are debug-only and never referenced by a shipping package,
+      so letting DevFlow keep its own released MAUI 10.0.x graph is both simpler and lower risk.
     -->
-    <PackageReference Include="Microsoft.Maui.Essentials" />
+    <PackageReference Include="Microsoft.Maui.Essentials" VersionOverride="10.0.41" />
   </ItemGroup>
 
 </Project>
