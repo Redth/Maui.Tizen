@@ -264,24 +264,48 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[Theory]
 		[InlineData(false)]
 		[InlineData(true)]
-		public void StaticDispatcherProviderIsPublishedForTheMainThreadBridge(bool useDefaults)
+		public void StaticDispatcherProviderIsPublishedByBuildAlone(bool useDefaults)
 		{
-			// MainThread resolves through the STATIC DispatcherProvider.Current, not through DI.
-			// Replacing only the DI registration would leave MainThread on the neutral provider,
-			// which has no dispatcher for the NUI main loop and fails silently.
+			// MainThread reads the STATIC DispatcherProvider.Current, not DI, and a real app never
+			// resolves IDispatcher by hand to prime it. So this asserts on the state immediately
+			// after Build() with NO test-only resolve - anything else would prove nothing about
+			// what a real app sees.
+			//
+			// Measured before the fix: useDefaults:true happened to work, because MAUI's own
+			// ApplicationDispatcherInitializer resolves IDispatcher at Build time as a side
+			// effect. useDefaults:false left the neutral Microsoft.Maui.Dispatching.
+			// DispatcherProvider in place, silently. TizenDispatcherProviderInitializer now
+			// publishes it explicitly on both paths.
+			DispatcherProvider.SetCurrent(null);
+
 			using var app = BuildApp(useDefaults: useDefaults);
 
+			Assert.IsType<TizenDispatcherProvider>(DispatcherProvider.Current);
+		}
+
+		[Theory]
+		[InlineData(false)]
+		[InlineData(true)]
+		public void MainThreadBridgeSeesTheTizenProviderWithoutAnyManualResolve(bool useDefaults)
+		{
+			// The end-to-end consequence: with the Tizen provider published, a thread carrying a
+			// SynchronizationContext (which the NUI main loop does) yields a Tizen dispatcher
+			// through the same static path MainThread uses.
+			DispatcherProvider.SetCurrent(null);
+
+			using var app = BuildApp(useDefaults: useDefaults);
+
+			IDispatcher? dispatcher = null;
 			var thread = new Thread(() =>
 			{
 				SynchronizationContext.SetSynchronizationContext(new SynchronizationContext());
-				using var scope = app.Services.CreateScope();
-				_ = scope.ServiceProvider.GetService<IDispatcher>();
+				dispatcher = DispatcherProvider.Current.GetForCurrentThread();
 			});
 
 			thread.Start();
 			thread.Join();
 
-			Assert.IsType<TizenDispatcherProvider>(DispatcherProvider.Current);
+			Assert.IsType<TizenDispatcher>(dispatcher);
 		}
 
 		[Theory]

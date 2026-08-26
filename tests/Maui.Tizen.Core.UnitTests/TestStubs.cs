@@ -17,7 +17,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			set => Handler = value as IViewHandler;
 		}
 
-		public IElement? Parent => null;
+		public IElement? Parent { get; set; }
 
 		public bool IsFocused { get; set; }
 

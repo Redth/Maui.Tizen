@@ -90,7 +90,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Throws<ArgumentNullException>(() => new StubLayoutInternal().GetLayoutHandlerIndex(null!));
 		}
 
-		internal sealed class StubLayoutInternal : ILayout
+		internal class StubLayoutInternal : ILayout
 		{
 			readonly List<IView> _children;
 
@@ -112,7 +112,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			public bool IgnoreSafeArea => false;
 
-			public void Add(IView item) => _children.Add(item);
+			public virtual void Add(IView item) => _children.Add(item);
 
 			public void Clear() => _children.Clear();
 

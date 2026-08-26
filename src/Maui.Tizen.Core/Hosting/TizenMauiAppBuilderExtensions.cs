@@ -11,6 +11,26 @@ using Microsoft.Maui.Platforms.Tizen.LifecycleEvents;
 namespace Microsoft.Maui.Platforms.Tizen.Hosting
 {
 	/// <summary>
+	/// Publishes the Tizen <see cref="IDispatcherProvider"/> onto the static
+	/// <see cref="DispatcherProvider.Current"/> when the app starts.
+	/// </summary>
+	/// <remarks>
+	/// <c>Microsoft.Maui.ApplicationModel.MainThread</c> reads the static provider rather than
+	/// resolving one from DI, so this is what makes <c>MainThread.BeginInvokeOnMainThread</c> and
+	/// friends work on Tizen. Runs from <c>MauiApp.Build()</c> for both <c>useDefaults</c> modes.
+	/// </remarks>
+	internal sealed class TizenDispatcherProviderInitializer : IMauiInitializeService
+	{
+		/// <inheritdoc />
+		public void Initialize(IServiceProvider services)
+		{
+			var provider = services.GetService<IDispatcherProvider>();
+			if (provider is not null)
+				DispatcherProvider.SetCurrent(provider);
+		}
+	}
+
+	/// <summary>
 	/// Host-builder entry points for the Tizen backend.
 	/// </summary>
 	public static class TizenMauiAppBuilderExtensions
@@ -133,6 +153,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 			services.Replace(ServiceDescriptor.Scoped<ITicker>(static _ => new TizenTicker()));
 			services.Replace(ServiceDescriptor.Scoped<IAnimationManager>(
 				static sp => new AnimationManager(sp.GetRequiredService<ITicker>())));
+
+			// Publish the provider onto the STATIC DispatcherProvider.Current during app startup.
+			//
+			// MainThread resolves through the static provider, not through DI, so replacing only
+			// the DI registration is not enough. With useDefaults:true MAUI's own
+			// ApplicationDispatcherInitializer happens to do this for us as a side effect of
+			// resolving IDispatcher at Build time - but with useDefaults:false nothing does, and
+			// MainThread is left pointing at the neutral provider with no error. Verified: without
+			// this initializer, DispatcherProvider.Current after Build() is
+			// Microsoft.Maui.Dispatching.DispatcherProvider on the useDefaults:false path.
+			services.TryAddEnumerable(
+				ServiceDescriptor.Singleton<IMauiInitializeService, TizenDispatcherProviderInitializer>());
 
 			builder.ConfigureTizenWindowLifecycle();
 
