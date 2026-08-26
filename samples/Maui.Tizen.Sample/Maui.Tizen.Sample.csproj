@@ -8,10 +8,22 @@
     see docs/net11-status.md.
   -->
 
+  <!--
+    TizenPackage.props must be imported here, in the PROPS phase.
+
+    Setting IsTizenProject alone is not enough: TargetFramework is derived from it in
+    Directory.Build.targets, which is imported far too late for the SDK's target-framework
+    inference to see it. Without this import the project evaluates with an EMPTY TargetFramework -
+    verified with `dotnet msbuild -getProperty:TargetFramework` - which silently produces no inner
+    build at all rather than any error.
+
+    Maui.Tizen.Core imports the same file for the same reason; a regression test in
+    tests/UnitTests pins both.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)../../eng/targets/TizenPackage.props" />
   <Import Project="$(RepositoryRoot)eng/Maui.props" />
 
   <PropertyGroup>
-    <IsTizenProject>true</IsTizenProject>
     <OutputType>Exe</OutputType>
 
     <RootNamespace>Maui.Tizen.Sample</RootNamespace>

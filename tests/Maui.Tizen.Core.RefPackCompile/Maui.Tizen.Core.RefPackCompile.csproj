@@ -30,12 +30,28 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
     <NoWarn>$(NoWarn);CS1591;NU1701</NoWarn>
+    <!-- See PublicAPI/slice/PublicAPI.Unshipped.txt for why RS0016 is suppressed and RS0017 is not. -->
+    <NoWarn>$(NoWarn);RS0016</NoWarn>
 
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
 
     <!-- The whole point of this lane: exercise the `#if TIZEN` branches. -->
     <DefineConstants>$(DefineConstants);TIZEN;PLATFORM</DefineConstants>
   </PropertyGroup>
+
+  <!--
+    Runs the PublicAPI analyzer over the REAL product sources with the REAL slice baselines.
+    src/Maui.Tizen.Core cannot be built without the Samsung workload, so this is the only lane
+    where RS0016/RS0017 can actually be enforced before that ships.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <AdditionalFiles Include="$(RepositoryRoot)src/Maui.Tizen.Core/PublicAPI/slice/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="$(RepositoryRoot)src/Maui.Tizen.Core/PublicAPI/slice/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Core" />

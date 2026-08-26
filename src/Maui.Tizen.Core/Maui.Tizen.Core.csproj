@@ -48,6 +48,30 @@
   </ItemGroup>
 
   <!--
+    PublicAPI baselines.
+
+    TizenPackage.props attaches PublicAPI/**/PublicAPI.*.txt for every project, which for this one
+    means ~3,270 lines of dotnet/maui's INHERITED Microsoft.Maui.* API surface. That surface has
+    nothing to do with what this assembly actually exports (Microsoft.Maui.Platforms.Tizen.*), so
+    with the PublicApiAnalyzers package also referenced the real product build would fail with
+    RS0017 for every inherited entry that does not exist here, and RS0016 for every type that does.
+
+    The inherited files are kept on disk - they are the imported baseline for the not-yet-ported
+    sources and are consumed by the API-comparison tooling in eng/api-baselines/ - but they are
+    detached from the analyzer here and replaced with baselines for the slice this project really
+    compiles.
+
+    tests/Maui.Tizen.Core.RefPackCompile runs the analyzer over these same sources with these same
+    baselines, which is the only place it can actually execute until the Samsung workload ships.
+  -->
+  <ItemGroup>
+    <AdditionalFiles Remove="PublicAPI/net-tizen/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Remove="PublicAPI/net-tizen/PublicAPI.Unshipped.txt" />
+    <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+  <!--
     Tizen.UIExtensions.NUI 0.9.2 transitively declares Microsoft.Maui.Graphics 6.0.300-rc.3.1336.
     Refuse to produce a package while that is true; see eng/Maui.props and docs/net11-status.md.
   -->

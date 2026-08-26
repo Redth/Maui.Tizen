@@ -31,6 +31,7 @@
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenMauiContext.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenMauiContextExtensions.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)LifecycleEvents/TizenLifecycleEventExtensions.cs" />
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)LifecycleEvents/TizenWindowLifecycleBridge.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Hosting/TizenHandlerCollectionExtensions.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Hosting/TizenMauiAppBuilderExtensions.cs" />
   </ItemGroup>
@@ -42,6 +43,7 @@
   <ItemGroup Label="Handler slice sources">
     <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/ITizenPlatformViewHandler.cs" />
     <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/ITizenHandlers.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenViewMappers.cs" />
     <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenViewHandlerOfT.cs" />
     <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenApplicationHandler.cs" />
     <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenWindowHandler.cs" />

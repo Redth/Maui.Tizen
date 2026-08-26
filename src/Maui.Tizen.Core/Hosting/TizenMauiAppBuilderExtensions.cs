@@ -5,6 +5,8 @@ using Microsoft.Maui;
 using Microsoft.Maui.Animations;
 using Microsoft.Maui.Dispatching;
 using Microsoft.Maui.Hosting;
+using Microsoft.Maui.LifecycleEvents;
+using Microsoft.Maui.Platforms.Tizen.LifecycleEvents;
 
 namespace Microsoft.Maui.Platforms.Tizen.Hosting
 {
@@ -66,6 +68,25 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 		/// Registers the Tizen handlers, dispatcher and animation ticker without taking an opinion
 		/// on the application type.
 		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// Platform services are registered with <c>Replace</c>/<c>RemoveAll</c>, <b>not</b>
+		/// <c>TryAdd</c>. <see cref="MauiApp.CreateBuilder(bool)"/> defaults to
+		/// <c>useDefaults: true</c>, which runs MAUI's <c>ConfigureDispatching</c> and
+		/// <c>ConfigureAnimations</c> before any of this. Those register neutral implementations
+		/// (<c>Microsoft.Maui.Dispatching.DispatcherProvider</c>, <c>PlatformTicker</c>), so a
+		/// <c>TryAdd</c> here is a silent no-op and the Tizen services never win.
+		/// </para>
+		/// <para>
+		/// That failure mode is quiet and severe: the neutral <c>DispatcherProvider</c> returns no
+		/// dispatcher for the NUI main loop, so <c>MainThread</c> marshalling and every animation
+		/// stop working with no error at all.
+		/// </para>
+		/// <para>
+		/// <see cref="IApplication"/> is deliberately left on <c>TryAdd</c> - a host that registers
+		/// its own application instance before calling this should keep it.
+		/// </para>
+		/// </remarks>
 		/// <param name="builder">The app builder.</param>
 		/// <returns>The app builder, for chaining.</returns>
 		public static MauiAppBuilder ConfigureTizen(this MauiAppBuilder builder)
@@ -73,22 +94,74 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 			ArgumentNullException.ThrowIfNull(builder);
 
 			builder.ConfigureMauiHandlers(handlers => handlers.AddTizenHandlers());
-			builder.Services.TryAddSingleton<IDispatcherProvider, TizenDispatcherProvider>();
-			builder.Services.TryAddScoped<IDispatcher>(static services =>
-				services.GetRequiredService<IDispatcherProvider>().GetForCurrentThread()
-				?? throw new InvalidOperationException(
-					"No SynchronizationContext is installed on this thread, so no IDispatcher could be "
-					+ "created. On Tizen this means the call happened before the NUI main loop was "
-					+ "started - resolve IDispatcher from inside the application lifecycle instead."));
-			// Scoped, matching dotnet/maui's ConfigureAnimations. Two reasons this must not be
-			// transient/singleton: TizenTicker is IDisposable and owns a Timer, so a transient
-			// resolved from the root provider is retained with its timer for the whole process;
-			// and TizenTicker captures SynchronizationContext.Current in its constructor, so a
-			// singleton would pin every animation callback to whichever thread happened to
-			// resolve it first.
-			builder.Services.TryAddScoped<ITicker>(static _ => new TizenTicker());
-			builder.Services.TryAddScoped<IAnimationManager>(
-				static services => new AnimationManager(services.GetRequiredService<ITicker>()));
+
+			var services = builder.Services;
+
+			// Singleton: one provider for the process, matching MAUI's own ConfigureDispatching.
+			services.Replace(ServiceDescriptor.Singleton<IDispatcherProvider, TizenDispatcherProvider>());
+
+			// Scoped: there may be a different dispatcher per window.
+			//
+			// Publishing the provider through DispatcherProvider.SetCurrent is load-bearing, not
+			// incidental. Microsoft.Maui.ApplicationModel.MainThread resolves through the *static*
+			// DispatcherProvider.Current, not through DI, so replacing only the DI registration
+			// would leave MainThread talking to the neutral provider - which has no dispatcher for
+			// the NUI main loop and fails silently. MAUI's own registration performs this side
+			// effect internally; doing it here makes both useDefaults paths behave identically.
+			services.Replace(ServiceDescriptor.Scoped<IDispatcher>(static sp =>
+			{
+				var provider = sp.GetRequiredService<IDispatcherProvider>();
+				DispatcherProvider.SetCurrent(provider);
+
+				return provider.GetForCurrentThread()
+					?? throw new InvalidOperationException(
+						"No SynchronizationContext is installed on this thread, so no IDispatcher "
+						+ "could be created. On Tizen this means the call happened before the NUI "
+						+ "main loop was started - resolve IDispatcher from inside the application "
+						+ "lifecycle instead.");
+			}));
+
+			// MAUI's ApplicationDispatcher (internal, registered by ConfigureDispatching) is left
+			// alone deliberately: it resolves IDispatcherProvider from DI lazily, so it picks up
+			// the replacement above rather than capturing the neutral provider.
+
+			// Scoped, matching dotnet/maui's ConfigureAnimations. Neither may be transient or
+			// singleton: TizenTicker is IDisposable and owns a Timer, so a transient resolved from
+			// the root provider is retained with its timer for the whole process; and TizenTicker
+			// captures SynchronizationContext.Current in its constructor, so a singleton would pin
+			// every animation callback to whichever thread happened to resolve it first.
+			services.Replace(ServiceDescriptor.Scoped<ITicker>(static _ => new TizenTicker()));
+			services.Replace(ServiceDescriptor.Scoped<IAnimationManager>(
+				static sp => new AnimationManager(sp.GetRequiredService<ITicker>())));
+
+			builder.ConfigureTizenWindowLifecycle();
+
+			return builder;
+		}
+
+		/// <summary>
+		/// Bridges the Tizen application lifecycle onto the cross-platform <see cref="IWindow"/>
+		/// lifecycle events.
+		/// </summary>
+		/// <remarks>
+		/// Without this, <c>Created</c>, <c>Activated</c>, <c>Deactivated</c>, <c>Stopped</c>,
+		/// <c>Resumed</c> and <c>Destroying</c> never fire on Tizen, because <c>CoreApplication</c>
+		/// only surfaces <c>OnCreate</c>/<c>OnResume</c>/<c>OnPause</c>/<c>OnTerminate</c>. The
+		/// The bridge is registered in DI and driven from <c>TizenMauiApplication</c>'s own
+		/// lifecycle overrides. It is deliberately not wired through the Tizen lifecycle-event
+		/// delegates, because those take <c>Tizen.Applications.CoreApplication</c> and therefore
+		/// cannot be referenced from the platform-independent hosting code that this method lives
+		/// in - which is also what lets the bridge be unit tested on the host.
+		/// </remarks>
+		/// <param name="builder">The app builder.</param>
+		/// <returns>The app builder, for chaining.</returns>
+		public static MauiAppBuilder ConfigureTizenWindowLifecycle(this MauiAppBuilder builder)
+		{
+			ArgumentNullException.ThrowIfNull(builder);
+
+			// Singleton so TizenMauiApplication and any host observer share one instance, which
+			// matters because the bridge tracks Activated/Deactivated balance across callbacks.
+			builder.Services.TryAddSingleton<TizenWindowLifecycleBridge>();
 
 			return builder;
 		}

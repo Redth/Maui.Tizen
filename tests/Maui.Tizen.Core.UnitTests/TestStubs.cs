@@ -104,6 +104,20 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 	}
 
+	/// <summary>Minimal <see cref="IContentView"/> stub.</summary>
+	public sealed class StubContentView : StubView, IContentView
+	{
+		public object? Content => null;
+
+		public IView? PresentedContent => null;
+
+		public Thickness Padding => Thickness.Zero;
+
+		public Size CrossPlatformMeasure(double widthConstraint, double heightConstraint) => Size.Zero;
+
+		public Size CrossPlatformArrange(Rect bounds) => bounds.Size;
+	}
+
 	/// <summary>Minimal <see cref="ILabel"/> stub.</summary>
 	public sealed class StubLabel : StubView, ILabel
 	{

@@ -43,23 +43,60 @@ namespace Microsoft.Maui.Platforms.Tizen
 		}
 
 		/// <inheritdoc />
+		/// <remarks>
+		/// The timer is one-shot: the period is <see cref="Timeout.InfiniteTimeSpan"/>, so it fires
+		/// exactly once and is then disposed.
+		/// <para>
+		/// dotnet/maui's Tizen dispatcher passes <c>delay</c> as both due time and period, making
+		/// the timer repeating, and relies on disposing it from inside its own callback to stop it.
+		/// That races: the callback runs on a thread-pool thread while <c>Dispose</c> is in flight,
+		/// so a second tick can be queued before the first completes, and the caller's action runs
+		/// more than once. The action here is posted to the main loop, so a duplicate is a real
+		/// user-visible double execution rather than a harmless extra tick.
+		/// </para>
+		/// </remarks>
 		public bool DispatchDelayed(TimeSpan delay, Action action)
 		{
 			ArgumentNullException.ThrowIfNull(action);
 
-			Timer? timer = null;
-			timer = new Timer(
-				_ =>
-				{
-					_context.Post(_ => action(), null);
-					timer?.Dispose();
-				},
-				null,
-				Timeout.Infinite,
-				Timeout.Infinite);
+			var state = new DelayedDispatch(_context, action);
+			state.Start(delay);
 
-			timer.Change(delay, delay);
 			return true;
+		}
+
+		/// <summary>
+		/// Owns the one-shot timer for a single <see cref="DispatchDelayed"/> call, so the timer
+		/// field is assigned before the callback can possibly observe it.
+		/// </summary>
+		sealed class DelayedDispatch
+		{
+			readonly SynchronizationContext _context;
+			readonly Action _action;
+			Timer? _timer;
+
+			public DelayedDispatch(SynchronizationContext context, Action action)
+			{
+				_context = context;
+				_action = action;
+			}
+
+			public void Start(TimeSpan delay)
+			{
+				// Created stopped, then armed, so _timer is non-null by the time OnTick can run.
+				_timer = new Timer(static s => ((DelayedDispatch)s!).OnTick(), this, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+				_timer.Change(delay, Timeout.InfiniteTimeSpan);
+			}
+
+			void OnTick()
+			{
+				// Dispose before posting: the timer is already one-shot, so there is nothing left
+				// to cancel, and this cannot suppress the dispatch.
+				_timer?.Dispose();
+				_timer = null;
+
+				_context.Post(static s => ((Action)s!)(), _action);
+			}
 		}
 
 		/// <inheritdoc />

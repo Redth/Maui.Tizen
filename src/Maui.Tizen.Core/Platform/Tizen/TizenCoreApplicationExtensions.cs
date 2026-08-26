@@ -24,6 +24,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 	{
 		// Keyed weakly so a disposed window does not keep its content, or its handlers, alive.
 		static readonly ConditionalWeakTable<TizenNativeWindow, TizenNativeView> s_windowContent = new();
+		static readonly ConditionalWeakTable<TizenNativeWindow, ITizenPlatformViewHandler> s_windowContentHandler = new();
 		static readonly ConditionalWeakTable<TizenNativeWindow, Action> s_windowCloseRequestHandler = new();
 		static readonly ConditionalWeakTable<TizenNativeWindow, Func<bool>> s_windowBackButtonPressedHandler = new();
 
@@ -117,7 +118,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </remarks>
 		/// <param name="platformWindow">The platform window.</param>
 		/// <param name="content">The content view.</param>
-		public static void SetMainContent(this TizenNativeWindow platformWindow, TizenNativeView content)
+		public static void SetMainContent(this TizenNativeWindow platformWindow, TizenNativeView content, IView? contentView = null)
 		{
 			ArgumentNullException.ThrowIfNull(platformWindow);
 			ArgumentNullException.ThrowIfNull(content);
@@ -128,6 +129,19 @@ namespace Microsoft.Maui.Platforms.Tizen
 					return;
 
 				platformWindow.Remove(previous);
+
+				// Removing the native view only unparents it. The handler still holds the platform
+				// view, its event subscriptions and its child handler graph, so without an explicit
+				// disconnect the whole previous page leaks on every content swap.
+				if (s_windowContentHandler.TryGetValue(platformWindow, out var previousHandler))
+				{
+					previousHandler.Dispose();
+					s_windowContentHandler.Remove(platformWindow);
+				}
+				else
+				{
+					previous.Dispose();
+				}
 			}
 
 			content.WidthSpecification = LayoutParamPolicies.MatchParent;
@@ -139,6 +153,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			s_windowContent.Remove(platformWindow);
 			s_windowContent.Add(platformWindow, content);
+
+			s_windowContentHandler.Remove(platformWindow);
+			if (contentView?.Handler is ITizenPlatformViewHandler contentHandler)
+				s_windowContentHandler.Add(platformWindow, contentHandler);
 		}
 
 		/// <summary>
