@@ -18,7 +18,28 @@
       "commit": "ee4d06cde6b49e297631b08426a33fb34f3152ef",
       "branch": "net11.0",
       "date": "2026-08-18",
-      "role": "Forward source baseline. All net11-era Tizen sources are taken from here."
+      "role": "Forward source baseline. All net11-era Tizen sources are taken from here.",
+      "commitsAheadOfRequiredAncestor": 4,
+      "knownGapAfterThisPin": {
+        "$comment": [
+          "net11.0 continued past this pin. The commits below touch Tizen paths and are",
+          "therefore NOT represented in the import or in any baseline generated from it.",
+          "",
+          "All three touch ONLY src/Controls/src/Core/PublicAPI/net-tizen/PublicAPI.Unshipped.txt",
+          "- they are API surface declarations, not implementation - so the practical gap is",
+          "that the Controls net-tizen Unshipped baseline is three API additions behind",
+          "current net11.0. This matters for API baseline diffing, not for source migration.",
+          "",
+          "Recorded because 'we pinned a SHA' is only reproducible if what the pin EXCLUDES",
+          "is also written down."
+        ],
+        "observedAgainst": "bedd1b18b7682193e05b47267509cec8c49c6853",
+        "commits": [
+          { "commit": "62418a4ec4", "pullRequest": 37420, "title": "Expose gesture recognizer dispatch APIs" },
+          { "commit": "78502a5325", "pullRequest": 37671, "title": "Harden gesture recognizer dispatch API contracts" },
+          { "commit": "4695c95801", "pullRequest": 37755, "title": "Add badge support to TabbedPage" }
+        ]
+      }
     },
     "requiredAncestor": {
       "commit": "0b3bb76d2dd68d76b7c1302f43a76270d5949564",
