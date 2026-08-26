@@ -131,10 +131,13 @@ documentation and evidence only:
 
 ## Workload status (unchanged from the foundation)
 
-`net11.0-tizen11.0` still cannot be restored or built anywhere — Samsung has not published
-`samsung.net.sdk.tizen.manifest-11.0.100` (see `eng/baselines.json` and `docs/migration.md`).
-That remains an external gate unrelated to this decision. `eng/build-workload-free.sh` passes
-in full in this environment (SDK pin, central package management, package source mapping,
-MSBuild conventions, the workload gate itself, and the 20 repository invariant tests all
-genuinely exercised); the Tizen-specific build/test step is not attempted, consistent with the
-foundation's own documented lane design.
+`net11.0-tizen11.0` still cannot be restored or built anywhere — Samsung has not published the
+workload manifest package `Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7` (verified against
+both the Samsung-cased ID and the `samsung.net.sdk.tizen.manifest-11.0.100-preview.7`
+nuget.org flat-container form; neither exists — see `eng/baselines.json` →
+`target.workloadManifest` and [`docs/migration.md`](migration.md#the-external-gate) for the
+full workload decision). That remains an external gate unrelated to this decision.
+`eng/build-workload-free.sh` passes in full in this environment (SDK pin, central package
+management, package source mapping, MSBuild conventions, the workload gate itself, and the 20
+repository invariant tests all genuinely exercised); the Tizen-specific build/test step is not
+attempted, consistent with the foundation's own documented lane design.
