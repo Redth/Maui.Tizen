@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Minimal Tizen application head for the core vertical slice.
+
+    Like the backend itself this targets ONLY net11.0-tizen11.0 and is gated on the Samsung Tizen
+    workload. It cannot be built until Samsung publishes samsung.net.sdk.tizen.manifest-11.0.100 -
+    see docs/net11-status.md.
+  -->
+
+  <Import Project="$(RepositoryRoot)eng/Maui.props" />
+
+  <PropertyGroup>
+    <TargetFramework>$(MauiTizenTargetFramework)</TargetFramework>
+    <OutputType>Exe</OutputType>
+
+    <RootNamespace>Maui.Tizen.Sample</RootNamespace>
+    <AssemblyName>Maui.Tizen.Sample</AssemblyName>
+    <ApplicationId>org.tizen.example.MauiTizenSample</ApplicationId>
+    <ApplicationVersion>1.0.0</ApplicationVersion>
+
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <Target Name="_ValidateTizenWorkloadForSample" BeforeTargets="_CheckForInvalidConfigurationAndPlatform;CollectPackageReferences">
+    <Error Condition="'$(TizenWorkloadAvailable)' != 'true'"
+           Code="MAUITIZEN0001"
+           Text="Maui.Tizen.Sample targets $(MauiTizenTargetFramework), which requires the Samsung Tizen workload manifest 'samsung.net.sdk.tizen.manifest-11.0.100'. That manifest is not published yet (see eng/baselines.json &gt; target.workloadManifest). Build the host-side verification lanes under tests/ instead, or pass -p:TizenWorkloadAvailable=true once the workload is installed." />
+  </Target>
+
+  <ItemGroup>
+    <ProjectReference Include="$(RepositoryRoot)src/Maui.Tizen.Core/Maui.Tizen.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <TizenManifestFile Include="Platforms/Tizen/tizen-manifest.xml" />
+    <None Include="Platforms/Tizen/tizen-manifest.xml" />
+  </ItemGroup>
+
+</Project>

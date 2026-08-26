@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Host-side verification lane.
+
+    The product assembly (src/Maui.Tizen.Core) targets net11.0-tizen11.0 and cannot be built or run
+    anywhere until Samsung publishes the 11.0.100 workload manifest. This project compiles the SAME
+    backend sources against inert stand-ins for Tizen.NUI, on a plain net11.0 host, so the parts of
+    the backend that are genuinely platform-independent - mapper registration, DI/handler
+    registration, hosting, dispatching, layout z-index ordering, density conversion - are actually
+    executed by tests rather than merely asserted in a document.
+
+    Every NUI call site in the backend is wrapped in `#if TIZEN`; TIZEN is NOT defined here, so the
+    stand-ins are never called into.
+  -->
+
+  <Import Project="$(RepositoryRoot)eng/Maui.props" />
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
+
+  <PropertyGroup>
+    <TargetFramework>$(DotNetTfm)</TargetFramework>
+    <AssemblyName>Maui.Tizen.Core.UnitTests</AssemblyName>
+    <RootNamespace>Microsoft.Maui.Platforms.Tizen.UnitTests</RootNamespace>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Core" Version="$(MicrosoftMauiPackageVersion)" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="$(MicrosoftNETTestSdkVersion)" />
+    <PackageReference Include="xunit" Version="$(XunitPackageVersion)" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="$(XunitRunnerVisualStudioPackageVersion)">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="HostStubs/**/*.cs" />
+    <Compile Include="@(MauiTizenPortableCompile)" LinkBase="Backend" />
+    <Compile Include="@(MauiTizenHandlerCompile)" LinkBase="Backend" />
+    <Compile Include="*.cs" />
+  </ItemGroup>
+
+</Project>

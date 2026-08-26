@@ -1,0 +1,82 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Maui.Tizen.Core - the standalone Tizen (NUI) backend for .NET MAUI.
+
+    SINGLE target framework, per the repository contract in Directory.Build.props: there is no
+    neutral net11.0 fallback here. A neutral fallback would let this project go green while
+    producing an assembly that cannot run on Tizen.
+
+    Host-side verification is provided by two separate projects that compile these same sources -
+    see eng/Maui.Tizen.Core.Sources.props - rather than by degrading this one.
+  -->
+
+  <Import Project="$(RepositoryRoot)eng/Maui.props" />
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
+
+  <PropertyGroup>
+    <TargetFramework>$(MauiTizenTargetFramework)</TargetFramework>
+
+    <AssemblyName>Maui.Tizen.Core</AssemblyName>
+    <RootNamespace>Microsoft.Maui.Platforms.Tizen</RootNamespace>
+
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+
+    <IsPackable>true</IsPackable>
+    <PackageId>Maui.Tizen.Core</PackageId>
+    <Description>Standalone Tizen (NUI) backend for .NET MAUI. Implements Tizen handlers on top of the public Microsoft.Maui.Handlers.ViewHandler&lt;TVirtualView, TPlatformView&gt; API, without MAUI source references, InternalsVisibleTo or private reflection.</Description>
+
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <!--
+    ==========================================================================================
+    EXPLICIT WORKLOAD GATE
+    ==========================================================================================
+    `samsung.net.sdk.tizen.manifest-11.0.100` has not been published (eng/baselines.json >
+    target.workloadManifest.status == "unavailable"). Without it the SDK cannot even resolve the
+    net11.0-tizen11.0 TFM, so fail loudly and actionably instead of producing a confusing
+    NETSDK1147 / "not a recognized platform" error further down the build.
+  -->
+  <Target Name="_ValidateTizenWorkload" BeforeTargets="_CheckForInvalidConfigurationAndPlatform;CollectPackageReferences">
+    <Error Condition="'$(TizenWorkloadAvailable)' != 'true'"
+           Code="MAUITIZEN0001"
+           Text="Maui.Tizen.Core targets $(MauiTizenTargetFramework), which requires the Samsung Tizen workload manifest 'samsung.net.sdk.tizen.manifest-$(SdkBandForTizen)'. That manifest is not published yet (see eng/baselines.json &gt; target.workloadManifest). Until Samsung ships it: run the host-side verification lanes instead - 'dotnet test tests/Maui.Tizen.Core.UnitTests' and 'dotnet build tests/Maui.Tizen.Core.RefPackCompile' - or force this project on with -p:TizenWorkloadAvailable=true once the workload is installed." />
+  </Target>
+
+  <PropertyGroup>
+    <SdkBandForTizen>11.0.100</SdkBandForTizen>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Core" Version="$(MicrosoftMauiPackageVersion)" />
+    <PackageReference Include="Tizen.UIExtensions.NUI" Version="$(TizenUIExtensionsPackageVersion)" />
+  </ItemGroup>
+
+  <!--
+    Tizen.UIExtensions.NUI 0.9.2 declares Microsoft.Maui.Graphics 6.0.300-rc.3.1336. Pin Graphics
+    explicitly so the .NET 6-era package cannot win resolution, and refuse to produce a nupkg while
+    the un-republished version is in play.
+  -->
+  <ItemGroup Condition="'$(TizenUIExtensionsIsShippable)' != 'true'">
+    <PackageReference Include="Microsoft.Maui.Graphics" Version="$(MicrosoftMauiPackageVersion)" />
+  </ItemGroup>
+
+  <Target Name="_BlockPackOnUnshippableUIExtensions" BeforeTargets="GenerateNuspec"
+          Condition="'$(TizenUIExtensionsIsShippable)' != 'true'">
+    <Error Code="MAUITIZEN0002"
+           Text="Refusing to pack Maui.Tizen.Core against Tizen.UIExtensions.NUI $(TizenUIExtensionsPackageVersion), which transitively declares Microsoft.Maui.Graphics 6.0.300-rc.3.1336. Bump $(TizenUIExtensionsPackageVersion) in eng/Maui.props once a republished package is available, or set -p:TizenUIExtensionsIsShippable=true if you have verified the dependency set." />
+  </Target>
+
+  <ItemGroup>
+    <Compile Include="@(MauiTizenPortableCompile)" />
+    <Compile Include="@(MauiTizenHandlerCompile)" />
+    <Compile Include="@(MauiTizenPlatformCompile)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Maui.Tizen.Core.UnitTests" />
+  </ItemGroup>
+
+</Project>
