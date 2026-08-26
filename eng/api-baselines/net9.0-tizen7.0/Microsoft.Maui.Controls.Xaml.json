@@ -1,0 +1,1356 @@
+{
+  "assemblyName": "Microsoft.Maui.Controls.Xaml",
+  "assemblyVersion": "1.0.0.0",
+  "targetFramework": ".NETCoreApp,Version=v9.0",
+  "sourcePath": "Microsoft.Maui.Controls.Xaml.dll",
+  "sha256": "5585e11cca529edba6a5665363938fb813749c40320708ae2f43a9a4cfe99e8d",
+  "types": [
+    {
+      "namespace": "Microsoft.Maui.Controls.Embedding",
+      "name": "EmbeddingExtensions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "UseMauiEmbeddedApp\u003CT0\u003E(Microsoft.Maui.Hosting.MauiAppBuilder) -\u003E Microsoft.Maui.Hosting.MauiAppBuilder",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "UseMauiEmbeddedApp\u003CT0\u003E(Microsoft.Maui.Hosting.MauiAppBuilder, System.Func\u003CSystem.IServiceProvider, T0\u003E) -\u003E Microsoft.Maui.Hosting.MauiAppBuilder",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Hosting",
+      "name": "AppHostBuilderExtensions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "AddMauiControlsHandlers(Microsoft.Maui.Hosting.IMauiHandlersCollection) -\u003E Microsoft.Maui.Hosting.IMauiHandlersCollection",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "UseMauiApp\u003CT0\u003E(Microsoft.Maui.Hosting.MauiAppBuilder) -\u003E Microsoft.Maui.Hosting.MauiAppBuilder",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "UseMauiApp\u003CT0\u003E(Microsoft.Maui.Hosting.MauiAppBuilder, System.Func\u003CSystem.IServiceProvider, T0\u003E) -\u003E Microsoft.Maui.Hosting.MauiAppBuilder",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "AppThemeBindingExtension",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension",
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension\u003CMicrosoft.Maui.Controls.BindingBase\u003E"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ProvideValue(System.IServiceProvider) -\u003E object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Dark { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Default { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Light { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Value { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "ArrayExtension",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension",
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension\u003CSystem.Array\u003E"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ProvideValue(System.IServiceProvider) -\u003E System.Array",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Items { get; } : System.Collections.IList",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Type { get; set; } : System.Type",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "BindingExtension",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension",
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension\u003CMicrosoft.Maui.Controls.BindingBase\u003E"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Converter { get; set; } : Microsoft.Maui.Controls.IValueConverter",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "ConverterParameter { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "FallbackValue { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Mode { get; set; } : Microsoft.Maui.Controls.BindingMode",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Path { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Source { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "StringFormat { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "TargetNullValue { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "TypedBinding { get; set; } : Microsoft.Maui.Controls.Internals.TypedBindingBase",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "UpdateSourceEventName { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "DataTemplateExtension",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension",
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension\u003CMicrosoft.Maui.Controls.DataTemplate\u003E"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ProvideValue(System.IServiceProvider) -\u003E Microsoft.Maui.Controls.DataTemplate",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "TypeName { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "DynamicResourceExtension",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension",
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension\u003CMicrosoft.Maui.Controls.Internals.DynamicResource\u003E"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ProvideValue(System.IServiceProvider) -\u003E object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Key { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "Extensions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "LoadFromXaml\u003CT0\u003E(T0, System.Type) -\u003E T0",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "LoadFromXaml\u003CT0\u003E(T0, string) -\u003E T0",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "FontImageExtension",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension",
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension\u003CMicrosoft.Maui.Controls.ImageSource\u003E"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ProvideValue(System.IServiceProvider) -\u003E Microsoft.Maui.Controls.ImageSource",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Color { get; set; } : Microsoft.Maui.Graphics.Color",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "FontFamily { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Glyph { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Size { get; set; } : double",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml.Internals",
+      "name": "SimpleValueTargetProvider",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IProvideParentValues",
+        "Microsoft.Maui.Controls.Xaml.IProvideValueTarget",
+        "Microsoft.Maui.Controls.Xaml.IReferenceProvider",
+        "Microsoft.Maui.Controls.Xaml.IRootObjectProvider"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(object[], object, Microsoft.Maui.Controls.Internals.INameScope) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "constructor",
+          "signature": "#ctor(object[], object, Microsoft.Maui.Controls.Internals.INameScope[], bool) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "constructor",
+          "signature": "#ctor(object[], object, Microsoft.Maui.Controls.Internals.INameScope[], object) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "FindByName(string) -\u003E object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "RootObject { get; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml.Internals",
+      "name": "ValueTargetProvider",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IProvideValueTarget"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(object, object) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml.Internals",
+      "name": "XamlServiceProvider",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "System.IServiceProvider"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Add(System.Type, object) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "GetService(System.Type) -\u003E object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml.Internals",
+      "name": "XamlTypeResolver",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IXamlTypeResolver"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(System.Xml.IXmlNamespaceResolver, System.Reflection.Assembly) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml.Internals",
+      "name": "XmlLineInfoProvider",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IXmlLineInfoProvider"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(System.Xml.IXmlLineInfo) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "XmlLineInfo { get; } : System.Xml.IXmlLineInfo",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml.Internals",
+      "name": "XmlNamespaceResolver",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "System.Xml.IXmlNamespaceResolver"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Add(string, string) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "GetNamespacesInScope(System.Xml.XmlNamespaceScope) -\u003E System.Collections.Generic.IDictionary\u003Cstring, string\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "LookupNamespace(string) -\u003E string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "LookupPrefix(string) -\u003E string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "NullExtension",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ProvideValue(System.IServiceProvider) -\u003E object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "OnIdiomExtension",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ProvideValue(System.IServiceProvider) -\u003E object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Converter { get; set; } : Microsoft.Maui.Controls.IValueConverter",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "ConverterParameter { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Default { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Desktop { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Phone { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "TV { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Tablet { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Watch { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "OnPlatformExtension",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ProvideValue(System.IServiceProvider) -\u003E object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Android { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Converter { get; set; } : Microsoft.Maui.Controls.IValueConverter",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "ConverterParameter { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Default { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "MacCatalyst { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Tizen { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "UWP { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "WinUI { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "iOS { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "ReferenceExtension",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ProvideValue(System.IServiceProvider) -\u003E object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Name { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "RelativeSourceExtension",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension",
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension\u003CMicrosoft.Maui.Controls.RelativeBindingSource\u003E"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ProvideValue(System.IServiceProvider) -\u003E object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "AncestorLevel { get; set; } : int",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "AncestorType { get; set; } : System.Type",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Mode { get; set; } : Microsoft.Maui.Controls.RelativeBindingSourceMode",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "ResourceDictionaryHelpers",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "LoadFromSource(Microsoft.Maui.Controls.ResourceDictionary, System.Uri, string, System.Reflection.Assembly, System.Xml.IXmlLineInfo) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "StaticExtension",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ProvideValue(System.IServiceProvider) -\u003E object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Member { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "StaticResourceExtension",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ProvideValue(System.IServiceProvider) -\u003E object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Key { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "StyleSheetExtension",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IValueProvider"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Source { get; set; } : System.Uri",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Style { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "TemplateBindingExtension",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension",
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension\u003CMicrosoft.Maui.Controls.BindingBase\u003E"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Converter { get; set; } : Microsoft.Maui.Controls.IValueConverter",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "ConverterParameter { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Mode { get; set; } : Microsoft.Maui.Controls.BindingMode",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Path { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "StringFormat { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "TypedBinding { get; set; } : Microsoft.Maui.Controls.Internals.TypedBindingBase",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "TypeExtension",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension",
+        "Microsoft.Maui.Controls.Xaml.IMarkupExtension\u003CSystem.Type\u003E"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ProvideValue(System.IServiceProvider) -\u003E System.Type",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "TypeName { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "XamlCompilationAttribute",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "baseType": "System.Attribute",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(Microsoft.Maui.Controls.Xaml.XamlCompilationOptions) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "XamlCompilationOptions { get; set; } : Microsoft.Maui.Controls.Xaml.XamlCompilationOptions",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "XamlCompilationOptions",
+      "kind": "enum",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "field",
+          "signature": "Compile",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "Skip",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Xaml",
+      "name": "XamlFilePathAttribute",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "baseType": "System.Attribute",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(string) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "FilePath { get; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    }
+  ]
+}

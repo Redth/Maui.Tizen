@@ -127,6 +127,9 @@ WORKLOAD_FREE_PROJECTS=(
   "tests/UnitTests/Maui.Tizen.UnitTests.csproj"
   "eng/tests/PublicApiOptIn/PublicApiOptIn.csproj"
   "eng/tests/PackReadmeProbe/PackReadmeProbe.csproj"
+  "eng/tools/ApiDump/ApiDump.csproj"
+  "eng/tools/SourceInventory/SourceInventory.csproj"
+  "tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj"
 )
 BUILD_OK=1
 for proj in "${WORKLOAD_FREE_PROJECTS[@]}"; do
@@ -211,6 +214,16 @@ else
   fail "workload detection regressions failed"
   FAILURES=$((FAILURES + 1))
 fi
+
+# ---------------------------------------------------------------------------
+# 4b. Migration inventory / API baseline tooling tests.
+#
+# Offline schema + checksum consistency checks for eng/manifests/source-disposition.json
+# and eng/api-baselines/**: they catch a generated artifact that is stale or was
+# hand-edited without being regenerated via the eng/scripts/*.ps1 generators.
+# ---------------------------------------------------------------------------
+info "Migration tooling tests"
+check "migration tooling tests" "$DOTNET" test tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj --no-build -c Release
 
 # ---------------------------------------------------------------------------
 # 6. Report the Tizen gate explicitly.

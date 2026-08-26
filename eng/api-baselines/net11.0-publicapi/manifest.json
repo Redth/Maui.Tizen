@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "generatedAtUtc": "2026-08-26T19:37:05Z",
+  "repository": "https://github.com/dotnet/maui",
+  "sourceRef": "ee4d06cde6b49e297631b08426a33fb34f3152ef",
+  "sourceRefLabel": "net11.0",
+  "projects": [
+    {
+      "project": "BlazorWebView",
+      "sourcePath": "src/BlazorWebView/src/Maui/PublicAPI/net-tizen",
+      "shippedSha256": "876448d94c656d90088967e7af199c41373820f8fd20a8de80dd73bba6095fa7",
+      "unshippedSha256": "0f66fc11bc44074e6f2a5bb1dddd2fd18df574b4ae9a695de849625a69bc1f70"
+    },
+    {
+      "project": "Controls.Maps",
+      "sourcePath": "src/Controls/Maps/src/PublicAPI/net-tizen",
+      "shippedSha256": "d6b69d805fdb80d25a6502badeb070f8224a8bc3b52069d8a23f01715c9480ce",
+      "unshippedSha256": "5a856e8c7a463bf086559b546ca62f25ac4e6900723eba8d00bbf83ae5fa3c53"
+    },
+    {
+      "project": "Controls.Core",
+      "sourcePath": "src/Controls/src/Core/PublicAPI/net-tizen",
+      "shippedSha256": "457b8988d09d2928b4b6893a502747ee791ef46e9c1c9186c7a136f8c26602ce",
+      "unshippedSha256": "f201297a1a59ec393280555977a07a3da0f32be75ee8612d5dc48738960f3b4f"
+    },
+    {
+      "project": "Controls.Xaml",
+      "sourcePath": "src/Controls/src/Xaml/PublicAPI/net-tizen",
+      "shippedSha256": "6896965bb6f3076fe8e506bfa9d0c7d9bab0501e744950ce490054a9b8da0b43",
+      "unshippedSha256": "b7fae6ff56619309e73743995564f8e89fdba1195d611520e7e7a52d4822a289"
+    },
+    {
+      "project": "Core.Maps",
+      "sourcePath": "src/Core/maps/src/PublicAPI/net-tizen",
+      "shippedSha256": "4466c8cbbb85993073dce035f1d720ec209abfc63e2a1d6c685904534a3e23ea",
+      "unshippedSha256": "6a72c61cb2546b91baba1ea68f25bfd3a086f0e53f899d3af76e3bf38fbff3a9"
+    },
+    {
+      "project": "Core",
+      "sourcePath": "src/Core/src/PublicAPI/net-tizen",
+      "shippedSha256": "9adec30e0c947b6ce1dd3a7affef30065d2d140b4cfc8b0e646232eea226b777",
+      "unshippedSha256": "827914170a83687c6e6744822fa928fd8ac96c9b5c3edaef7a1a8b8ef377c7a0"
+    },
+    {
+      "project": "Essentials",
+      "sourcePath": "src/Essentials/src/PublicAPI/net-tizen",
+      "shippedSha256": "3a8372550d3f127de648b253dfa2b25e4ccd541ff6e5bcc7c4a671cc55da4d80",
+      "unshippedSha256": "29dde96838c30ab25d464421d1231e2c0baa033e4534bca0e149ad78d4d3183b"
+    },
+    {
+      "project": "Graphics.Skia",
+      "sourcePath": "src/Graphics/src/Graphics.Skia/PublicAPI/net-tizen",
+      "shippedSha256": "e75b1cafec15a0d08e65e42dc578734eeadf874eb6f0f9a789fd26c4c48585ea",
+      "unshippedSha256": "3c3b422dddb1efeb0fc5b228608fd8682452b2a9507d4031894bce3c4dedadbd"
+    },
+    {
+      "project": "Graphics",
+      "sourcePath": "src/Graphics/src/Graphics/PublicAPI/net-tizen",
+      "shippedSha256": "ceda5794812222d70c1e46d1972296f98a5e1a4318d6489dfacaf5fc8e0ae3c3",
+      "unshippedSha256": "b0e807d8089fcced3dac7a36323093e35a7b07ea197f6d8bdb5387116866ccd9"
+    }
+  ]
+}

@@ -196,6 +196,9 @@ internal sealed partial class Scanner
     [GeneratedRegex(@"^\s*namespace\s+([A-Za-z_][A-Za-z0-9_.]*)\s*[;{]", RegexOptions.Multiline)]
     private static partial Regex NamespaceRegex();
 
+    [GeneratedRegex(@"^Microsoft\.Maui(\.[A-Za-z0-9_]+)*$")]
+    private static partial Regex MicrosoftMauiNamespaceRegex();
+
     /// <summary>
     /// Scans both baselines together, as docs/migration.md requires: a net11-only pass silently
     /// under-reports by the ~76 Tizen-named files under the legacy top-level src/Compatibility/**
@@ -258,12 +261,14 @@ internal sealed partial class Scanner
             package = mapping?.Package ?? "none";
         }
 
-        // Per docs/migration.md's documented decision: the legacy top-level Compatibility stack
-        // is expected to be deleted entirely; default to "exclude" with a note for reviewers to
-        // audit for any handler that net11 genuinely still needs.
-        var disposition = area == "Compatibility" ? "exclude" : "exclude";
+        // Per the Compatibility layer's disposition question is not "is it on net11.0" (it
+        // isn't) but "does any net11 Tizen handler depend on implementation that exists only
+        // here?" -- an audit this generator cannot perform. "pending-audit" makes the eventual
+        // drop (or partial move) a reviewed conclusion rather than a default the generator
+        // asserted on its own. See docs/migration.md's Compatibility open decision.
+        var disposition = area == "Compatibility" ? "pending-audit" : "exclude";
         var notes = area == "Compatibility"
-            ? "Present at 9.0.120 only (legacy top-level src/Compatibility/** stack, deleted upstream before net11.0). Per docs/migration.md's disposition guidance: audit before excluding -- move only what a net11 Tizen handler genuinely still requires; expected outcome is that this package is not shipped at all."
+            ? "Present at 9.0.120 only (legacy top-level src/Compatibility/** stack, deleted upstream before net11.0). Audit: does any net11 Tizen handler depend on implementation that exists only here? Move only what is genuinely required; per docs/migration.md the expected outcome is that this package is not shipped at all."
             : "Present at 9.0.120 only; not found at the net11.0 source baseline.";
 
         return new InventoryEntry
@@ -345,35 +350,69 @@ internal sealed partial class Scanner
         {
             if (isLegacyCompatibilityRenderer)
             {
-                disposition = "rebuild";
-                notes = "Legacy Xamarin.Forms-era Compatibility renderer shim; standalone rewrite recommended against the current handler architecture rather than a verbatim copy.";
+                targetPath = ComputeTargetPath(relative, mapping);
+                if (targetPath is not null)
+                {
+                    disposition = "rebuild";
+                    notes = "Legacy Xamarin.Forms-era Compatibility renderer shim; standalone rewrite recommended against the current handler architecture rather than a verbatim copy.";
+                }
+                else
+                {
+                    disposition = "keep-upstream";
+                    notes = "Legacy Xamarin.Forms-era Compatibility renderer shim with no target project mapping yet; standalone rewrite recommended once its destination is decided.";
+                }
                 collisionRisk = "none";
             }
             else
             {
-                disposition = "move";
                 targetPath = ComputeTargetPath(relative, mapping);
-                collisionRisk = area is "Core.Handlers" or "Core.Platform" or "Controls" or "Maps" && category == "code"
-                    ? "type-name" // see docs/architecture.md Rule 1-3: likely a partial fragment of a type that also exists upstream.
-                    : "none";
+                if (targetPath is not null)
+                {
+                    disposition = "move";
+                    collisionRisk = area is "Core.Handlers" or "Core.Platform" or "Controls" or "Maps" && category == "code"
+                        ? "type-name" // see docs/architecture.md Rule 1-3: likely a partial fragment of a type that also exists upstream.
+                        : "none";
+                }
+                else
+                {
+                    disposition = "keep-upstream";
+                    notes = "Tizen-specific file with no target project mapping yet (see eng/import/normalize-layout.sh); revisit once its destination is decided.";
+                    collisionRisk = "none";
+                }
             }
         }
         else if (kind == "shared-conditional")
         {
             var tizenSignalCount = signals.Count;
             var conditionalLineCount = text is null ? 0 : TizenIfDefRegex().Matches(text).Count;
-            disposition = tizenSignalCount <= 1 && conditionalLineCount <= 1 ? "keep-upstream" : "rebuild";
-            notes = disposition == "keep-upstream"
-                ? "Small/isolated Tizen conditional; candidate to clean up from dotnet/maui once Tizen ships independently, but not large enough to warrant extracting a standalone implementation yet."
-                : "Shared file with a non-trivial Tizen conditional branch; per docs/architecture.md Rule 4, the file cannot be copied wholesale (the non-Tizen branches belong to the neutral MAUI assembly) -- extract the Tizen branch as a standalone implementation here.";
+            var warrantsExtraction = tizenSignalCount > 1 || conditionalLineCount > 1;
+
+            // "rebuild" requires a proposed targetPath (schema allOf rule): propose the new
+            // standalone implementation lives alongside the rest of its area's target project,
+            // since there is no verbatim source file to relocate.
+            targetPath = warrantsExtraction ? ComputeTargetPath(relative, mapping) : null;
+
+            if (warrantsExtraction && targetPath is not null)
+            {
+                disposition = "rebuild";
+                notes = "Shared file with a non-trivial Tizen conditional branch; per docs/architecture.md Rule 4, the file cannot be copied wholesale (the non-Tizen branches belong to the neutral MAUI assembly) -- extract the Tizen branch as a standalone implementation here.";
+            }
+            else
+            {
+                disposition = "keep-upstream";
+                notes = warrantsExtraction
+                    ? "Shared file with a non-trivial Tizen conditional branch, but its area has no target project mapping yet; extraction recommended once one exists."
+                    : "Small/isolated Tizen conditional; candidate to clean up from dotnet/maui once Tizen ships independently, but not large enough to warrant extracting a standalone implementation yet.";
+            }
             collisionRisk = "none";
         }
         else if (kind == "project")
         {
             if (isTizenPath)
             {
-                disposition = "move";
                 targetPath = ComputeTargetPath(relative, mapping);
+                disposition = targetPath is not null ? "move" : "keep-upstream";
+                notes = targetPath is null ? "Tizen-named project file with no target project mapping yet." : null;
             }
             else
             {
@@ -391,8 +430,9 @@ internal sealed partial class Scanner
             }
             else
             {
-                disposition = "move";
                 targetPath = ComputeTargetPath(relative, mapping);
+                disposition = targetPath is not null ? "move" : "keep-upstream";
+                notes = targetPath is null ? "Tizen-named asset with no target project mapping yet." : null;
             }
             collisionRisk = "none";
         }
@@ -401,7 +441,10 @@ internal sealed partial class Scanner
         if (text is not null && (disposition is "move" or "rename") && category == "code")
         {
             var m = NamespaceRegex().Match(text);
-            if (m.Success)
+            // Only recorded when it matches the schema's targetNamespace pattern (preserved
+            // Microsoft.Maui.* namespaces). Samples/tests under their own app namespace (e.g.
+            // GraphicsTester.Skia.Tizen) intentionally leave this null.
+            if (m.Success && MicrosoftMauiNamespaceRegex().IsMatch(m.Groups[1].Value))
             {
                 targetNamespace = m.Groups[1].Value; // preserved as-is; see docs/architecture.md Rule 1/2.
             }

@@ -9,6 +9,10 @@
 
     Maui.Tizen.Build.Tasks is the exception: it targets netstandard2.0, needs no
     workload, and is what the workload-free CI lane actually compiles.
+
+    eng/tools/ApiDump and eng/tools/SourceInventory are also workload-free: they are the
+    migration inventory / public API baseline generators, targeting net11.0 (the repository
+    floor -- see eng/baselines.json policy.minimumDotNet) though they need no Tizen workload.
   -->
 
   <Folder Name="/src/">
@@ -27,6 +31,7 @@
     <Project Path="eng/tests/PackageGraphProbe/PackageGraphProbe.csproj" />
     <Project Path="eng/tests/PublicApiOptIn/PublicApiOptIn.csproj" />
     <Project Path="eng/tests/PackReadmeProbe/PackReadmeProbe.csproj" />
+    <Project Path="tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj" />
   </Folder>
 
   <Folder Name="/eng/">
@@ -37,6 +42,8 @@
     <File Path="eng/import/normalize-layout.sh" />
     <File Path="eng/manifests/source-disposition.schema.json" />
     <File Path="eng/targets/TizenPackage.props" />
+    <Project Path="eng/tools/ApiDump/ApiDump.csproj" />
+    <Project Path="eng/tools/SourceInventory/SourceInventory.csproj" />
   </Folder>
 
   <Folder Name="/docs/">

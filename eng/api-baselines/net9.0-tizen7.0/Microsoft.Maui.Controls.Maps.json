@@ -1,0 +1,969 @@
+{
+  "assemblyName": "Microsoft.Maui.Controls.Maps",
+  "assemblyVersion": "1.0.0.0",
+  "targetFramework": ".NETCoreApp,Version=v9.0",
+  "sourcePath": "Microsoft.Maui.Controls.Maps.dll",
+  "sha256": "1014fa4f6f1baea81c07af081543fce90e0d46475bbee8d2784a8c99a99aea90",
+  "types": [
+    {
+      "namespace": "Microsoft.Maui.Controls.Hosting",
+      "name": "AppHostBuilderExtensions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "AddMauiMaps(Microsoft.Maui.Hosting.IMauiHandlersCollection) -\u003E Microsoft.Maui.Hosting.IMauiHandlersCollection",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "UseMauiMaps(Microsoft.Maui.Hosting.MauiAppBuilder) -\u003E Microsoft.Maui.Hosting.MauiAppBuilder",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Maps",
+      "name": "Circle",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.Maps.MapElement",
+      "interfaces": [
+        "Microsoft.Maui.IElement",
+        "Microsoft.Maui.IStroke",
+        "Microsoft.Maui.Maps.ICircleMapElement",
+        "Microsoft.Maui.Maps.IFilledMapElement",
+        "Microsoft.Maui.Maps.IMapElement"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "CenterProperty : Microsoft.Maui.Controls.BindableProperty",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "FillColorProperty : Microsoft.Maui.Controls.BindableProperty",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "RadiusProperty : Microsoft.Maui.Controls.BindableProperty",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Center { get; set; } : Microsoft.Maui.Devices.Sensors.Location",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Fill { get; } : Microsoft.Maui.Graphics.Paint",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "FillColor { get; set; } : Microsoft.Maui.Graphics.Color",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Radius { get; set; } : Microsoft.Maui.Maps.Distance",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Maps",
+      "name": "Map",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.View",
+      "interfaces": [
+        "Microsoft.Maui.IElement",
+        "Microsoft.Maui.ITransform",
+        "Microsoft.Maui.IView",
+        "Microsoft.Maui.Maps.IMap",
+        "System.Collections.Generic.IEnumerable\u003CMicrosoft.Maui.Maps.IMapPin\u003E",
+        "System.Collections.IEnumerable"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "constructor",
+          "signature": "#ctor(Microsoft.Maui.Maps.MapSpan) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "event",
+          "signature": "MapClicked : System.EventHandler\u003CMicrosoft.Maui.Controls.Maps.MapClickedEventArgs\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "IsScrollEnabledProperty : Microsoft.Maui.Controls.BindableProperty",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "IsShowingUserProperty : Microsoft.Maui.Controls.BindableProperty",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "IsTrafficEnabledProperty : Microsoft.Maui.Controls.BindableProperty",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "IsZoomEnabledProperty : Microsoft.Maui.Controls.BindableProperty",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "ItemTemplateProperty : Microsoft.Maui.Controls.BindableProperty",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "ItemTemplateSelectorProperty : Microsoft.Maui.Controls.BindableProperty",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "ItemsSourceProperty : Microsoft.Maui.Controls.BindableProperty",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "MapTypeProperty : Microsoft.Maui.Controls.BindableProperty",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "GetEnumerator() -\u003E System.Collections.Generic.IEnumerator\u003CMicrosoft.Maui.Maps.IMapPin\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "MoveToRegion(Microsoft.Maui.Maps.MapSpan) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnHandlerChanged() -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "IsScrollEnabled { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "IsShowingUser { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "IsTrafficEnabled { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "IsZoomEnabled { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "ItemTemplate { get; set; } : Microsoft.Maui.Controls.DataTemplate",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "ItemTemplateSelector { get; set; } : Microsoft.Maui.Controls.DataTemplateSelector",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "ItemsSource { get; set; } : System.Collections.IEnumerable",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "MapElements { get; } : System.Collections.Generic.IList\u003CMicrosoft.Maui.Controls.Maps.MapElement\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "MapType { get; set; } : Microsoft.Maui.Maps.MapType",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Pins { get; } : System.Collections.Generic.IList\u003CMicrosoft.Maui.Controls.Maps.Pin\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "VisibleRegion { get; } : Microsoft.Maui.Maps.MapSpan",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Maps",
+      "name": "MapClickedEventArgs",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(Microsoft.Maui.Devices.Sensors.Location) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Location { get; } : Microsoft.Maui.Devices.Sensors.Location",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Maps",
+      "name": "MapElement",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.Element",
+      "interfaces": [
+        "Microsoft.Maui.IElement",
+        "Microsoft.Maui.IStroke",
+        "Microsoft.Maui.Maps.IMapElement"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "StrokeColorProperty : Microsoft.Maui.Controls.BindableProperty",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "StrokeWidthProperty : Microsoft.Maui.Controls.BindableProperty",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "MapElementId { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "StrokeColor { get; set; } : Microsoft.Maui.Graphics.Color",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "StrokeWidth { get; set; } : float",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Maps",
+      "name": "Pin",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.Element",
+      "interfaces": [
+        "Microsoft.Maui.IElement",
+        "Microsoft.Maui.Maps.IMapPin"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "event",
+          "signature": "InfoWindowClicked : System.EventHandler\u003CMicrosoft.Maui.Controls.Maps.PinClickedEventArgs\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "event",
+          "signature": "MarkerClicked : System.EventHandler\u003CMicrosoft.Maui.Controls.Maps.PinClickedEventArgs\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "AddressProperty : Microsoft.Maui.Controls.BindableProperty",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "LabelProperty : Microsoft.Maui.Controls.BindableProperty",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "LocationProperty : Microsoft.Maui.Controls.BindableProperty",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "TypeProperty : Microsoft.Maui.Controls.BindableProperty",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Equals(object) -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "GetHashCode() -\u003E int",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "SendInfoWindowClick() -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "SendMarkerClick() -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "op_Equality(Microsoft.Maui.Controls.Maps.Pin, Microsoft.Maui.Controls.Maps.Pin) -\u003E bool",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "op_Inequality(Microsoft.Maui.Controls.Maps.Pin, Microsoft.Maui.Controls.Maps.Pin) -\u003E bool",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Address { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Label { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Location { get; set; } : Microsoft.Maui.Devices.Sensors.Location",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "MarkerId { get; set; } : object",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Type { get; set; } : Microsoft.Maui.Controls.Maps.PinType",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Maps",
+      "name": "PinClickedEventArgs",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "System.EventArgs",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "HideInfoWindow { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Maps",
+      "name": "PinType",
+      "kind": "enum",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "field",
+          "signature": "Generic",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "Place",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "SavedPin",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "SearchResult",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Maps",
+      "name": "Polygon",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.Maps.MapElement",
+      "interfaces": [
+        "Microsoft.Maui.IElement",
+        "Microsoft.Maui.IStroke",
+        "Microsoft.Maui.Maps.IFilledMapElement",
+        "Microsoft.Maui.Maps.IGeoPathMapElement",
+        "Microsoft.Maui.Maps.IMapElement",
+        "System.Collections.Generic.ICollection\u003CMicrosoft.Maui.Devices.Sensors.Location\u003E",
+        "System.Collections.Generic.IEnumerable\u003CMicrosoft.Maui.Devices.Sensors.Location\u003E",
+        "System.Collections.Generic.IList\u003CMicrosoft.Maui.Devices.Sensors.Location\u003E",
+        "System.Collections.IEnumerable"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "FillColorProperty : Microsoft.Maui.Controls.BindableProperty",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Add(Microsoft.Maui.Devices.Sensors.Location) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Clear() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Contains(Microsoft.Maui.Devices.Sensors.Location) -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "CopyTo(Microsoft.Maui.Devices.Sensors.Location[], int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "GetEnumerator() -\u003E System.Collections.Generic.IEnumerator\u003CMicrosoft.Maui.Devices.Sensors.Location\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "IndexOf(Microsoft.Maui.Devices.Sensors.Location) -\u003E int",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Insert(int, Microsoft.Maui.Devices.Sensors.Location) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Remove(Microsoft.Maui.Devices.Sensors.Location) -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "RemoveAt(int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Count { get; } : int",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Fill { get; } : Microsoft.Maui.Graphics.Paint",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "FillColor { get; set; } : Microsoft.Maui.Graphics.Color",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Geopath { get; } : System.Collections.Generic.IList\u003CMicrosoft.Maui.Devices.Sensors.Location\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "IsReadOnly { get; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Item[int] { get; set; } : Microsoft.Maui.Devices.Sensors.Location",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Maps",
+      "name": "Polyline",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.Maps.MapElement",
+      "interfaces": [
+        "Microsoft.Maui.IElement",
+        "Microsoft.Maui.IStroke",
+        "Microsoft.Maui.Maps.IGeoPathMapElement",
+        "Microsoft.Maui.Maps.IMapElement",
+        "System.Collections.Generic.ICollection\u003CMicrosoft.Maui.Devices.Sensors.Location\u003E",
+        "System.Collections.Generic.IEnumerable\u003CMicrosoft.Maui.Devices.Sensors.Location\u003E",
+        "System.Collections.Generic.IList\u003CMicrosoft.Maui.Devices.Sensors.Location\u003E",
+        "System.Collections.IEnumerable"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Add(Microsoft.Maui.Devices.Sensors.Location) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Clear() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Contains(Microsoft.Maui.Devices.Sensors.Location) -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "CopyTo(Microsoft.Maui.Devices.Sensors.Location[], int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "GetEnumerator() -\u003E System.Collections.Generic.IEnumerator\u003CMicrosoft.Maui.Devices.Sensors.Location\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "IndexOf(Microsoft.Maui.Devices.Sensors.Location) -\u003E int",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Insert(int, Microsoft.Maui.Devices.Sensors.Location) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Remove(Microsoft.Maui.Devices.Sensors.Location) -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "RemoveAt(int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Count { get; } : int",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Geopath { get; } : System.Collections.Generic.IList\u003CMicrosoft.Maui.Devices.Sensors.Location\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "IsReadOnly { get; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Item[int] { get; set; } : Microsoft.Maui.Devices.Sensors.Location",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    }
+  ]
+}

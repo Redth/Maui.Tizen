@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "generatedAtUtc": "2026-08-26T19:36:58Z",
+  "packageVersion": "9.0.120",
+  "targetFramework": "net9.0-tizen7.0",
+  "packages": [
+    {
+      "packageId": "Microsoft.Maui.Core",
+      "version": "9.0.120",
+      "tizenTfm": "net9.0-tizen7.0",
+      "hasTizenAssembly": true,
+      "assemblies": [
+        "Microsoft.Maui.dll"
+      ],
+      "nuspecRepositoryCommit": "c1f4f7d879f6126029009902289efd6a4bb1bda9",
+      "source": "https://api.nuget.org/v3-flatcontainer/microsoft.maui.core/9.0.120/microsoft.maui.core.9.0.120.nupkg"
+    },
+    {
+      "packageId": "Microsoft.Maui.Essentials",
+      "version": "9.0.120",
+      "tizenTfm": "net9.0-tizen7.0",
+      "hasTizenAssembly": true,
+      "assemblies": [
+        "Microsoft.Maui.Essentials.dll"
+      ],
+      "nuspecRepositoryCommit": "c1f4f7d879f6126029009902289efd6a4bb1bda9",
+      "source": "https://api.nuget.org/v3-flatcontainer/microsoft.maui.essentials/9.0.120/microsoft.maui.essentials.9.0.120.nupkg"
+    },
+    {
+      "packageId": "Microsoft.Maui.Graphics",
+      "version": "9.0.120",
+      "tizenTfm": "net9.0-tizen7.0",
+      "hasTizenAssembly": true,
+      "assemblies": [
+        "Microsoft.Maui.Graphics.dll"
+      ],
+      "nuspecRepositoryCommit": "c1f4f7d879f6126029009902289efd6a4bb1bda9",
+      "source": "https://api.nuget.org/v3-flatcontainer/microsoft.maui.graphics/9.0.120/microsoft.maui.graphics.9.0.120.nupkg"
+    },
+    {
+      "packageId": "Microsoft.Maui.Controls.Core",
+      "version": "9.0.120",
+      "tizenTfm": "net9.0-tizen7.0",
+      "hasTizenAssembly": true,
+      "assemblies": [
+        "Microsoft.Maui.Controls.dll"
+      ],
+      "nuspecRepositoryCommit": "c1f4f7d879f6126029009902289efd6a4bb1bda9",
+      "source": "https://api.nuget.org/v3-flatcontainer/microsoft.maui.controls.core/9.0.120/microsoft.maui.controls.core.9.0.120.nupkg"
+    },
+    {
+      "packageId": "Microsoft.Maui.Controls.Xaml",
+      "version": "9.0.120",
+      "tizenTfm": "net9.0-tizen7.0",
+      "hasTizenAssembly": true,
+      "assemblies": [
+        "Microsoft.Maui.Controls.Xaml.dll"
+      ],
+      "nuspecRepositoryCommit": "c1f4f7d879f6126029009902289efd6a4bb1bda9",
+      "source": "https://api.nuget.org/v3-flatcontainer/microsoft.maui.controls.xaml/9.0.120/microsoft.maui.controls.xaml.9.0.120.nupkg"
+    },
+    {
+      "packageId": "Microsoft.Maui.Controls.Compatibility",
+      "version": "9.0.120",
+      "tizenTfm": "net9.0-tizen7.0",
+      "hasTizenAssembly": true,
+      "assemblies": [
+        "Microsoft.Maui.Controls.Compatibility.dll"
+      ],
+      "nuspecRepositoryCommit": "c1f4f7d879f6126029009902289efd6a4bb1bda9",
+      "source": "https://api.nuget.org/v3-flatcontainer/microsoft.maui.controls.compatibility/9.0.120/microsoft.maui.controls.compatibility.9.0.120.nupkg"
+    },
+    {
+      "packageId": "Microsoft.Maui.Controls.Maps",
+      "version": "9.0.120",
+      "tizenTfm": "net9.0-tizen7.0",
+      "hasTizenAssembly": true,
+      "assemblies": [
+        "Microsoft.Maui.Controls.Maps.dll"
+      ],
+      "nuspecRepositoryCommit": "c1f4f7d879f6126029009902289efd6a4bb1bda9",
+      "source": "https://api.nuget.org/v3-flatcontainer/microsoft.maui.controls.maps/9.0.120/microsoft.maui.controls.maps.9.0.120.nupkg"
+    }
+  ]
+}
