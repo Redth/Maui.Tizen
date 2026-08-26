@@ -121,6 +121,25 @@ info "Workload-independent projects"
 WORKLOAD_FREE_PROJECTS=(
   "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj"
   "tests/UnitTests/Maui.Tizen.UnitTests.csproj"
+
+  # Verification lanes for the ported backend slice. None is a Tizen artifact:
+  #
+  #   Maui.Tizen.Core.UnitTests   compiles the backend against inert stand-ins for Tizen.NUI
+  #                               and EXECUTES tests for the workload-independent behaviour
+  #                               (mapper and DI registration, hosting, dispatching, density,
+  #                               layout z-index ordering).
+  #
+  #   Maui.Tizen.Core.RefPackCompile  type-checks every `#if TIZEN` source, and the sample
+  #                               head, against the REAL TizenFX reference assemblies from
+  #                               Samsung.Tizen.Ref.API15. It is compile-only and unpackable,
+  #                               so it cannot become a neutral fallback for the product.
+  #
+  #   Maui.Tizen.Controls.UnitTests   source-includes the NUI-free half of the Controls
+  #                               platform layer (alerts, modal coordination, gestures) and
+  #                               EXECUTES it. See the project file for why source inclusion
+  #                               rather than a ProjectReference.
+  "tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj"
+  "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj"
   "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj"
 )
 for proj in "${WORKLOAD_FREE_PROJECTS[@]}"; do
@@ -141,6 +160,7 @@ done
 # ---------------------------------------------------------------------------
 info "Tests"
 check "repository invariant tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
+check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
 check "controls platform tests" "$DOTNET" test tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj --no-build -c Release
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,80 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Compile-validation lane.
+
+    The product assembly targets net11.0-tizen11.0 and cannot be restored until Samsung publishes
+    the 11.0.100 workload manifest. That would normally leave every NUI-touching source file in this
+    repository completely unverified.
+
+    Samsung.Tizen.Ref.API15 does, however, ship real `ref/net8.0` reference assemblies for the whole
+    of TizenFX. This project pulls them down with PackageDownload (which skips NuGet's TFM
+    compatibility check) and compiles the backend's Tizen-only sources against them with TIZEN
+    defined, on a plain net11.0 host.
+
+    This is NOT a neutral fallback for the product - it produces no shippable output
+    (IsPackable=false, reference-only assemblies, never executed). It exists purely so `#if TIZEN`
+    code is type-checked in CI instead of being taken on faith.
+  -->
+
+  <Import Project="$(RepositoryRoot)eng/Maui.props" />
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
+
+  <PropertyGroup>
+    <TargetFramework>$(DotNetTfm)</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+    <AssemblyName>Maui.Tizen.Core.RefPackCompile</AssemblyName>
+    <RootNamespace>Microsoft.Maui.Platforms.Tizen</RootNamespace>
+
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <NoWarn>$(NoWarn);CS1591;NU1701</NoWarn>
+
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+
+    <!-- The whole point of this lane: exercise the `#if TIZEN` branches. -->
+    <DefineConstants>$(DefineConstants);TIZEN;PLATFORM</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Core" />
+
+    <!--
+      PackageDownload rather than PackageReference: these packages publish no net11.0-compatible
+      assets, so a normal reference fails restore with NU1202. We only want the files on disk.
+    -->
+    <PackageDownload Include="$(TizenReferencePackId)" Version="[$(TizenReferencePackVersion)]" />
+    <PackageDownload Include="Tizen.UIExtensions.NUI" Version="[$(TizenUIExtensionsPackageVersion)]" />
+    <PackageReference Include="Microsoft.Maui.Graphics" />
+  </ItemGroup>
+
+  <Target Name="_AddTizenReferenceAssemblies" BeforeTargets="ResolveAssemblyReferences">
+    <PropertyGroup>
+      <_TizenRefPackDir>$(NuGetPackageRoot)$(TizenReferencePackId.ToLowerInvariant())/$(TizenReferencePackVersion)/ref/net8.0/</_TizenRefPackDir>
+      <_TizenUIExtensionsDir>$(NuGetPackageRoot)tizen.uiextensions.nui/$(TizenUIExtensionsPackageVersion)/lib/tizen10.0/</_TizenUIExtensionsDir>
+    </PropertyGroup>
+
+    <Error Condition="!Exists('$(_TizenRefPackDir)Tizen.NUI.dll')"
+           Code="MAUITIZEN0102"
+           Text="Could not find Tizen.NUI.dll under '$(_TizenRefPackDir)'. Expected it from $(TizenReferencePackId) $(TizenReferencePackVersion); run 'dotnet restore' for this project first." />
+
+    <ItemGroup>
+      <Reference Include="$(_TizenRefPackDir)Tizen.NUI.dll" Private="false" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.NUI.Components.dll" Private="false" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.Applications.Common.dll" Private="false" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.Applications.UI.dll" Private="false" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.Log.dll" Private="false" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.dll" Private="false" />
+      <Reference Include="$(_TizenUIExtensionsDir)Tizen.UIExtensions.NUI.dll" Private="false" Condition="Exists('$(_TizenUIExtensionsDir)Tizen.UIExtensions.NUI.dll')" />
+    </ItemGroup>
+  </Target>
+
+  <ItemGroup>
+    <Compile Include="@(MauiTizenPortableCompile)" LinkBase="Backend" />
+    <Compile Include="@(MauiTizenHandlerCompile)" LinkBase="Backend" />
+    <Compile Include="@(MauiTizenPlatformCompile)" LinkBase="Backend" />
+    <Compile Include="@(MauiTizenSampleCompile)" LinkBase="Sample" />
+  </ItemGroup>
+
+</Project>

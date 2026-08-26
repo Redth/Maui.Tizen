@@ -1,0 +1,44 @@
+<Project>
+
+  <!--
+    Settings specific to the ported vertical slice.
+
+    Package VERSIONS live in Directory.Packages.props (central package management); this file
+    only carries the things that are not package references - the TizenFX reference pack used
+    by the workload-free compile-validation lane, and the guard that keeps an unshippable
+    Tizen.UIExtensions out of a published package.
+  -->
+
+  <PropertyGroup Label="TizenFX reference pack">
+    <!--
+      eng/baselines.json > target.referencePack
+
+      Samsung.Tizen.Ref.API15 ships ref/net8.0 reference assemblies for the whole of TizenFX,
+      including Tizen.NUI. tests/Maui.Tizen.Core.RefPackCompile uses them to type-check every
+      `#if TIZEN` source on a machine with no Samsung workload installed.
+    -->
+    <TizenReferencePackId Condition="'$(TizenReferencePackId)' == ''">Samsung.Tizen.Ref.API15</TizenReferencePackId>
+    <TizenReferencePackVersion Condition="'$(TizenReferencePackVersion)' == ''">15.0.0.19396</TizenReferencePackVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Tizen.UIExtensions shippability">
+    <!--
+      BLOCKER: Tizen.UIExtensions.NUI 0.9.2 must not ship.
+
+      Its nuspec declares Microsoft.Maui.Graphics / Microsoft.Maui.Graphics.Skia
+      6.0.300-rc.3.1336 and SkiaSharp.Views 2.88.6, and it publishes only lib/tizen10.0 and
+      lib/net6.0-tizen7.0. Any package built on top of it drags a .NET 6-era MAUI Graphics into
+      a .NET 11 app.
+
+      eng/baselines.json records that the republish is needed solely to drop those dependencies,
+      with no API surface change expected, so bumping the PackageVersion in
+      Directory.Packages.props should be the only change required.
+
+      Keep this in sync with that PackageVersion.
+    -->
+    <TizenUIExtensionsPackageVersion Condition="'$(TizenUIExtensionsPackageVersion)' == ''">0.9.2</TizenUIExtensionsPackageVersion>
+    <TizenUIExtensionsIsShippable Condition="'$(TizenUIExtensionsIsShippable)' == '' AND '$(TizenUIExtensionsPackageVersion)' == '0.9.2'">false</TizenUIExtensionsIsShippable>
+    <TizenUIExtensionsIsShippable Condition="'$(TizenUIExtensionsIsShippable)' == ''">true</TizenUIExtensionsIsShippable>
+  </PropertyGroup>
+
+</Project>
