@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Maui;
 using Microsoft.Maui.Platforms.Tizen.Handlers;
@@ -69,25 +71,71 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Fact]
-		public void ViewMapperKeysAreInheritedThroughTheChain()
+		public void HandlerMappersChainTheTizenBaseMapperNotMauis()
 		{
-			// Anything MAUI's ViewMapper defines must remain reachable from every handler mapper,
-			// otherwise core view properties silently stop being applied.
-			foreach (var key in Microsoft.Maui.Handlers.ViewHandler.ViewMapper.GetKeys())
+			// MAUI's neutral ViewMapper is compiled with PlatformView aliased to System.Object and
+			// calls the Standard no-op extensions, so chaining it reports every key as "present"
+			// while doing nothing at all. Every handler must chain the Tizen-owned base instead.
+			foreach (var key in TizenViewMappers.ViewMapper.GetKeys())
 			{
 				Assert.NotNull(TizenLabelHandler.Mapper.GetProperty(key));
 				Assert.NotNull(TizenLayoutHandler.Mapper.GetProperty(key));
 				Assert.NotNull(TizenContentViewHandler.Mapper.GetProperty(key));
+				Assert.NotNull(TizenPageHandler.PageMapper.GetProperty(key));
+			}
+		}
+
+		[Fact]
+		public void TizenBaseMapperCoversMauisViewMapperExceptDocumentedExclusions()
+		{
+			// Guards against quietly losing a core IView property when re-basing off MAUI's mapper.
+			// The exclusions are deliberate and each has a recorded reason.
+			// Force MAUI Controls to run RemapForControls before comparing. It mutates the STATIC
+			// ViewHandler.ViewMapper at runtime, so without this the comparison silently depends on
+			// whether some other test happened to touch Controls first - which is exactly how this
+			// test passed locally and failed in CI.
+			_ = new Microsoft.Maui.Controls.Label();
+
+			var excluded = new HashSet<string>(StringComparer.Ordinal)
+			{
+				// Both require a container view, which an out-of-repo backend cannot construct -
+				// ViewHandler.ContainerView has a private protected setter. See G1. These are the
+				// ONLY exclusions; anything else must be genuinely reachable.
+				"ContainerView",
+				"Border",
+			};
+
+			var covered = new HashSet<string>(TizenViewMappers.ViewMapper.GetKeys(), StringComparer.Ordinal);
+
+			var missing = Microsoft.Maui.Handlers.ViewHandler.ViewMapper.GetKeys()
+				.Where(k => !covered.Contains(k) && !excluded.Contains(k))
+				.ToArray();
+
+			Assert.Empty(missing);
+		}
+
+		[Fact]
+		public void TizenBaseCommandMapperCoversTheCoreViewCommands()
+		{
+			foreach (var key in new[]
+			{
+				nameof(IView.InvalidateMeasure),
+				nameof(IView.Frame),
+				nameof(IView.Focus),
+				nameof(IView.Unfocus),
+			})
+			{
+				Assert.NotNull(TizenViewMappers.ViewCommandMapper.GetCommand(key));
 			}
 		}
 
 		[Theory]
-		[InlineData(nameof(ITizenLayoutHandler.Add))]
-		[InlineData(nameof(ITizenLayoutHandler.Remove))]
-		[InlineData(nameof(ITizenLayoutHandler.Clear))]
-		[InlineData(nameof(ITizenLayoutHandler.Insert))]
-		[InlineData(nameof(ITizenLayoutHandler.Update))]
-		[InlineData(nameof(ITizenLayoutHandler.UpdateZIndex))]
+		[InlineData(nameof(ILayoutHandler.Add))]
+		[InlineData(nameof(ILayoutHandler.Remove))]
+		[InlineData(nameof(ILayoutHandler.Clear))]
+		[InlineData(nameof(ILayoutHandler.Insert))]
+		[InlineData(nameof(ILayoutHandler.Update))]
+		[InlineData(nameof(ILayoutHandler.UpdateZIndex))]
 		public void LayoutCommandMapperDefinesKey(string key) =>
 			Assert.NotNull(TizenLayoutHandler.CommandMapper.GetCommand(key));
 

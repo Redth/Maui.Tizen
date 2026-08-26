@@ -17,7 +17,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			set => Handler = value as IViewHandler;
 		}
 
-		public IElement? Parent => null;
+		public IElement? Parent { get; set; }
 
 		public bool IsFocused { get; set; }
 
@@ -102,6 +102,20 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		public void Unfocus()
 		{
 		}
+	}
+
+	/// <summary>Minimal <see cref="IContentView"/> stub.</summary>
+	public sealed class StubContentView : StubView, IContentView
+	{
+		public object? Content => null;
+
+		public IView? PresentedContent => null;
+
+		public Thickness Padding => Thickness.Zero;
+
+		public Size CrossPlatformMeasure(double widthConstraint, double heightConstraint) => Size.Zero;
+
+		public Size CrossPlatformArrange(Rect bounds) => bounds.Size;
 	}
 
 	/// <summary>Minimal <see cref="ILabel"/> stub.</summary>

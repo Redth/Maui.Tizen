@@ -13,11 +13,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// Ported from <c>Microsoft.Maui.Handlers.WindowHandler</c> (Tizen) in dotnet/maui. The platform
 	/// view is the single NUI <c>Window</c> instance owned by the process.
 	/// </remarks>
-	public class TizenWindowHandler : ElementHandler<IWindow, TizenNativeWindow>, ITizenWindowHandler
+	public class TizenWindowHandler : ElementHandler<IWindow, TizenNativeWindow>, IWindowHandler
 	{
 		/// <summary>Property mapper for <see cref="IWindow"/> on Tizen.</summary>
-		public static readonly IPropertyMapper<IWindow, ITizenWindowHandler> Mapper =
-			new PropertyMapper<IWindow, ITizenWindowHandler>(ElementMapper)
+		public static readonly IPropertyMapper<IWindow, IWindowHandler> Mapper =
+			new PropertyMapper<IWindow, IWindowHandler>(ElementMapper, WindowHandler.Mapper)
 			{
 				[nameof(IWindow.Title)] = MapTitle,
 				[nameof(IWindow.Content)] = MapContent,
@@ -28,7 +28,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		/// <summary>Command mapper for <see cref="IWindow"/> on Tizen.</summary>
-		public static readonly CommandMapper<IWindow, ITizenWindowHandler> CommandMapper =
+		public static readonly CommandMapper<IWindow, IWindowHandler> CommandMapper =
 			new(ElementCommandMapper)
 			{
 				[nameof(IWindow.RequestDisplayDensity)] = MapRequestDisplayDensity,
@@ -48,9 +48,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 		}
 
-		IWindow ITizenWindowHandler.VirtualView => VirtualView;
+		IWindow IWindowHandler.VirtualView => VirtualView;
 
-		TizenNativeWindow ITizenWindowHandler.PlatformView => PlatformView;
+		object IWindowHandler.PlatformView => PlatformView;
 
 		/// <inheritdoc />
 		protected override TizenNativeWindow CreatePlatformElement() =>
@@ -63,21 +63,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="window">The window.</param>
-		public static void MapTitle(ITizenWindowHandler handler, IWindow window)
+		public static void MapTitle(IWindowHandler handler, IWindow window)
 		{
 		}
 
 		/// <summary>Maps <see cref="IWindow.Content"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="window">The window.</param>
-		public static void MapContent(ITizenWindowHandler handler, IWindow window)
+		public static void MapContent(IWindowHandler handler, IWindow window)
 		{
 			var mauiContext = handler.MauiContext ?? throw new InvalidOperationException(
 				$"{nameof(handler.MauiContext)} should have been set by base class.");
 
 #if TIZEN
 			var platformContent = window.Content!.ToPlatformView(mauiContext);
-			handler.PlatformView.SetMainContent(platformContent);
+			((TizenNativeWindow)handler.PlatformView).SetMainContent(platformContent, window.Content);
 #else
 			_ = window.Content;
 #endif
@@ -88,40 +88,40 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>Maps <see cref="IWindow.X"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="window">The window.</param>
-		public static void MapX(ITizenWindowHandler handler, IWindow window)
+		public static void MapX(IWindowHandler handler, IWindow window)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateX(window);
+			((TizenNativeWindow?)handler.PlatformView)?.UpdateX(window);
 #endif
 		}
 
 		/// <summary>Maps <see cref="IWindow.Y"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="window">The window.</param>
-		public static void MapY(ITizenWindowHandler handler, IWindow window)
+		public static void MapY(IWindowHandler handler, IWindow window)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateY(window);
+			((TizenNativeWindow?)handler.PlatformView)?.UpdateY(window);
 #endif
 		}
 
 		/// <summary>Maps <see cref="IWindow.Width"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="window">The window.</param>
-		public static void MapWidth(ITizenWindowHandler handler, IWindow window)
+		public static void MapWidth(IWindowHandler handler, IWindow window)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateWidth(window);
+			((TizenNativeWindow?)handler.PlatformView)?.UpdateWidth(window);
 #endif
 		}
 
 		/// <summary>Maps <see cref="IWindow.Height"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="window">The window.</param>
-		public static void MapHeight(ITizenWindowHandler handler, IWindow window)
+		public static void MapHeight(IWindowHandler handler, IWindow window)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateHeight(window);
+			((TizenNativeWindow?)handler.PlatformView)?.UpdateHeight(window);
 #endif
 		}
 
@@ -129,7 +129,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <param name="handler">The handler.</param>
 		/// <param name="window">The window.</param>
 		/// <param name="args">The <see cref="DisplayDensityRequest"/>.</param>
-		public static void MapRequestDisplayDensity(ITizenWindowHandler handler, IWindow window, object? args)
+		public static void MapRequestDisplayDensity(IWindowHandler handler, IWindow window, object? args)
 		{
 			if (args is DisplayDensityRequest request)
 				request.SetResult((float)TizenDisplayDensity.Current);

@@ -2,6 +2,7 @@ using System;
 using Microsoft.Maui;
 using Microsoft.Maui.Graphics;
 using Tizen.NUI;
+using Tizen.NUI.BaseComponents;
 using Tizen.UIExtensions.NUI;
 using NColor = Tizen.UIExtensions.Common.Color;
 using NPoint = Tizen.UIExtensions.Common.Point;
@@ -133,7 +134,35 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			ArgumentNullException.ThrowIfNull(view);
 
-			platformView.UpdateBackground(view.Background);
+			platformView.UpdateBackground(view.Background, clearWhenNull: true);
+		}
+
+		/// <summary>
+		/// Applies a view's background, optionally clearing the native colour when the paint is
+		/// <see langword="null"/>.
+		/// </summary>
+		/// <remarks>
+		/// Two different behaviours are needed and conflating them causes a visible bug either way:
+		/// <list type="bullet">
+		/// <item><description>
+		/// A view whose <c>Background</c> transitions from a colour back to <see langword="null"/>
+		/// must have the old colour cleared, or the stale colour stays on screen forever.
+		/// </description></item>
+		/// <item><description>
+		/// A page is created with an opaque white default and then has the background mapper run
+		/// over it; clearing on null there would repaint every page transparent at launch. That
+		/// case passes <c>clearWhenNull: false</c>.
+		/// </description></item>
+		/// </list>
+		/// </remarks>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		/// <param name="clearWhenNull">Whether a null background resets the native colour.</param>
+		public static void UpdateBackground(this TizenNativeView platformView, IView view, bool clearWhenNull)
+		{
+			ArgumentNullException.ThrowIfNull(view);
+
+			platformView.UpdateBackground(view.Background, clearWhenNull);
 		}
 
 		/// <summary>Applies a paint to the platform view's background.</summary>
@@ -154,12 +183,27 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </remarks>
 		/// <param name="platformView">The platform view.</param>
 		/// <param name="paint">The paint. <see langword="null"/> leaves the background untouched.</param>
-		public static void UpdateBackground(this TizenNativeView platformView, Paint? paint)
+		public static void UpdateBackground(this TizenNativeView platformView, Paint? paint) =>
+			platformView.UpdateBackground(paint, clearWhenNull: false);
+
+		/// <summary>Applies a paint to the platform view's background.</summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="paint">The paint.</param>
+		/// <param name="clearWhenNull">
+		/// When <see langword="true"/>, a null paint resets the native colour to transparent rather
+		/// than leaving the previous colour in place.
+		/// </param>
+		public static void UpdateBackground(this TizenNativeView platformView, Paint? paint, bool clearWhenNull)
 		{
 			ArgumentNullException.ThrowIfNull(platformView);
 
 			if (paint is null)
+			{
+				if (clearWhenNull)
+					platformView.UpdateBackgroundColor(NColor.Transparent);
+
 				return;
+			}
 
 			if (paint is SolidPaint solid && solid.Color is Color color)
 			{
@@ -195,6 +239,322 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			platformView.Opacity = (float)view.Opacity;
 		}
+
+		// ---------------------------------------------------------------------------------------
+		// Core IView operations (ported from ViewExtensions / TransformationExtensions).
+		//
+		// These exist because MAUI's neutral ViewHandler.ViewMapper casts PlatformView to
+		// System.Object on a non-platform TFM and calls the Standard no-op extensions. Chaining
+		// that mapper therefore gives NO behaviour for any generic IView property.
+		// ---------------------------------------------------------------------------------------
+
+		/// <summary>Applies <see cref="IView.IsEnabled"/>.</summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void UpdateIsEnabled(this TizenNativeView platformView, IView view)
+		{
+			ArgumentNullException.ThrowIfNull(platformView);
+			ArgumentNullException.ThrowIfNull(view);
+
+			platformView.IsEnabled = view.IsEnabled;
+		}
+
+		/// <summary>Applies <see cref="IView.Visibility"/>.</summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void UpdateVisibility(this TizenNativeView platformView, IView view)
+		{
+			ArgumentNullException.ThrowIfNull(platformView);
+			ArgumentNullException.ThrowIfNull(view);
+
+			if (view.Visibility.ToPlatformVisibility())
+			{
+				platformView.Show();
+				platformView.Layout?.RequestLayout();
+			}
+			else
+			{
+				platformView.Hide();
+			}
+		}
+
+		/// <summary>Maps a MAUI <see cref="Visibility"/> to NUI's boolean visibility.</summary>
+		/// <param name="visibility">The visibility.</param>
+		/// <returns><see langword="true"/> when the view should be shown.</returns>
+		public static bool ToPlatformVisibility(this Visibility visibility) => visibility switch
+		{
+			Visibility.Hidden => false,
+			Visibility.Collapsed => false,
+			_ => true,
+		};
+
+		/// <summary>Applies <see cref="IView.InputTransparent"/>.</summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void UpdateInputTransparent(this TizenNativeView platformView, IView view)
+		{
+			ArgumentNullException.ThrowIfNull(platformView);
+			ArgumentNullException.ThrowIfNull(view);
+
+			platformView.Sensitive = !view.InputTransparent;
+
+			// LayoutViewGroup additionally overrides HitTest, which is how MAUI makes a layout
+			// itself transparent to input while its children stay hittable.
+			if (platformView is TizenLayoutViewGroup layout)
+				layout.InputTransparent = view.InputTransparent;
+		}
+
+		/// <summary>Applies <see cref="IView.Width"/> / <see cref="IView.Height"/>.</summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void UpdateSize(this TizenNativeView platformView, IView view)
+		{
+			ArgumentNullException.ThrowIfNull(platformView);
+			ArgumentNullException.ThrowIfNull(view);
+
+			// Ignore the initial unset values; the first layout pass handles them, and the -1
+			// default is resolved by GetDesiredSize.
+			if (!IsExplicitSet(view.Width) || !IsExplicitSet(view.Height))
+				return;
+
+			platformView.Size = new global::Tizen.NUI.Size(
+				view.Width.ToScaledPixel(),
+				view.Height.ToScaledPixel());
+		}
+
+		/// <summary>Applies <see cref="IView.MinimumWidth"/>.</summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void UpdateMinimumWidth(this TizenNativeView platformView, IView view)
+		{
+			ArgumentNullException.ThrowIfNull(platformView);
+			ArgumentNullException.ThrowIfNull(view);
+
+			if (!IsExplicitSet(view.MinimumWidth))
+				return;
+
+			platformView.MinimumSize = new Size2D(view.MinimumWidth.ToScaledPixel(), platformView.MinimumSize.Height);
+		}
+
+		/// <summary>Applies <see cref="IView.MinimumHeight"/>.</summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void UpdateMinimumHeight(this TizenNativeView platformView, IView view)
+		{
+			ArgumentNullException.ThrowIfNull(platformView);
+			ArgumentNullException.ThrowIfNull(view);
+
+			if (!IsExplicitSet(view.MinimumHeight))
+				return;
+
+			platformView.MinimumSize = new Size2D(platformView.MinimumSize.Width, view.MinimumHeight.ToScaledPixel());
+		}
+
+		/// <summary>
+		/// Applies <see cref="IView.MaximumWidth"/>. Intentionally empty - NUI's MaximumSize does
+		/// not behave correctly, and dotnet/maui leaves the same mapper empty for that reason.
+		/// </summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void UpdateMaximumWidth(this TizenNativeView platformView, IView view)
+		{
+		}
+
+		/// <summary>
+		/// Applies <see cref="IView.MaximumHeight"/>. Intentionally empty - see
+		/// <see cref="UpdateMaximumWidth"/>.
+		/// </summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void UpdateMaximumHeight(this TizenNativeView platformView, IView view)
+		{
+		}
+
+		/// <summary>Applies translation, scale and rotation together.</summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void UpdateTransformation(this TizenNativeView platformView, IView? view)
+		{
+			if (platformView is null || view is null)
+				return;
+
+			platformView.UpdateTranslation(view);
+			platformView.UpdateScale(view);
+			platformView.UpdateRotation(view);
+		}
+
+		/// <summary>Applies <see cref="IView.TranslationX"/> / <see cref="IView.TranslationY"/>.</summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void UpdateTranslation(this TizenNativeView platformView, IView view)
+		{
+			ArgumentNullException.ThrowIfNull(platformView);
+			ArgumentNullException.ThrowIfNull(view);
+
+			var location = view.Frame.Location;
+			location.X += view.TranslationX;
+			location.Y += view.TranslationY;
+
+			platformView.Position = new Position(
+				location.X.ToScaledPixel(),
+				location.Y.ToScaledPixel());
+		}
+
+		/// <summary>Applies <see cref="IView.Scale"/> and its axis components.</summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void UpdateScale(this TizenNativeView platformView, IView view)
+		{
+			ArgumentNullException.ThrowIfNull(platformView);
+			ArgumentNullException.ThrowIfNull(view);
+
+			platformView.ScaleX = (float)(view.ScaleX * view.Scale);
+			platformView.ScaleY = (float)(view.ScaleY * view.Scale);
+		}
+
+		/// <summary>Applies rotation and the anchor/pivot point.</summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void UpdateRotation(this TizenNativeView platformView, IView view)
+		{
+			ArgumentNullException.ThrowIfNull(platformView);
+			ArgumentNullException.ThrowIfNull(view);
+
+			var zRotation = new Rotation(new Radian(DegreeToRadian(view.Rotation)), PositionAxis.Z);
+			var xRotation = new Rotation(new Radian(DegreeToRadian(view.RotationX)), PositionAxis.X);
+			var yRotation = new Rotation(new Radian(DegreeToRadian(view.RotationY)), PositionAxis.Y);
+
+			platformView.Orientation = zRotation * xRotation * yRotation;
+			platformView.PivotPoint = new Position((float)view.AnchorX, (float)view.AnchorY, 0);
+
+			static float DegreeToRadian(double degree) => (float)(degree * Math.PI / 180);
+		}
+
+		/// <summary>
+		/// Applies <see cref="IView.Clip"/>. Only bounds clipping is available without a container
+		/// view; see docs/net11-status.md (G1).
+		/// </summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void UpdateClip(this TizenNativeView platformView, IView view)
+		{
+			ArgumentNullException.ThrowIfNull(platformView);
+			ArgumentNullException.ThrowIfNull(view);
+
+			platformView.ClippingMode = view.Clip is null
+				? ClippingModeType.Disabled
+				: ClippingModeType.ClipToBoundingBox;
+		}
+
+		/// <summary>
+		/// Applies <see cref="IView.Shadow"/>. dotnet/maui renders shadows through a
+		/// <c>WrapperView</c> container, which is unavailable here (G1), so this is a no-op for
+		/// ordinary views; <see cref="Label"/> has a native shadow and is handled separately.
+		/// </summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void UpdateShadow(this TizenNativeView platformView, IView view)
+		{
+			if (platformView is Label label)
+				label.UpdateShadow(view);
+		}
+
+		/// <summary>
+		/// Applies <see cref="IView.FlowDirection"/>. Not implemented, matching dotnet/maui's
+		/// Tizen <c>FlowDirectionExtensions</c>.
+		/// </summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void UpdateFlowDirection(this TizenNativeView platformView, IView view)
+		{
+		}
+
+		/// <summary>
+		/// Applies <see cref="IView.Semantics"/> to NUI's accessibility properties.
+		/// </summary>
+		/// <remarks>
+		/// An improvement on dotnet/maui, whose Tizen <c>UpdateSemantics</c> is an empty stub even
+		/// though TizenFX exposes these properties. MAUI Controls funnels its accessibility surface
+		/// (<c>AutomationProperties.Name</c>/<c>HelpText</c>/<c>IsInAccessibleTree</c> and the
+		/// heading level) through <see cref="IView.Semantics"/>, so leaving this empty silently
+		/// discards every accessibility annotation an app sets.
+		/// </remarks>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void UpdateSemantics(this TizenNativeView platformView, IView view)
+		{
+			ArgumentNullException.ThrowIfNull(platformView);
+			ArgumentNullException.ThrowIfNull(view);
+
+			var semantics = view.Semantics;
+
+			if (semantics is null)
+			{
+				platformView.AccessibilityName = string.Empty;
+				platformView.AccessibilityDescription = string.Empty;
+				return;
+			}
+
+			platformView.AccessibilityName = semantics.Description ?? string.Empty;
+			platformView.AccessibilityDescription = semantics.Hint ?? string.Empty;
+
+			// A heading is a navigation landmark, so it must be reachable by the screen reader.
+			if (semantics.HeadingLevel != SemanticHeadingLevel.None)
+				platformView.AccessibilityHighlightable = true;
+		}
+
+		/// <summary>Applies <see cref="IView.AutomationId"/>.</summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void UpdateAutomationId(this TizenNativeView platformView, IView view)
+		{
+			ArgumentNullException.ThrowIfNull(platformView);
+			ArgumentNullException.ThrowIfNull(view);
+
+			if (!string.IsNullOrEmpty(view.AutomationId))
+				platformView.Name = view.AutomationId;
+		}
+
+		/// <summary>Requests focus for the platform view and completes the request.</summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="request">The focus request.</param>
+		public static void Focus(this TizenNativeView platformView, FocusRequest request)
+		{
+			ArgumentNullException.ThrowIfNull(platformView);
+			ArgumentNullException.ThrowIfNull(request);
+
+			request.TrySetResult(FocusManager.Instance.SetCurrentFocusView(platformView));
+		}
+
+		/// <summary>Clears focus if the platform view currently holds it.</summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void Unfocus(this TizenNativeView platformView, IView view)
+		{
+			ArgumentNullException.ThrowIfNull(platformView);
+
+			if (FocusManager.Instance.GetCurrentFocusView() == platformView)
+				FocusManager.Instance.ClearFocus();
+		}
+
+		/// <summary>Propagates an invalidate-measure request to the platform view.</summary>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="view">The cross-platform view.</param>
+		public static void InvalidateMeasure(this TizenNativeView platformView, IView view)
+		{
+			ArgumentNullException.ThrowIfNull(platformView);
+
+			if (platformView is TizenLayoutViewGroup layoutViewGroup)
+				layoutViewGroup.SetNeedMeasureUpdate();
+			else if (platformView is TizenContentViewGroup contentViewGroup)
+				contentViewGroup.SetNeedMeasureUpdate();
+			else if (platformView is ViewGroup viewGroup)
+				viewGroup.MarkChanged();
+			else
+				platformView.Layout?.RequestLayout();
+		}
+
+		static bool IsExplicitSet(double value) => !double.IsNaN(value) && value >= 0;
 
 		// ---------------------------------------------------------------------------------------
 		// Label (ported from LabelExtensions).

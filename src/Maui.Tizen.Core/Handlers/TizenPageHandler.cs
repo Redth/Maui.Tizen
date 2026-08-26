@@ -15,18 +15,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// Ported from <c>Microsoft.Maui.Handlers.PageHandler</c> (Tizen) in dotnet/maui, including its
 	/// opaque-white default background and its deliberately empty <c>PlatformArrange</c>.
 	/// </remarks>
-	public class TizenPageHandler : TizenContentViewHandler, ITizenPageHandler
+	public class TizenPageHandler : TizenContentViewHandler, IPageHandler
 	{
 		/// <summary>Property mapper for a page on Tizen.</summary>
-		public static readonly IPropertyMapper<IContentView, ITizenPageHandler> PageMapper =
-			new PropertyMapper<IContentView, ITizenPageHandler>(Mapper)
+		public static readonly IPropertyMapper<IContentView, IPageHandler> PageMapper =
+			new PropertyMapper<IContentView, IPageHandler>(Mapper, PageHandler.Mapper)
 			{
 				[nameof(IContentView.Background)] = MapPageBackground,
 				[nameof(ITitledElement.Title)] = MapTitle,
 			};
 
 		/// <summary>Command mapper for a page on Tizen.</summary>
-		public static readonly CommandMapper<IContentView, ITizenPageHandler> PageCommandMapper =
+		public static readonly CommandMapper<IContentView, IPageHandler> PageCommandMapper =
 			new(CommandMapper);
 
 		/// <summary>Initializes a new instance of the <see cref="TizenPageHandler"/> class.</summary>
@@ -65,16 +65,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>Maps <see cref="IView.Background"/> for a page.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="page">The page.</param>
-		public static void MapPageBackground(ITizenPageHandler handler, IContentView page)
+		public static void MapPageBackground(IPageHandler handler, IContentView page)
 		{
 #if TIZEN
 			if (page.Background is not null &&
-				handler.PlatformView.BackgroundColor != global::Tizen.NUI.Color.Transparent)
+				((TizenContentViewGroup)handler.PlatformView).BackgroundColor != global::Tizen.NUI.Color.Transparent)
 			{
-				handler.PlatformView.UpdateBackgroundColor(TColor.Transparent);
+				((TizenContentViewGroup)handler.PlatformView).UpdateBackgroundColor(TColor.Transparent);
 			}
 
-			handler.PlatformView?.UpdateBackground(page);
+			// clearWhenNull:false on purpose - a page is created opaque white and this mapper runs
+			// immediately, so clearing on a null background would repaint every page transparent.
+			((TizenContentViewGroup?)handler.PlatformView)?.UpdateBackground(page, clearWhenNull: false);
 #endif
 		}
 
@@ -84,7 +86,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="page">The page.</param>
-		public static void MapTitle(ITizenPageHandler handler, IContentView page)
+		public static void MapTitle(IPageHandler handler, IContentView page)
 		{
 		}
 	}

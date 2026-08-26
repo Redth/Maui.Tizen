@@ -162,28 +162,56 @@ platform view.
 
 *Ask:* a `protected` setter, or a `protected virtual PlatformView? CreateContainerView()` hook.
 
-### G2 - Handler interfaces bind `PlatformView` to a per-TFM alias
+### G2 - ~~Handler interfaces bind `PlatformView` to a per-TFM alias~~ **WITHDRAWN**
 
-`ILabelHandler`, `IContentViewHandler`, `ILayoutHandler`, `IWindowHandler` and friends each
-re-declare:
+**This gap was reported in error and is retracted.** It never existed on the package this
+repository consumes.
 
-```csharp
-new PlatformView PlatformView { get; }   // PlatformView = System.Object | MAUI's own platform type
+The claim was that `ILabelHandler`, `IContentViewHandler`, `ILayoutHandler` and `IWindowHandler`
+redeclare `new PlatformView PlatformView { get; }` against a per-TFM alias, and so cannot be
+implemented by an out-of-repo backend (CS9333 / CS0738).
+
+Verified by reflection over `Microsoft.Maui.dll` from `Microsoft.Maui.Core`
+**11.0.0-preview.7.26426.4** (`lib/net11.0`), which is what this repository actually compiles
+against:
+
+```
+Microsoft.Maui.Handlers.ILabelHandler:        PlatformView -> System.Object
+Microsoft.Maui.ILayoutHandler:                PlatformView -> System.Object
+Microsoft.Maui.Handlers.IContentViewHandler:  PlatformView -> System.Object
+Microsoft.Maui.Handlers.IWindowHandler:       PlatformView -> System.Object
 ```
 
-An explicit interface implementation must match that type *exactly*, so a backend that owns its
-platform view types cannot implement them - verified as `CS9333` and `CS0738`. Worse,
-`ILayoutHandler`/`IContentViewHandler` bind to `Microsoft.Maui.Platform.LayoutViewGroup` /
-`ContentViewGroup`, i.e. MAUI's own Tizen types, which an extracted backend must not depend on.
+`PlatformView` is `System.Object`, not an alias, and the interfaces are perfectly implementable -
+confirmed by compiling a handler against the published package.
 
-*Impact:* this backend declares `ITizenLabelHandler`, `ITizenContentViewHandler`,
-`ITizenPageHandler`, `ITizenLayoutHandler`, `ITizenWindowHandler` and `ITizenApplicationHandler`.
-Interop with MAUI Controls is preserved because Controls raises layout operations by *command-mapper
-key string* (`Handler.Invoke(nameof(ILayoutHandler.Add), ...)`), and this backend deliberately uses
-identical key names - there is a test that locks those strings down.
+**What actually happened.** The original CS9333 came from the explicit interface implementation
+returning the *concrete* platform type:
 
-*Ask:* make `PlatformView` on these interfaces `object`, or make the interfaces generic in the
-platform view type.
+```csharp
+TizenLabelView ILabelHandler.PlatformView => PlatformView;   // CS9333
+object ILabelHandler.PlatformView => PlatformView;           // correct
+```
+
+An explicit implementation must match the declared type exactly. The compiler was reporting a
+mistake in this backend, not a limitation in MAUI; the conclusion drawn from it was wrong.
+
+**Consequences of the correction.** The parallel `ITizenLabelHandler` / `ITizenContentViewHandler` /
+`ITizenPageHandler` / `ITizenLayoutHandler` / `ITizenWindowHandler` hierarchy has been removed. The
+handlers implement MAUI's `ILabelHandler`, `IContentViewHandler`, `IPageHandler`, `ILayoutHandler`
+and `IWindowHandler` directly.
+
+That is not merely tidier - the parallel hierarchy actively blocked MAUI Controls. Controls'
+`RemapForControls()` mutates the **static** `LabelHandler.Mapper` and friends, so a backend can only
+observe those entries by chaining that same mapper, which requires the mapper to be typed against
+MAUI's handler interface. `ControlsRegistrationTests` now pins that Controls types resolve to these
+handlers and that Controls-only mapper keys are reachable through the chain.
+
+Two backend-owned interfaces remain, each for a stated reason:
+
+* `ITizenApplicationHandler` - MAUI Core ships **no** `IApplicationHandler`, so there is nothing to
+  implement instead.
+* `ITizenPlatformViewHandler` - native parenting and disposal, which has no MAUI equivalent.
 
 ### G3 - `MauiContext.AddSpecific` / `AddWeakSpecific` are internal
 
@@ -285,7 +313,23 @@ these handlers. Wiring that up belongs with the `Maui.Tizen.Controls` layer.
 **Everything else.** All other handlers (button, entry, image, scroll view, web view, navigation,
 shell, ...) remain raw imported sources and are not yet ported.
 
-## 6. What is wired for a real device
+## 6. Additional MAUI API gaps found during review
+
+* **`MauiContextExtensions.InitializeScopedServices` is a public method on an `internal` class.**
+  A backend cannot run `IMauiInitializeScopedService` implementations when it creates a window
+  scope, which is required - MAUI's own dispatcher registers one. Ported as
+  `TizenMauiContextExtensions.InitializeTizenScopedServices`.
+* **`ViewHandler.ViewMapper` is unusable as a base for an out-of-repo backend.** Off-platform it is
+  compiled with `PlatformView` aliased to `object` and dispatches to the `Standard` no-op
+  extensions, so chaining it yields *no behaviour at all* for every generic `IView` property while
+  still reporting every key as present. This backend therefore owns `TizenViewMappers.ViewMapper`,
+  and its tests assert behaviour rather than key presence.
+* **`PublicApiAnalyzers` baselines are attached by directory convention.** The imported
+  `Microsoft.Maui.*` baselines describe a different assembly; see
+  `src/Maui.Tizen.Core/PublicAPI/slice/README.md` for how they are scoped and what remains
+  suppressed until the workload ships.
+
+## 7. What is wired for a real device
 
 Recorded explicitly because none of it can be executed by the host lanes, so it rests on comparison
 against the dotnet/maui reference rather than on a passing test:
@@ -298,5 +342,12 @@ against the dotnet/maui reference rather than on a passing test:
   geometry rather than trying to move or resize the window, which Tizen does not permit.
 * **Content replacement** - `SetMainContent` removes the previous content before adding the new
   one, so re-assigning `IWindow.Content` does not stack views.
-* **Page background** - a null `Paint` is a no-op, so the page's opaque white default survives the
-  first mapper pass.
+* **Page background** - a null `Paint` is a no-op for a page, so its opaque white default survives
+  the first mapper pass, while an ordinary view's background *is* cleared on transition to null so
+  a stale colour cannot persist.
+* **Window lifecycle** - `TizenWindowLifecycleBridge` maps `CoreApplication`'s
+  `OnCreate`/`OnResume`/`OnPause`/`OnTerminate` onto `IWindow.Created`/`Activated`/`Deactivated`/
+  `Stopped`/`Resumed`/`Destroying`, keeping activate/deactivate balanced.
+* **Window scope** - `MakeWindowScope` runs registered `IMauiInitializeScopedService` instances.
+* **Content replacement** - the previous content's *handler* is disconnected and disposed, not just
+  its native view unparented.

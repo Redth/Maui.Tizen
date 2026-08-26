@@ -14,11 +14,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// Ported from <c>Microsoft.Maui.Handlers.LabelHandler</c> (Tizen) in dotnet/maui. The mapper
 	/// contents match the Tizen entries of MAUI's <c>LabelHandler.Mapper</c> exactly.
 	/// </remarks>
-	public class TizenLabelHandler : TizenViewHandler<ILabel, TizenLabelView>, ITizenLabelHandler
+	public class TizenLabelHandler : TizenViewHandler<ILabel, TizenLabelView>, ILabelHandler
 	{
 		/// <summary>Property mapper for <see cref="ILabel"/> on Tizen.</summary>
-		public static readonly IPropertyMapper<ILabel, ITizenLabelHandler> Mapper =
-			new PropertyMapper<ILabel, ITizenLabelHandler>(ViewHandler.ViewMapper)
+		public static readonly IPropertyMapper<ILabel, ILabelHandler> Mapper =
+			new PropertyMapper<ILabel, ILabelHandler>(TizenViewMappers.ViewMapper, LabelHandler.Mapper)
 			{
 				[nameof(ILabel.Background)] = MapBackground,
 				[nameof(ILabel.Opacity)] = MapOpacity,
@@ -35,8 +35,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		/// <summary>Command mapper for <see cref="ILabel"/> on Tizen.</summary>
-		public static readonly CommandMapper<ILabel, ITizenLabelHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+		public static readonly CommandMapper<ILabel, ILabelHandler> CommandMapper =
+			new(TizenViewMappers.ViewCommandMapper);
 
 		/// <summary>Initializes a new instance of the <see cref="TizenLabelHandler"/> class.</summary>
 		public TizenLabelHandler()
@@ -52,9 +52,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 		}
 
-		ILabel ITizenLabelHandler.VirtualView => VirtualView;
+		ILabel ILabelHandler.VirtualView => VirtualView;
 
-		TizenLabelView ITizenLabelHandler.PlatformView => PlatformView;
+		// object, not TizenLabelView: on the neutral package MAUI declares PlatformView as object,
+		// and an explicit interface implementation must match that exactly.
+		object ILabelHandler.PlatformView => PlatformView;
 
 		/// <inheritdoc />
 		protected override TizenLabelView CreatePlatformView() => new();
@@ -62,111 +64,111 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>Maps <see cref="IView.Background"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="label">The label.</param>
-		public static void MapBackground(ITizenLabelHandler handler, ILabel label)
+		public static void MapBackground(ILabelHandler handler, ILabel label)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateBackground(label);
+			((TizenLabelView?)handler.PlatformView)?.UpdateBackground(label);
 #endif
 		}
 
 		/// <summary>Maps <see cref="IView.Opacity"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="label">The label.</param>
-		public static void MapOpacity(ITizenLabelHandler handler, ILabel label)
+		public static void MapOpacity(ILabelHandler handler, ILabel label)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateOpacity(label);
+			((TizenLabelView?)handler.PlatformView)?.UpdateOpacity(label);
 #endif
 		}
 
 		/// <summary>Maps <see cref="IView.Shadow"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="label">The label.</param>
-		public static void MapShadow(ITizenLabelHandler handler, ILabel label)
+		public static void MapShadow(ILabelHandler handler, ILabel label)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateShadow(label);
+			((TizenLabelView?)handler.PlatformView)?.UpdateShadow(label);
 #endif
 		}
 
 		/// <summary>Maps <see cref="ILabel.Text"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="label">The label.</param>
-		public static void MapText(ITizenLabelHandler handler, ILabel label)
+		public static void MapText(ILabelHandler handler, ILabel label)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateLabelText(label);
+			((TizenLabelView?)handler.PlatformView)?.UpdateLabelText(label);
 #endif
 		}
 
 		/// <summary>Maps <see cref="ITextStyle.TextColor"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="label">The label.</param>
-		public static void MapTextColor(ITizenLabelHandler handler, ILabel label)
+		public static void MapTextColor(ILabelHandler handler, ILabel label)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateTextColor(label);
+			((TizenLabelView?)handler.PlatformView)?.UpdateTextColor(label);
 #endif
 		}
 
 		/// <summary>Maps <see cref="ITextAlignment.HorizontalTextAlignment"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="label">The label.</param>
-		public static void MapHorizontalTextAlignment(ITizenLabelHandler handler, ILabel label)
+		public static void MapHorizontalTextAlignment(ILabelHandler handler, ILabel label)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateHorizontalTextAlignment(label);
+			((TizenLabelView?)handler.PlatformView)?.UpdateHorizontalTextAlignment(label);
 #endif
 		}
 
 		/// <summary>Maps <see cref="ITextAlignment.VerticalTextAlignment"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="label">The label.</param>
-		public static void MapVerticalTextAlignment(ITizenLabelHandler handler, ILabel label)
+		public static void MapVerticalTextAlignment(ILabelHandler handler, ILabel label)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateVerticalTextAlignment(label);
+			((TizenLabelView?)handler.PlatformView)?.UpdateVerticalTextAlignment(label);
 #endif
 		}
 
 		/// <summary>Maps <see cref="ILabel.TextDecorations"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="label">The label.</param>
-		public static void MapTextDecorations(ITizenLabelHandler handler, ILabel label)
+		public static void MapTextDecorations(ILabelHandler handler, ILabel label)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateTextDecorations(label);
+			((TizenLabelView?)handler.PlatformView)?.UpdateTextDecorations(label);
 #endif
 		}
 
 		/// <summary>Maps <see cref="ITextStyle.Font"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="label">The label.</param>
-		public static void MapFont(ITizenLabelHandler handler, ILabel label)
+		public static void MapFont(ILabelHandler handler, ILabel label)
 		{
 #if TIZEN
 			var fontManager = handler.GetRequiredService<IFontManager>();
-			handler.PlatformView?.UpdateFont(label, fontManager);
+			((TizenLabelView?)handler.PlatformView)?.UpdateFont(label, fontManager);
 #endif
 		}
 
 		/// <summary>Maps <see cref="ITextStyle.CharacterSpacing"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="label">The label.</param>
-		public static void MapCharacterSpacing(ITizenLabelHandler handler, ILabel label)
+		public static void MapCharacterSpacing(ILabelHandler handler, ILabel label)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateCharacterSpacing(label);
+			((TizenLabelView?)handler.PlatformView)?.UpdateCharacterSpacing(label);
 #endif
 		}
 
 		/// <summary>Maps <see cref="ILabel.LineHeight"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="label">The label.</param>
-		public static void MapLineHeight(ITizenLabelHandler handler, ILabel label)
+		public static void MapLineHeight(ILabelHandler handler, ILabel label)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateLineHeight(label);
+			((TizenLabelView?)handler.PlatformView)?.UpdateLineHeight(label);
 #endif
 		}
 
@@ -176,7 +178,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="label">The label.</param>
-		public static void MapPadding(ITizenLabelHandler handler, ILabel label)
+		public static void MapPadding(ILabelHandler handler, ILabel label)
 		{
 		}
 	}
