@@ -1,0 +1,79 @@
+<Project>
+
+  <!--
+    The vertical-slice source list, factored out so three different consumers can compile exactly
+    the same files:
+
+      1. src/Maui.Tizen.Core          - the real product, net11.0-tizen11.0 (gated on the workload).
+      2. tests/...RefPackCompile      - type-checks the platform sources against the API15 reference
+                                        pack, with no workload installed.
+      3. tests/...UnitTests           - compiles the platform-independent subset (plus host stubs)
+                                        so mappers, DI and dispatching are actually executable.
+
+    Sources are listed explicitly rather than globbed because the foundation import drops the raw,
+    unmodified dotnet/maui Tizen tree into this same directory. Globbing would sweep those in.
+  -->
+
+  <PropertyGroup>
+    <MauiTizenCoreDir Condition="'$(MauiTizenCoreDir)' == ''">$(MSBuildThisFileDirectory)../src/Maui.Tizen.Core/</MauiTizenCoreDir>
+    <MauiTizenSampleDir Condition="'$(MauiTizenSampleDir)' == ''">$(MSBuildThisFileDirectory)../samples/Maui.Tizen.Sample/</MauiTizenSampleDir>
+  </PropertyGroup>
+
+  <!--
+    Files with no Tizen.NUI / Tizen.UIExtensions dependency at all. These compile and RUN on a plain
+    net11.0 host, which is what makes the unit test project meaningful.
+  -->
+  <ItemGroup Label="Platform-independent slice sources">
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Dispatching/TizenDispatcher.cs" />
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Animations/TizenTicker.cs" />
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenDisplayDensity.cs" />
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenLayoutExtensions.cs" />
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenMauiContext.cs" />
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenMauiContextExtensions.cs" />
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)LifecycleEvents/TizenLifecycleEventExtensions.cs" />
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Hosting/TizenHandlerCollectionExtensions.cs" />
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Hosting/TizenMauiAppBuilderExtensions.cs" />
+  </ItemGroup>
+
+  <!--
+    Handlers. Every NUI call inside these is wrapped in `#if TIZEN`, so they also compile against
+    the host stubs in the unit test project.
+  -->
+  <ItemGroup Label="Handler slice sources">
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/ITizenPlatformViewHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/ITizenHandlers.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenViewHandlerOfT.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenApplicationHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenWindowHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenContentViewHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenPageHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenLayoutHandler.cs" />
+    <MauiTizenHandlerCompile Include="$(MauiTizenCoreDir)Handlers/TizenLabelHandler.cs" />
+  </ItemGroup>
+
+  <!-- Sources that can only ever compile with real TizenFX present. -->
+  <ItemGroup Label="Tizen-only slice sources">
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)TizenNativeAliases.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenPlatformExtensions.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenContentViewGroup.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenLayoutViewGroup.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenLabelView.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenMauiApplication.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenCoreApplicationExtensions.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)LifecycleEvents/TizenLifecycle.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)LifecycleEvents/TizenLifecycleBuilderExtensions.cs" />
+  </ItemGroup>
+
+  <!--
+    Sample head sources. Included in the compile-validation lane so the sample's managed code is
+    type-checked against real TizenFX even though the sample itself cannot be packaged without the
+    Samsung workload.
+  -->
+  <ItemGroup Label="Sample slice sources">
+    <MauiTizenSampleCompile Include="$(MauiTizenSampleDir)SampleViews.cs" />
+    <MauiTizenSampleCompile Include="$(MauiTizenSampleDir)SampleApplication.cs" />
+    <MauiTizenSampleCompile Include="$(MauiTizenSampleDir)MauiProgram.cs" />
+    <MauiTizenSampleCompile Include="$(MauiTizenSampleDir)Platforms/Tizen/Main.cs" />
+  </ItemGroup>
+
+</Project>

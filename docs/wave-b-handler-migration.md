@@ -20,6 +20,26 @@ diff is rename-plus-edit, so `git log --follow` still reaches the Xamarin.Forms-
 Per `PROVENANCE.md`, removing the now-redundant `.Tizen.cs` suffix was explicitly left to the
 handler workstream; migrated files drop it, and a test enforces that they do.
 
+### Alignment with the core vertical slice
+
+Wave B builds on the contract established by the core slice rather than on MAUI's handler types
+directly:
+
+- Handlers derive from **`TizenViewHandler<TVirtualView, TPlatformView>`**, which owns focus
+  handling, measurement, arrangement and disposal.
+- Handlers live in **`Microsoft.Maui.Platforms.Tizen.Handlers`**; platform types stay in
+  `Microsoft.Maui.Platforms.Tizen`.
+- **Containers are not used.** `TizenViewHandler` pins `NeedsContainer` to `false` because MAUI
+  exposes no settable container hook to an out-of-repo backend. Wave B renders background directly
+  on the platform view, and border strokes — which upstream drew on the container `WrapperView` —
+  consequently do not render. That is recorded as unsupported rather than quietly dropped.
+- `ContentViewHandler` is **not** part of Wave B: the core slice owns it.
+- `IPlatformViewHandler` is replaced by core's **`ITizenPlatformViewHandler`**, and
+  `ContentViewGroup` by **`TizenContentViewGroup`**.
+
+Three tests enforce this: handlers must derive from the backend base, must live in the reserved
+namespace, and must not re-litigate container policy.
+
 ### Naming and namespace
 
 These files carry the **`rebuild`** disposition of `docs/architecture.md` Rule 3, and follow Rule 2
@@ -47,7 +67,7 @@ listed below is `rebuild`.
 
 | Area | Handlers |
 |---|---|
-| Core content/container | `TizenContentViewHandler`, `TizenBorderHandler`, `TizenSwipeItemViewHandler` |
+| Core content/container | `TizenBorderHandler`, `TizenSwipeItemViewHandler` |
 | Core scrolling/refresh | `TizenScrollViewHandler`, `TizenRefreshViewHandler` |
 | Core image | `TizenImageHandler`, `TizenImageButtonHandler` |
 | Core drawing | `TizenGraphicsViewHandler`, `TizenShapeViewHandler` |
@@ -119,11 +139,29 @@ abstractions. Confirmed by reflection against `Microsoft.Maui.Core` 11.0.0-previ
 |---|---|---|
 | `ViewHandler.SetupContainer`, `NeedsContainer`, `ContainerView`, `PlatformArrange` | Yes | MAUI package |
 | `ViewHandler<,>.CreatePlatformView` | Yes | MAUI package |
-| `IPlatformViewHandler` | **No** | **core / Wave A must supply it** |
+| `IPlatformViewHandler` | **No** | Resolved: core supplies `ITizenPlatformViewHandler` |
 | `ContentViewGroup`, `MauiScrollView`, and the other `Platform/Tizen` helpers | **No** | this repository (already imported) |
 
 Wave B references `IPlatformViewHandler` throughout, exactly as upstream did. Until core supplies
 it, the backend has an unresolved symbol independent of the SDK blockers above.
+
+## Remaining work before Wave B can compile
+
+The core slice compiles its sources three ways from one explicit list in
+`eng/Maui.Tizen.Core.Sources.props`: the real Tizen product, a ref-pack lane that type-checks against
+the real TizenFX API15 assemblies with no workload, and a unit-test lane that runs against host
+stubs. Wave B is **not yet wired into those lanes**, and that is the next step rather than a
+finished one. It requires, per handler and per native helper:
+
+1. wrapping every `Tizen.NUI` / `Tizen.UIExtensions` call site in `#if TIZEN`;
+2. host stubs for the Wave B platform views (`MauiScrollView`, `MauiShapeView`, `MauiSwipeView`,
+   `MauiPageControl`, `MauiRefreshLayout`, `MauiImageButton`, `PlatformTouchGraphicsView`);
+3. adding the files to an explicit source list, since the foundation's raw import shares these
+   directories and globbing would sweep it in.
+
+Until then Wave B is verified structurally (see above) but not type-checked. `MauiSwipeView` alone is
+~1,000 lines of unmodified upstream code, so this is a substantial piece of work and is called out
+here rather than being implied as done.
 
 One naming risk for core to settle: `Microsoft.Maui.Platform.WrapperView` **also exists in MAUI 11**,
 and this repository's imported `Platform/Tizen/WrapperView.cs` declares the same full name. Within

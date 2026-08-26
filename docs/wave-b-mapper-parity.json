@@ -4,7 +4,7 @@
   "Handlers": [
     {
       "Handler": "TizenBorderHandler",
-      "BaseType": "ViewHandler\u003CIBorderView, ContentViewGroup\u003E",
+      "BaseType": "TizenViewHandler\u003CIBorderView, TizenContentViewGroup\u003E",
       "File": "src/Maui.Tizen.Core/Handlers/Border/TizenBorderHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.BorderHandler",
       "PropertyMappers": [
@@ -21,42 +21,50 @@
         {
           "Key": "Shape",
           "Method": "MapStrokeShape",
-          "Status": "Supported"
+          "Status": "NoOp",
+          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.Shape\u0022/\u003E on the container WrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
         },
         {
           "Key": "Stroke",
           "Method": "MapStroke",
-          "Status": "Supported"
+          "Status": "NoOp",
+          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.Stroke\u0022/\u003E on the container WrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
         },
         {
           "Key": "StrokeThickness",
           "Method": "MapStrokeThickness",
-          "Status": "Supported"
+          "Status": "NoOp",
+          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.StrokeThickness\u0022/\u003E on the container WrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
         },
         {
           "Key": "StrokeLineCap",
           "Method": "MapStrokeLineCap",
-          "Status": "Supported"
+          "Status": "NoOp",
+          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.StrokeLineCap\u0022/\u003E on the container WrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
         },
         {
           "Key": "StrokeLineJoin",
           "Method": "MapStrokeLineJoin",
-          "Status": "Supported"
+          "Status": "NoOp",
+          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.StrokeLineJoin\u0022/\u003E on the container WrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
         },
         {
           "Key": "StrokeDashPattern",
           "Method": "MapStrokeDashPattern",
-          "Status": "Supported"
+          "Status": "NoOp",
+          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.StrokeDashPattern\u0022/\u003E on the container WrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
         },
         {
           "Key": "StrokeDashOffset",
           "Method": "MapStrokeDashOffset",
-          "Status": "Supported"
+          "Status": "NoOp",
+          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.StrokeDashOffset\u0022/\u003E on the container WrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
         },
         {
           "Key": "StrokeMiterLimit",
           "Method": "MapStrokeMiterLimit",
-          "Status": "Supported"
+          "Status": "NoOp",
+          "Reason": "UNSUPPORTED, not merely unimplemented. Upstream drew \u003Csee cref=\u0022IBorderStroke.StrokeMiterLimit\u0022/\u003E on the container WrapperView, and this backend cannot create a container: MAUI exposes no settable container hook to an out-of-repo assembly, so TizenViewHandler pins NeedsContainer to false. Border strokes therefore do not render. See docs/net11-status.md (\u0022Required public MAUI API gaps\u0022)."
         }
       ],
       "CommandMappers": [],
@@ -67,26 +75,6 @@
       "BaseType": "TizenShapeViewHandler",
       "File": "src/Maui.Tizen.Controls/Core/Handlers/Shapes/BoxView/TizenBoxViewHandler.cs",
       "PropertyMappers": [],
-      "CommandMappers": [],
-      "UncoveredNeutralKeys": []
-    },
-    {
-      "Handler": "TizenContentViewHandler",
-      "BaseType": "ViewHandler\u003CIContentView, ContentViewGroup\u003E",
-      "File": "src/Maui.Tizen.Core/Handlers/ContentView/TizenContentViewHandler.cs",
-      "NeutralHandler": "Microsoft.Maui.Handlers.ContentViewHandler",
-      "PropertyMappers": [
-        {
-          "Key": "Background",
-          "Method": "MapBackground",
-          "Status": "Supported"
-        },
-        {
-          "Key": "Content",
-          "Method": "MapContent",
-          "Status": "Supported"
-        }
-      ],
       "CommandMappers": [],
       "UncoveredNeutralKeys": []
     },
@@ -108,7 +96,7 @@
     },
     {
       "Handler": "TizenGraphicsViewHandler",
-      "BaseType": "ViewHandler\u003CIGraphicsView, PlatformTouchGraphicsView\u003E",
+      "BaseType": "TizenViewHandler\u003CIGraphicsView, PlatformTouchGraphicsView\u003E",
       "File": "src/Maui.Tizen.Core/Handlers/GraphicsView/TizenGraphicsViewHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.GraphicsViewHandler",
       "PropertyMappers": [
@@ -139,7 +127,7 @@
     },
     {
       "Handler": "TizenImageButtonHandler",
-      "BaseType": "ViewHandler\u003CIImageButton, MauiImageButton\u003E",
+      "BaseType": "TizenViewHandler\u003CIImageButton, MauiImageButton\u003E",
       "File": "src/Maui.Tizen.Core/Handlers/ImageButton/TizenImageButtonHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.ImageButtonHandler",
       "PropertyMappers": [
@@ -185,7 +173,7 @@
     },
     {
       "Handler": "TizenImageHandler",
-      "BaseType": "ViewHandler\u003CIImage, Image\u003E",
+      "BaseType": "TizenViewHandler\u003CIImage, Image\u003E",
       "File": "src/Maui.Tizen.Core/Handlers/Image/TizenImageHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.ImageHandler",
       "PropertyMappers": [
@@ -214,8 +202,24 @@
       "UncoveredNeutralKeys": []
     },
     {
+      "Handler": "TizenImageSourceService",
+      "BaseType": "ITizenImageSourceService",
+      "File": "src/Maui.Tizen.Core/ImageSources/ITizenImageSourceService.cs",
+      "PropertyMappers": [],
+      "CommandMappers": [],
+      "UncoveredNeutralKeys": []
+    },
+    {
+      "Handler": "TizenImageSourceServiceProviderExtensions",
+      "BaseType": "",
+      "File": "src/Maui.Tizen.Core/ImageSources/ITizenImageSourceService.cs",
+      "PropertyMappers": [],
+      "CommandMappers": [],
+      "UncoveredNeutralKeys": []
+    },
+    {
       "Handler": "TizenIndicatorViewHandler",
-      "BaseType": "ViewHandler\u003CIIndicatorView, MauiPageControl\u003E",
+      "BaseType": "TizenViewHandler\u003CIIndicatorView, MauiPageControl\u003E",
       "File": "src/Maui.Tizen.Core/Handlers/IndicatorView/TizenIndicatorViewHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.IndicatorViewHandler",
       "PropertyMappers": [
@@ -375,7 +379,7 @@
     },
     {
       "Handler": "TizenRefreshViewHandler",
-      "BaseType": "ViewHandler\u003CIRefreshView, MauiRefreshLayout\u003E",
+      "BaseType": "TizenViewHandler\u003CIRefreshView, MauiRefreshLayout\u003E",
       "File": "src/Maui.Tizen.Core/Handlers/RefreshView/TizenRefreshViewHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.RefreshViewHandler",
       "PropertyMappers": [
@@ -426,7 +430,7 @@
     },
     {
       "Handler": "TizenScrollViewHandler",
-      "BaseType": "ViewHandler\u003CIScrollView, ScrollView\u003E",
+      "BaseType": "TizenViewHandler\u003CIScrollView, ScrollView\u003E",
       "File": "src/Maui.Tizen.Core/Handlers/ScrollView/TizenScrollViewHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.ScrollViewHandler",
       "PropertyMappers": [
@@ -462,7 +466,7 @@
     },
     {
       "Handler": "TizenShapeViewHandler",
-      "BaseType": "ViewHandler\u003CIShapeView, MauiShapeView\u003E",
+      "BaseType": "TizenViewHandler\u003CIShapeView, MauiShapeView\u003E",
       "File": "src/Maui.Tizen.Core/Handlers/ShapeView/TizenShapeViewHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.ShapeViewHandler",
       "PropertyMappers": [
@@ -583,7 +587,7 @@
     },
     {
       "Handler": "TizenSwipeItemViewHandler",
-      "BaseType": "ViewHandler\u003CISwipeItemView, ContentViewGroup\u003E",
+      "BaseType": "TizenViewHandler\u003CISwipeItemView, TizenContentViewGroup\u003E",
       "File": "src/Maui.Tizen.Core/Handlers/SwipeItemView/TizenSwipeItemViewHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.SwipeItemViewHandler",
       "PropertyMappers": [
@@ -603,7 +607,7 @@
     },
     {
       "Handler": "TizenSwipeViewHandler",
-      "BaseType": "ViewHandler\u003CISwipeView, MauiSwipeView\u003E",
+      "BaseType": "TizenViewHandler\u003CISwipeView, MauiSwipeView\u003E",
       "File": "src/Maui.Tizen.Core/Handlers/SwipeView/TizenSwipeViewHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.SwipeViewHandler",
       "PropertyMappers": [

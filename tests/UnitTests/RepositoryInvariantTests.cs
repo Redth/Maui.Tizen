@@ -106,6 +106,11 @@ public class RepositoryInvariantTests
 		Assert.NotNull(band);
 		Assert.NotNull(sdk);
 		Assert.StartsWith(band!, sdk!);
+
+		// A bare band is not a resolvable SDK version. actions/setup-dotnet@v5 looks the
+		// value up verbatim and fails with "Could not find .NET Core SDK with version =
+		// 11.0.100-preview.7". v4 tolerated it, so this only surfaced on upgrade.
+		Assert.NotEqual(band, sdk);
 	}
 
 	[Fact]

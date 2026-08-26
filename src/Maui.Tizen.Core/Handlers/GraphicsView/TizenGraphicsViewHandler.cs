@@ -12,10 +12,12 @@ using Microsoft.Maui.Platform;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Platforms.Tizen
+using Microsoft.Maui.Platforms.Tizen;
+
+namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="IGraphicsView"/>, backed by the Skia drawing surface.</summary>
-	public class TizenGraphicsViewHandler : ViewHandler<IGraphicsView, PlatformTouchGraphicsView>
+	public class TizenGraphicsViewHandler : TizenViewHandler<IGraphicsView, PlatformTouchGraphicsView>
 	{
 		public static IPropertyMapper<IGraphicsView, TizenGraphicsViewHandler> Mapper =
 			new PropertyMapper<IGraphicsView, TizenGraphicsViewHandler>(ViewMapper)

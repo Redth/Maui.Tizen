@@ -15,10 +15,12 @@ using Tizen.UIExtensions.NUI;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Platforms.Tizen
+using Microsoft.Maui.Platforms.Tizen;
+
+namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="IScrollView"/>.</summary>
-	public class TizenScrollViewHandler : ViewHandler<IScrollView, ScrollView>
+	public class TizenScrollViewHandler : TizenViewHandler<IScrollView, ScrollView>
 	{
 		public static IPropertyMapper<IScrollView, TizenScrollViewHandler> Mapper =
 			new PropertyMapper<IScrollView, TizenScrollViewHandler>(ViewMapper)

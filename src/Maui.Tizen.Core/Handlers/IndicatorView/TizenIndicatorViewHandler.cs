@@ -9,14 +9,16 @@ using Microsoft.Maui.Platform;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Platforms.Tizen
+using Microsoft.Maui.Platforms.Tizen;
+
+namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="IIndicatorView"/>.</summary>
 	/// <remarks>
 	/// Appearance properties (size, colours, shape) have no incremental native API on the Tizen page
 	/// control, so they rebuild the indicator set via <c>ResetIndicators</c>.
 	/// </remarks>
-	public class TizenIndicatorViewHandler : ViewHandler<IIndicatorView, MauiPageControl>
+	public class TizenIndicatorViewHandler : TizenViewHandler<IIndicatorView, MauiPageControl>
 	{
 		public static IPropertyMapper<IIndicatorView, TizenIndicatorViewHandler> Mapper =
 			new PropertyMapper<IIndicatorView, TizenIndicatorViewHandler>(ViewMapper)

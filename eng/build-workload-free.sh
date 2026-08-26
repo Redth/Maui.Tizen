@@ -91,8 +91,13 @@ if actual != expected:
 
 band = baselines["target"]["sdkBand"]
 gj = json.load(open("global.json"))
-if not gj["sdk"]["version"].startswith(band.rsplit('.', 1)[0]):
-    sys.exit(f"global.json SDK '{gj['sdk']['version']}' does not match declared band '{band}'")
+sdk = gj["sdk"]["version"]
+if not sdk.startswith(band):
+    sys.exit(f"global.json SDK '{sdk}' is not in the declared band '{band}'")
+if sdk == band:
+    sys.exit(
+        f"global.json SDK '{sdk}' is a bare band, not a resolvable SDK version. "
+        "actions/setup-dotnet cannot install it. Pin a concrete version within the band.")
 PY
 
 # ---------------------------------------------------------------------------
@@ -116,6 +121,20 @@ info "Workload-independent projects"
 WORKLOAD_FREE_PROJECTS=(
   "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj"
   "tests/UnitTests/Maui.Tizen.UnitTests.csproj"
+
+  # Verification lanes for the ported backend slice. Neither is a Tizen artifact:
+  #
+  #   Maui.Tizen.Core.UnitTests   compiles the backend against inert stand-ins for Tizen.NUI
+  #                               and EXECUTES tests for the workload-independent behaviour
+  #                               (mapper and DI registration, hosting, dispatching, density,
+  #                               layout z-index ordering).
+  #
+  #   Maui.Tizen.Core.RefPackCompile  type-checks every `#if TIZEN` source, and the sample
+  #                               head, against the REAL TizenFX reference assemblies from
+  #                               Samsung.Tizen.Ref.API15. It is compile-only and unpackable,
+  #                               so it cannot become a neutral fallback for the product.
+  "tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj"
+  "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj"
   "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj"
 )
 for proj in "${WORKLOAD_FREE_PROJECTS[@]}"; do
@@ -132,6 +151,7 @@ done
 # ---------------------------------------------------------------------------
 info "Repository invariant tests"
 check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
+check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
 
 # ---------------------------------------------------------------------------
 # 5b. Migrated backend source tests.

@@ -10,10 +10,12 @@ using Microsoft.Maui.Platform;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Platforms.Tizen
+using Microsoft.Maui.Platforms.Tizen;
+
+namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="ISwipeView"/>.</summary>
-	public class TizenSwipeViewHandler : ViewHandler<ISwipeView, MauiSwipeView>
+	public class TizenSwipeViewHandler : TizenViewHandler<ISwipeView, MauiSwipeView>
 	{
 		public static IPropertyMapper<ISwipeView, TizenSwipeViewHandler> Mapper =
 			new PropertyMapper<ISwipeView, TizenSwipeViewHandler>(ViewMapper)

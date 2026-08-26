@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  api-version is 11, matching $(TizenManifestApiVersion) in Directory.Build.props and
+  eng/baselines.json > target.tizenManifestApiVersion (TizenFX API15 / Samsung.Tizen.Ref.API15).
+
+  dotnet/maui still emits api-version 7 for its Tizen heads; do not copy that value back in.
+-->
+<manifest package="org.tizen.example.MauiTizenSample" version="1.0.0" api-version="11" xmlns="http://tizen.org/ns/packages">
+  <profile name="common" />
+  <ui-application appid="org.tizen.example.MauiTizenSample"
+                  exec="Maui.Tizen.Sample.dll"
+                  type="dotnet"
+                  multiple="false"
+                  taskmanage="true"
+                  launch_mode="single"
+                  hw-acceleration="on">
+    <label>Maui.Tizen Sample</label>
+    <icon>appicon.png</icon>
+    <metadata key="http://tizen.org/metadata/prefer_dotnet_aot" value="true" />
+  </ui-application>
+  <shortcut-list />
+  <privileges>
+    <privilege>http://tizen.org/privilege/internet</privilege>
+  </privileges>
+  <dependencies />
+  <provides-appdefined-privileges />
+</manifest>

@@ -12,7 +12,9 @@ using System.Collections.Specialized;
 using Microsoft.Maui;
 using Microsoft.Maui.Controls.Handlers;
 
-namespace Microsoft.Maui.Platforms.Tizen
+using Microsoft.Maui.Platforms.Tizen;
+
+namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="Polygon"/>.</summary>
 	public class TizenPolygonHandler : TizenShapeViewHandler

@@ -10,15 +10,20 @@ using Microsoft.Maui.Platform;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Platforms.Tizen
+using Microsoft.Maui.Platforms.Tizen;
+
+namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="IBorderView"/>.</summary>
 	/// <remarks>
-	/// Stroke and shape are rendered by the container <see cref="WrapperView"/> rather than by the
-	/// content view itself, so every stroke mapper re-runs <c>WrapperView.UpdateBorder</c>. Tizen has
-	/// no per-property native stroke API to update incrementally.
+	/// UNSUPPORTED: stroke and shape have no rendering path in this backend today. Upstream drew
+	/// them on the container <c>WrapperView</c>, but <see cref="TizenViewHandler{TVirtualView,
+	/// TPlatformView}"/> pins <c>NeedsContainer</c> to <see langword="false"/> because MAUI exposes
+	/// no settable container hook to an out-of-repo backend. Background still renders directly on
+	/// the platform view. See docs/net11-status.md ("Required public MAUI API gaps") and
+	/// docs/wave-b-mapper-parity.md.
 	/// </remarks>
-	public class TizenBorderHandler : ViewHandler<IBorderView, ContentViewGroup>
+	public class TizenBorderHandler : TizenViewHandler<IBorderView, TizenContentViewGroup>
 	{
 		public static IPropertyMapper<IBorderView, TizenBorderHandler> Mapper =
 			new PropertyMapper<IBorderView, TizenBorderHandler>(ViewMapper)
@@ -57,25 +62,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 		}
 
-		public override bool NeedsContainer => true;
 
-		protected override ContentViewGroup CreatePlatformView()
+		protected override TizenContentViewGroup CreatePlatformView()
 		{
-			_ = VirtualView ?? throw new InvalidOperationException($"{nameof(VirtualView)} must be set to create a ContentViewGroup");
+			_ = VirtualView ?? throw new InvalidOperationException($"{nameof(VirtualView)} must be set to create a TizenContentViewGroup");
 
-			return new ContentViewGroup(VirtualView)
+			return new TizenContentViewGroup(VirtualView)
 			{
 				CrossPlatformMeasure = VirtualView.CrossPlatformMeasure,
 				CrossPlatformArrange = VirtualView.CrossPlatformArrange
 			};
 		}
 
-		protected override void SetupContainer()
-		{
-			base.SetupContainer();
-			(ContainerView as WrapperView)?.UpdateBorder(VirtualView);
-			(ContainerView as WrapperView)?.UpdateBackground(VirtualView.Background);
-		}
 
 		public override void SetVirtualView(IView view)
 		{
@@ -120,33 +118,97 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 		}
 
-		void InvalidateBorder()
-		{
-			(ContainerView as WrapperView)?.UpdateBorder(VirtualView);
-		}
-
-		public static void MapBackground(TizenBorderHandler handler, IBorderView border)
-		{
-			handler.UpdateValue(nameof(IViewHandler.ContainerView));
-			(handler.ContainerView as WrapperView)?.UpdateBackground(border.Background);
-		}
+		public static void MapBackground(TizenBorderHandler handler, IBorderView border) =>
+			handler.PlatformView?.UpdateBackground(border);
 
 		public static void MapContent(TizenBorderHandler handler, IBorderView border) => handler.UpdateContent();
 
-		public static void MapStrokeShape(TizenBorderHandler handler, IBorderView border) => handler.InvalidateBorder();
+		/// <summary>
+		/// UNSUPPORTED, not merely unimplemented. Upstream drew <see cref="IBorderStroke.Shape"/>
+		/// on the container WrapperView, and this backend cannot create a container: MAUI exposes no
+		/// settable container hook to an out-of-repo assembly, so TizenViewHandler pins
+		/// NeedsContainer to false. Border strokes therefore do not render. See
+		/// docs/net11-status.md ("Required public MAUI API gaps").
+		/// </summary>
+		public static void MapStrokeShape(TizenBorderHandler handler, IBorderView border)
+		{
+		}
 
-		public static void MapStroke(TizenBorderHandler handler, IBorderView border) => handler.InvalidateBorder();
+		/// <summary>
+		/// UNSUPPORTED, not merely unimplemented. Upstream drew <see cref="IBorderStroke.Stroke"/>
+		/// on the container WrapperView, and this backend cannot create a container: MAUI exposes no
+		/// settable container hook to an out-of-repo assembly, so TizenViewHandler pins
+		/// NeedsContainer to false. Border strokes therefore do not render. See
+		/// docs/net11-status.md ("Required public MAUI API gaps").
+		/// </summary>
+		public static void MapStroke(TizenBorderHandler handler, IBorderView border)
+		{
+		}
 
-		public static void MapStrokeThickness(TizenBorderHandler handler, IBorderView border) => handler.InvalidateBorder();
+		/// <summary>
+		/// UNSUPPORTED, not merely unimplemented. Upstream drew <see cref="IBorderStroke.StrokeThickness"/>
+		/// on the container WrapperView, and this backend cannot create a container: MAUI exposes no
+		/// settable container hook to an out-of-repo assembly, so TizenViewHandler pins
+		/// NeedsContainer to false. Border strokes therefore do not render. See
+		/// docs/net11-status.md ("Required public MAUI API gaps").
+		/// </summary>
+		public static void MapStrokeThickness(TizenBorderHandler handler, IBorderView border)
+		{
+		}
 
-		public static void MapStrokeLineCap(TizenBorderHandler handler, IBorderView border) => handler.InvalidateBorder();
+		/// <summary>
+		/// UNSUPPORTED, not merely unimplemented. Upstream drew <see cref="IBorderStroke.StrokeLineCap"/>
+		/// on the container WrapperView, and this backend cannot create a container: MAUI exposes no
+		/// settable container hook to an out-of-repo assembly, so TizenViewHandler pins
+		/// NeedsContainer to false. Border strokes therefore do not render. See
+		/// docs/net11-status.md ("Required public MAUI API gaps").
+		/// </summary>
+		public static void MapStrokeLineCap(TizenBorderHandler handler, IBorderView border)
+		{
+		}
 
-		public static void MapStrokeLineJoin(TizenBorderHandler handler, IBorderView border) => handler.InvalidateBorder();
+		/// <summary>
+		/// UNSUPPORTED, not merely unimplemented. Upstream drew <see cref="IBorderStroke.StrokeLineJoin"/>
+		/// on the container WrapperView, and this backend cannot create a container: MAUI exposes no
+		/// settable container hook to an out-of-repo assembly, so TizenViewHandler pins
+		/// NeedsContainer to false. Border strokes therefore do not render. See
+		/// docs/net11-status.md ("Required public MAUI API gaps").
+		/// </summary>
+		public static void MapStrokeLineJoin(TizenBorderHandler handler, IBorderView border)
+		{
+		}
 
-		public static void MapStrokeDashPattern(TizenBorderHandler handler, IBorderView border) => handler.InvalidateBorder();
+		/// <summary>
+		/// UNSUPPORTED, not merely unimplemented. Upstream drew <see cref="IBorderStroke.StrokeDashPattern"/>
+		/// on the container WrapperView, and this backend cannot create a container: MAUI exposes no
+		/// settable container hook to an out-of-repo assembly, so TizenViewHandler pins
+		/// NeedsContainer to false. Border strokes therefore do not render. See
+		/// docs/net11-status.md ("Required public MAUI API gaps").
+		/// </summary>
+		public static void MapStrokeDashPattern(TizenBorderHandler handler, IBorderView border)
+		{
+		}
 
-		public static void MapStrokeDashOffset(TizenBorderHandler handler, IBorderView border) => handler.InvalidateBorder();
+		/// <summary>
+		/// UNSUPPORTED, not merely unimplemented. Upstream drew <see cref="IBorderStroke.StrokeDashOffset"/>
+		/// on the container WrapperView, and this backend cannot create a container: MAUI exposes no
+		/// settable container hook to an out-of-repo assembly, so TizenViewHandler pins
+		/// NeedsContainer to false. Border strokes therefore do not render. See
+		/// docs/net11-status.md ("Required public MAUI API gaps").
+		/// </summary>
+		public static void MapStrokeDashOffset(TizenBorderHandler handler, IBorderView border)
+		{
+		}
 
-		public static void MapStrokeMiterLimit(TizenBorderHandler handler, IBorderView border) => handler.InvalidateBorder();
+		/// <summary>
+		/// UNSUPPORTED, not merely unimplemented. Upstream drew <see cref="IBorderStroke.StrokeMiterLimit"/>
+		/// on the container WrapperView, and this backend cannot create a container: MAUI exposes no
+		/// settable container hook to an out-of-repo assembly, so TizenViewHandler pins
+		/// NeedsContainer to false. Border strokes therefore do not render. See
+		/// docs/net11-status.md ("Required public MAUI API gaps").
+		/// </summary>
+		public static void MapStrokeMiterLimit(TizenBorderHandler handler, IBorderView border)
+		{
+		}
 	}
 }

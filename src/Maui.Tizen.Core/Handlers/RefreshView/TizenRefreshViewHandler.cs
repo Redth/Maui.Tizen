@@ -10,10 +10,12 @@ using Microsoft.Maui.Platform;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Platforms.Tizen
+using Microsoft.Maui.Platforms.Tizen;
+
+namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="IRefreshView"/>.</summary>
-	public class TizenRefreshViewHandler : ViewHandler<IRefreshView, MauiRefreshLayout>
+	public class TizenRefreshViewHandler : TizenViewHandler<IRefreshView, MauiRefreshLayout>
 	{
 		public static IPropertyMapper<IRefreshView, TizenRefreshViewHandler> Mapper =
 			new PropertyMapper<IRefreshView, TizenRefreshViewHandler>(ViewMapper)
