@@ -31,6 +31,25 @@ Two details are easy to get wrong and are worth stating explicitly:
    retained rather than just referenced. An import that took `net11.0` alone would lose
    them without any error.
 
+### What the pin excludes
+
+`sourceBaseline` is 4 commits after `requiredAncestor`, and none of those 4 touch Tizen
+paths. But `net11.0` has continued past the pin, and three later commits **do**:
+
+| Commit | PR | Title |
+|---|---|---|
+| `62418a4ec4` | [#37420](https://github.com/dotnet/maui/pull/37420) | Expose gesture recognizer dispatch APIs |
+| `78502a5325` | [#37671](https://github.com/dotnet/maui/pull/37671) | Harden gesture recognizer dispatch API contracts |
+| `4695c95801` | [#37755](https://github.com/dotnet/maui/pull/37755) | Add badge support to TabbedPage |
+
+All three touch **only** `src/Controls/src/Core/PublicAPI/net-tizen/PublicAPI.Unshipped.txt`
+— API surface declarations, not implementation. So the concrete gap is that the Controls
+`net-tizen` Unshipped baseline is three API additions behind current `net11.0`. That
+affects API baseline diffing rather than source migration.
+
+This is recorded because a pin is only genuinely reproducible if what it *excludes* is
+written down too.
+
 ---
 
 ## What was imported

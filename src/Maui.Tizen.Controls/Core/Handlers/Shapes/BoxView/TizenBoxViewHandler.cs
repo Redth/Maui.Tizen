@@ -7,9 +7,10 @@
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui;
 using Microsoft.Maui.Controls.Handlers;
-using Microsoft.Maui.Platform;
 
-namespace Microsoft.Maui.Platforms.Tizen
+using Microsoft.Maui.Platforms.Tizen;
+
+namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="BoxView"/>.</summary>
 	/// <remarks>

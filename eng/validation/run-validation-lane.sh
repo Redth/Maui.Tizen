@@ -85,9 +85,30 @@ export DOTNET_NOLOGO=1
 
 echo "==> Building the Wave C validation lane (net9.0-tizen7.0)"
 
-# cd into eng/validation so the CLI picks up eng/validation/global.json rather than the
-# repository root pin.
-cd "$script_dir"
+# The lane's project file is GENERATED into artifacts/ rather than committed. The repository
+# enforces a .NET 11 floor on every project file it contains, and a committed net9.0 project would
+# (correctly) trip that invariant. Generating it here keeps the lane outside the project graph.
+lane_dir="$repo_root/artifacts/validation"
+mkdir -p "$lane_dir"
+
+sed "s|\$(MauiTizenRepositoryRoot)|$repo_root/|g" \
+  "$script_dir/validation-lane.csproj.template" \
+  > "$lane_dir/Maui.Tizen.Controls.Navigation.Validation.csproj"
+
+# A local global.json so the CLI resolves the SDK band whose Samsung workload actually exists,
+# rather than the repository root's net11 pin.
+cat > "$lane_dir/global.json" <<JSON
+{
+  "sdk": {
+    "version": "$sdk_band",
+    "rollForward": "latestFeature",
+    "allowPrerelease": false
+  }
+}
+JSON
+
+# cd so the CLI picks up the generated global.json rather than the repository root pin.
+cd "$lane_dir"
 exec "$dotnet_root/dotnet" build \
   Maui.Tizen.Controls.Navigation.Validation.csproj \
   -p:EnableTizenValidationLane=true \

@@ -8,14 +8,15 @@
 // It is deliberately NOT named GraphicsViewHandler: that type still exists in Microsoft.Maui.Core
 // and re-declaring the name would be ambiguous for consumers referencing both assemblies.
 
-using Microsoft.Maui.Platform;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Platforms.Tizen
+using Microsoft.Maui.Platforms.Tizen;
+
+namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="IGraphicsView"/>, backed by the Skia drawing surface.</summary>
-	public class TizenGraphicsViewHandler : ViewHandler<IGraphicsView, PlatformTouchGraphicsView>
+	public class TizenGraphicsViewHandler : TizenViewHandler<IGraphicsView, TizenTouchGraphicsView>
 	{
 		public static IPropertyMapper<IGraphicsView, TizenGraphicsViewHandler> Mapper =
 			new PropertyMapper<IGraphicsView, TizenGraphicsViewHandler>(ViewMapper)
@@ -46,15 +47,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 		}
 
-		protected override PlatformTouchGraphicsView CreatePlatformView() => new PlatformTouchGraphicsView();
+		protected override TizenTouchGraphicsView CreatePlatformView() => new TizenTouchGraphicsView();
 
-		protected override void ConnectHandler(PlatformTouchGraphicsView platformView)
+		protected override void ConnectHandler(TizenTouchGraphicsView platformView)
 		{
 			platformView.Connect(VirtualView);
 			base.ConnectHandler(platformView);
 		}
 
-		protected override void DisconnectHandler(PlatformTouchGraphicsView platformView)
+		protected override void DisconnectHandler(TizenTouchGraphicsView platformView)
 		{
 			platformView.Disconnect();
 			base.DisconnectHandler(platformView);

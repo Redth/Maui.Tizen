@@ -86,13 +86,6 @@ namespace Maui.Tizen.Samples.Catalog.Navigation
 
 		void ToggleTitleView()
 		{
-			var toolbar = (this as IToolbarElement)?.Toolbar;
-
-			if (toolbar is null)
-			{
-				return;
-			}
-
 			// Round-trips the title view slot, which is the path that used to leak a platform
 			// handler on every remap.
 			NavigationPage.SetTitleView(

@@ -7,24 +7,25 @@
 using Microsoft.Maui.Controls.Shapes;
 using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Handlers;
-using Microsoft.Maui.Platform;
 using System.Collections.Specialized;
 using Microsoft.Maui;
 using Microsoft.Maui.Controls.Handlers;
 
-namespace Microsoft.Maui.Platforms.Tizen
+using Microsoft.Maui.Platforms.Tizen;
+
+namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="Polygon"/>.</summary>
 	public class TizenPolygonHandler : TizenShapeViewHandler
 	{
-		public static IPropertyMapper<Polygon, TizenPolygonHandler> Mapper =
+		public static new IPropertyMapper<Polygon, TizenPolygonHandler> Mapper =
 			new PropertyMapper<Polygon, TizenPolygonHandler>(TizenShapeViewHandler.Mapper)
 			{
 				[nameof(Polygon.Points)] = MapPoints,
 				[nameof(Polygon.FillRule)] = MapFillRule,
 			};
 
-		public static CommandMapper<Polygon, TizenPolygonHandler> CommandMapper =
+		public static new CommandMapper<Polygon, TizenPolygonHandler> CommandMapper =
 			new(TizenShapeViewHandler.CommandMapper)
 			{
 			};
@@ -44,9 +45,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{{
 		}}
 
-		PointCollection? _points;
+		Microsoft.Maui.Controls.PointCollection? _points;
 
-		protected override void ConnectHandler(MauiShapeView platformView)
+		protected override void ConnectHandler(TizenShapeView platformView)
 		{
 			if (VirtualView is Polygon polygon)
 			{
@@ -56,7 +57,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			base.ConnectHandler(platformView);
 		}
 
-		protected override void DisconnectHandler(MauiShapeView platformView)
+		protected override void DisconnectHandler(TizenShapeView platformView)
 		{
 			ClearPointsSubscription();
 
@@ -65,7 +66,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		// Upstream this lived in the neutral half of the handler. The points collection is mutable,
 		// so the handler has to redraw on collection changes, not just on Points being reassigned.
-		void UpdatePointsSubscription(PointCollection? points)
+		void UpdatePointsSubscription(Microsoft.Maui.Controls.PointCollection? points)
 		{
 			ClearPointsSubscription();
 

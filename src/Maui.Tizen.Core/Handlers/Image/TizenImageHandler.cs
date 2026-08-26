@@ -6,15 +6,16 @@
 // exists in Microsoft.Maui.Core.
 
 using System.Threading.Tasks;
-using Microsoft.Maui.Platform;
 using Tizen.UIExtensions.NUI;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Platforms.Tizen
+using Microsoft.Maui.Platforms.Tizen;
+
+namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="IImage"/>.</summary>
-	public class TizenImageHandler : ViewHandler<IImage, Image>
+	public class TizenImageHandler : TizenViewHandler<IImage, Image>
 	{
 		public static IPropertyMapper<IImage, TizenImageHandler> Mapper =
 			new PropertyMapper<IImage, TizenImageHandler>(ViewMapper)
@@ -47,10 +48,6 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		protected override Image CreatePlatformView() => new Image();
 
-		public override bool NeedsContainer =>
-			VirtualView?.Background != null ||
-			VirtualView?.Clip != null ||
-			base.NeedsContainer;
 
 		protected override void DisconnectHandler(Image platformView)
 		{
@@ -60,8 +57,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public static void MapBackground(TizenImageHandler handler, IImage image)
 		{
-			handler.UpdateValue(nameof(IViewHandler.ContainerView));
-			handler.ToPlatform()?.UpdateBackground(image);
+			handler.PlatformView?.UpdateBackground(image);
 		}
 
 		public static void MapAspect(TizenImageHandler handler, IImage image) =>

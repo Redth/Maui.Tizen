@@ -7,16 +7,17 @@
 using Microsoft.Maui.Controls.Shapes;
 using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Handlers;
-using Microsoft.Maui.Platform;
 using Microsoft.Maui;
 using Microsoft.Maui.Controls.Handlers;
 
-namespace Microsoft.Maui.Platforms.Tizen
+using Microsoft.Maui.Platforms.Tizen;
+
+namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="Line"/>.</summary>
 	public class TizenLineHandler : TizenShapeViewHandler
 	{
-		public static IPropertyMapper<Line, TizenLineHandler> Mapper =
+		public static new IPropertyMapper<Line, TizenLineHandler> Mapper =
 			new PropertyMapper<Line, TizenLineHandler>(TizenShapeViewHandler.Mapper)
 			{
 				[nameof(Line.X1)] = MapX1,
@@ -25,7 +26,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				[nameof(Line.Y2)] = MapY2,
 			};
 
-		public static CommandMapper<Line, TizenLineHandler> CommandMapper =
+		public static new CommandMapper<Line, TizenLineHandler> CommandMapper =
 			new(TizenShapeViewHandler.CommandMapper)
 			{
 			};

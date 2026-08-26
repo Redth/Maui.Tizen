@@ -43,17 +43,27 @@ public static class WaveBSource
 
 	static IReadOnlyList<string> Discover()
 	{
-		string[] roots =
+		// Wave B handlers live one level down, under a per-control folder inherited from the
+		// upstream layout (Handlers/ScrollView/...). The core vertical slice puts its own handlers
+		// directly in Handlers/, so requiring a subfolder keeps these tests off core-owned files.
+		var coreHandlers = RepoPaths.Combine("src", "Maui.Tizen.Core", "Handlers");
+
+		var waveB = Directory.Exists(coreHandlers)
+			? Directory.EnumerateDirectories(coreHandlers)
+				.SelectMany(d => Directory.EnumerateFiles(d, "Tizen*.cs", SearchOption.AllDirectories))
+			: Enumerable.Empty<string>();
+
+		string[] wholeRoots =
 		{
-			Path.Combine("src", "Maui.Tizen.Core", "Handlers"),
 			Path.Combine("src", "Maui.Tizen.Core", "ImageSources"),
 			Path.Combine("src", "Maui.Tizen.Controls", "Core", "Handlers", "Shapes"),
 		};
 
-		return roots
-			.Select(r => RepoPaths.Combine(r))
-			.Where(Directory.Exists)
-			.SelectMany(r => Directory.EnumerateFiles(r, "Tizen*.cs", SearchOption.AllDirectories))
+		return waveB
+			.Concat(wholeRoots
+				.Select(r => RepoPaths.Combine(r))
+				.Where(Directory.Exists)
+				.SelectMany(r => Directory.EnumerateFiles(r, "*Tizen*.cs", SearchOption.AllDirectories)))
 			.OrderBy(p => p, StringComparer.Ordinal)
 			.ToList();
 	}

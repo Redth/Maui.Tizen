@@ -5,18 +5,19 @@
 // handler that owns its own mappers. It is deliberately NOT named ShapeViewHandler, which still
 // exists in Microsoft.Maui.Core.
 
-using Microsoft.Maui.Platform;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Platforms.Tizen
+using Microsoft.Maui.Platforms.Tizen;
+
+namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="IShapeView"/>, drawn through Skia.</summary>
 	/// <remarks>
 	/// Every stroke/fill property invalidates the whole Skia drawing surface: the Tizen shape view
 	/// re-renders from the <see cref="IShapeView"/> on each pass and has no incremental native API.
 	/// </remarks>
-	public class TizenShapeViewHandler : ViewHandler<IShapeView, MauiShapeView>
+	public class TizenShapeViewHandler : TizenViewHandler<IShapeView, TizenShapeView>
 	{
 		public static IPropertyMapper<IShapeView, TizenShapeViewHandler> Mapper =
 			new PropertyMapper<IShapeView, TizenShapeViewHandler>(ViewMapper)
@@ -53,18 +54,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 		}
 
-		protected override MauiShapeView CreatePlatformView() => new MauiShapeView();
+		protected override TizenShapeView CreatePlatformView() => new TizenShapeView();
 
-		protected override void SetupContainer()
-		{
-			base.SetupContainer();
-			(ContainerView as WrapperView)?.UpdateShape(VirtualView?.Shape);
-		}
 
 		public static void MapShape(TizenShapeViewHandler handler, IShapeView shapeView)
 		{
 			handler.PlatformView?.UpdateShape(shapeView);
-			(handler.ContainerView as WrapperView)?.UpdateShape(shapeView.Shape);
 		}
 
 		public static void MapAspect(TizenShapeViewHandler handler, IShapeView shapeView) => handler.PlatformView?.InvalidateShape(shapeView);

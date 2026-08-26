@@ -23,8 +23,14 @@
     <Project Path="src/Maui.Tizen.Templates/Maui.Tizen.Templates.csproj" />
   </Folder>
 
+  <Folder Name="/samples/">
+    <Project Path="samples/Maui.Tizen.Sample/Maui.Tizen.Sample.csproj" />
+  </Folder>
+
   <Folder Name="/tests/">
     <Project Path="tests/UnitTests/Maui.Tizen.UnitTests.csproj" />
+    <Project Path="tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj" />
+    <Project Path="tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj" />
     <Project Path="tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj" />
   </Folder>
 
@@ -36,13 +42,16 @@
     <File Path="eng/import/normalize-layout.sh" />
     <File Path="eng/manifests/source-disposition.schema.json" />
     <File Path="eng/targets/TizenPackage.props" />
+    <File Path="eng/Maui.props" />
+    <File Path="eng/Maui.Tizen.Core.Sources.props" />
     <!--
-      The Wave C compile-verification lane is intentionally listed as a File rather than a
-      Project: it is an opt-in lane that targets the published net9.0-tizen7.0 band, and
-      building the solution should not drag it in.
+      The Wave C compile-verification lane is listed as Files, not a Project. It is opt-in, it
+      targets the published net9.0-tizen7.0 band rather than the shipping TFM, and its project
+      file is GENERATED into artifacts/ at run time so that it is not part of the repository's
+      project graph. Building the solution must not drag it in.
     -->
     <File Path="eng/validation/run-validation-lane.sh" />
-    <File Path="eng/validation/Maui.Tizen.Controls.Navigation.Validation.csproj" />
+    <File Path="eng/validation/validation-lane.csproj.template" />
   </Folder>
 
   <Folder Name="/docs/">
@@ -51,6 +60,7 @@
     <File Path="THIRD-PARTY-NOTICES.md" />
     <File Path="docs/architecture.md" />
     <File Path="docs/migration.md" />
+    <File Path="docs/net11-status.md" />
     <File Path="docs/waves/wave-c.md" />
   </Folder>
 

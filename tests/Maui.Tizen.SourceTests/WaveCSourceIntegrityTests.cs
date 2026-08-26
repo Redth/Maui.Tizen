@@ -238,8 +238,12 @@ public class WaveCSourceIntegrityTests
 	{
 		// The lane is only defensible because it targets a REAL Tizen TFM. If it ever degrades to
 		// a neutral one it becomes exactly the false-green build Directory.Build.props forbids.
+		//
+		// It is a .template rather than a .csproj so that the repository's .NET 11 floor invariant
+		// (RepositoryInvariantTests.NoProjectTargetsBelowTheDotNetFloor) stays absolute: the lane
+		// is generated into artifacts/ at run time instead of living in the project graph.
 		var project = File.ReadAllText(
-			RepoPaths.Combine("eng", "validation", "Maui.Tizen.Controls.Navigation.Validation.csproj"));
+			RepoPaths.Combine("eng", "validation", "validation-lane.csproj.template"));
 
 		var tfm = Regex.Match(project, @"<TargetFramework>([^<]+)</TargetFramework>");
 
@@ -255,7 +259,7 @@ public class WaveCSourceIntegrityTests
 			RepoPaths.Combine(WaveCSource.Root.Append("Maui.Tizen.Controls.Navigation.csproj").ToArray()));
 
 		var validation = File.ReadAllText(
-			RepoPaths.Combine("eng", "validation", "Maui.Tizen.Controls.Navigation.Validation.csproj"));
+			RepoPaths.Combine("eng", "validation", "validation-lane.csproj.template"));
 
 		Assert.Contains("Sources.props", shipping, StringComparison.Ordinal);
 		Assert.Contains("Sources.props", validation, StringComparison.Ordinal);

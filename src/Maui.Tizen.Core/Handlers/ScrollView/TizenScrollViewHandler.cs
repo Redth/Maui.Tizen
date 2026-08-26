@@ -10,15 +10,16 @@
 
 using System;
 using Microsoft.Maui.Graphics;
-using Microsoft.Maui.Platform;
 using Tizen.UIExtensions.NUI;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Platforms.Tizen
+using Microsoft.Maui.Platforms.Tizen;
+
+namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="IScrollView"/>.</summary>
-	public class TizenScrollViewHandler : ViewHandler<IScrollView, ScrollView>
+	public class TizenScrollViewHandler : TizenViewHandler<IScrollView, ScrollView>
 	{
 		public static IPropertyMapper<IScrollView, TizenScrollViewHandler> Mapper =
 			new PropertyMapper<IScrollView, TizenScrollViewHandler>(ViewMapper)
@@ -35,7 +36,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				[nameof(IScrollView.RequestScrollTo)] = MapRequestScrollTo,
 			};
 
-		IPlatformViewHandler? _contentHandler;
+		ITizenPlatformViewHandler? _contentHandler;
 		double _cachedWidth;
 		double _cachedHeight;
 		Size _measureCache;
@@ -55,7 +56,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 		}
 
-		protected override ScrollView CreatePlatformView() => new MauiScrollView(VirtualView);
+		protected override ScrollView CreatePlatformView() => new TizenScrollViewGroup(VirtualView);
 
 		protected override void ConnectHandler(ScrollView platformView)
 		{
@@ -115,11 +116,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 		}
 
-		void UpdateContent(IPlatformViewHandler? content)
+		void UpdateContent(ITizenPlatformViewHandler? content)
 		{
 			if (_contentHandler != null)
 			{
-				if (_contentHandler.PlatformView is LayoutViewGroup viewgroup)
+				if (_contentHandler.PlatformView is TizenLayoutViewGroup viewgroup)
 				{
 					viewgroup.LayoutUpdated -= OnContentLayoutUpdated;
 				}
@@ -134,7 +135,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			{
 				PlatformView.ContentContainer.Add(_contentHandler.PlatformView);
 
-				if (_contentHandler.PlatformView is LayoutViewGroup viewgroup)
+				if (_contentHandler.PlatformView is TizenLayoutViewGroup viewgroup)
 				{
 					viewgroup.LayoutUpdated += OnContentLayoutUpdated;
 				}
@@ -151,7 +152,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		// forwards the platform geometry and syncs the native content container size.
 		void OnContentLayoutUpdated()
 		{
-			var viewGroup = _contentHandler?.PlatformView as LayoutViewGroup;
+			var viewGroup = _contentHandler?.PlatformView as TizenLayoutViewGroup;
 			if (viewGroup != null)
 			{
 				viewGroup.IsLayoutUpdating++;
@@ -182,8 +183,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
-			scrollView.PresentedContent.ToPlatform(handler.MauiContext);
-			if (scrollView.PresentedContent.Handler is IPlatformViewHandler contentHandler)
+			scrollView.PresentedContent.ToPlatformView(handler.MauiContext);
+			if (scrollView.PresentedContent.Handler is ITizenPlatformViewHandler contentHandler)
 			{
 				handler.UpdateContent(contentHandler);
 			}

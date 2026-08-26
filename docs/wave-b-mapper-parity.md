@@ -28,7 +28,8 @@ The neutral handler names, however, *do* still exist in `Microsoft.Maui.Core`. D
 `Microsoft.Maui.Handlers.ScrollViewHandler` here would produce two types with the same full name in
 any app referencing both assemblies. Every migrated handler is therefore a standalone type with a
 `Tizen` prefix that owns its own property and command mappers, declared in the
-`Microsoft.Maui.Platforms.Tizen` namespace that `docs/architecture.md` reserves for rebuilt types.
+`Microsoft.Maui.Platforms.Tizen.Handlers` namespace and deriving from the core vertical slice's
+`TizenViewHandler<TVirtualView, TPlatformView>`.
 
 `SourceIntegrityTests.MigratedHandlerNamesDoNotCollideWithNeutralMauiTypes` enforces this by
 reflecting over the shipped MAUI assemblies rather than trusting a hard-coded list, and
@@ -43,8 +44,7 @@ re-declared.
 
 | Handler | Property mappers | Command mappers | Unmapped neutral keys |
 |---|---:|---:|---:|
-| `TizenBorderHandler` | 10 | 0 | 0 |
-| `TizenContentViewHandler` | 2 | 0 | 0 |
+| `TizenBorderHandler` | 10 (8 unsupported, see below) | 0 | 0 |
 | `TizenGraphicsViewHandler` | 3 | 1 | 0 |
 | `TizenImageHandler` | 4 | 0 | 0 |
 | `TizenImageButtonHandler` | 7 | 0 | 0 |
@@ -71,20 +71,24 @@ cannot silently grow.
 
 | Handler | Key | Why |
 |---|---|---|
+| `TizenBorderHandler` | `Shape`, `Stroke`, `StrokeThickness`, `StrokeLineCap`, `StrokeLineJoin`, `StrokeDashPattern`, `StrokeDashOffset`, `StrokeMiterLimit` | **Unsupported, not merely unimplemented.** Upstream drew border strokes on the container `WrapperView`. This backend cannot create a container — MAUI exposes no settable container hook to an out-of-repo assembly, so `TizenViewHandler` pins `NeedsContainer` to `false`. Border strokes do not render. See `docs/net11-status.md`. |
 | `TizenImageButtonHandler` | `Padding` | The Tizen image button draws its image edge to edge and exposes no content-inset API. Carried over from dotnet/maui. |
 | `TizenRefreshViewHandler` | `IsRefreshEnabled` | Tizen's `RefreshLayout` cannot disable the pull gesture while leaving the control enabled. Disabling the whole view via `IsEnabled` still works. |
 | `TizenSwipeItemMenuItemHandler` | `CharacterSpacing` | The swipe menu button renders its label through a fixed style with no per-character tracking. |
 | `TizenSwipeItemMenuItemHandler` | `Font` | The swipe menu button does not expose the font family/size/slant of its embedded label. |
-| `TizenSwipeItemMenuItemHandler` | `IconColor` | The icon is a plain image view with no tint/colour-filter API. Upstream left this mapper unimplemented; it is now explicit. |
 | `TizenSwipeViewHandler` | `LeftItems`, `TopItems`, `RightItems`, `BottomItems` | `MauiSwipeView` reads the item collections directly from the virtual view when a swipe begins, so there is no native state to push on change. |
 
 ## Other unsupported native behaviour
 
-- **`TizenFontImageSourceService`** returns an empty `MauiImageSource`: Tizen has no glyph
+- **`ISwipeItemMenuItem.IconColor` does not exist in MAUI 11.** A mapper had been written for it on
+  the assumption that it did; compiling against the real assemblies proved otherwise and it was
+  removed.
+- **`TizenFontImageSourceService`** returns an empty `TizenImageSource`: Tizen has no glyph
   rasterisation path wired up, so font images render blank rather than throwing. Behaviour is
   unchanged from upstream.
-- **Border and shape stroke properties** have no incremental native API. Each stroke mapper
-  re-runs a full `WrapperView.UpdateBorder` or Skia `InvalidateShape` pass.
+- **Border strokes do not render at all** while containers are unavailable (see the table above).
+  `ShapeView` is unaffected: it draws through Skia on its own platform view, so each stroke mapper
+  runs a full `InvalidateShape` pass — Tizen has no incremental native stroke API.
 - **Indicator appearance** (size, colours, shape) rebuilds the indicator set via `ResetIndicators`
   for the same reason.
 

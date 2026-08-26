@@ -6,14 +6,15 @@
 // exists in Microsoft.Maui.Core.
 
 using System;
-using Microsoft.Maui.Platform;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Platforms.Tizen
+using Microsoft.Maui.Platforms.Tizen;
+
+namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="ISwipeView"/>.</summary>
-	public class TizenSwipeViewHandler : ViewHandler<ISwipeView, MauiSwipeView>
+	public class TizenSwipeViewHandler : TizenViewHandler<ISwipeView, TizenSwipeViewGroup>
 	{
 		public static IPropertyMapper<ISwipeView, TizenSwipeViewHandler> Mapper =
 			new PropertyMapper<ISwipeView, TizenSwipeViewHandler>(ViewMapper)
@@ -49,7 +50,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 		}
 
-		protected override MauiSwipeView CreatePlatformView() => new MauiSwipeView(VirtualView);
+		protected override TizenSwipeViewGroup CreatePlatformView() => new TizenSwipeViewGroup(VirtualView);
 
 		public override void SetVirtualView(IView view)
 		{
@@ -102,12 +103,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 			handler.PlatformView.OnCloseRequested(request);
 		}
 
-		// The four item-collection mappers are intentional no-ops. MauiSwipeView reads the item
+		// The four item-collection mappers are intentional no-ops. TizenSwipeViewGroup reads the item
 		// collections directly from the virtual view when a swipe gesture begins, so there is no
 		// native state to push on change. See docs/wave-b-mapper-parity.md.
 
 		/// <summary>
-		/// Intentional no-op. MauiSwipeView reads <see cref="ISwipeView.LeftItems"/> directly from the
+		/// Intentional no-op. TizenSwipeViewGroup reads <see cref="ISwipeView.LeftItems"/> directly from the
 		/// virtual view when a swipe begins, so there is no native state to push on change.
 		/// </summary>
 		public static void MapLeftItems(TizenSwipeViewHandler handler, ISwipeView view)
@@ -115,7 +116,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		}
 
 		/// <summary>
-		/// Intentional no-op. MauiSwipeView reads <see cref="ISwipeView.TopItems"/> directly from the
+		/// Intentional no-op. TizenSwipeViewGroup reads <see cref="ISwipeView.TopItems"/> directly from the
 		/// virtual view when a swipe begins, so there is no native state to push on change.
 		/// </summary>
 		public static void MapTopItems(TizenSwipeViewHandler handler, ISwipeView view)
@@ -123,7 +124,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		}
 
 		/// <summary>
-		/// Intentional no-op. MauiSwipeView reads <see cref="ISwipeView.RightItems"/> directly from the
+		/// Intentional no-op. TizenSwipeViewGroup reads <see cref="ISwipeView.RightItems"/> directly from the
 		/// virtual view when a swipe begins, so there is no native state to push on change.
 		/// </summary>
 		public static void MapRightItems(TizenSwipeViewHandler handler, ISwipeView view)
@@ -131,7 +132,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		}
 
 		/// <summary>
-		/// Intentional no-op. MauiSwipeView reads <see cref="ISwipeView.BottomItems"/> directly from the
+		/// Intentional no-op. TizenSwipeViewGroup reads <see cref="ISwipeView.BottomItems"/> directly from the
 		/// virtual view when a swipe begins, so there is no native state to push on change.
 		/// </summary>
 		public static void MapBottomItems(TizenSwipeViewHandler handler, ISwipeView view)

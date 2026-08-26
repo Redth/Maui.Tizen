@@ -6,14 +6,15 @@
 // exists in Microsoft.Maui.Core.
 
 using System;
-using Microsoft.Maui.Platform;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Platforms.Tizen
+using Microsoft.Maui.Platforms.Tizen;
+
+namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="ISwipeItemView"/>.</summary>
-	public class TizenSwipeItemViewHandler : ViewHandler<ISwipeItemView, ContentViewGroup>
+	public class TizenSwipeItemViewHandler : TizenViewHandler<ISwipeItemView, TizenContentViewGroup>
 	{
 		public static IPropertyMapper<ISwipeItemView, TizenSwipeItemViewHandler> Mapper =
 			new PropertyMapper<ISwipeItemView, TizenSwipeItemViewHandler>(ViewMapper)
@@ -27,7 +28,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			{
 			};
 
-		IPlatformViewHandler? _contentHandler;
+		ITizenPlatformViewHandler? _contentHandler;
 
 		public TizenSwipeItemViewHandler()
 			: base(Mapper, CommandMapper)
@@ -44,11 +45,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 		}
 
-		protected override ContentViewGroup CreatePlatformView()
+		protected override TizenContentViewGroup CreatePlatformView()
 		{
-			_ = VirtualView ?? throw new InvalidOperationException($"{nameof(VirtualView)} must be set to create a ContentViewGroup");
+			_ = VirtualView ?? throw new InvalidOperationException($"{nameof(VirtualView)} must be set to create a TizenContentViewGroup");
 
-			return new ContentViewGroup(VirtualView)
+			return new TizenContentViewGroup(VirtualView)
 			{
 				CrossPlatformMeasure = VirtualView.CrossPlatformMeasure,
 				CrossPlatformArrange = VirtualView.CrossPlatformArrange
@@ -89,8 +90,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			if (VirtualView.PresentedContent is IView view)
 			{
-				PlatformView.Children.Add(view.ToPlatform(MauiContext));
-				if (view.Handler is IPlatformViewHandler thandler)
+				PlatformView.Children.Add(view.ToPlatformView(MauiContext));
+				if (view.Handler is ITizenPlatformViewHandler thandler)
 				{
 					_contentHandler = thandler;
 				}
@@ -103,7 +104,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			handler.PlatformView.UpdateVisibility(view);
 
-			var swipeView = handler.PlatformView.GetParentOfType<MauiSwipeView>();
+			var swipeView = handler.PlatformView.GetParentOfType<TizenSwipeViewGroup>();
 			swipeView?.UpdateIsVisibleSwipeItem(view);
 		}
 	}

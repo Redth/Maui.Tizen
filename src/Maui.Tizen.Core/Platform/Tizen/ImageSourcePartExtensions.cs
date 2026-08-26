@@ -1,10 +1,8 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 using NView = Tizen.NUI.BaseComponents.View;
 using TImage = Tizen.NUI.BaseComponents.ImageView;
-
-using Microsoft.Maui.Platforms.Tizen;
 
 namespace Microsoft.Maui.Platform
 {
@@ -25,7 +23,7 @@ namespace Microsoft.Maui.Platform
 
 			try
 			{
-				var service = services.GetRequiredTizenImageSourceService(imageSource);
+				var service = services.GetRequiredImageSourceService(imageSource);
 				var result = await service.GetImageAsync(imageSource, cancellationToken);
 				var tImage = result?.Value;
 

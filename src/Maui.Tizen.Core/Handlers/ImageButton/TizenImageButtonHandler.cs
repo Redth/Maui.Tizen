@@ -7,14 +7,15 @@
 
 using System;
 using System.Threading.Tasks;
-using Microsoft.Maui.Platform;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
-namespace Microsoft.Maui.Platforms.Tizen
+using Microsoft.Maui.Platforms.Tizen;
+
+namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="IImageButton"/>.</summary>
-	public class TizenImageButtonHandler : ViewHandler<IImageButton, MauiImageButton>
+	public class TizenImageButtonHandler : TizenViewHandler<IImageButton, TizenImageButtonView>
 	{
 		public static IPropertyMapper<IImageButton, TizenImageButtonHandler> Mapper =
 			new PropertyMapper<IImageButton, TizenImageButtonHandler>(ViewMapper)
@@ -48,15 +49,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 		}
 
-		public override bool NeedsContainer => false;
 
-		protected override MauiImageButton CreatePlatformView() =>
-			new MauiImageButton
+		protected override TizenImageButtonView CreatePlatformView() =>
+			new TizenImageButtonView
 			{
 				Focusable = true,
 			};
 
-		protected override void ConnectHandler(MauiImageButton platformView)
+		protected override void ConnectHandler(TizenImageButtonView platformView)
 		{
 			platformView.Clicked += OnClicked;
 			platformView.Pressed += OnPressed;
@@ -64,7 +64,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			base.ConnectHandler(platformView);
 		}
 
-		protected override void DisconnectHandler(MauiImageButton platformView)
+		protected override void DisconnectHandler(TizenImageButtonView platformView)
 		{
 			if (!platformView.HasBody())
 				return;
