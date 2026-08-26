@@ -76,7 +76,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			return new TizenCarouselViewControl(VirtualView);
 		}
 
-		protected override TizenItemTemplateAdaptor CreateAdaptor()
+		protected override ITizenItemTemplateAdaptor CreateAdaptor()
 		{
 			return new TizenCarouselViewItemTemplateAdaptor(VirtualView);
 		}
@@ -99,7 +99,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </summary>
 		public static void MapCurrentItem(TizenCarouselViewHandler handler, CarouselView view)
 		{
-			handler.PlatformView?.UpdateCurrentItem();
+			handler.PlatformView?.UpdateCurrentItem(view.CurrentItem);
 		}
 
 		/// <summary>
@@ -107,7 +107,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </summary>
 		public static void MapPosition(TizenCarouselViewHandler handler, CarouselView view)
 		{
-			handler.PlatformView?.UpdatePosition();
+			handler.PlatformView?.UpdatePosition(view.Position);
 		}
 
 		/// <summary>
@@ -123,11 +123,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		/// <summary>
-		/// Maps <see cref="CarouselView.IsSwipeEnabled"/> to the platform.
+		/// No-op: IsSwipeEnabled is not directly controllable on Tizen.
 		/// </summary>
+		/// <remarks>
+		/// Tizen.UIExtensions.NUI.CollectionView does not support disabling swipe/scroll gestures.
+		/// The carousel is always scrollable when items are present.
+		/// This mapper is declared for API completeness but performs no operation.
+		/// </remarks>
 		public static void MapIsSwipeEnabled(TizenCarouselViewHandler handler, CarouselView view)
 		{
-			handler.PlatformView?.UpdateIsSwipeEnabled();
+			// No-op: Cannot disable swipe on Tizen CollectionView
 		}
 
 		/// <summary>

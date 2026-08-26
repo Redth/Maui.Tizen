@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Specialized;
 using Microsoft.Maui.Controls;
@@ -6,6 +7,7 @@ using Microsoft.Maui.Platforms.Tizen.Platform;
 using Tizen.UIExtensions.NUI;
 using NView = Tizen.NUI.BaseComponents.View;
 using NCollectionView = Tizen.UIExtensions.NUI.CollectionView;
+using TScrollToPosition = Tizen.UIExtensions.Common.ScrollToPosition;
 
 namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
@@ -26,7 +28,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	public abstract class TizenItemsViewHandler<TItemsView> : ViewHandler<TItemsView, NView>
 		where TItemsView : ItemsView
 	{
-		TizenItemTemplateAdaptor? _adaptor;
+		ITizenItemTemplateAdaptor? _adaptor;
 		INotifyCollectionChanged? _observableCollection;
 
 		/// <summary>
@@ -67,7 +69,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>
 		/// Gets or sets the current item adaptor.
 		/// </summary>
-		protected TizenItemTemplateAdaptor? Adaptor
+		protected ITizenItemTemplateAdaptor? Adaptor
 		{
 			get => _adaptor;
 			set
@@ -95,7 +97,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			UnsubscribeFromCollectionChanges();
 			if (Adaptor != null)
 			{
-				Adaptor.Dispose();
+				(Adaptor as IDisposable)?.Dispose();
 				Adaptor = null;
 			}
 			base.DisconnectHandler(platformView);
@@ -126,10 +128,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 			// Create and set the adaptor
 			Adaptor = CreateAdaptor();
-			collectionView.Adaptor = Adaptor;
+			collectionView.Adaptor = Adaptor as ItemAdaptor;
 		}
 
-		protected virtual TizenItemTemplateAdaptor CreateAdaptor()
+		protected virtual ITizenItemTemplateAdaptor CreateAdaptor()
 		{
 			return new TizenItemTemplateAdaptor(VirtualView);
 		}
@@ -155,40 +157,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
 		{
 			var collectionView = NativeCollectionView;
-			if (collectionView == null)
+			if (collectionView == null || VirtualView == null)
 				return;
 
-			// Notify the collection view of the changes
-			switch (e.Action)
+			// For Reset actions (clear, replace all) - recreate the adaptor
+			// The ItemAdaptor internally tracks the IEnumerable/INotifyCollectionChanged
+			// and updates automatically via its internal binding to the collection.
+			// For non-Reset actions, check if we need to switch from/to empty view.
+			if (e.Action == NotifyCollectionChangedAction.Reset)
 			{
-				case NotifyCollectionChangedAction.Add:
-					if (e.NewStartingIndex >= 0 && e.NewItems != null)
-					{
-						foreach (var _ in e.NewItems)
-						{
-							collectionView.Adaptor?.RequestItemInsert(e.NewStartingIndex);
-						}
-					}
-					break;
-				case NotifyCollectionChangedAction.Remove:
-					if (e.OldStartingIndex >= 0 && e.OldItems != null)
-					{
-						foreach (var _ in e.OldItems)
-						{
-							collectionView.Adaptor?.RequestItemRemove(e.OldStartingIndex);
-						}
-					}
-					break;
-				case NotifyCollectionChangedAction.Reset:
-					UpdateItemsSource();
-					break;
-				default:
-					collectionView.Adaptor?.RequestItemUpdate(-1);
-					break;
+				UpdateItemsSource();
 			}
 
 			// Check if we need to show/hide empty view
-			bool hasItems = VirtualView?.ItemsSource != null && HasItems(VirtualView.ItemsSource);
+			bool hasItems = VirtualView.ItemsSource != null && HasItems(VirtualView.ItemsSource);
 			if (!hasItems)
 			{
 				UpdateEmptyView();
@@ -294,14 +276,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 			if (scrollArgs.Mode == ScrollToMode.Position)
 			{
-				collectionView.ScrollTo(scrollArgs.Index, scrollArgs.Animate);
+				collectionView.ScrollTo(scrollArgs.Index, (TScrollToPosition)scrollArgs.ScrollToPosition, scrollArgs.IsAnimated);
 			}
 			else if (scrollArgs.Item != null && collectionView.Adaptor != null)
 			{
 				int index = collectionView.Adaptor.GetItemIndex(scrollArgs.Item);
 				if (index >= 0)
 				{
-					collectionView.ScrollTo(index, scrollArgs.Animate);
+					collectionView.ScrollTo(index, (TScrollToPosition)scrollArgs.ScrollToPosition, scrollArgs.IsAnimated);
 				}
 			}
 		}

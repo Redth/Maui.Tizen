@@ -4,14 +4,43 @@ using System.Collections.Generic;
 using System.Globalization;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
+using Microsoft.Maui.Platform;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
 using Tizen.UIExtensions.NUI;
+
+using NCollectionView = Tizen.UIExtensions.NUI.CollectionView;
 using NView = Tizen.NUI.BaseComponents.View;
 using TSize = Tizen.UIExtensions.Common.Size;
 using XLabel = Microsoft.Maui.Controls.Label;
 
 namespace Microsoft.Maui.Platforms.Tizen.Platform
 {
+	/// <summary>
+	/// Interface for item adaptors that support selection change notifications.
+	/// </summary>
+	public interface ITizenItemTemplateAdaptor
+	{
+		/// <summary>
+		/// Raised when the user changes selection from the UI.
+		/// </summary>
+		event EventHandler<TizenCollectionViewSelectionChangedEventArgs>? SelectionChanged;
+
+		/// <summary>
+		/// Gets the templated view for the specified native view.
+		/// </summary>
+		View? GetTemplatedView(NView view);
+
+		/// <summary>
+		/// Gets the templated view for the specified index.
+		/// </summary>
+		View? GetTemplatedView(int index);
+
+		/// <summary>
+		/// Gets the index of the specified item in the items source.
+		/// </summary>
+		int GetItemIndex(object item);
+	}
+
 	/// <summary>
 	/// Adapts MAUI item templates to Tizen's CollectionView adaptor model.
 	/// </summary>
@@ -26,7 +55,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 	/// <see cref="VisualStateManager"/>.
 	/// </para>
 	/// </remarks>
-	public class TizenItemTemplateAdaptor : ItemAdaptor
+	public class TizenItemTemplateAdaptor : ItemAdaptor, ITizenItemTemplateAdaptor
 	{
 		readonly Dictionary<NView, View> _nativeMauiTable = new();
 		readonly Dictionary<object, View?> _dataBindedViewTable = new();
@@ -283,7 +312,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		public override TSize MeasureHeader(double widthConstraint, double heightConstraint)
 		{
 			// TODO. It is workaround code, if update Tizen.UIExtensions.NUI, this code will be removed
-			if (CollectionView is Tizen.UIExtensions.NUI.CollectionView cv)
+			if (CollectionView is NCollectionView cv)
 			{
 				if (cv.LayoutManager != null)
 				{

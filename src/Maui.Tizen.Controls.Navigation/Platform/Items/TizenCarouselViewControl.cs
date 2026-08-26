@@ -4,10 +4,12 @@ using Microsoft.Maui.Controls;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
 using Tizen.NUI;
 using Tizen.UIExtensions.NUI;
+
 using NCollectionView = Tizen.UIExtensions.NUI.CollectionView;
 using NLayoutParamPolicies = Tizen.NUI.BaseComponents.LayoutParamPolicies;
 using NView = Tizen.NUI.BaseComponents.View;
 using TItemSizingStrategy = Tizen.UIExtensions.NUI.ItemSizingStrategy;
+using TSnapPointsType = Tizen.UIExtensions.NUI.SnapPointsType;
 
 namespace Microsoft.Maui.Platforms.Tizen.Platform
 {
@@ -38,7 +40,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				WidthSpecification = NLayoutParamPolicies.MatchParent,
 				HeightSpecification = NLayoutParamPolicies.MatchParent,
 				SelectionMode = CollectionViewSelectionMode.None,
-				SnapPointsType = SnapPointsType.MandatorySingle,
+				SnapPointsType = TSnapPointsType.MandatorySingle,
 			};
 		}
 
@@ -52,7 +54,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		public void UpdateLayoutManager()
 		{
 			// CarouselView uses a single-item-at-a-time layout
-			var itemsLayout = Element.ItemsLayout ?? LinearItemsLayout.CarouselDefault;
+			// LinearItemsLayout.CarouselDefault is internal, so we create a horizontal linear layout
+			var itemsLayout = Element.ItemsLayout ?? new LinearItemsLayout(ItemsLayoutOrientation.Horizontal);
 			bool isHorizontal = itemsLayout is LinearItemsLayout linear && linear.Orientation == ItemsLayoutOrientation.Horizontal;
 
 			CollectionView.LayoutManager = new LinearLayoutManager(

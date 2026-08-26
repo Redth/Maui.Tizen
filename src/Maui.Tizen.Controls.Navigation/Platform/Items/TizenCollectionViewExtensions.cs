@@ -1,5 +1,6 @@
 using Microsoft.Maui.Controls;
 using Tizen.UIExtensions.NUI;
+
 using TCollectionViewSelectionMode = Tizen.UIExtensions.NUI.CollectionViewSelectionMode;
 using TItemSizingStrategy = Tizen.UIExtensions.NUI.ItemSizingStrategy;
 using MauiItemSizingStrategy = Microsoft.Maui.Controls.ItemSizingStrategy;
@@ -34,14 +35,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				LinearItemsLayout listItemsLayout => new LinearLayoutManager(
 					listItemsLayout.Orientation == ItemsLayoutOrientation.Horizontal,
 					(TItemSizingStrategy)sizing,
-					listItemsLayout.ItemSpacing.ToScaledPixel()),
+					(int)listItemsLayout.ItemSpacing.ToScaledPixel()),
 
 				GridItemsLayout gridItemsLayout => new GridLayoutManager(
 					gridItemsLayout.Orientation == ItemsLayoutOrientation.Horizontal,
 					gridItemsLayout.Span,
 					(TItemSizingStrategy)sizing,
-					gridItemsLayout.VerticalItemSpacing.ToScaledPixel(),
-					gridItemsLayout.HorizontalItemSpacing.ToScaledPixel()),
+					(int)gridItemsLayout.VerticalItemSpacing.ToScaledPixel(),
+					(int)gridItemsLayout.HorizontalItemSpacing.ToScaledPixel()),
 
 				_ => new LinearLayoutManager(false),
 			};

@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Platform;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
 using Tizen.UIExtensions.NUI;
+
 using NView = Tizen.NUI.BaseComponents.View;
 using TSize = Tizen.UIExtensions.Common.Size;
+using XLabel = Microsoft.Maui.Controls.Label;
 
 namespace Microsoft.Maui.Platforms.Tizen.Platform
 {
@@ -125,7 +128,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			else if (_itemsView.EmptyView != null)
 			{
 				// EmptyView is data, create a default view
-				return new Label { Text = _itemsView.EmptyView.ToString() };
+				return new XLabel { Text = _itemsView.EmptyView.ToString() };
 			}
 			else
 			{

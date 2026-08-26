@@ -45,16 +45,6 @@
     <Compile Include="$(MauiTizenNavigationSourceRoot)Adapters/**/*.cs" />
     <Compile Include="$(MauiTizenNavigationSourceRoot)Handlers/**/*.cs" />
     <Compile Include="$(MauiTizenNavigationSourceRoot)Platform/**/*.cs" />
-    <Compile Include="$(MauiTizenNavigationSourceRoot)Parity/**/*.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!--
-      The parity manifest is embedded so that the mapper parity test can assert against
-      the exact artifact that ships, rather than a copy that can drift.
-    -->
-    <EmbeddedResource Include="$(MauiTizenNavigationSourceRoot)Parity/MapperParity.json"
-                      LogicalName="Maui.Tizen.Controls.Navigation.MapperParity.json" />
   </ItemGroup>
 
 </Project>

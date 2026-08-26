@@ -18,9 +18,18 @@ Wave A and Wave B; see [Predecessor dependencies](#predecessor-dependencies).
 
 All code lives in `src/Maui.Tizen.Controls.Navigation/`.
 
-Per-key mapper coverage, including every explicit no-op and unsupported classification, is in
-[`Parity/MapperParity.json`](../../src/Maui.Tizen.Controls.Navigation/Parity/MapperParity.json)
-and is enforced by the source tests.
+Per-key mapper coverage, including every explicit no-op classification and every neutral MAUI
+mapper key that Tizen does not implement, is in
+[`docs/wave-c-mapper-parity.json`](../wave-c-mapper-parity.json) with a readable companion in
+[`docs/wave-c-mapper-parity.md`](../wave-c-mapper-parity.md).
+
+Following the convention Wave B established, the manifest is **generated from source**, not
+hand-maintained, and `WaveCMapperParityTests.ParityManifestMatchesSource` fails if the two disagree.
+Regenerate after an intentional change with:
+
+```bash
+MAUI_TIZEN_UPDATE_PARITY=1 dotnet test tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj
+```
 
 ## Naming and namespaces
 
@@ -143,17 +152,28 @@ from nuget.org by hand, since Samsung does not ship it through the in-box worklo
 
 ## Testing
 
-`tests/Maui.Tizen.Controls.Navigation.Tests` is a Roslyn source-analysis suite. It runs on a plain
-TFM with no Tizen workload, so it works in CI today even though the product cannot be built:
+Wave C adds `WaveCSource`, `WaveCSourceIntegrityTests` and `WaveCMapperParityTests` to the existing
+`tests/Maui.Tizen.SourceTests` project rather than standing up a competing suite, and reuses Wave
+B's Roslyn parser (`WaveBSource.Parse`, widened from `static` to `public static`) so there is only
+one implementation of the mapper-extraction rules to keep correct.
+
+These are source tests on purpose: until the Samsung .NET 11 workload ships, the Tizen assemblies
+cannot be compiled or executed by anyone, so a reflection-based test over the built handlers is not
+an option. They run on a plain TFM in the existing workload-free CI lane:
 
 - no `Microsoft.Maui.Controls.Internals` usings and no internal API use
 - no reflection (`System.Reflection`, `BindingFlags`, `GetMethod`/`GetProperty`/`GetField`)
 - no `partial class` extending a MAUI Controls type
-- no type reusing a neutral MAUI handler name
+- no type reusing any public MAUI type name
+- no file left carrying the upstream `.Tizen.cs` multi-targeting suffix
 - every handler declares both a property mapper and a command mapper
-- mapper keys in source exactly match `Parity/MapperParity.json`, so an added or removed mapping
-  cannot silently drift from the published parity artifact
-- every adapter has a matching `UpstreamApiRequests` entry and vice versa
+- every neutral MAUI mapper key is either implemented or recorded as an explicit gap, so the port
+  cannot silently fall behind as MAUI adds properties
+- every empty no-op mapper carries an XML doc comment explaining why
+- every adapter has a matching `UpstreamApiRequests` entry, and the request IDs stay unique and
+  sequential
+- the validation lane still targets a real Tizen TFM and still compiles the same sources as the
+  shipping project
 
 ## Predecessor dependencies
 

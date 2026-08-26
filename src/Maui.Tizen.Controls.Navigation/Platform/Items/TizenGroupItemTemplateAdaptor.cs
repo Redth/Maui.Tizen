@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Platform;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
 using Tizen.UIExtensions.NUI;
+
 using NView = Tizen.NUI.BaseComponents.View;
 using TSize = Tizen.UIExtensions.Common.Size;
 using XLabel = Microsoft.Maui.Controls.Label;
@@ -12,7 +14,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 	/// <summary>
 	/// Adapts grouped items to Tizen's CollectionView with support for group headers and footers.
 	/// </summary>
-	public class TizenGroupItemTemplateAdaptor : ItemAdaptor
+	public class TizenGroupItemTemplateAdaptor : ItemAdaptor, ITizenItemTemplateAdaptor
 	{
 		static readonly object HeaderCategory = new();
 		static readonly object FooterCategory = new();
@@ -23,10 +25,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		readonly TizenGroupItemSource _groupItemSource;
 
 		public TizenGroupItemTemplateAdaptor(GroupableItemsView itemsView)
-			: base(new TizenGroupItemSource(itemsView))
+			: this(itemsView, new TizenGroupItemSource(itemsView))
+		{
+		}
+
+		TizenGroupItemTemplateAdaptor(GroupableItemsView itemsView, TizenGroupItemSource groupItemSource)
+			: base(groupItemSource)
 		{
 			_itemsView = itemsView;
-			_groupItemSource = (TizenGroupItemSource)ItemsSource;
+			_groupItemSource = groupItemSource;
 		}
 
 		/// <summary>

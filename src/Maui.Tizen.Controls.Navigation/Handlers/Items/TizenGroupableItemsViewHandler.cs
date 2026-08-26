@@ -36,7 +36,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 		}
 
-		protected override TizenItemTemplateAdaptor CreateAdaptor()
+		protected override ITizenItemTemplateAdaptor CreateAdaptor()
 		{
 			if (VirtualView.IsGrouped)
 			{

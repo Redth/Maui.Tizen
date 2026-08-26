@@ -58,7 +58,14 @@ public static class WaveBSource
 			.ToList();
 	}
 
-	static IEnumerable<HandlerSource> Parse(string path)
+	/// <summary>
+	/// Parses every handler declared in <paramref name="path"/>.
+	/// </summary>
+	/// <remarks>
+	/// Public so that Wave C can reuse it instead of duplicating the parser. The extraction rules
+	/// (mapper field names, <c>nameof</c> keys, empty-body no-ops) are wave-independent.
+	/// </remarks>
+	public static IEnumerable<HandlerSource> Parse(string path)
 	{
 		var root = ParseTree(path).GetRoot();
 

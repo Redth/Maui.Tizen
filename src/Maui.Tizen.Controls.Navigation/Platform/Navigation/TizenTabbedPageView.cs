@@ -1,8 +1,10 @@
 using System;
 using System.Linq;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Platform;
 using Tizen.NUI;
 using Tizen.UIExtensions.NUI;
+
 using GColor = Microsoft.Maui.Graphics.Color;
 using GColors = Microsoft.Maui.Graphics.Colors;
 using NCollectionView = Tizen.UIExtensions.NUI.CollectionView;
@@ -85,7 +87,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			try
 			{
 				var currentHandler = _tabbedPage.CurrentPage.ToHandler(MauiContext);
-				if (currentHandler != null && currentHandler.ToPlatform() is NView current)
+				if (currentHandler != null && currentHandler.PlatformView is NView current)
 				{
 					current.WidthSpecification = NLayoutParamPolicies.MatchParent;
 					current.HeightSpecification = NLayoutParamPolicies.MatchParent;
