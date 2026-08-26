@@ -64,8 +64,15 @@ jobs:
           fail=0
 
           check_pr() {
-            local pr="$1" desc="$2"
-            if git log --oneline --all --grep="#${pr})" | grep -q .; then
+            local pr="$1" desc="$2" matches
+            # NOTE: deliberately NOT `git log ... | grep -q .`. Under `set -o pipefail`,
+            # `grep -q` exits on the first match and closes the pipe, so `git log` can die
+            # with SIGPIPE and poison the pipeline's exit status - nondeterministically,
+            # depending on how much it had already written. That is exactly how this check
+            # first failed in CI: #2360 passed and #9619 "went missing" in the same run.
+            # `wc -l` consumes all input, so there is no early close and no race.
+            matches="$(git log --all --format='%H' --grep="#${pr})" | wc -l)"
+            if [ "$matches" -gt 0 ]; then
               echo "  OK   PR #${pr} (${desc}) is present in history"
             else
               echo "  FAIL PR #${pr} (${desc}) is missing - imported history has been flattened or rewritten"

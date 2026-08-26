@@ -22,6 +22,16 @@ cd "$REPO_ROOT"
 
 DOTNET="${DOTNET:-dotnet}"
 
+# Run with CI semantics by default.
+#
+# This lane exists to catch problems before they reach CI, which it can only do if it
+# applies the same rules. It previously did not: TreatWarningsAsErrors is conditioned on
+# ContinuousIntegrationBuild, so a NuGet audit advisory (NU1903 on a vulnerable MSBuild
+# package) passed locally and failed in CI. Set MAUI_TIZEN_LOCAL_SEMANTICS=1 to opt out.
+if [[ "${MAUI_TIZEN_LOCAL_SEMANTICS:-0}" != "1" ]]; then
+  export ContinuousIntegrationBuild=true
+fi
+
 pass() { printf '\033[1;32m  PASS\033[0m %s\n' "$*"; }
 fail() { printf '\033[1;31m  FAIL\033[0m %s\n' "$*"; }
 info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }

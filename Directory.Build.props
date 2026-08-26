@@ -70,6 +70,15 @@
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <DeterministicSourcePaths Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</DeterministicSourcePaths>
+
+    <!--
+      Dependency advisories are failures, not noise. This repository will ship into
+      Tizen devices, where patching is slow, so a known-vulnerable transitive package is
+      not something to carry.
+    -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
   </PropertyGroup>
 
   <PropertyGroup Label="Package metadata">

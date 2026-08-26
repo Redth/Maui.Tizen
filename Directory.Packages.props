@@ -39,8 +39,14 @@
   </ItemGroup>
 
   <ItemGroup Label="Build tasks">
-    <PackageVersion Include="Microsoft.Build.Framework" Version="17.11.4" />
-    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="17.11.4" />
+    <!--
+      17.14.x rather than 17.11.x: Microsoft.Build.Utilities.Core 17.11.4 carries a known
+      high-severity advisory (GHSA-w3q9-fxm7-j8fq), which NuGet audit correctly turns into
+      NU1903. Since CI builds with TreatWarningsAsErrors, that is a hard failure - and it
+      should be. Do not downgrade to silence it.
+    -->
+    <PackageVersion Include="Microsoft.Build.Framework" Version="17.14.28" />
+    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="17.14.28" />
     <PackageVersion Include="SkiaSharp" Version="3.116.1" />
   </ItemGroup>
 
