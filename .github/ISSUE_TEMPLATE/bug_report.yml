@@ -1,0 +1,62 @@
+name: Bug report
+description: Report a problem with a Maui.Tizen package or the Tizen backend.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug! Please fill in as much detail as you can —
+        see `docs/governance/tizen-support-matrix.md` to confirm your
+        profile/API level is in the supported matrix before reporting.
+  - type: input
+    id: package-version
+    attributes:
+      label: Affected package(s) and version(s)
+      description: e.g. Maui.Tizen.Core 11.0.0-preview.3
+      placeholder: Maui.Tizen.* 11.x.y
+    validations:
+      required: true
+  - type: input
+    id: dotnet-sdk
+    attributes:
+      label: .NET SDK / workload version
+      description: Output of `dotnet --version` and `dotnet workload list`
+    validations:
+      required: true
+  - type: input
+    id: tizen-profile
+    attributes:
+      label: Tizen profile / API level / device or emulator
+      description: e.g. Mobile profile, API 9.0, TM1 emulator
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Minimal steps or a link to a minimal repro project.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include stack traces / logs if available.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues for duplicates.
+          required: true
+        - label: This is not a security vulnerability (see SECURITY.md).
+          required: true

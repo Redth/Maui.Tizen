@@ -1,0 +1,200 @@
+name: Release Maui.Tizen packages
+
+# ---------------------------------------------------------------------------
+# STATUS: SKELETON / SAFELY GATED — DO NOT ENABLE PUBLISHING YET.
+#
+# This workflow defines the *shape* of the Maui.Tizen release pipeline:
+# build -> test -> sign -> pack -> validate -> publish, with organization
+# environment approvals between each risk-bearing stage. It intentionally
+# cannot publish a package today:
+#
+#   1. `publish` requires the `nuget-production` environment, which does not
+#      exist in this repository yet (create it only after
+#      docs/governance/package-metadata-conventions.md's ownership/signing
+#      items are resolved).
+#   2. `publish` is additionally gated behind the `confirm_publish` manual
+#      input, which must literally be the string "PUBLISH" - a typo-proof,
+#      accidental-trigger-proof confirmation, not just a boolean checkbox.
+#   3. This workflow only runs on `workflow_dispatch` (manual) - it is not
+#      wired to tags/releases yet, so it cannot fire unintentionally from a
+#      push or PR.
+#
+# Before enabling real publishing, complete:
+#   - docs/governance/package-metadata-conventions.md (package IDs, signing,
+#     trusted publishing)
+#   - docs/governance/samsung-transfer-checklist.md sections 2, 4, 5 (or the
+#     interim equivalents, if publishing before transfer)
+#   - Create the `nuget-production` (and `nuget-signing`) GitHub Environments
+#     with required reviewers configured.
+# ---------------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_version:
+        description: >-
+          Package version to build/pack (SemVer, e.g. 11.0.0-preview.1).
+          Must follow docs/governance/versioning-policy.md.
+        required: true
+        type: string
+      confirm_publish:
+        description: >-
+          Type PUBLISH (all caps) to allow the publish job to run. Any other
+          value keeps the run in build/validate-only mode.
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  DOTNET_SDK_VERSION: "11.0.100" # placeholder - update to the released .NET 11 SDK band per versioning-policy.md
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Build & unit test. No environment gate - always safe to run.
+  # -------------------------------------------------------------------------
+  build:
+    name: Build & test
+    runs-on: ubuntu-latest
+    outputs:
+      package_version: ${{ inputs.package_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      # NOTE: workload install/build/test steps intentionally left as
+      # placeholders. The build/CI foundation workstream owns the actual
+      # build graph, workload install commands, and test projects; this
+      # release workflow should call into whatever entrypoint that
+      # workstream publishes (e.g. a build script or a reusable workflow)
+      # rather than duplicating build logic here.
+      - name: Restore, build, and test (placeholder)
+        run: |
+          echo "TODO: call the shared build entrypoint owned by the CI/foundation workstream."
+          echo "Requested package version: ${{ inputs.package_version }}"
+          echo "This step intentionally does not build/pack anything yet."
+
+  # -------------------------------------------------------------------------
+  # API compatibility / support-matrix / metadata validation.
+  # No environment gate - read-only checks against the built output.
+  # -------------------------------------------------------------------------
+  validate:
+    name: Validate (API compat, support matrix, package metadata)
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check governance docs are present
+        run: |
+          test -f docs/governance/versioning-policy.md
+          test -f docs/governance/api-compatibility-policy.md
+          test -f docs/governance/tizen-support-matrix.md
+          echo "Governance docs present."
+
+      - name: API compatibility check (placeholder)
+        run: |
+          echo "TODO: run Microsoft.DotNet.ApiCompat (or equivalent) against the last shipped stable version."
+          echo "See docs/governance/api-compatibility-policy.md section 2."
+
+      - name: Support matrix freshness check (placeholder)
+        run: |
+          echo "TODO: fail this step if docs/governance/tizen-support-matrix.md still contains TBD"
+          echo "for any profile targeted by this release. Intentionally non-blocking until wired up."
+
+  # -------------------------------------------------------------------------
+  # Code + package signing. Requires the `nuget-signing` environment, which
+  # should be configured with required reviewers and an organization-owned
+  # signing credential (never a personal certificate - see
+  # docs/governance/package-metadata-conventions.md section 3).
+  # -------------------------------------------------------------------------
+  sign:
+    name: Sign packages
+    runs-on: ubuntu-latest
+    needs: validate
+    environment: nuget-signing
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sign (placeholder - fails closed)
+        run: |
+          echo "No organization signing credential is configured yet."
+          echo "See docs/governance/package-metadata-conventions.md section 3."
+          echo "This step fails intentionally so packages cannot be mistaken for signed."
+          exit 1
+
+  # -------------------------------------------------------------------------
+  # Pack the (signed) build output into .nupkg/.snupkg artifacts and upload
+  # them as workflow artifacts for audit, regardless of whether publish runs.
+  # -------------------------------------------------------------------------
+  pack:
+    name: Pack
+    runs-on: ubuntu-latest
+    needs: [build, sign]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Pack (placeholder)
+        run: |
+          echo "TODO: dotnet pack for each Maui.Tizen.* project, version ${{ needs.build.outputs.package_version }}"
+          echo "Conventions: docs/governance/package-metadata-conventions.md section 2."
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: maui-tizen-packages-${{ needs.build.outputs.package_version }}
+          path: |
+            **/*.nupkg
+            **/*.snupkg
+          if-no-files-found: warn
+          retention-days: 90
+
+  # -------------------------------------------------------------------------
+  # Publish. Double-gated: requires both the `nuget-production` environment
+  # (required reviewers) AND the literal "PUBLISH" confirmation input.
+  # This environment does not exist in the repository yet - creating it is
+  # itself a transfer-readiness action tracked in
+  # docs/governance/samsung-transfer-checklist.md.
+  # -------------------------------------------------------------------------
+  publish:
+    name: Publish to NuGet (disabled until ownership/signing finalized)
+    runs-on: ubuntu-latest
+    needs: pack
+    if: ${{ inputs.confirm_publish == 'PUBLISH' }}
+    environment: nuget-production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Guard - publishing prerequisites
+        run: |
+          echo "Publishing is not yet enabled for this repository."
+          echo "Prerequisites tracked in docs/governance/package-metadata-conventions.md"
+          echo "and docs/governance/samsung-transfer-checklist.md must be satisfied,"
+          echo "and this guard step must be replaced with a real check, before removing this exit."
+          exit 1
+
+      # The guard step above always exits 1 today, so this step never runs
+      # (a failed prior step skips subsequent steps by default). It is left
+      # in place, commented out, to show the intended shape of the real
+      # publish step once the guard is replaced:
+      #
+      # - name: Publish via trusted publishing
+      #   run: |
+      #     echo "dotnet nuget push using nuget.org Trusted Publishing (OIDC)."
+      #     echo "No API key secret should ever be added here - see"
+      #     echo "docs/governance/package-metadata-conventions.md section 4."

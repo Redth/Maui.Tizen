@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/Redth/Maui.Tizen/security/advisories/new
+    about: Please report security vulnerabilities privately — see SECURITY.md. Do not use a public issue.
+  - name: .NET MAUI (core, non-Tizen)
+    url: https://github.com/dotnet/maui/issues/new/choose
+    about: Questions or bugs unrelated to the Tizen backend belong in dotnet/maui.
+  - name: General discussion / question
+    url: https://github.com/Redth/Maui.Tizen/discussions
+    about: Use Discussions for open-ended questions instead of an issue.
