@@ -91,12 +91,19 @@ Two items are not fully resolved and should not be described as "done":
    `IShellController.GetFlyoutItemDataTemplate`. Note the shape differs from the internal helper
    Wave C reimplemented, so adoption is a rewrite of the adapter rather than a rename.
 
-   **The PR is open, so nothing here adopts it.** The adapter stays provisional until the API is
-   merged *and* present in a referenced package. What did change is the expiry test: it now watches
-   the three proposed members instead of `GetBindableObjectWithFlyoutItemTemplate`. Watching the
-   internal name would never have fired — upstream is not planning to publish it — and the adapter
-   would have quietly become permanent, which is precisely the rot the expiry tests exist to
-   prevent.
+   **The PR is open and still being designed, so nothing here adopts it.** The adapter stays
+   provisional until the design merges *and* ships in a referenced package.
+
+   The expiry test is deliberately **name-agnostic**, and that is worth explaining. The proposed
+   API has now changed shape twice while the adapter sat here: the internal
+   `GetBindableObjectWithFlyoutItemTemplate`, then a three-method contract
+   (`IsFlyoutItemTemplateSet` / `GetFlyoutItemTemplateSource` / `GetFlyoutItemTemplateProperty`),
+   and now a single resolve-style call. Each time the test named members explicitly it silently
+   stopped detecting anything — which is worse than no test, because a green build then *implies*
+   the adapter is still needed. It now matches the concept (any new public `Shell` member about a
+   flyout item template) and is itself covered by table-driven tests proving it fires for the
+   resolve-style shape, the three-method shape and plausible alternatives, while ignoring
+   pre-existing members.
 
 2. **`Toolbar.DrawerToggleVisible` (request 0009).** `IToolbar` publishes `BackButtonVisible` and
    `IsVisible` but not `DrawerToggleVisible`, which is the third member of the same concept. Wave C

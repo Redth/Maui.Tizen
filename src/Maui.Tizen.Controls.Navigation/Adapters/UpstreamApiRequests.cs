@@ -42,9 +42,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 			new(
 				"MAUI-TIZEN-API-0001",
 				"Microsoft.Maui.Controls.Shell.GetBindableObjectWithFlyoutItemTemplate(BindableObject)",
-				"Shell.IsFlyoutItemTemplateSet / GetFlyoutItemTemplateSource / GetFlyoutItemTemplateProperty (proposed in dotnet/maui#37862, open)",
+				"A public flyout item template contract on Shell (dotnet/maui#37862, OPEN and still being designed - currently moving toward a single resolve-style call returning the final DataTemplate)",
 				nameof(ShellTemplateResolver),
-				"Any backend rendering a flyout must resolve which element owns the item template. Only partially reproducible off-tree: the MenuShellItem redirect cannot be expressed at all because MenuShellItem and its MenuItem property are both internal, so bare MenuItems in a flyout fall back to the shell-level template. Upstream dotnet/maui#37862 proposes a public contract with a different shape to the internal helper; it is OPEN, so the adapter stays provisional and the API must not be baked in before it merges and ships in a referenced package."),
+				"Any backend rendering a flyout must resolve which element owns the item template. Only partially reproducible off-tree: the MenuShellItem redirect cannot be expressed at all because MenuShellItem and its MenuItem property are both internal, so bare MenuItems in a flyout fall back to the shell-level template. Upstream dotnet/maui#37862 is OPEN and its shape is still moving (internal helper -> three-method contract -> single resolve-style call). The adapter stays provisional and no shape is baked in until the design merges and ships in a referenced package; the expiry test matches the concept rather than any proposed name."),
 			new(
 				"MAUI-TIZEN-API-0002",
 				"Microsoft.Maui.Controls.ViewExtensions.FindParentOfType<T>(Element, bool)",

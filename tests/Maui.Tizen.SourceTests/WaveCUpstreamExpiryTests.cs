@@ -59,48 +59,47 @@ public class WaveCUpstreamExpiryTests
 	/// bare <c>MenuItem</c> in a flyout therefore falls back to the shell-level template.
 	/// </para>
 	/// <para>
-	/// dotnet/maui#37862 ("Add public Shell flyout item template contract for external backends")
-	/// is open and proposes a different shape to the internal helper Wave C reimplemented:
-	/// <c>Shell.IsFlyoutItemTemplateSet</c>, <c>Shell.GetFlyoutItemTemplateSource</c> and
-	/// <c>Shell.GetFlyoutItemTemplateProperty</c>, used alongside the already-public
-	/// <c>IShellController.GetFlyoutItemDataTemplate</c>.
+	/// DELIBERATELY NAME-AGNOSTIC. The proposed API has already changed shape twice while this
+	/// adapter sat here: first as the internal <c>GetBindableObjectWithFlyoutItemTemplate</c>, then
+	/// as a three-method contract (<c>IsFlyoutItemTemplateSet</c>,
+	/// <c>GetFlyoutItemTemplateSource</c>, <c>GetFlyoutItemTemplateProperty</c>), and it is now
+	/// being redesigned again toward a single resolve-style call. Each time this test named the
+	/// members explicitly it silently stopped detecting anything, which is worse than having no
+	/// test at all - a green build implies the adapter is still needed when it may not be.
 	/// </para>
 	/// <para>
-	/// So this test watches for the <em>proposed</em> members, not the internal one. Watching
-	/// <c>GetBindableObjectWithFlyoutItemTemplate</c> - which is what an earlier revision did -
-	/// would never have fired, because upstream is not planning to publish that name at all, and
-	/// the adapter would have quietly become permanent.
+	/// So it matches on the <em>concept</em> instead: any new public member on <see cref="Shell"/>
+	/// that talks about a flyout item template. That fires for a resolve-style API, for the
+	/// three-method shape, or for whatever the review settles on, without needing to be revised
+	/// every time the design moves.
 	/// </para>
 	/// <para>
-	/// The adapter stays provisional until the API is merged AND available in a referenced package;
-	/// this test firing is the signal to adopt it, not a reason to bake it in early.
+	/// Firing is the signal to adopt, not permission to bake the API in early: the adapter stays
+	/// provisional until the design is merged AND present in a referenced package.
 	/// </para>
 	/// </remarks>
 	[Fact]
-	public void ShellTemplateResolverExpiresWhenShellPublishesTheFlyoutTemplateContract()
+	public void ShellTemplateResolverExpiresWhenShellPublishesAFlyoutTemplateContract()
 	{
 		var shell = NeutralMaui.Controls.GetType("Microsoft.Maui.Controls.Shell");
 
 		Assert.NotNull(shell);
 
-		string[] proposed =
-		{
-			"IsFlyoutItemTemplateSet",
-			"GetFlyoutItemTemplateSource",
-			"GetFlyoutItemTemplateProperty",
-		};
-
-		var landed = proposed
-			.Where(name => shell!.GetMethod(name, BindingFlags.Public | BindingFlags.Static) is not null)
+		var landed = shell!
+			.GetMembers(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance)
+			.Select(m => m.Name)
+			.Where(IsNewFlyoutTemplateContractMember)
+			.Distinct(StringComparer.Ordinal)
+			.OrderBy(n => n, StringComparer.Ordinal)
 			.ToList();
 
 		Assert.True(
 			landed.Count == 0,
-			"Shell now publishes " + string.Join(", ", landed) + " (dotnet/maui#37862). Re-point "
-				+ "Adapters/ShellTemplateResolver.cs at the public contract alongside "
-				+ "IShellController.GetFlyoutItemDataTemplate, delete the MenuShellItem workaround "
-				+ "and its documented behaviour gap, and remove MAUI-TIZEN-API-0001 from "
-				+ "Adapters/UpstreamApiRequests.cs.");
+			"Shell now publishes a flyout item template contract (" + string.Join(", ", landed)
+				+ ", dotnet/maui#37862). Rewrite Adapters/ShellTemplateResolver.cs onto it - the shape "
+				+ "differs from the internal helper, so this is a rewrite rather than a rename - "
+				+ "delete the MenuShellItem workaround and its documented behaviour gap, and remove "
+				+ "MAUI-TIZEN-API-0001 from Adapters/UpstreamApiRequests.cs.");
 	}
 
 	/// <summary>
@@ -151,4 +150,48 @@ public class WaveCUpstreamExpiryTests
 			"Wave C must not implement IToolbarSecondaryActionPresenter; the alerts/gestures "
 				+ "workstream owns the action-sheet presentation: " + string.Join(", ", implementations));
 	}
+
+	/// <summary>Members that predate Wave C, so they cannot be the new contract.</summary>
+	static readonly HashSet<string> PreexistingTemplateMembers = new(StringComparer.Ordinal)
+	{
+		"ItemTemplateProperty",
+		"MenuItemTemplateProperty",
+		"GetItemTemplate",
+		"SetItemTemplate",
+		"GetMenuItemTemplate",
+		"SetMenuItemTemplate",
+	};
+
+	/// <summary>
+	/// The concept match used to detect a newly published flyout item template contract.
+	/// </summary>
+	internal static bool IsNewFlyoutTemplateContractMember(string memberName) =>
+		(memberName.Contains("FlyoutItemTemplate", StringComparison.Ordinal)
+			|| memberName.Contains("FlyoutItemDataTemplate", StringComparison.Ordinal))
+		&& !PreexistingTemplateMembers.Contains(memberName);
+
+	/// <summary>
+	/// Proves the detector actually fires. A detector is only worth having if it has been shown to
+	/// trigger; the previous name-specific version passed happily while detecting nothing, which is
+	/// exactly the failure this guards against.
+	/// </summary>
+	[Theory]
+	// The single resolve-style API the design is currently moving toward.
+	[InlineData("ResolveFlyoutItemTemplate", true)]
+	// The three-method shape it is moving away from.
+	[InlineData("IsFlyoutItemTemplateSet", true)]
+	[InlineData("GetFlyoutItemTemplateSource", true)]
+	[InlineData("GetFlyoutItemTemplateProperty", true)]
+	// Anything else the review might land on.
+	[InlineData("TryGetFlyoutItemTemplate", true)]
+	[InlineData("GetFlyoutItemDataTemplate", true)]
+	// Members that already existed must not trip it.
+	[InlineData("ItemTemplateProperty", false)]
+	[InlineData("MenuItemTemplateProperty", false)]
+	[InlineData("GetItemTemplate", false)]
+	[InlineData("CurrentItem", false)]
+	[InlineData("FlyoutBehavior", false)]
+	public void FlyoutTemplateContractDetectorMatchesTheConceptNotAName(string memberName, bool expected)
+		=> Assert.Equal(expected, IsNewFlyoutTemplateContractMember(memberName));
+
 }
