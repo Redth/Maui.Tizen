@@ -80,9 +80,38 @@
       "version": "15.0.0.19396"
     },
     "workloadManifest": {
-      "id": "samsung.net.sdk.tizen.manifest-11.0.100",
+      "$comment": [
+        "Naming matters here and is easy to get wrong. NuGet package IDs are",
+        "case-insensitive, so this appears in both spellings in the wild:",
+        "  Samsung.NET.Sdk.Tizen.Manifest-<band>   (Samsung's own casing)",
+        "  samsung.net.sdk.tizen.manifest-<band>   (nuget.org flat-container form)",
+        "The <band> suffix is the SDK feature band, and for previews it carries the",
+        "preview segment too - so what to watch for is the -preview.7 form, not a bare",
+        "11.0.100. Both were probed; neither exists."
+      ],
+      "id": "Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7",
+      "lowercaseId": "samsung.net.sdk.tizen.manifest-11.0.100-preview.7",
       "status": "unavailable",
-      "note": "Not published to nuget.org as of 2026-08-26. Only the -9.0.100 and -10.0.100 bands exist; the newest Samsung.Tizen.Sdk is 10.0.128. This is an explicit external gate: the net11.0-tizen11.0 TFM cannot be restored or built anywhere until Samsung publishes this manifest. See docs/migration.md."
+      "probedUtc": "2026-08-26",
+      "publishedBands": [
+        { "id": "samsung.net.sdk.tizen.manifest-9.0.100", "latest": "10.0.104" },
+        { "id": "samsung.net.sdk.tizen.manifest-10.0.100", "latest": "10.0.123" }
+      ],
+      "note": "Neither the '-11.0.100' nor the '-11.0.100-preview.7' form exists on nuget.org (both 404). Only the 9.0.100 and 10.0.100 bands publish, and the newest Samsung.Tizen.Sdk is 10.0.128. Explicit external gate: net11.0-tizen11.0 cannot be restored or built anywhere until Samsung publishes an 11.0.100-band manifest. See docs/migration.md."
+    },
+    "provenance": {
+      "$comment": [
+        "The tizen11.0 / API15 contract is verified from Samsung's own workload PR, not",
+        "inferred. This is what makes API15 sufficient and rules out needing a new",
+        "reference pack."
+      ],
+      "source": "Samsung workload PR #310",
+      "establishes": [
+        "net11.0-tizen11.0 as the target framework",
+        "TizenFX API15 / Samsung.Tizen.Ref.API15 15.0.0.19396 as the reference pack",
+        "tizen-manifest.xml api-version 11",
+        "SDK band 11.0.100-preview.7"
+      ]
     },
     "notes": [
       "No API16 or new reference pack is required; API15 is sufficient.",

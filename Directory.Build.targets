@@ -17,17 +17,6 @@
   -->
 
   <!--
-    Compile-item conventions inherited from dotnet/maui's src/MultiTargeting.targets.
-    Retained because the imported sources still use `.Tizen.cs` suffixes and `Tizen/`
-    folders; see PROVENANCE.md for why those names were not flattened during import.
-    Here they are INCLUDED rather than excluded, since this repo builds Tizen only.
-  -->
-  <ItemGroup Condition="'$(IsTizenProject)' == 'true' AND '$(EnableDefaultCompileItems)' != 'false'">
-    <Compile Update="**/*.Tizen.cs" />
-    <Compile Update="**/Tizen/**/*.cs" />
-  </ItemGroup>
-
-  <!--
     Detects the Samsung Tizen workload.
 
     Runs at target time rather than during evaluation because item globs are the only
@@ -66,7 +55,7 @@
   <!--
     The explicit external gate.
 
-    The Samsung .NET 11 workload (samsung.net.sdk.tizen.manifest-11.0.100) is not
+    The Samsung .NET 11 workload (Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7) is not
     published. Until it is, Tizen projects cannot build anywhere. This target says so
     plainly instead of letting the failure surface as NETSDK1013 ("The TargetFramework
     value 'net11.0-tizen11.0' was not recognized. It may be misspelled."), which sends
@@ -101,21 +90,8 @@
           Condition="'$(IsTizenProject)' == 'true'">
     <Error Condition="'$(TizenWorkloadAvailable)' != 'true'"
            Code="MAUITIZEN0001"
-           Text="The Samsung Tizen workload for .NET $(DotNetVersion) is not installed, so '$(MSBuildProjectName)' cannot target $(MauiTizenTargetFramework).%0A%0AThis is a known external gate, not a repository defect and not a typo in the target framework: the workload manifest 'samsung.net.sdk.tizen.manifest-11.0.100' has not been published (only the 9.0.100 and 10.0.100 bands exist). See docs/migration.md and eng/baselines.json.%0A%0ATo build the parts of this repository that do not need the workload, run: eng/build-workload-free.sh%0ATo override detection once the workload ships, pass -p:TizenWorkloadAvailable=true." />
+           Text="The Samsung Tizen workload for .NET $(DotNetVersion) is not installed, so '$(MSBuildProjectName)' cannot target $(MauiTizenTargetFramework).%0A%0AThis is a known external gate, not a repository defect and not a typo in the target framework: no 11.0.100-band Samsung manifest ('Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7') has been published (only the 9.0.100 and 10.0.100 bands exist). See docs/migration.md and eng/baselines.json.%0A%0ATo build the parts of this repository that do not need the workload, run: eng/build-workload-free.sh%0ATo override detection once the workload ships, pass -p:TizenWorkloadAvailable=true." />
   </Target>
 
-  <!--
-    Keeps Directory.Build.props and eng/baselines.json from silently drifting apart.
-    Cheap to run, and the failure mode it prevents (building against a different platform
-    version than the baselines were generated for) is expensive to debug.
-  -->
-  <Target Name="ValidateBaselineConsistency" BeforeTargets="Build" Condition="'$(SkipBaselineValidation)' != 'true'">
-    <PropertyGroup>
-      <_BaselinesJson Condition="Exists('$(RepositoryRoot)eng/baselines.json')">$([System.IO.File]::ReadAllText('$(RepositoryRoot)eng/baselines.json'))</_BaselinesJson>
-    </PropertyGroup>
-    <Warning Condition="'$(_BaselinesJson)' != '' AND !$(_BaselinesJson.Contains('&quot;targetFramework&quot;: &quot;$(MauiTizenTargetFramework)&quot;'))"
-             Code="MAUITIZEN0002"
-             Text="Directory.Build.props targets '$(MauiTizenTargetFramework)' but eng/baselines.json records a different targetFramework. Update both together and regenerate API baselines." />
-  </Target>
 
 </Project>

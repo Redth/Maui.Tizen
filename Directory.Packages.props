@@ -23,7 +23,33 @@
     <PackageVersion Include="Microsoft.Maui.Essentials" Version="11.0.0-preview.7.26418.3" />
     <PackageVersion Include="Microsoft.Maui.Graphics" Version="11.0.0-preview.7.26418.3" />
     <PackageVersion Include="Microsoft.Maui.Maps" Version="11.0.0-preview.7.26418.3" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView" Version="11.0.0-preview.7.26418.3" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="11.0.0-preview.7.26418.3" />
+  </ItemGroup>
+
+  <ItemGroup Label="ASP.NET Core (BlazorWebView dependencies)">
+    <!--
+      DIFFERENT VERSION LINE FROM MAUI, deliberately.
+
+      These are ASP.NET Core packages, not MAUI packages, and they do not share MAUI's
+      version stamp. There is no Microsoft.AspNetCore.Components.WebView at
+      11.0.0-preview.7.26418.3 - that version simply does not exist - and pinning it there
+      produced NU1102 for the whole BlazorWebView graph.
+
+      11.0.0-preview.7.26381.103 is not a guess: it is what
+      Microsoft.AspNetCore.Components.WebView.Maui 11.0.0-preview.7.26418.3 declares in its
+      own nuspec, and it matches the SDK build we pin in global.json
+      (11.0.100-preview.7.26381.103), so the whole graph stays on one ASP.NET Core build.
+
+      A higher version such as 11.0.0-rc.1.26378.118 also resolves, but it silently
+      upgrades the transitive dependency past what MAUI asked for and mixes rc.1 ASP.NET
+      Core bits with preview.7 MAUI bits. Matching the declared dependency is the coherent
+      choice.
+
+      Verified by eng/tests/PackageGraphProbe.
+    -->
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView" Version="11.0.0-preview.7.26381.103" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authorization" Version="11.0.0-preview.7.26381.103" />
+    <PackageVersion Include="Microsoft.JSInterop" Version="11.0.0-preview.7.26381.103" />
   </ItemGroup>
 
   <ItemGroup Label="Samsung / Tizen">
@@ -50,8 +76,12 @@
     <PackageVersion Include="SkiaSharp" Version="3.116.1" />
   </ItemGroup>
 
-  <ItemGroup Label="Source link and analyzers">
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
+  <ItemGroup Label="Analyzers">
+    <!--
+      SourceLink is NOT pinned here: the .NET SDK has included it since .NET 8, so an
+      explicit Microsoft.SourceLink.GitHub reference is redundant and only risks pinning
+      an older version than the SDK provides.
+    -->
     <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.4" />
   </ItemGroup>
 
