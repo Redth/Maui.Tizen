@@ -32,6 +32,38 @@
     <IsTizenProject>true</IsTizenProject>
 
     <!--
+      TargetFramework MUST be assigned here, in a .props file imported from the project
+      body, and NOT in Directory.Build.targets.
+
+      Directory.Build.targets is imported at the end of Microsoft.Common.targets, which is
+      long after the SDK's Microsoft.NET.TargetFrameworkInference.targets has already
+      parsed $(TargetFramework) into TargetFrameworkIdentifier/Version. Setting it there
+      means inference runs against an EMPTY value and silently falls back:
+
+          TargetFramework           net11.0-tizen11.0
+          TargetFrameworkIdentifier _            <- garbage
+          TargetFrameworkVersion    v0.0         <- garbage
+
+      Everything keyed off the identifier - NuGet's restore graph, framework-conditional
+      items, SDK feature switches - then evaluates against a framework that does not
+      exist. It "works" right up until it doesn't, which is the worst kind of build bug.
+
+      Imported from the project body, this file is evaluated before Sdk.targets, so
+      inference sees the real value.
+    -->
+    <TargetFramework Condition="'$(TargetFramework)' == ''">$(MauiTizenTargetFramework)</TargetFramework>
+    <SupportedOSPlatformVersion Condition="'$(SupportedOSPlatformVersion)' == ''">$(TizenPlatformVersion)</SupportedOSPlatformVersion>
+    <TargetPlatformMinVersion Condition="'$(TargetPlatformMinVersion)' == ''">$(TizenPlatformVersion)</TargetPlatformMinVersion>
+
+    <!--
+      TIZEN is defined unconditionally. Upstream this is conditional because the same
+      sources compile for six platforms; here every file is Tizen-only, so the #if TIZEN
+      blocks inherited from dotnet/maui must always take the Tizen branch. Leaving it
+      undefined would compile the *wrong* half of every inherited conditional.
+    -->
+    <DefineConstants>$(DefineConstants);TIZEN</DefineConstants>
+
+    <!--
       Assembly names follow the package ID (Maui.Tizen.*) rather than Microsoft.Maui.*,
       because a Microsoft.Maui.Core.dll published from here would collide with the real
       one at runtime and in the NuGet graph.

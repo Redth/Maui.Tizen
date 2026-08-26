@@ -108,7 +108,9 @@ assembly supply them at all.
 
 ### Rule 4 — Shared files with `#if TIZEN` are never copied wholesale
 
-136 shared files in the source baseline contain `#if TIZEN` branches. Copying such a file
+135 shared files in the source baseline contain genuine `#if TIZEN` branches (a 136th,
+`Matrix3x2Extensions.cs`, uses the legacy Xamarin.Forms-era `TIZEN40` symbol and is not
+one of ours). Copying such a file
 would fork the non-Tizen code alongside it — code this repository does not own and cannot
 maintain. Only the Tizen branch is extracted; the rest stays upstream. The disposition
 schema enforces this: `kind: shared-conditional` may only be `rebuild`, `keep-upstream`,

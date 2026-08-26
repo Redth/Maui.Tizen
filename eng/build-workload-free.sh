@@ -138,18 +138,45 @@ info "Repository invariant tests"
 check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
 
 # ---------------------------------------------------------------------------
+# 5. Workload detection regressions.
+#
+# Detection decides whether anything in this repository can build, and it has been wrong
+# in both directions during development. These fixtures pin the behaviour.
+# ---------------------------------------------------------------------------
+info "Workload detection regressions"
+if DOTNET="$DOTNET" "$REPO_ROOT/eng/tests/test-workload-detection.sh"; then
+  :
+else
+  fail "workload detection regressions failed"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# ---------------------------------------------------------------------------
 # 6. Report the Tizen gate explicitly.
 #
 # Reported, never silently skipped. If this ever starts saying "available", the Tizen
 # lane should be promoted to required.
+#
+# This asks MSBuild rather than parsing `dotnet workload list`. There is one detection
+# implementation (the _DetectTizenWorkload target) so there is one thing to get right -
+# and the previous shell probe, `dotnet workload list | grep -qi tizen`, matched an
+# unrelated `maui-tizen` workload by substring and would have reported the gate as lifted
+# while Samsung's workload was still absent.
 # ---------------------------------------------------------------------------
 info "Tizen workload gate"
-if "$DOTNET" workload list 2>/dev/null | grep -qi tizen; then
+WORKLOAD_STATE="$("$DOTNET" msbuild src/Maui.Tizen.Core/Maui.Tizen.Core.csproj \
+  -t:ReportTizenWorkload -nologo -v:m 2>/dev/null \
+  | grep -oE 'TizenWorkloadAvailable=[a-z]+' | head -1 | cut -d= -f2 || true)"
+
+if [[ "$WORKLOAD_STATE" == "true" ]]; then
   pass "Samsung Tizen workload is installed - the Tizen lane can now be made required"
-else
+elif [[ "$WORKLOAD_STATE" == "false" ]]; then
   note "Samsung Tizen workload is NOT installed."
   note "  net11.0-tizen11.0 cannot be restored or built until Samsung publishes"
   note "  'samsung.net.sdk.tizen.manifest-11.0.100'. This is expected; see docs/migration.md."
+else
+  fail "could not determine workload state (ReportTizenWorkload returned '${WORKLOAD_STATE:-<empty>}')"
+  FAILURES=$((FAILURES + 1))
 fi
 
 echo
