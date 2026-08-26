@@ -117,6 +117,32 @@ WORKLOAD_FREE_PROJECTS=(
   "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj"
   "src/Maui.Tizen.Essentials.HostVerification/Maui.Tizen.Essentials.HostVerification.csproj"
   "tests/UnitTests/Maui.Tizen.UnitTests.csproj"
+
+  # Verification lanes for the ported backend slice. Neither is a Tizen artifact:
+  #
+  #   Maui.Tizen.Core.UnitTests   compiles the backend against inert stand-ins for Tizen.NUI
+  #                               and EXECUTES tests for the workload-independent behaviour
+  #                               (mapper and DI registration, hosting, dispatching, density,
+  #                               layout z-index ordering).
+  #
+  #   Maui.Tizen.Core.RefPackCompile  type-checks every `#if TIZEN` source, and the sample
+  #                               head, against the REAL TizenFX reference assemblies from
+  #                               Samsung.Tizen.Ref.API15. It is compile-only and unpackable,
+  #                               so it cannot become a neutral fallback for the product.
+  "tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj"
+  "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj"
+
+  # Essentials verification lanes, mirroring the pair above:
+  #
+  #   Maui.Tizen.Essentials.RefPackCompile  type-checks the ported Essentials sources against the
+  #                                         REAL API15 reference assemblies the product will bind
+  #                                         to. Compile-only and unpackable. This is the lane that
+  #                                         caught Tizen.Maps being removed from API15.
+  #
+  #   Maui.Tizen.Essentials.Tests           executes DI/facade/permission/translation tests against
+  #                                         the loadable Tizen.NET assemblies via
+  #                                         src/Maui.Tizen.Essentials.HostVerification.
+  "tests/Maui.Tizen.Essentials.RefPackCompile/Maui.Tizen.Essentials.RefPackCompile.csproj"
   "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj"
 )
 for proj in "${WORKLOAD_FREE_PROJECTS[@]}"; do
@@ -133,6 +159,7 @@ done
 # ---------------------------------------------------------------------------
 info "Repository invariant tests"
 check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
+check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
 
 # Essentials behaviour tests. These run against the workload-free host verification
 # harness (src/Maui.Tizen.Essentials.HostVerification), which compiles the same sources

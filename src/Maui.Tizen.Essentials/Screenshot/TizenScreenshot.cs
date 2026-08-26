@@ -37,7 +37,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		/// <inheritdoc/>
 		public Task<IScreenshotResult> CaptureAsync() =>
-			CaptureAsync(TizenWindow.Instance);
+			CaptureAsync(TizenWindow.Default);
 
 		/// <summary>
 		/// Captures a screenshot of the supplied NUI window.

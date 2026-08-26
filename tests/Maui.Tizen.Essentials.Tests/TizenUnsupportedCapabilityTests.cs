@@ -75,6 +75,32 @@ public class TizenUnsupportedCapabilityTests
 		Assert.Null(await new TizenGeolocation().GetLastKnownLocationAsync());
 
 	[Fact]
+	public void GeocodingReportsUnsupportedBecauseTizenMapsWasRemoved()
+	{
+		var geocoding = new TizenGeocoding();
+
+		// Tizen.Maps was deprecated at API11 and removed by API15, so neither operation can be
+		// backed by anything. Returning an empty sequence would be indistinguishable from a
+		// genuine "no match".
+		var placemarks = Assert.Throws<FeatureNotSupportedException>(
+			() => { _ = geocoding.GetPlacemarksAsync(0, 0); });
+		Assert.Contains("Tizen.Maps", placemarks.Message, StringComparison.Ordinal);
+
+		Assert.Throws<FeatureNotSupportedException>(() => { _ = geocoding.GetLocationsAsync("nowhere"); });
+	}
+
+	[Fact]
+	public void GeocodingStillAcceptsAConfiguredMapServiceTokenWithoutThrowing()
+	{
+		// The .NET 11 Essentials DI bridge reads and writes IPlatformGeocoding.MapServiceToken
+		// during MauiApp initialization. Throwing here would turn a ConfigureEssentials line into
+		// a startup crash, so the token is accepted and simply never used.
+		var geocoding = new TizenGeocoding { MapServiceToken = "token" };
+
+		Assert.Equal("token", geocoding.MapServiceToken);
+	}
+
+	[Fact]
 	public void BatteryEnergySaverReportsUnsupportedRatherThanOff()
 	{
 		var battery = new TizenBattery();

@@ -45,7 +45,7 @@ Profile column values are the Tizen device profiles on which the service is usab
 | `IFilePicker` | `TizenFilePicker` | Partial | All | Tizen's `pick` operation accepts one MIME filter, so only the first entry of `PickOptions.FileTypes` is applied. |
 | `IFileSystem` | `TizenFileSystem` | Implemented | All | Application `DirectoryInfo` data / cache / resource paths. |
 | `IFlashlight` | `TizenFlashlight` | Implemented | Mobile | `Tizen.System.Led`. Gated on `camera.back.flash`; requires the `led` privilege. |
-| `IGeocoding` | `TizenGeocoding` | Implemented | All | `Tizen.Maps` (HERE). Requires a map service token; also registered as `IPlatformGeocoding`. |
+| `IGeocoding` | `TizenGeocoding` | Unsupported | – | `Tizen.Maps` (`MapService`) was deprecated in TizenFX API11 and **removed by API15**; there is no replacement. `MapServiceToken` is still accepted so a configured token cannot crash startup, but it is never used. |
 | `IGeolocation` | `TizenGeolocation` | Partial | All | One-shot `GetLocationAsync` works. `StartListeningForegroundAsync` / `StopListeningForeground` throw. |
 | `IGyroscope` | `TizenGyroscope` | Implemented | All | `Tizen.Sensor.Gyroscope`. |
 | `IHapticFeedback` | `TizenHapticFeedback` | Implemented | Mobile, Wearable | `Tizen.System.Feedback`. Unsupported patterns throw instead of silently doing nothing. |
@@ -73,14 +73,25 @@ Profile column values are the Tizen device profiles on which the service is usab
 
 | | Status |
 | --- | --- |
-| Sources compile against the real Tizen and MAUI APIs | Verified, by `src/Maui.Tizen.Essentials.HostVerification` |
+| Sources type-check against the **API15 reference pack** the product targets | Verified, by `tests/Maui.Tizen.Essentials.RefPackCompile` |
+| Sources compile against loadable Tizen implementation assemblies | Verified, by `src/Maui.Tizen.Essentials.HostVerification` |
 | DI registration, facade/`MainThread` ownership, permission privilege mapping, unsupported classification, ported translation logic | Verified, by `tests/Maui.Tizen.Essentials.Tests` (193 tests) |
 | `src/Maui.Tizen.Essentials` builds for `net11.0-tizen11.0` | **Blocked.** Fails with `MAUITIZEN0001`: the Samsung workload manifest `samsung.net.sdk.tizen.manifest-11.0.100` is unpublished. Nobody can build this TFM anywhere yet. |
 | Any behaviour that P/Invokes into Tizen (sensors, AppControl, key manager, NUI capture, TTS, geocoding, ...) | **Blocked.** Requires a Tizen device or emulator, which in turn requires the workload. |
 
+The two verification lanes are complementary. `RefPackCompile` type-checks against
+`Samsung.Tizen.Ref.API15`, the exact surface `net11.0-tizen11.0` will bind to, but reference
+assemblies have no method bodies and can never be executed. `HostVerification` compiles against
+the Tizen.NET implementation assemblies, which can be loaded, which is what lets the tests run.
+Neither packs or publishes anything, so neither can be mistaken for a shippable neutral build.
+
+That split earns its keep: the API15 lane is what caught the removal of `Tizen.Maps`. The
+implementation-assembly lane alone (Tizen.NET, API13) still compiles the old geocoding code
+happily, and would have shipped an implementation binding to an assembly the target platform no
+longer has.
+
 The blocked rows are gates, not gaps in this work, and they are reported rather than papered
-over. The host verification harness deliberately does not pack or publish anything, so it cannot
-be mistaken for a shippable neutral build.
+over.
 
 ## Deliberately not provided
 
@@ -90,6 +101,14 @@ be mistaken for a shippable neutral build.
 | `MainThread` | Main-thread marshalling is bridged from the registered `IDispatcher` by MAUI for platform backends that are not in-box. The Tizen dispatcher supplied by the core Tizen backend is therefore the single source of truth, and this package deliberately ships no `MainThread` platform hook and never touches `EcoreMainloop`. |
 | `IActivityStateManager` | Android only. |
 | `IWindowStateManager` | Windows / Apple only; MAUI does not bridge it elsewhere. |
+
+## Tizen API surface changes found while porting
+
+| Tizen API | Status on API15 | Impact |
+| --- | --- | --- |
+| `Tizen.Maps` / `MapService` | **Removed** (deprecated API11, gone by API15) | Geocoding has no implementation. Reclassified `Unsupported`; see the matrix above. |
+| `Tizen.Security.PrivacyPrivilegeManager` | Deprecated at API11, still present at API15 | Runtime privilege checks still work. Tizen ships no replacement, so this backend keeps using it behind a scoped `#pragma`, as dotnet/maui did. |
+| `Tizen.NUI.Window.Instance` | Deprecated at API12 in favour of `Window.Default` | Screenshot capture uses `Window.Default`. |
 
 ## MAUI public API gaps found while porting
 

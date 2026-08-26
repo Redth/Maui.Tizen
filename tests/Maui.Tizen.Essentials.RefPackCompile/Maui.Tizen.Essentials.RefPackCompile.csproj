@@ -1,0 +1,82 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Compile-validation lane for the Essentials backend.
+
+    src/Maui.Tizen.Essentials targets net11.0-tizen11.0 and cannot be restored until Samsung
+    publishes the 11.0.100 workload manifest, so its sources would otherwise never be
+    type-checked against the reference surface they will actually ship against.
+
+    This mirrors tests/Maui.Tizen.Core.RefPackCompile: Samsung.Tizen.Ref.API15 ships real
+    ref/net8.0 reference assemblies for the whole of TizenFX, which are pulled down with
+    PackageDownload (skipping NuGet's TFM compatibility check) and compiled against on a plain
+    net11.0 host.
+
+    This is complementary to, not a duplicate of, src/Maui.Tizen.Essentials.HostVerification:
+
+      * here             type-checks against the REAL API15 surface the product targets, but
+                         reference assemblies have no method bodies and can never be executed.
+      * HostVerification compiles against the Tizen.NET implementation assemblies, which CAN be
+                         loaded, which is what lets tests/Maui.Tizen.Essentials.Tests run.
+
+    Neither is a neutral fallback for the product: both are IsPackable=false and produce nothing
+    shippable. The workload gate on src/Maui.Tizen.Essentials is untouched.
+  -->
+
+  <Import Project="$(RepositoryRoot)eng/Maui.props" />
+
+  <PropertyGroup>
+    <TargetFramework>$(DotNetTfm)</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+    <AssemblyName>Maui.Tizen.Essentials.RefPackCompile</AssemblyName>
+    <RootNamespace>Microsoft.Maui.Platforms.Tizen.Essentials</RootNamespace>
+
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <SkipBaselineValidation>true</SkipBaselineValidation>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);CS1591;NU1701</NoWarn>
+
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <DefineConstants>$(DefineConstants);TIZEN</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Essentials/**/*.cs"
+             Exclude="$(RepositoryRoot)src/Maui.Tizen.Essentials/bin/**;$(RepositoryRoot)src/Maui.Tizen.Essentials/obj/**"
+             LinkBase="Maui.Tizen.Essentials" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Essentials" />
+    <PackageReference Include="Microsoft.Maui.Core" />
+
+    <!--
+      PackageDownload rather than PackageReference: the reference pack publishes no
+      net11.0-compatible assets, so a normal reference fails restore with NU1202. Only the
+      files on disk are wanted.
+    -->
+    <PackageDownload Include="$(TizenReferencePackId)" Version="[$(TizenReferencePackVersion)]" />
+  </ItemGroup>
+
+  <Target Name="_AddTizenReferenceAssemblies" BeforeTargets="ResolveAssemblyReferences">
+    <PropertyGroup>
+      <_TizenRefPackDir>$(NuGetPackageRoot)$(TizenReferencePackId.ToLowerInvariant())/$(TizenReferencePackVersion)/ref/net8.0/</_TizenRefPackDir>
+    </PropertyGroup>
+
+    <Error Condition="!Exists('$(_TizenRefPackDir)Tizen.NUI.dll')"
+           Code="MAUITIZEN0103"
+           Text="Could not find Tizen.NUI.dll under '$(_TizenRefPackDir)'. Expected it from $(TizenReferencePackId) $(TizenReferencePackVersion); run 'dotnet restore' for this project first." />
+
+    <ItemGroup>
+      <!--
+        The Essentials backend spans most of TizenFX (sensors, location, maps, contacts,
+        security, TTS, multimedia, networking, NUI), so the whole reference pack is referenced
+        rather than a hand-maintained list that would silently rot as services are added.
+      -->
+      <Reference Include="$(_TizenRefPackDir)*.dll" Private="false" />
+    </ItemGroup>
+  </Target>
+
+</Project>

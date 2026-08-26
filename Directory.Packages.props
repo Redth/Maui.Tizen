@@ -41,9 +41,10 @@
       Consumed ONLY by src/Maui.Tizen.Essentials.HostVerification. The shipping Tizen
       projects get their Tizen assemblies from the Samsung workload reference pack
       (Samsung.Tizen.Ref.API15); this package is the workload-free stand-in that lets the
-      ported Essentials sources be compiled and unit tested today. 11.0.0.x == API level 11.
+      ported Essentials sources be executed in tests today. 13.0.0.x == API level 13, the
+      closest published Tizen.NET to the API15 reference pack the product targets.
     -->
-    <PackageVersion Include="Tizen.NET" Version="11.0.0.18033" />
+    <PackageVersion Include="Tizen.NET" Version="13.0.0.19198" />
   </ItemGroup>
 
   <ItemGroup Label="Build tasks">

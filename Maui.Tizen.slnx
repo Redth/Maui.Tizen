@@ -23,8 +23,15 @@
     <Project Path="src/Maui.Tizen.Templates/Maui.Tizen.Templates.csproj" />
   </Folder>
 
+  <Folder Name="/samples/">
+    <Project Path="samples/Maui.Tizen.Sample/Maui.Tizen.Sample.csproj" />
+  </Folder>
+
   <Folder Name="/tests/">
     <Project Path="tests/UnitTests/Maui.Tizen.UnitTests.csproj" />
+    <Project Path="tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj" />
+    <Project Path="tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj" />
+    <Project Path="tests/Maui.Tizen.Essentials.RefPackCompile/Maui.Tizen.Essentials.RefPackCompile.csproj" />
     <Project Path="tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj" />
   </Folder>
 
@@ -36,6 +43,8 @@
     <File Path="eng/import/normalize-layout.sh" />
     <File Path="eng/manifests/source-disposition.schema.json" />
     <File Path="eng/targets/TizenPackage.props" />
+    <File Path="eng/Maui.props" />
+    <File Path="eng/Maui.Tizen.Core.Sources.props" />
   </Folder>
 
   <Folder Name="/docs/">
@@ -44,6 +53,7 @@
     <File Path="THIRD-PARTY-NOTICES.md" />
     <File Path="docs/architecture.md" />
     <File Path="docs/migration.md" />
+    <File Path="docs/net11-status.md" />
   </Folder>
 
   <Folder Name="/solution items/">
