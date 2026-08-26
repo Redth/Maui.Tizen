@@ -1,6 +1,8 @@
 using System;
+using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.Maui.ApplicationModel;
+using Microsoft.Maui.Media;
 using Microsoft.Maui.Platforms.Tizen.Essentials;
 using Xunit;
 
@@ -117,6 +119,42 @@ public class TizenUnsupportedCapabilityTests
 			static () => { _ = new TizenTextToSpeech().GetLocalesAsync(); });
 
 		Assert.Contains("Locale", exception.Message, StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// Tripwire for the upstream MAUI fix that would let this backend implement
+	/// <see cref="ITextToSpeech.GetLocalesAsync"/> properly.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>When this test fails, that is good news: delete it and implement the API.</b>
+	/// </para>
+	/// <para>
+	/// <c>Microsoft.Maui.Media.Locale</c> currently has only an <c>internal</c> constructor, so no
+	/// assembly outside <c>Microsoft.Maui.Essentials</c> can construct the values
+	/// <see cref="ITextToSpeech.GetLocalesAsync"/> is required to return. That is why
+	/// <see cref="TizenTextToSpeech.GetLocalesAsync"/> throws instead of returning an empty
+	/// sequence a caller could not distinguish from "this device supports no voices".
+	/// </para>
+	/// <para>
+	/// Asserting the gap rather than re-checking it by hand on every MAUI package bump means the
+	/// moment a constructor becomes public, this fails and says exactly what to do next. Verified
+	/// still closed against Microsoft.Maui.Essentials 11.0.0-preview.7.26426.4.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void MauiLocaleStillExposesNoPublicConstructor()
+	{
+		var constructors = typeof(Locale).GetConstructors(
+			BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
+
+		Assert.True(
+			constructors.Length == 0,
+			$"Microsoft.Maui.Media.Locale now exposes {constructors.Length} public constructor(s). " +
+			$"The blocking API gap is closed: implement {nameof(TizenTextToSpeech)}." +
+			$"{nameof(ITextToSpeech.GetLocalesAsync)} properly, drop the " +
+			$"{nameof(TizenTextToSpeech.GetSupportedVoiceLanguagesAsync)} workaround from the " +
+			"coverage matrix, and delete this test.");
 	}
 
 	[Fact]
