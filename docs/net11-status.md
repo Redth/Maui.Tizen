@@ -313,6 +313,26 @@ these handlers. Wiring that up belongs with the `Maui.Tizen.Controls` layer.
 **Everything else.** All other handlers (button, entry, image, scroll view, web view, navigation,
 shell, ...) remain raw imported sources and are not yet ported.
 
+### Core-owned platform primitives for Wave C
+
+Three NUI primitives are owned by this package even though the handlers that drive them belong to
+Wave C, because they are platform surfaces rather than handlers. Porting them here is what allows
+the raw imported originals to stay uncompiled.
+
+| Imported source | Owned by this package | Why renamed |
+| --- | --- | --- |
+| `Platform/Tizen/MauiToolbar.cs` | `TizenToolbarView` | `Microsoft.Maui.Platform.MauiToolbar` exists in MAUI's Tizen build |
+| (same file) `IToolbarContainer` | `ITizenToolbarContainer` | same |
+| `Platform/Tizen/StackNavigationManager.cs` | `TizenStackNavigationManager` | `Microsoft.Maui.Platform.StackNavigationManager` exists in MAUI's Tizen build |
+| `Platform/Tizen/NaviPage.cs` | `TizenNaviPage` | `Microsoft.Maui.NaviPage` sits in the **neutral** namespace - the highest-risk collision of the three |
+
+`NaviPage` was not in the assigned list; it came in because `StackNavigationManager` cannot compile
+without it. Porting it was the only way to avoid compiling the raw original.
+
+All three are type-checked against real TizenFX by the reference-pack lane and pinned by
+`CorePlatformPrimitiveTests`, which also asserts that no Wave C handler has leaked into this
+package.
+
 ## 6. Additional MAUI API gaps found during review
 
 * **`MauiContextExtensions.InitializeScopedServices` is a public method on an `internal` class.**

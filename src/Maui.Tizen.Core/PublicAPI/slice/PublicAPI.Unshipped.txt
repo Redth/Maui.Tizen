@@ -36,6 +36,8 @@ Microsoft.Maui.Platforms.Tizen.Hosting.TizenMauiAppBuilderExtensions
 Microsoft.Maui.Platforms.Tizen.ITizenPlatformViewHandler
 Microsoft.Maui.Platforms.Tizen.ITizenPlatformViewHandler.ContainerView.get -> Tizen.NUI.BaseComponents.View?
 Microsoft.Maui.Platforms.Tizen.ITizenPlatformViewHandler.PlatformView.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.ITizenToolbarContainer
+Microsoft.Maui.Platforms.Tizen.ITizenToolbarContainer.SetToolbar(Microsoft.Maui.Platforms.Tizen.TizenToolbarView! toolbar) -> void
 Microsoft.Maui.Platforms.Tizen.LifecycleEvents.ITizenLifecycleBuilder
 Microsoft.Maui.Platforms.Tizen.LifecycleEvents.TizenLifecycle
 Microsoft.Maui.Platforms.Tizen.LifecycleEvents.TizenLifecycle.OnAppControlReceived
@@ -114,10 +116,33 @@ Microsoft.Maui.Platforms.Tizen.TizenMauiContext.Services.get -> System.IServiceP
 Microsoft.Maui.Platforms.Tizen.TizenMauiContext.TizenMauiContext(System.IServiceProvider! services) -> void
 Microsoft.Maui.Platforms.Tizen.TizenMauiContext.WithServices(System.IServiceProvider! services) -> Microsoft.Maui.Platforms.Tizen.TizenMauiContext!
 Microsoft.Maui.Platforms.Tizen.TizenMauiContextExtensions
+Microsoft.Maui.Platforms.Tizen.TizenNaviPage
+Microsoft.Maui.Platforms.Tizen.TizenNaviPage.Content.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.TizenNaviPage.Content.set -> void
+Microsoft.Maui.Platforms.Tizen.TizenNaviPage.TitleView.get -> Tizen.UIExtensions.NUI.TitleView?
+Microsoft.Maui.Platforms.Tizen.TizenNaviPage.TitleView.set -> void
+Microsoft.Maui.Platforms.Tizen.TizenNaviPage.TizenNaviPage() -> void
 Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.MauiContext.get -> Microsoft.Maui.IMauiContext?
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.MauiContext.set -> void
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.NavigationStack.get -> System.Collections.Generic.IReadOnlyList<Microsoft.Maui.IView!>!
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.NavigationView.get -> Microsoft.Maui.IStackNavigation?
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.NavigationView.set -> void
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.PlatformNavigation.get -> Tizen.UIExtensions.NUI.NavigationStack!
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.SetToolbar(Microsoft.Maui.Platforms.Tizen.TizenToolbarView! toolbar) -> void
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.TizenStackNavigationManager() -> void
 Microsoft.Maui.Platforms.Tizen.TizenTicker
 Microsoft.Maui.Platforms.Tizen.TizenTicker.Dispose() -> void
 Microsoft.Maui.Platforms.Tizen.TizenTicker.TizenTicker() -> void
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView.Collapse() -> void
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView.Expand() -> void
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView.IconPressed -> System.EventHandler?
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView.SearchBar.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView.SearchBar.set -> void
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView.SendIconPressed() -> void
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView.TizenToolbarView() -> void
 Microsoft.Maui.Platforms.Tizen.TizenWindowLifecycleBridge
 Microsoft.Maui.Platforms.Tizen.TizenWindowLifecycleBridge.OnCreate() -> void
 Microsoft.Maui.Platforms.Tizen.TizenWindowLifecycleBridge.OnPause() -> void
@@ -317,6 +342,7 @@ static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateVisibility(t
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateWidth(this Tizen.NUI.Window! platformWindow, Microsoft.Maui.IWindow! window) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateX(this Tizen.NUI.Window! platformWindow, Microsoft.Maui.IWindow! window) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateY(this Tizen.NUI.Window! platformWindow, Microsoft.Maui.IWindow! window) -> void
+static Microsoft.Maui.Platforms.Tizen.TizenToolbarView.ExpandedHeight.get -> float
 static Microsoft.Maui.Platforms.Tizen.TizenWindowLifecycleBridge.GetCurrentWindow() -> Microsoft.Maui.IWindow?
 static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenApplicationHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.IApplication!, Microsoft.Maui.Platforms.Tizen.Handlers.ITizenApplicationHandler!>!
 static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenApplicationHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.IApplication!, Microsoft.Maui.Platforms.Tizen.Handlers.ITizenApplicationHandler!>!
@@ -336,3 +362,7 @@ virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenViewHandler<TVirtualView, T
 virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenViewHandler<TVirtualView, TPlatformView>.Measure(double availableWidth, double availableHeight) -> Microsoft.Maui.Graphics.Size
 virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenViewHandler<TVirtualView, TPlatformView>.OnFocused() -> void
 virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenViewHandler<TVirtualView, TPlatformView>.OnUnfocused() -> void
+virtual Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.Connect(Microsoft.Maui.IView! navigationView) -> void
+virtual Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.Disconnect() -> void
+virtual Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.InitializeStack(System.Collections.Generic.IReadOnlyList<Microsoft.Maui.IView!>! newStack, bool animated) -> System.Threading.Tasks.Task!
+virtual Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.RequestNavigation(Microsoft.Maui.NavigationRequest! e) -> void
