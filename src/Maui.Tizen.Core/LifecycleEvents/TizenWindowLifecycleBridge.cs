@@ -39,20 +39,25 @@ namespace Microsoft.Maui.Platforms.Tizen
 			return windows[0];
 		}
 
-		/// <summary>Raises <see cref="IWindow.Created"/> and <see cref="IWindow.Activated"/>.</summary>
+		/// <summary>Raises <see cref="IWindow.Created"/>.</summary>
+		/// <remarks>
+		/// <see cref="IWindow.Activated"/> is deliberately NOT raised here. Tizen always delivers
+		/// <c>OnResume</c> after <c>OnCreate</c>, and MAUI's contract on every other platform is
+		/// <c>Created</c> &#8594; <c>Resumed</c> &#8594; <c>Activated</c>. Activating from here
+		/// would both break that order and make the first activation unpaired with a later
+		/// <c>Resumed</c>.
+		/// </remarks>
 		public void OnCreate()
 		{
 			var window = GetCurrentWindow();
 			if (window is null)
 				return;
 
-			if (!_created)
-			{
-				window.Created();
-				_created = true;
-			}
+			if (_created)
+				return;
 
-			Activate(window);
+			window.Created();
+			_created = true;
 		}
 
 		/// <summary>Raises <see cref="IWindow.Resumed"/> and <see cref="IWindow.Activated"/>.</summary>

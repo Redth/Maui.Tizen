@@ -69,6 +69,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			{
 				[nameof(IView.InvalidateMeasure)] = MapInvalidateMeasure,
 				[nameof(IView.Frame)] = MapFrameCommand,
+				[nameof(IView.ZIndex)] = MapZIndex,
 				[nameof(IView.Focus)] = MapFocus,
 				[nameof(IView.Unfocus)] = MapUnfocus,
 			};
@@ -334,6 +335,33 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		static void MapFrameCommand(IViewHandler handler, IView view, object? args) =>
 			UpdateTransformation(handler, view);
+
+		/// <summary>
+		/// Maps the <see cref="IView.ZIndex"/> command by asking the parent layout to re-order the
+		/// child.
+		/// </summary>
+		/// <remarks>
+		/// This is raised on the CHILD's handler - MAUI Controls does
+		/// <c>view.Handler?.Invoke(nameof(IView.ZIndex))</c> when the property changes - and must be
+		/// forwarded to the parent, because only the parent can re-order its children. The argument
+		/// passed on is the <see cref="IView"/> itself, matching MAUI's
+		/// <c>ViewHandler.MapZIndex</c>; the parent's <c>UpdateZIndex</c> mapper therefore has to
+		/// accept an <see cref="IView"/>, not a <c>LayoutHandlerUpdate</c>.
+		/// <para>
+		/// Without this entry the whole chain is dead: setting <c>ZIndex</c> at runtime resolves no
+		/// command at all and the visual order silently never changes.
+		/// </para>
+		/// </remarks>
+		/// <param name="handler">The child's handler.</param>
+		/// <param name="view">The child view.</param>
+		/// <param name="args">Unused.</param>
+		public static void MapZIndex(IViewHandler handler, IView view, object? args)
+		{
+			Applied(handler, nameof(IView.ZIndex));
+
+			if (view.Parent is ILayout layout)
+				layout.Handler?.Invoke(nameof(ITizenLayoutHandler.UpdateZIndex), view);
+		}
 
 		static void MapInvalidateMeasure(IViewHandler handler, IView view, object? args)
 		{

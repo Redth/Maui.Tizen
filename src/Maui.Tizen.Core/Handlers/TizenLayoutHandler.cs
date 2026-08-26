@@ -283,8 +283,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		static void MapUpdateZIndex(ITizenLayoutHandler handler, ILayout layout, object? arg)
 		{
-			if (arg is LayoutHandlerUpdate args)
-				handler.UpdateZIndex(args.View);
+			// The argument is the child IView itself, NOT a LayoutHandlerUpdate: both MAUI's
+			// ViewHandler.MapZIndex and this backend's TizenViewMappers.MapZIndex forward the view
+			// directly. Matching MAUI's own MapUpdateZIndex, which does `if (arg is IView view)`.
+			if (arg is IView view)
+				handler.UpdateZIndex(view);
 		}
 
 		/// <inheritdoc />
