@@ -104,7 +104,7 @@ public static class TizenDeviceEnvironment
     {
         try
         {
-            return Window.Instance;
+            return Window.Default;
         }
         catch (InvalidOperationException)
         {

@@ -58,7 +58,7 @@ public sealed class TizenNativeInput(TizenAgentEnvironment environment)
 
         return MainThread.InvokeOnMainThreadAsync(() =>
         {
-            var window = Window.Instance;
+            var window = Window.Default;
             if (window is null)
                 return "No NUI window is attached.";
 

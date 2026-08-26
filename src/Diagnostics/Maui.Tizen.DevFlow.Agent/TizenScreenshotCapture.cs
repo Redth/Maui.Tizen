@@ -66,8 +66,13 @@ public sealed class TizenScreenshotCapture : IDisposable
 
     bool CanCapture => !_disposed && _environment is { HasWindow: true, SupportsCapture: true };
 
+    /// <remarks>
+    /// Multi-window is not addressed yet: NUI exposes no index-based lookup, so every index
+    /// resolves to the default window. Returning it for a non-zero index would silently capture
+    /// the wrong surface, so that case is rejected instead.
+    /// </remarks>
     static Window? ResolveWindow(int? windowIndex) =>
-        windowIndex is null or 0 ? Window.Instance : Window.Instance;
+        windowIndex is null or 0 ? Window.Default : null;
 
     async Task<byte[]?> CaptureAsync(View source, Size2D size)
     {
