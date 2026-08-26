@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
 using Xunit;
@@ -22,9 +23,9 @@ public class TizenGestureDispatcherTests
 	[InlineData(TizenGestureKind.Pan, true)]
 	[InlineData(TizenGestureKind.Pinch, true)]
 	[InlineData(TizenGestureKind.Swipe, true)]
-	[InlineData(TizenGestureKind.Tap, false)]
+	[InlineData(TizenGestureKind.Tap, true)]
+	[InlineData(TizenGestureKind.Pointer, true)]
 	[InlineData(TizenGestureKind.LongPress, false)]
-	[InlineData(TizenGestureKind.Pointer, false)]
 	public void SupportMatrixMatchesWhatMauiExposesPublicly(TizenGestureKind kind, bool expected)
 	{
 		var dispatcher = new TizenGestureDispatcher();
@@ -124,25 +125,94 @@ public class TizenGestureDispatcherTests
 		Assert.False(raised);
 	}
 
-	// The following gestures are detected by the Tizen backend but cannot currently be raised.
-	// .NET MAUI keeps TapGestureRecognizer.SendTapped, LongPressGestureRecognizer.SendLongPressing
-	// / SendLongPressed and the PointerGestureRecognizer send members internal, and only exposes
-	// controller interfaces for pan, pinch and swipe. These tests pin that reality so the day the
-	// upstream API lands they fail loudly and the dispatcher can be completed.
+	// Tap and pointer became dispatchable in MAUI 11.0.0-preview.7.26426.4 via
+	// dotnet/maui#37420 and #37671. These tests use real recognizers, so they prove the public
+	// path actually delivers events rather than just that it compiles.
 
 	[Fact]
-	public void TapCannotBeRaisedBecauseMauiKeepsTheApiInternal()
+	public void TapIsDeliveredThroughThePublicSendTapped()
 	{
 		var dispatcher = new TizenGestureDispatcher();
 		var recognizer = new TapGestureRecognizer();
-		var raised = false;
-		recognizer.Tapped += (_, _) => raised = true;
+		var raised = 0;
+		recognizer.Tapped += (_, _) => raised++;
 
-		dispatcher.SendTapped(recognizer, View, Point.Zero);
+		dispatcher.SendTapped(recognizer, View, new Point(12, 34));
 
-		Assert.False(raised);
-		Assert.False(dispatcher.IsSupported(TizenGestureKind.Tap));
+		Assert.Equal(1, raised);
 	}
+
+	[Fact]
+	public void TapReportsThePositionRelativeToItsOwnView()
+	{
+		var dispatcher = new TizenGestureDispatcher();
+		var recognizer = new TapGestureRecognizer();
+		TappedEventArgs? args = null;
+		recognizer.Tapped += (_, e) => args = e;
+
+		dispatcher.SendTapped(recognizer, View, new Point(12, 34));
+
+		Assert.NotNull(args);
+		Assert.Equal(new Point(12, 34), args!.GetPosition(View));
+		Assert.Equal(new Point(12, 34), args.GetPosition(null));
+	}
+
+	[Fact]
+	public void TapReportsAnUnknownPositionForAnUnrelatedElement()
+	{
+		var dispatcher = new TizenGestureDispatcher();
+		var recognizer = new TapGestureRecognizer();
+		TappedEventArgs? args = null;
+		recognizer.Tapped += (_, e) => args = e;
+
+		dispatcher.SendTapped(recognizer, View, new Point(12, 34));
+
+		// Translating between two elements needs both on-screen origins, which the Tizen platform
+		// layer does not expose here. MAUI models "unknown" as null, which is honest; returning a
+		// view-local coordinate for a different element would be silently wrong.
+		Assert.Null(args!.GetPosition(new Label()));
+	}
+
+	[Theory]
+	[InlineData(TizenPointerAction.Entered)]
+	[InlineData(TizenPointerAction.Moved)]
+	[InlineData(TizenPointerAction.Pressed)]
+	[InlineData(TizenPointerAction.Released)]
+	[InlineData(TizenPointerAction.Exited)]
+	public void EveryPointerTransitionIsDeliveredThroughItsPublicSendMember(TizenPointerAction action)
+	{
+		var dispatcher = new TizenGestureDispatcher();
+		var recognizer = new PointerGestureRecognizer();
+		var fired = new List<string>();
+
+		recognizer.PointerEntered += (_, _) => fired.Add(nameof(TizenPointerAction.Entered));
+		recognizer.PointerMoved += (_, _) => fired.Add(nameof(TizenPointerAction.Moved));
+		recognizer.PointerPressed += (_, _) => fired.Add(nameof(TizenPointerAction.Pressed));
+		recognizer.PointerReleased += (_, _) => fired.Add(nameof(TizenPointerAction.Released));
+		recognizer.PointerExited += (_, _) => fired.Add(nameof(TizenPointerAction.Exited));
+
+		dispatcher.SendPointer(recognizer, View, action, new Point(5, 6));
+
+		Assert.Equal(action.ToString(), Assert.Single(fired));
+	}
+
+	[Fact]
+	public void PointerReportsThePositionRelativeToItsOwnView()
+	{
+		var dispatcher = new TizenGestureDispatcher();
+		var recognizer = new PointerGestureRecognizer();
+		PointerEventArgs? args = null;
+		recognizer.PointerMoved += (_, e) => args = e;
+
+		dispatcher.SendPointer(recognizer, View, TizenPointerAction.Moved, new Point(5, 6));
+
+		Assert.NotNull(args);
+		Assert.Equal(new Point(5, 6), args!.GetPosition(View));
+	}
+
+	// Long press is the ONE gesture this backend detects but cannot raise:
+	// LongPressGestureRecognizer.SendLongPressed and SendLongPressing are still internal in
+	// 11.0.0-preview.7.26426.4. This test pins that, and fails once they go public.
 
 	[Fact]
 	public void LongPressCannotBeRaisedBecauseMauiKeepsTheApiInternal()
@@ -161,24 +231,18 @@ public class TizenGestureDispatcherTests
 	}
 
 	[Fact]
-	public void PointerCannotBeRaisedBecauseMauiKeepsTheApiInternal()
+	public void LongPressSendMembersAreStillInternalUpstream()
 	{
-		var dispatcher = new TizenGestureDispatcher();
-		var recognizer = new PointerGestureRecognizer();
-		var raised = false;
-		recognizer.PointerEntered += (_, _) => raised = true;
-		recognizer.PointerMoved += (_, _) => raised = true;
-		recognizer.PointerPressed += (_, _) => raised = true;
-		recognizer.PointerReleased += (_, _) => raised = true;
-		recognizer.PointerExited += (_, _) => raised = true;
+		// The support matrix claims exactly two members are missing. Assert that rather than
+		// trusting the claim: when upstream makes them public this fails and points at the
+		// dispatcher, the matrix and the test above.
+		var type = typeof(LongPressGestureRecognizer);
 
-		foreach (var action in Enum.GetValues<TizenPointerAction>())
+		foreach (var name in new[] { "SendLongPressed", "SendLongPressing" })
 		{
-			dispatcher.SendPointer(recognizer, View, action, Point.Zero);
+			Assert.Null(type.GetMethod(name, BindingFlags.Public | BindingFlags.Instance));
+			Assert.NotNull(type.GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance));
 		}
-
-		Assert.False(raised);
-		Assert.False(dispatcher.IsSupported(TizenGestureKind.Pointer));
 	}
 
 	[Fact]
@@ -186,12 +250,12 @@ public class TizenGestureDispatcherTests
 	{
 		var dispatcher = new TizenGestureDispatcher();
 
-		// Detection must stay harmless: a view with a tap recognizer should behave exactly as if
-		// it had no gestures, not crash the application.
+		// Detection must stay harmless: a view with a long-press recognizer should behave exactly
+		// as if it had no gestures, not crash the application.
 		var exception = Record.Exception(() =>
 		{
-			dispatcher.SendTapped(new TapGestureRecognizer(), View, Point.Zero);
-			dispatcher.SendTapped(new TapGestureRecognizer(), View, Point.Zero);
+			dispatcher.SendLongPress(new LongPressGestureRecognizer(), View, TizenGestureState.Started, Point.Zero);
+			dispatcher.SendLongPress(new LongPressGestureRecognizer(), View, TizenGestureState.Started, Point.Zero);
 		});
 
 		Assert.Null(exception);

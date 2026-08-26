@@ -11,18 +11,19 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// <remarks>
 	/// <para>
 	/// This is the single seam between the Tizen gesture pipeline and .NET MAUI's gesture
-	/// recognizers. It exists because .NET MAUI only exposes a subset of its gesture dispatch
-	/// surface publicly: <see cref="IPanGestureController"/>, <see cref="IPinchGestureController"/>
-	/// and <see cref="ISwipeGestureController"/> are public, but the members used to raise tap,
-	/// long-press, pointer, drag and drop events are internal to
-	/// <c>Microsoft.Maui.Controls</c>.
+	/// recognizers. Tap, pan, pinch, swipe and pointer are all dispatched through public
+	/// .NET MAUI API: <see cref="IPanGestureController"/>, <see cref="IPinchGestureController"/>
+	/// and <see cref="ISwipeGestureController"/>, plus
+	/// <see cref="TapGestureRecognizer.SendTapped"/> and the
+	/// <see cref="PointerGestureRecognizer"/> send members that became public in
+	/// dotnet/maui#37420 and #37671.
 	/// </para>
 	/// <para>
-	/// An out-of-tree backend therefore cannot raise those gestures without private reflection,
-	/// which this repository does not do. Isolating dispatch behind this interface means the
-	/// detection pipeline is complete and tested today, and closing the upstream gap is a change
-	/// to one implementation rather than to every handler. See
-	/// <c>docs/tizen-gesture-support-matrix.md</c>.
+	/// Long press is the one exception: <c>SendLongPressed</c> and <c>SendLongPressing</c> remain
+	/// internal to <c>Microsoft.Maui.Controls</c>, and this repository does not use private
+	/// reflection. Isolating dispatch behind this interface means the detection pipeline is
+	/// complete and tested today, and closing that last gap is a change to one implementation
+	/// rather than to every handler. See <c>docs/tizen-gesture-support-matrix.md</c>.
 	/// </para>
 	/// </remarks>
 	public interface ITizenGestureDispatcher
@@ -93,8 +94,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 	{
 		internal const string UnsupportedGestureMessage =
 			"The Tizen backend detected a {0} gesture but .NET MAUI does not expose a public API to raise it. " +
-			"Pan, pinch and swipe are dispatched through IPanGestureController, IPinchGestureController and " +
-			"ISwipeGestureController; tap, long-press, pointer, drag and drop have no public equivalent. " +
+			"LongPressGestureRecognizer.SendLongPressed and SendLongPressing are still internal in " +
+			"Microsoft.Maui.Controls; every other gesture this backend detects is dispatched through public API. " +
 			"See docs/tizen-gesture-support-matrix.md.";
 
 		readonly ILogger<TizenGestureDispatcher>? _logger;
@@ -112,13 +113,19 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <inheritdoc/>
 		public bool IsSupported(TizenGestureKind kind) => kind switch
 		{
-			TizenGestureKind.Pan or TizenGestureKind.Pinch or TizenGestureKind.Swipe => true,
-			_ => false,
+			// Long press is the only gesture this backend can detect but cannot raise:
+			// SendLongPressed / SendLongPressing remain internal to Microsoft.Maui.Controls.
+			TizenGestureKind.LongPress => false,
+			_ => true,
 		};
 
 		/// <inheritdoc/>
-		public void SendTapped(TapGestureRecognizer recognizer, View view, Point position) =>
-			ReportUnsupported(TizenGestureKind.Tap);
+		public void SendTapped(TapGestureRecognizer recognizer, View view, Point position)
+		{
+			ArgumentNullException.ThrowIfNull(recognizer);
+
+			recognizer.SendTapped(view, relativeTo => ResolvePosition(relativeTo, view, position));
+		}
 
 		/// <inheritdoc/>
 		public void SendPan(PanGestureRecognizer recognizer, View view, TizenGestureState state, double totalX, double totalY, int gestureId)
@@ -187,12 +194,61 @@ namespace Microsoft.Maui.Platforms.Tizen
 		}
 
 		/// <inheritdoc/>
+		/// <remarks>
+		/// Long press is the one gesture the Tizen backend detects but cannot raise.
+		/// <c>LongPressGestureRecognizer.SendLongPressed</c> and <c>SendLongPressing</c> are still
+		/// internal to <c>Microsoft.Maui.Controls</c> as of 11.0.0-preview.7.26426.4, and this
+		/// repository does not use private reflection. Detection is wired up so behaviour is
+		/// identical the moment those members become public.
+		/// </remarks>
 		public void SendLongPress(LongPressGestureRecognizer recognizer, View view, TizenGestureState state, Point position) =>
 			ReportUnsupported(TizenGestureKind.LongPress);
 
 		/// <inheritdoc/>
-		public void SendPointer(PointerGestureRecognizer recognizer, View view, TizenPointerAction action, Point position) =>
-			ReportUnsupported(TizenGestureKind.Pointer);
+		public void SendPointer(PointerGestureRecognizer recognizer, View view, TizenPointerAction action, Point position)
+		{
+			ArgumentNullException.ThrowIfNull(recognizer);
+
+			Func<IElement?, Point?> getPosition = relativeTo => ResolvePosition(relativeTo, view, position);
+
+			switch (action)
+			{
+				case TizenPointerAction.Entered:
+					recognizer.SendPointerEntered(view, getPosition);
+					break;
+				case TizenPointerAction.Moved:
+					recognizer.SendPointerMoved(view, getPosition);
+					break;
+				case TizenPointerAction.Pressed:
+					recognizer.SendPointerPressed(view, getPosition);
+					break;
+				case TizenPointerAction.Released:
+					recognizer.SendPointerReleased(view, getPosition);
+					break;
+				case TizenPointerAction.Exited:
+					recognizer.SendPointerExited(view, getPosition);
+					break;
+			}
+		}
+
+		/// <summary>
+		/// Resolves the gesture position relative to <paramref name="relativeTo"/>.
+		/// </summary>
+		/// <remarks>
+		/// .NET MAUI asks for the position relative to an arbitrary element and accepts
+		/// <see langword="null"/> for "cannot be determined". The Tizen detectors report a position
+		/// local to the view the gesture occurred on, so that value is correct for the view itself
+		/// and for the <see langword="null"/> (view-relative) request.
+		/// <para>
+		/// For any other element <see langword="null"/> is returned rather than a guess. Translating
+		/// between two elements needs both of their on-screen origins, which requires a native call
+		/// per element that the Tizen platform layer does not expose to this assembly. Returning a
+		/// wrong coordinate would be worse than reporting that it is unknown, which .NET MAUI
+		/// already models.
+		/// </para>
+		/// </remarks>
+		static Point? ResolvePosition(IElement? relativeTo, View view, Point position) =>
+			relativeTo is null || ReferenceEquals(relativeTo, view) ? position : null;
 
 		void ReportUnsupported(TizenGestureKind kind)
 		{

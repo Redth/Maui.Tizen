@@ -57,10 +57,11 @@
       "note": "This is the ONLY ref that still carries src/Compatibility Tizen sources (70 files). They were deleted upstream on net11.0, so a net11.0-only baseline loses them silently."
     },
     "developmentPackageBaseline": {
-      "version": "11.0.0-preview.7.26418.3",
+      "version": "11.0.0-preview.7.26426.4",
       "feed": "https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet11/nuget/v3/index.json",
-      "nuspecRepositoryCommit": "0b3bb76d2dd68d76b7c1302f43a76270d5949564",
-      "role": "First coherent public-feed MAUI package set for net11. Used when building against published MAUI packages rather than source."
+      "nuspecRepositoryCommit": "bedd1b18b7682193e05b47267509cec8c49c6853",
+      "role": "Public-feed MAUI package set for net11. Used when building against published MAUI packages rather than source.",
+      "note": "Moved from 11.0.0-preview.7.26418.3 (nuspec commit 0b3bb76d2d) to pick up the public gesture dispatch APIs from dotnet/maui#37420 and #37671. 26418.3 predates both merges, so TapGestureRecognizer.SendTapped and the PointerGestureRecognizer send members are internal there. LongPressGestureRecognizer.SendLongPressed/SendLongPressing remain internal even in 26426.4."
     },
     "provenancePullRequests": [
       { "number": 2360, "title": "Adds Tizen backend", "upstreamCommit": "438aef2e5d" },

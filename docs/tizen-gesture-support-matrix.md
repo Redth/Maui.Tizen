@@ -15,67 +15,88 @@ out-of-tree backend: it uses only public .NET MAUI API and does not use `Dispatc
 
 ## Summary
 
+Measured against **MAUI 11.0.0-preview.7.26426.4**, which contains
+[dotnet/maui#37420](https://github.com/dotnet/maui/pull/37420) and
+[#37671](https://github.com/dotnet/maui/pull/37671).
+
 | Recognizer | Detection (NUI) | Dispatch (public MAUI API) | End to end |
 |---|---|---|---|
 | `PanGestureRecognizer` | `PanGestureDetector` | `IPanGestureController` | ✅ Works |
 | `PinchGestureRecognizer` | `PinchGestureDetector` | `IPinchGestureController` | ✅ Works |
 | `SwipeGestureRecognizer` | `PanGestureDetector` | `ISwipeGestureController` | ✅ Works |
-| `TapGestureRecognizer` | `TapGestureDetector` | ❌ `SendTapped` is internal | ⚠️ Blocked on MAUI |
-| `LongPressGestureRecognizer` | `LongPressGestureDetector` | ❌ `SendLongPressing` / `SendLongPressed` are internal | ⚠️ Blocked on MAUI |
-| `PointerGestureRecognizer` | `View.TouchEvent` + `View.HoverEvent` | ❌ all send members internal | ⚠️ Blocked on MAUI |
-| `DragGestureRecognizer` | ❌ no view-level NUI equivalent | ❌ `SendDragStarting` is internal | ❌ Not supported |
-| `DropGestureRecognizer` | ❌ no view-level NUI equivalent | ⚠️ only `SendDragOver` is public | ❌ Not supported |
+| `TapGestureRecognizer` | `TapGestureDetector` | `SendTapped` | ✅ Works |
+| `PointerGestureRecognizer` | `View.TouchEvent` + `View.HoverEvent` | `SendPointerEntered` / `Exited` / `Moved` / `Pressed` / `Released` | ✅ Works |
+| `LongPressGestureRecognizer` | `LongPressGestureDetector` | ❌ `SendLongPressed` / `SendLongPressing` still internal | ⚠️ Blocked on MAUI |
+| `DragGestureRecognizer` | ❌ no view-level NUI equivalent | `SendDragStarting` / `SendDropCompleted` | ❌ Not supported (detection) |
+| `DropGestureRecognizer` | ❌ no view-level NUI equivalent | `SendDragOver` / `SendDragLeave` / `SendDrop` | ❌ Not supported (detection) |
 
 Legend: ✅ works today · ⚠️ implemented and tested up to the blocking seam · ❌ not supported.
 
+Note the change in *why* drag and drop are unsupported. Their dispatch members are public as of
+26426.4; what is missing is detection. See [Drag and drop](#drag-and-drop).
+
 ---
 
-## The dispatch gap
+## The remaining dispatch gap
 
-.NET MAUI 11 exposes exactly three public gesture controller interfaces:
+Most of this gap has closed. MAUI 11.0.0-preview.7.26426.4 makes the tap, pointer and
+drag/drop dispatch members public, on top of the three controller interfaces that were
+already public:
 
 ```text
-Microsoft.Maui.Controls.IPanGestureController
-Microsoft.Maui.Controls.IPinchGestureController
-Microsoft.Maui.Controls.ISwipeGestureController
+Microsoft.Maui.Controls.IPanGestureController            (already public)
+Microsoft.Maui.Controls.IPinchGestureController          (already public)
+Microsoft.Maui.Controls.ISwipeGestureController          (already public)
+TapGestureRecognizer.SendTapped                          (new in #37420 / #37671)
+PointerGestureRecognizer.SendPointerEntered/Exited/…     (new in #37420 / #37671)
+DragGestureRecognizer.SendDragStarting/SendDropCompleted (new in #37420 / #37671)
+DropGestureRecognizer.SendDragOver/SendDragLeave/SendDrop(new in #37420 / #37671)
 ```
 
-There is no `ITapGestureController`, no `ILongPressGestureController`, and no pointer
-equivalent. `TapGestureRecognizer`, `LongPressGestureRecognizer` and
-`PointerGestureRecognizer` expose no public `Send*` members at all — verified by reflecting
-over the shipped `Microsoft.Maui.Controls` assembly, not by reading source.
+**Exactly two members are still internal**, and they are the only reason any ⚠️ row remains:
 
-This is a **true public API gap**, not a limitation of Tizen. The same gap blocks any
-out-of-tree backend from supporting these gestures.
+```text
+LongPressGestureRecognizer.SendLongPressed(View sender, Func<IElement?, Point?> getPosition)
+LongPressGestureRecognizer.SendLongPressing(View sender, GestureStatus status, Func<IElement?, Point?> getPosition)
+```
+
+Both were verified by reflecting over the shipped 26426.4 assembly, not by reading source:
+they are absent from `BindingFlags.Public` and present under `BindingFlags.NonPublic`. There is
+no `ILongPressGestureController` either. `TizenGestureDispatcherTests` in this repository
+asserts precisely that, so the claim cannot silently rot.
 
 ### How it is handled here
 
-Detection is implemented in full. Dispatch goes through one seam,
+Detection is implemented in full for every gesture. Dispatch goes through one seam,
 `ITizenGestureDispatcher`:
 
-- `TizenGestureDispatcher` raises pan, pinch and swipe through the public controllers.
-- For tap, long press and pointer it logs once per gesture kind and returns. It never
-  throws, so a view carrying a `TapGestureRecognizer` behaves exactly as if it had no
-  gesture rather than crashing.
+- `TizenGestureDispatcher` raises pan, pinch and swipe through the public controllers, and tap
+  and pointer through their public send members.
+- For long press it logs once and returns. It never throws, so a view carrying a
+  `LongPressGestureRecognizer` behaves exactly as if it had no gesture rather than crashing.
 - `ITizenGestureDispatcher.IsSupported(TizenGestureKind)` reports the matrix above.
 
-`TizenGestureDispatcherTests` pins this reality: `TapCannotBeRaisedBecauseMauiKeepsTheApiInternal`
-and its siblings assert that the recognizer's event does **not** fire. When the upstream
-API lands, those tests fail loudly and the only change needed is to complete
-`TizenGestureDispatcher` — no handler, detector or lifecycle code has to move.
+`LongPressCannotBeRaisedBecauseMauiKeepsTheApiInternal` asserts the recognizer's events do
+**not** fire, and `LongPressSendMembersAreStillInternalUpstream` asserts the two members are
+still non-public. Both fail once upstream opens the API, and the only change needed is to
+complete `TizenGestureDispatcher` — no handler, detector or lifecycle code has to move.
 
-### What upstream needs to change
+### Position resolution
 
-Any one of these would unblock the ⚠️ rows:
+The new tap and pointer members take a `Func<IElement?, Point?> getPosition` rather than a
+plain point, so MAUI can ask for the position relative to an arbitrary element.
 
-1. Make the existing `SendTapped` / `SendLongPressing` / `SendLongPressed` and pointer send
-   members public, mirroring what was already done for pan, pinch and swipe; or
-2. add `ITapGestureController`, `ILongPressGestureController` and `IPointerGestureController`
-   public interfaces alongside the existing three.
+The Tizen detectors report a position local to the view the gesture occurred on. That value is
+returned for the view itself and for the `null` (view-relative) request. For any *other* element
+the resolver returns `null`, which is how MAUI models "cannot be determined": translating between
+two elements needs both on-screen origins, which requires a native call per element that the
+Tizen platform layer does not expose to this assembly. Returning a plausible-looking but wrong
+coordinate would be worse, so it is not done.
 
-Option 2 is more consistent with how pan, pinch and swipe are already exposed, and was the
-shape used by [dotnet/maui#36655](https://github.com/dotnet/maui/pull/36655) when it made
-`IGesturePlatformManager` and `IGesturePlatformManagerFactory` public.
+### What upstream still needs to change
+
+Making `SendLongPressed` and `SendLongPressing` public — exactly as #37420 did for tap and
+pointer — is sufficient. No new interface is required.
 
 ---
 
@@ -108,9 +129,9 @@ the origin rather than producing `NaN`.
 
 ### Tap
 
-`TapGestureGesture.NumberOfTaps` is compared against
-`TapGestureRecognizer.NumberOfTapsRequired` and non-matching counts are ignored, matching
-the original backend. Dispatch is blocked (see above).
+`TapGesture.NumberOfTaps` is compared against `TapGestureRecognizer.NumberOfTapsRequired` and
+non-matching counts are ignored, matching the original backend. Dispatched through the public
+`SendTapped`.
 
 ### Long press
 
@@ -142,7 +163,12 @@ mapping `PointStateType` onto pointer transitions:
 | Hover | `Motion` | `Moved` |
 | Hover | `Finished`, `Leave` | `Exited` |
 
-Events are never consumed, so the view's own handlers still run. Dispatch is blocked.
+Events are never consumed, so the view's own handlers still run. Each transition is dispatched
+through its matching public send member.
+
+`PlatformPointerEventArgs` is left `null` and `ButtonsMask` at its default. Both parameters are
+optional; NUI reports neither a platform-native pointer event object nor a button mask for touch
+and hover, so supplying a fabricated value would be misleading.
 
 ### Drag and drop
 
@@ -152,8 +178,9 @@ Not supported, for two reasons:
   explicit `Tizen.NUI.DragAndDrop` session started by the application. It does not map onto
   .NET MAUI's per-view `DragGestureRecognizer` / `DropGestureRecognizer` semantics, which
   expect the platform to originate a drag from a view based on its recognizer configuration.
-- **Dispatch.** `DropGestureRecognizer` only exposes `SendDragOver` publicly. The members
-  needed to complete a drop, and everything needed to start a drag, are internal.
+- **Dispatch.** No longer the blocker: `SendDragStarting`, `SendDropCompleted`, `SendDragOver`,
+  `SendDragLeave` and `SendDrop` are all public as of 26426.4. Drag and drop remain unsupported
+  purely because there is nothing on the Tizen side to drive them.
 
 `TizenGestureHandlerFactory` returns `null` for both recognizer types, so they are skipped
 rather than throwing. `DragAndDropRecognizersAreNotSupported` covers this.
@@ -166,14 +193,15 @@ The gesture stack is NUI-based and profile-independent: `TapGestureDetector`,
 `PanGestureDetector`, `PinchGestureDetector` and `LongPressGestureDetector` are part of core
 TizenFX and are present on every profile.
 
-| Profile | Pan | Pinch | Swipe | Tap (det.) | Long press (det.) | Pointer (det.) | Drag/drop |
+| Profile | Pan | Pinch | Swipe | Tap | Pointer | Long press (det.) | Drag/drop |
 |---|---|---|---|---|---|---|---|
 | Mobile | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Wearable | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ❌ |
-| TV | ✅ | ❌ | ✅ | ✅ | ✅ | ⚠️ | ❌ |
-| IoT / headed | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ❌ |
+| Wearable | ✅ | ⚠️ | ✅ | ✅ | ⚠️ | ✅ | ❌ |
+| TV | ✅ | ❌ | ✅ | ✅ | ⚠️ | ✅ | ❌ |
+| IoT / headed | ✅ | ⚠️ | ✅ | ✅ | ⚠️ | ✅ | ❌ |
 
-"det." means detection only; dispatch is still gated on the MAUI API gap above.
+Long press is marked "det." because detection works on every profile but dispatch is still gated
+on the two internal members above. Every other ✅ is end to end.
 
 Profile caveats:
 
@@ -200,7 +228,7 @@ factory can therefore refine this table without changing any other code.
 |---|---|
 | Gesture translation (totals, scaling, gesture identity, tap counts, pointer mapping) | `tests/Controls.UnitTests/TizenGestureTranslationTests.cs` |
 | Manager and detector lifecycle (attach, detach, enable, dispose, collection changes) | `tests/Controls.UnitTests/TizenGesturePlatformManagerTests.cs` |
-| Dispatch through real MAUI recognizers, and the blocked gestures | `tests/Controls.UnitTests/TizenGestureDispatcherTests.cs` |
+| Dispatch through real MAUI recognizers, position resolution, and the one blocked gesture | `tests/Controls.UnitTests/TizenGestureDispatcherTests.cs` |
 | DI registration and lifetimes | `tests/Controls.UnitTests/TizenServiceRegistrationTests.cs` |
 | NUI adapters under `Core/Platform/Nui` | Type-checked against `Samsung.Tizen.Ref.API15` and `Tizen.UIExtensions.NUI` 0.9.2 by `tests/Maui.Tizen.Controls.RefPackCompile`; behaviour needs a device |
 
