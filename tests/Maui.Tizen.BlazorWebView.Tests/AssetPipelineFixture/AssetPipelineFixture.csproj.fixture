@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!--
+    Fixture for AssetPipelineTests. Renamed to .csproj at test time and built with a private
+    artifacts path, so it never participates in the repository build or the solution.
+
+    It is a plain net11.0 Razor app - deliberately NOT a Tizen or MAUI project - because the
+    conversion under test only needs the Razor SDK's StaticWebAssets. That keeps the test runnable
+    on a machine with no Samsung workload, which is the entire point.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>$(NoWarn);NETSDK1057</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Brings blazor.webview.js in as a StaticWebAsset from the package's staticwebassets/ folder. -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView" Version="__WEBVIEW_VERSION__" />
+  </ItemGroup>
+
+  <!-- The file under test. -->
+  <Import Project="__TARGETS_PROPS__" />
+  <Import Project="__TARGETS_FILE__" />
+
+</Project>

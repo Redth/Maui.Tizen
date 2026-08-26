@@ -39,6 +39,7 @@
     <Project Path="tests/Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj" />
     <Project Path="tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj" />
     <Project Path="tests/Maui.Tizen.BlazorWebView.Tests/Maui.Tizen.BlazorWebView.Tests.csproj" />
+    <Project Path="tests/Maui.Tizen.BlazorWebView.PublicApi/Maui.Tizen.BlazorWebView.PublicApi.csproj" />
     <Project Path="eng/tests/PackageGraphProbe/PackageGraphProbe.csproj" />
     <Project Path="eng/tests/PublicApiOptIn/PublicApiOptIn.csproj" />
     <Project Path="eng/tests/PackReadmeProbe/PackReadmeProbe.csproj" />

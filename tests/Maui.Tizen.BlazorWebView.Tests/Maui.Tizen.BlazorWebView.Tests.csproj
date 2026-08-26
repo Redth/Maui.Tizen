@@ -87,6 +87,8 @@
     <None Include="@(MauiTizenBlazorWebViewSampleContent)" LinkBase="Sample/wwwroot" CopyToOutputDirectory="PreserveNewest" />
 
     <Compile Include="*.cs" />
+    <!-- Fixture project + wwwroot for AssetPipelineTests; copied to temp and built by the test. -->
+    <None Include="AssetPipelineFixture/**/*" CopyToOutputDirectory="PreserveNewest" LinkBase="AssetPipelineFixture" />
   </ItemGroup>
 
   <ItemGroup Label="Build configuration under test">

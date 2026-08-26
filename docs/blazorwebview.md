@@ -109,6 +109,24 @@ Everything above the native boundary was ported as-is from `dotnet/maui` `net11.
   `StaticContentHotReloadManager.AttachToWebViewManagerIfEnabled`, which is `internal` to
   `Microsoft.AspNetCore.Components.WebView.Maui` and unreachable from a third-party handler. Component hot
   reload is unaffected; only hot reload of `wwwroot` assets is lost.
+- **Commands are mapped.** The handler supplies a `CommandMapper` chained to
+  `ViewHandler.ViewCommandMapper`, so focus, unfocus, invalidate-measure, frame and z-index commands
+  reach the platform view. A handler constructed with a null command mapper silently drops every
+  `IView.Invoke`.
+- **Connect and disconnect are symmetric.** Tizen exposes no way to remove a JavaScript message handler
+  or unregister the request-interception callback, so the handler installs the bridge at most once per
+  NUI WebView and restores the original user agent on disconnect. Without that, a
+  disconnect/reconnect cycle would deliver every JS message twice and append a second routing suffix to
+  the user agent.
+- **Routing keys are unique.** The key that routes an intercepted request back to its owning handler
+  comes from a monotonic counter, not `GetHashCode` — two live handlers can share a hash code, which
+  would serve one BlazorWebView's content into another. Key parsing reads only the key, so another
+  component appending to the user agent cannot break routing.
+- **`WebResourceRequested` is not raised.** `IBlazorWebView` inherits it from
+  `IWebRequestInterceptingWebView`, but `WebResourceRequestedEventArgs` has only `internal` constructors
+  and no Tizen shape, so a third-party backend cannot construct the argument. Static content is still
+  fully served through the Tizen interception path; only the public notification is unavailable.
+  `WebResourceRequestedTests` pins this and fails if MAUI ever makes the type constructible.
 - **Disposal is now explicit.** `DisconnectHandler` disposes the `TizenWebViewManager` (fire-and-forget by
   default, blocking when the `BlazorWebView.UseBlockingDisposal` `AppContext` switch is set), unsubscribes
   the root-component collection, drops the handler from the routing table and clears the response cache.
@@ -153,6 +171,43 @@ The package cannot be published yet for a reason that has nothing to do with Bla
 reflection or `InternalsVisibleTo`, so this package depends only on public MAUI API.
 
 ## Building and testing
+
+### Static assets
+
+A Blazor Hybrid app's `wwwroot` — and the framework's own `_framework/blazor.webview.js` — reach the app
+as `StaticWebAsset` items. Something has to turn those into `MauiAsset` items before the Tizen resource
+pipeline can package them into `res/`.
+
+Upstream does that in `Microsoft.AspNetCore.Components.WebView.Maui`'s
+`ConvertStaticWebAssetsToMauiAssets` target — but that package ships it in **`build/` only, with no
+`buildTransitive/`**. NuGet does not flow `build/` past a direct reference, so an app that acquires the
+MAUI Blazor package transitively (exactly what referencing `Maui.Tizen.BlazorWebView` does) never gets it.
+The build succeeds and the app 404s on every asset, including `blazor.webview.js`, so Blazor never starts.
+
+`Maui.Tizen.BlazorWebView` therefore carries the conversion itself, in `buildTransitive/` so it actually
+flows. **Apps need no asset wiring of their own** — in particular, copying `wwwroot` to the output
+directory does nothing, because `TizenAssetFileProvider` reads from the application's *resource*
+directory, and it could never have covered `blazor.webview.js`, which is not in the project at all.
+
+The full chain, and who owns each hop:
+
+| Hop | Owner |
+| --- | --- |
+| `StaticWebAsset` → `MauiAsset` (with `Link` / `TargetPath`) | **this package**, `buildTransitive/Maui.Tizen.BlazorWebView.targets` |
+| `MauiAsset` → `MauiProcessedAsset` | Resizetizer (`ProcessMauiAssets`) |
+| `MauiProcessedAsset` → `TizenResource` (`TizenTpkFileName` from `%(Link)`) | `Maui.Tizen.Build.Tasks` |
+
+`Link` is populated because `MauiTizenProcessAssets` derives `TizenTpkFileName` from it. The `wwwroot`
+path prefix is load-bearing: it is the `contentRootDir` the handler derives from `BlazorWebView.HostPage`,
+so `HostPage = "wwwroot/index.html"` requires `res/wwwroot/index.html` on device.
+
+The conversion is idempotent — an app that *also* references the MAUI Blazor package directly gets the
+upstream conversion as well, and duplicate `MauiAsset` entries would produce duplicate resources. Set
+`TizenBlazorWebViewConvertStaticWebAssets=false` to opt out entirely.
+
+`AssetPipelineTests` runs MSBuild against a real Razor project and asserts that `index.html`, a nested
+app asset and `_framework/blazor.webview.js` all arrive as `MauiAsset` with the right `TargetPath`, with
+no duplicates and no `.gz`/`.br` variants.
 
 ### The Tizen workload gate
 
@@ -206,6 +261,23 @@ What cannot be covered without a device or emulator: creating a real `Tizen.NUI.
 `WebContext.RegisterHttpRequestInterceptedCallback`, `LoadUrl`, `EvaluateJavaScript` and the JavaScript
 bridge round trip. Those cross into native Tizen libraries.
 
+## Public API baseline
+
+The package's baseline lives in `src/Maui.Tizen.BlazorWebView/PublicAPI/` and describes **the assembly
+this package actually emits** — the handler, the web view manager and the registration extensions.
+
+The `net-tizen` baseline that came across with the raw dotnet/maui import describes
+`Microsoft.AspNetCore.Components.WebView.Maui` instead: types this package deliberately does not define.
+Leaving it attached would have had the analyzer demand members the assembly never declares while ignoring
+every member it does. It is kept for provenance under `Tizen/PublicAPI/`, alongside the rest of the raw
+import, where the `PublicAPI/**` glob in `eng/targets/TizenPackage.props` does not pick it up.
+
+Because the shipping project is workload-gated, the analyzer it references never actually runs.
+`tests/Maui.Tizen.BlazorWebView.PublicApi` compiles the same sources on a plain `net11.0` host with
+`RS0016`/`RS0017` and friends escalated to errors, so adding, removing or changing a public member fails
+the build until the baseline is updated. It consumes the core backend as a compiled reference rather than
+as sources, so it validates the BlazorWebView surface only.
+
 ## Upstream API assumptions
 
 This package assumes the following about the MAUI core it builds against. All hold in the pinned
@@ -249,6 +321,12 @@ Known gaps worth raising upstream:
   reload.
 - `RootComponent.AddToWebViewManagerAsync` / `RemoveFromWebViewManagerAsync` are `internal`; their
   validation logic has to be duplicated by every third-party backend.
+- `WebResourceRequestedEventArgs` has only `internal` constructors and a per-platform shape with no
+  extensibility point, so a third-party backend cannot raise
+  `IWebRequestInterceptingWebView.WebResourceRequested` at all.
+- `Microsoft.AspNetCore.Components.WebView.Maui` ships `ConvertStaticWebAssetsToMauiAssets` in `build/`
+  rather than `buildTransitive/`, so it does not reach transitive consumers. Moving it would let this
+  package drop its own copy of the conversion.
 
 All three are being tracked on an upstream net11 lane. When they land, the duplicated helpers under
 `Internal/` and `StaticContent/` can collapse back onto the shared implementations, and

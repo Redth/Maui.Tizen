@@ -1,0 +1,83 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Public API enforcement lane.
+
+    src/Maui.Tizen.BlazorWebView carries the PublicApiAnalyzers reference (via TizenPackage.props)
+    and a PublicAPI baseline, but it targets net11.0-tizen11.0 and is behind the Samsung workload
+    gate - so the analyzer never actually runs, and the baseline could drift arbitrarily far from
+    the emitted surface without anything noticing.
+
+    This project compiles exactly the same BlazorWebView sources against the same baseline on a
+    plain net11.0 host, with the analyzer treated as an error. It produces nothing shippable
+    (IsPackable=false, no reference assembly, never executed); it exists so that adding, removing
+    or changing a public member fails the build until the baseline is updated to match.
+
+    The core backend is consumed as a compiled reference rather than as sources, so this lane
+    validates the BlazorWebView surface only and does not need a baseline for Maui.Tizen.Core.
+  -->
+
+  <Import Project="$(RepositoryRoot)eng/Maui.props" />
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.BlazorWebView.Sources.props" />
+
+  <PropertyGroup>
+    <TargetFramework>$(DotNetTfm)</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+    <AssemblyName>Microsoft.Maui.Platforms.Tizen.BlazorWebView</AssemblyName>
+    <RootNamespace>Microsoft.Maui.Platforms.Tizen.BlazorWebView</RootNamespace>
+
+    <IsPackable>false</IsPackable>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>$(NoWarn);CS1591;NU1701</NoWarn>
+
+    <!-- The point of the lane: an undeclared or stale public member fails the build. -->
+    <WarningsAsErrors>$(WarningsAsErrors);RS0016;RS0017;RS0024;RS0025;RS0026;RS0027</WarningsAsErrors>
+
+    <DefineConstants>$(DefineConstants);TIZEN;PLATFORM</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="@(MauiTizenBlazorWebViewCompile)" LinkBase="BlazorWebView" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The baseline under enforcement: the package's own, NOT the imported upstream MAUI one. -->
+    <AdditionalFiles Include="$(MauiTizenBlazorWebViewDir)PublicAPI/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="$(MauiTizenBlazorWebViewDir)PublicAPI/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" />
+    <PackageReference Include="Microsoft.Maui.Core" />
+    <PackageReference Include="Microsoft.Maui.Graphics" />
+    <PackageDownload Include="$(TizenReferencePackId)" Version="[$(TizenReferencePackVersion)]" />
+    <PackageDownload Include="Tizen.UIExtensions.NUI" Version="[$(TizenUIExtensionsPackageVersion)]" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj" />
+  </ItemGroup>
+
+  <Target Name="_AddTizenReferenceAssemblies" BeforeTargets="ResolveAssemblyReferences">
+    <PropertyGroup>
+      <_TizenRefPackDir>$(NuGetPackageRoot)$(TizenReferencePackId.ToLowerInvariant())/$(TizenReferencePackVersion)/ref/net8.0/</_TizenRefPackDir>
+      <_TizenUIExtensionsDir>$(NuGetPackageRoot)tizen.uiextensions.nui/$(TizenUIExtensionsPackageVersion)/lib/tizen10.0/</_TizenUIExtensionsDir>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(_TizenRefPackDir)Tizen.NUI.dll')" Code="MAUITIZEN0102"
+           Text="Could not find Tizen.NUI.dll under '$(_TizenRefPackDir)'. Run 'dotnet restore' for this project first." />
+    <ItemGroup>
+      <Reference Include="$(_TizenRefPackDir)Tizen.NUI.dll" Private="false" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.NUI.Components.dll" Private="false" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.Applications.Common.dll" Private="false" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.Applications.UI.dll" Private="false" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.Log.dll" Private="false" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.dll" Private="false" />
+      <Reference Include="$(_TizenUIExtensionsDir)Tizen.UIExtensions.NUI.dll" Private="false" Condition="Exists('$(_TizenUIExtensionsDir)Tizen.UIExtensions.NUI.dll')" />
+      <Reference Include="$(_TizenUIExtensionsDir)Tizen.UIExtensions.Common.dll" Private="false" Condition="Exists('$(_TizenUIExtensionsDir)Tizen.UIExtensions.Common.dll')" />
+    </ItemGroup>
+  </Target>
+
+</Project>

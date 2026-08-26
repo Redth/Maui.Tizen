@@ -28,9 +28,21 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Served from the Tizen application resource directory; see TizenAssetFileProvider. -->
-    <None Include="wwwroot/**/*" CopyToOutputDirectory="PreserveNewest" />
     <None Include="tizen-manifest.xml" />
   </ItemGroup>
+
+  <!--
+    NOTE: wwwroot is deliberately NOT listed here.
+
+    An earlier revision carried <None Include="wwwroot/**/*" CopyToOutputDirectory="PreserveNewest" />,
+    which was actively misleading: copying files next to the assembly does nothing for a Tizen app,
+    because TizenAssetFileProvider reads from the application's resource directory, not the output
+    directory. It also could not have worked for _framework/blazor.webview.js, which is not in the
+    project at all - it arrives as a StaticWebAsset from Microsoft.AspNetCore.Components.WebView.
+
+    The real path is StaticWebAsset -> MauiAsset -> TizenResource. Maui.Tizen.BlazorWebView performs
+    the first hop from its buildTransitive/ targets, which is why this sample needs no asset wiring
+    of its own. See docs/blazorwebview.md and tests/Maui.Tizen.BlazorWebView.Tests/AssetPipelineTests.cs.
+  -->
 
 </Project>

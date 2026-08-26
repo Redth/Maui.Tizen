@@ -19,6 +19,16 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 		public static string BuildUserAgentSuffix(string handlerKey) => $" {HandlerKeyPrefix}{handlerKey}";
 
 		/// <summary>
+		/// Determines whether <paramref name="value"/> is a well-formed handler key.
+		/// </summary>
+		/// <remarks>
+		/// Keys are generated from a monotonic counter, so they are always non-empty ASCII digits.
+		/// Validating that here is what lets <see cref="TryGetHandlerKey"/> stop at the end of the key
+		/// instead of swallowing whatever follows it in the user agent.
+		/// </remarks>
+		private static bool IsKeyCharacter(char c) => c >= '0' && c <= '9';
+
+		/// <summary>
 		/// Extracts the owning handler key from the intercepted request headers.
 		/// </summary>
 		/// <returns><see langword="true"/> when the request originated from a tagged BlazorWebView.</returns>
@@ -37,13 +47,23 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 				return false;
 			}
 
-			var key = agent.Substring(index + HandlerKeyPrefix.Length);
-			if (key.Length == 0)
+			// Read only the key itself rather than the rest of the string. The suffix is appended to a
+			// user agent owned by the platform, and nothing prevents another component from appending
+			// after it; taking the remainder verbatim would produce a key that matches no entry in the
+			// routing table, and the request would be silently ignored instead of served.
+			var start = index + HandlerKeyPrefix.Length;
+			var end = start;
+			while (end < agent.Length && IsKeyCharacter(agent[end]))
+			{
+				end++;
+			}
+
+			if (end == start)
 			{
 				return false;
 			}
 
-			handlerKey = key;
+			handlerKey = agent.Substring(start, end - start);
 			return true;
 		}
 	}

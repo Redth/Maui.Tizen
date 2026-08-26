@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+
+  <!--
+    Imported by NuGet into any project that references Maui.Tizen.BlazorWebView, directly or
+    transitively. See the .targets alongside this file for why the package has to carry this at all.
+  -->
+
+  <PropertyGroup>
+    <!--
+      Mirrors Microsoft.AspNetCore.Components.WebView.Maui's build/*.props. Inner builds of a
+      multi-targeting project must not recompute static web assets; the outer build owns them.
+    -->
+    <StaticWebAssetsEnabled Condition=" '$(_OuterIntermediateOutputPath)' != '' ">false</StaticWebAssetsEnabled>
+
+    <!--
+      Opt-out hatch. Set to false if the app also references Microsoft.AspNetCore.Components.WebView.Maui
+      directly AND that package has grown a buildTransitive/ folder, so the conversion would be
+      performed twice. The conversion below is already idempotent, so this should not normally be needed.
+    -->
+    <TizenBlazorWebViewConvertStaticWebAssets Condition=" '$(TizenBlazorWebViewConvertStaticWebAssets)' == '' ">true</TizenBlazorWebViewConvertStaticWebAssets>
+  </PropertyGroup>
+
+</Project>

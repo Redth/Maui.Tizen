@@ -133,6 +133,146 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		}
 
 		[Fact]
+		public void RoutingKeysAreUniqueAcrossManyHandlers()
+		{
+			// The key routes intercepted requests back to their owning handler. GetHashCode does not
+			// guarantee uniqueness, so a collision would serve one BlazorWebView's content into another
+			// and corrupt the routing table on removal. The key is a monotonic counter instead.
+			var keys = Enumerable.Range(0, 512)
+				.Select(_ => new TizenBlazorWebViewHandler().HandlerKey)
+				.ToArray();
+
+			Assert.Equal(keys.Length, keys.Distinct(StringComparer.Ordinal).Count());
+		}
+
+		[Fact]
+		public void RoutingKeysAreUniqueAcrossThreads()
+		{
+			var keys = new System.Collections.Concurrent.ConcurrentBag<string>();
+
+			Parallel.For(0, 256, _ => keys.Add(new TizenBlazorWebViewHandler().HandlerKey));
+
+			Assert.Equal(keys.Count, keys.Distinct(StringComparer.Ordinal).Count());
+		}
+
+		[Fact]
+		public void HandlerUsesACommandMapperChainedToTheViewCommandMapper()
+		{
+			// Without a command mapper the base handler receives null and every IView.Invoke is dropped,
+			// so focus/unfocus, invalidate, frame and z-index commands never reach the platform view.
+			Assert.NotNull(TizenBlazorWebViewHandler.TizenBlazorWebViewCommandMapper);
+			Assert.Same(ViewHandler.ViewCommandMapper, TizenBlazorWebViewHandler.TizenBlazorWebViewCommandMapper.Chained);
+		}
+
+		[Theory]
+		[InlineData(nameof(IView.Focus))]
+		[InlineData(nameof(IView.Unfocus))]
+		[InlineData(nameof(IView.InvalidateMeasure))]
+		[InlineData(nameof(IView.Frame))]
+		[InlineData(nameof(IView.ZIndex))]
+		public void CommandMapperResolvesTheStandardViewCommands(string command)
+		{
+			// Resolution through the chain, not just key presence: this is what IView.Invoke actually does.
+			Assert.NotNull(TizenBlazorWebViewHandler.TizenBlazorWebViewCommandMapper.GetCommand(command));
+		}
+
+		[Fact]
+		public void DefaultConstructedHandlerResolvesViewCommands()
+		{
+			// Guards the wiring, not just the mapper: an earlier revision constructed the base handler
+			// with a null command mapper, so every command was silently dropped at runtime.
+			var mapper = GetConfiguredCommandMapper(new TizenBlazorWebViewHandler());
+
+			Assert.NotNull(mapper);
+			Assert.NotNull(mapper!.GetCommand(nameof(IView.Focus)));
+			Assert.NotNull(mapper.GetCommand(nameof(IView.ZIndex)));
+		}
+
+		[Fact]
+		public void CustomCommandMapperOverridesTheDefault()
+		{
+			var custom = new CommandMapper<IBlazorWebView, TizenBlazorWebViewHandler>(
+				TizenBlazorWebViewHandler.TizenBlazorWebViewCommandMapper);
+
+			var handler = new TizenBlazorWebViewHandler(TizenBlazorWebViewHandler.TizenBlazorWebViewMapper, custom);
+
+			Assert.Same(custom, GetConfiguredCommandMapper(handler));
+		}
+
+		[Fact]
+		public void UserAgentSuffixIsNotAppendedTwiceAcrossReconnects()
+		{
+			// Tizen exposes no way to remove the JavaScript bridge or the interception callback, so the
+			// user agent is the one piece of connect-time state that must be undone. Appending on every
+			// connect without restoring accumulates suffixes and eventually breaks routing.
+			const string original = "Mozilla/5.0 (Tizen)";
+			var handler = new TizenBlazorWebViewHandler();
+			var suffix = BlazorWebViewUserAgent.BuildUserAgentSuffix(handler.HandlerKey);
+
+			var connected = original + suffix;
+			var afterDisconnect = original;
+			var reconnected = afterDisconnect + suffix;
+
+			Assert.Equal(connected, reconnected);
+			Assert.Equal(1, CountOccurrences(reconnected, BlazorWebViewUserAgent.HandlerKeyPrefix));
+		}
+
+		[Fact]
+		public void HandlerKeyIsRecoverableWhenAnotherComponentAppendsAfterTheSuffix()
+		{
+			// The suffix is appended to a user agent owned by the platform; nothing stops another
+			// component appending after it. Taking the remainder verbatim would yield a key that
+			// matches no routing entry, and the request would be ignored instead of served.
+			var handler = new TizenBlazorWebViewHandler();
+			var agent = "Mozilla/5.0 (Tizen)"
+				+ BlazorWebViewUserAgent.BuildUserAgentSuffix(handler.HandlerKey)
+				+ " SomeOtherComponent/1.0";
+			var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["User-Agent"] = agent };
+
+			Assert.True(BlazorWebViewUserAgent.TryGetHandlerKey(headers, out var key));
+			Assert.Equal(handler.HandlerKey, key);
+		}
+
+		[Fact]
+		public void HandlerKeyParsingRejectsANonNumericKey()
+		{
+			var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+			{
+				["User-Agent"] = "Mozilla/5.0 (Tizen) " + BlazorWebViewUserAgent.HandlerKeyPrefix + "notakey",
+			};
+
+			Assert.False(BlazorWebViewUserAgent.TryGetHandlerKey(headers, out _));
+		}
+
+		[Fact]
+		public void RequestsAreRoutedToTheOwningHandlerNotAnother()
+		{
+			var first = new TizenBlazorWebViewHandler();
+			var second = new TizenBlazorWebViewHandler();
+
+			var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+			{
+				["User-Agent"] = "Mozilla/5.0 (Tizen)" + BlazorWebViewUserAgent.BuildUserAgentSuffix(second.HandlerKey),
+			};
+
+			Assert.True(BlazorWebViewUserAgent.TryGetHandlerKey(headers, out var key));
+			Assert.Equal(second.HandlerKey, key);
+			Assert.NotEqual(first.HandlerKey, key);
+		}
+
+		private static int CountOccurrences(string value, string needle)
+		{
+			var count = 0;
+			for (var i = value.IndexOf(needle, StringComparison.Ordinal); i >= 0;
+				i = value.IndexOf(needle, i + needle.Length, StringComparison.Ordinal))
+			{
+				count++;
+			}
+
+			return count;
+		}
+
+		[Fact]
 		public void UserAgentSuffixRoundTripsThroughTheRequestHeaders()
 		{
 			var handler = new TizenBlazorWebViewHandler();
@@ -326,6 +466,22 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		/// A <see cref="TizenWebViewManager"/> reference is required only for the null/validation paths that
 		/// throw before it is touched, so an uninitialized instance is sufficient and avoids native calls.
 		/// </summary>
+		/// <summary>
+		/// Reads the command mapper the base handler was actually constructed with.
+		/// </summary>
+		/// <remarks>
+		/// MAUI stores it in a private field with no public accessor, so reflection is the only way to
+		/// assert the wiring rather than just the static mapper. Reading a private field is acceptable
+		/// here because the alternative - asserting only on the public static mapper - would not have
+		/// caught the original defect, where the mapper existed but was never passed to the base.
+		/// </remarks>
+		private static CommandMapper? GetConfiguredCommandMapper(TizenBlazorWebViewHandler handler)
+		{
+			var field = typeof(ElementHandler).GetField("_commandMapper", BindingFlags.Instance | BindingFlags.NonPublic);
+			Assert.True(field is not null, "ElementHandler._commandMapper no longer exists; update this helper.");
+			return field!.GetValue(handler) as CommandMapper;
+		}
+
 		private static RootComponentsCollection CreateRootComponents(params RootComponent[] components)
 		{
 			var collection = new RootComponentsCollection(new AspNetCore.Components.Web.JSComponentConfigurationStore());

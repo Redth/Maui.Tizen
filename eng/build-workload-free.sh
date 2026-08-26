@@ -170,6 +170,12 @@ WORKLOAD_FREE_PROJECTS=(
   #                               request mapping and the static content cache.
   #                               See docs/blazorwebview.md.
   "tests/Maui.Tizen.BlazorWebView.Tests/Maui.Tizen.BlazorWebView.Tests.csproj"
+
+  #   Maui.Tizen.BlazorWebView.PublicApi  compiles the BlazorWebView sources with the
+  #                               PublicApiAnalyzers treated as errors. The shipping project
+  #                               carries the analyzer too, but it is workload-gated and so never
+  #                               actually runs it; this lane is where the baseline is enforced.
+  "tests/Maui.Tizen.BlazorWebView.PublicApi/Maui.Tizen.BlazorWebView.PublicApi.csproj"
 )
 BUILD_OK=1
 for proj in "${WORKLOAD_FREE_PROJECTS[@]}"; do

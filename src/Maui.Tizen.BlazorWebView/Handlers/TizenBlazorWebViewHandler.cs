@@ -9,7 +9,10 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Globalization;
 using System.IO;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Components;
@@ -54,6 +57,9 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 		private const string UseBlockingDisposalSwitch = "BlazorWebView.UseBlockingDisposal";
 		private const string JavaScriptMessageHandlerName = "BlazorHandler";
 
+		/// <summary>Value stored in <see cref="s_javaScriptBridgeInstalled"/>; only its presence matters.</summary>
+		private static readonly object BridgeInstalledMarker = new();
+
 		internal const string AppOrigin = TizenWebViewManager.AppOrigin;
 
 		private const string BlazorInitScript = @"
@@ -87,13 +93,36 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 		/// </summary>
 		private static readonly Dictionary<string, WeakReference<TizenBlazorWebViewHandler>> s_handlers = new(StringComparer.Ordinal);
 
+		/// <summary>
+		/// Source of <see cref="HandlerKey"/> values.
+		/// </summary>
+		/// <remarks>
+		/// A monotonic counter rather than <see cref="object.GetHashCode"/>. Hash codes are not unique -
+		/// two live handlers can share one - and the key is what routes an intercepted request back to
+		/// its owning handler, so a collision would silently serve one BlazorWebView's content into
+		/// another. It would also make the routing table entry ambiguous on removal.
+		/// </remarks>
+		private static long s_nextHandlerKey;
+
+		/// <summary>
+		/// Tracks which platform views have already had the JavaScript message handler installed.
+		/// </summary>
+		/// <remarks>
+		/// Tizen's <c>AddJavaScriptMessageHandler</c> has no remove counterpart, so a handler that is
+		/// disconnected and reconnected against the same NUI WebView must not install a second one.
+		/// A <see cref="ConditionalWeakTable{TKey, TValue}"/> keeps this from rooting platform views.
+		/// </remarks>
+		private static readonly ConditionalWeakTable<NWebView, object> s_javaScriptBridgeInstalled = new();
+
 		private readonly StaticContentResponseCache _staticContentResponseCache = new();
+		private readonly string _handlerKey = Interlocked.Increment(ref s_nextHandlerKey).ToString(CultureInfo.InvariantCulture);
 
 		private TizenWebViewManager? _webviewManager;
 		private StaticContentRequestProcessor? _requestProcessor;
 		private ILogger? _logger;
 		private string? _hostPage;
 		private RootComponentsCollection? _rootComponents;
+		private string? _userAgentBeforeConnect;
 
 		/// <summary>
 		/// This field is part of MAUI infrastructure and is not intended for use by application code.
@@ -105,10 +134,23 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 		};
 
 		/// <summary>
+		/// Command mapper for <see cref="IBlazorWebView"/> on Tizen.
+		/// </summary>
+		/// <remarks>
+		/// Chains <see cref="ViewHandler.ViewCommandMapper"/> so the standard view commands - focus and
+		/// unfocus, invalidate measure, frame updates and z-index ordering - reach the platform view.
+		/// Without a command mapper the handler is constructed with a null one and every
+		/// <c>IView.Invoke</c> is silently dropped, so a BlazorWebView could not be focused
+		/// programmatically and would not re-order correctly inside a layout.
+		/// </remarks>
+		public static readonly CommandMapper<IBlazorWebView, TizenBlazorWebViewHandler> TizenBlazorWebViewCommandMapper =
+			new(ViewHandler.ViewCommandMapper);
+
+		/// <summary>
 		/// Initializes a new instance of <see cref="TizenBlazorWebViewHandler"/> with the default mappings.
 		/// </summary>
 		public TizenBlazorWebViewHandler()
-			: this(TizenBlazorWebViewMapper)
+			: base(TizenBlazorWebViewMapper, TizenBlazorWebViewCommandMapper)
 		{
 		}
 
@@ -118,7 +160,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 		/// <param name="mapper">The property mappings, or <see langword="null"/> to use the defaults.</param>
 		/// <param name="commandMapper">The command mappings, if any.</param>
 		public TizenBlazorWebViewHandler(IPropertyMapper? mapper, CommandMapper? commandMapper = null)
-			: base(mapper ?? TizenBlazorWebViewMapper, commandMapper)
+			: base(mapper ?? TizenBlazorWebViewMapper, commandMapper ?? TizenBlazorWebViewCommandMapper)
 		{
 		}
 
@@ -126,7 +168,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			_logger ??= MauiContext?.Services?.GetService<ILogger<TizenBlazorWebViewHandler>>()
 				?? (ILogger)NullLogger<TizenBlazorWebViewHandler>.Instance;
 
-		internal string HandlerKey => GetHashCode().ToString();
+		internal string HandlerKey => _handlerKey;
 
 		internal StaticContentResponseCache StaticContentResponseCache => _staticContentResponseCache;
 
@@ -179,15 +221,33 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 			base.ConnectHandler(platformView);
 
-			platformView.PageLoadFinished += OnLoadFinished;
-			platformView.Context.RegisterHttpRequestInterceptedCallback(OnRequestInterceptStaticCallback);
-			platformView.AddJavaScriptMessageHandler(JavaScriptMessageHandlerName, PostMessageFromJS);
-			platformView.UserAgent += BlazorWebViewUserAgent.BuildUserAgentSuffix(HandlerKey);
-
+			// Register the routing entry before anything can produce a request for it.
 			lock (s_handlers)
 			{
 				s_handlers[HandlerKey] = new WeakReference<TizenBlazorWebViewHandler>(this);
 			}
+
+			platformView.PageLoadFinished += OnLoadFinished;
+
+			// Interception is registered on the shared WebContext and has no unregister counterpart, so
+			// it is deliberately process-wide and permanent. OnRequestInterceptStaticCallback ignores
+			// anything it cannot route, which is what keeps that safe.
+			platformView.Context.RegisterHttpRequestInterceptedCallback(OnRequestInterceptStaticCallback);
+
+			// AddJavaScriptMessageHandler also has no remove counterpart. Installing it twice on the
+			// same NUI WebView - which happens on disconnect/reconnect - would leave a duplicate bridge
+			// delivering every message twice.
+			if (!s_javaScriptBridgeInstalled.TryGetValue(platformView, out _))
+			{
+				platformView.AddJavaScriptMessageHandler(JavaScriptMessageHandlerName, PostMessageFromJS);
+				s_javaScriptBridgeInstalled.Add(platformView, BridgeInstalledMarker);
+			}
+
+			// Remember the agent so DisconnectHandler can restore it exactly. Appending on every
+			// connect without restoring would accumulate suffixes across reconnects and eventually
+			// make the routing key unparseable.
+			_userAgentBeforeConnect = platformView.UserAgent;
+			platformView.UserAgent = _userAgentBeforeConnect + BlazorWebViewUserAgent.BuildUserAgentSuffix(HandlerKey);
 
 			Logger.TizenHandlerConnected(HandlerKey);
 		}
@@ -198,6 +258,15 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			ArgumentNullException.ThrowIfNull(platformView);
 
 			platformView.PageLoadFinished -= OnLoadFinished;
+
+			// Symmetric with ConnectHandler. The JavaScript bridge and the interception callback cannot
+			// be removed through the NUI API, so the user agent is the one piece of connect-time state
+			// that must be undone - otherwise a reconnect appends a second suffix.
+			if (_userAgentBeforeConnect is not null)
+			{
+				platformView.UserAgent = _userAgentBeforeConnect;
+				_userAgentBeforeConnect = null;
+			}
 
 			lock (s_handlers)
 			{

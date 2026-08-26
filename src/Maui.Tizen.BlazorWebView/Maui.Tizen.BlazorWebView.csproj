@@ -60,6 +60,17 @@
   </ItemGroup>
 
   <!--
+    buildTransitive/, not build/. The StaticWebAsset -> MauiAsset conversion these carry has to
+    reach apps that reference this package transitively, which is the whole reason the package
+    performs the conversion instead of relying on the MAUI Blazor package's build/-only copy.
+    See the header comment in the .targets.
+  -->
+  <ItemGroup>
+    <None Include="buildTransitive/Maui.Tizen.BlazorWebView.props" Pack="true" PackagePath="buildTransitive/" />
+    <None Include="buildTransitive/Maui.Tizen.BlazorWebView.targets" Pack="true" PackagePath="buildTransitive/" />
+  </ItemGroup>
+
+  <!--
     This package's ProjectReference to Maui.Tizen.Core drags in Tizen.UIExtensions.NUI 0.9.2, which
     transitively declares Microsoft.Maui.Graphics 6.0.300-rc.3.1336. Maui.Tizen.Core already refuses to
     pack while that is true; refuse here too, for the same reason and with the same override.
