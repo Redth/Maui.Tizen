@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Host-side verification of the migrated Tizen backend sources.
+
+    This project deliberately does NOT target Tizen, and is therefore exempt from the
+    workload gate. The backend itself cannot be compiled by anyone until the Samsung
+    .NET 11 workload ships, but "cannot compile it" does not have to mean "cannot verify
+    it": these tests parse the backend sources with Roslyn and check them against the
+    real MAUI assemblies by reflection, so the expectations are derived rather than
+    transcribed by hand.
+
+    Complements tests/UnitTests, which guards repository-level invariants. This project
+    guards the migrated handler sources themselves.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);NETSDK1057</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+
+    <!-- Parses the migrated sources. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+
+    <!--
+      Reflected over to derive the authoritative neutral mapper key sets: the same neutral
+      MAUI assemblies the backend will compile against.
+    -->
+    <PackageReference Include="Microsoft.Maui.Core" />
+    <PackageReference Include="Microsoft.Maui.Controls" />
+  </ItemGroup>
+
+</Project>

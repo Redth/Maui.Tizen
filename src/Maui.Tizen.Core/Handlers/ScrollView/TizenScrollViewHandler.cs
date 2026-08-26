@@ -1,14 +1,59 @@
-﻿using System;
-using Tizen.UIExtensions.NUI;
+// Ported from dotnet/maui as part of the Maui.Tizen extraction.
+//
+// Upstream this file was the Tizen half of the neutral Microsoft.Maui.Handlers.ScrollViewHandler
+// partial class. .NET MAUI 11 ships no Tizen target framework, so that neutral handler no
+// longer has a Tizen half to complete and a partial declaration would not bind. This is a
+// standalone handler that owns its own mappers.
+//
+// It is deliberately NOT named ScrollViewHandler: that type still exists in Microsoft.Maui.Core
+// and re-declaring the name would be ambiguous for consumers referencing both assemblies.
 
-namespace Microsoft.Maui.Handlers
+using System;
+using Microsoft.Maui.Graphics;
+using Microsoft.Maui.Platform;
+using Tizen.UIExtensions.NUI;
+using Microsoft.Maui;
+using Microsoft.Maui.Handlers;
+
+namespace Microsoft.Maui.Platforms.Tizen
 {
-	public partial class ScrollViewHandler : ViewHandler<IScrollView, ScrollView>
+	/// <summary>Tizen handler for <see cref="IScrollView"/>.</summary>
+	public class TizenScrollViewHandler : ViewHandler<IScrollView, ScrollView>
 	{
+		public static IPropertyMapper<IScrollView, TizenScrollViewHandler> Mapper =
+			new PropertyMapper<IScrollView, TizenScrollViewHandler>(ViewMapper)
+			{
+				[nameof(IScrollView.Content)] = MapContent,
+				[nameof(IScrollView.HorizontalScrollBarVisibility)] = MapHorizontalScrollBarVisibility,
+				[nameof(IScrollView.VerticalScrollBarVisibility)] = MapVerticalScrollBarVisibility,
+				[nameof(IScrollView.Orientation)] = MapOrientation,
+			};
+
+		public static CommandMapper<IScrollView, TizenScrollViewHandler> CommandMapper =
+			new(ViewCommandMapper)
+			{
+				[nameof(IScrollView.RequestScrollTo)] = MapRequestScrollTo,
+			};
+
 		IPlatformViewHandler? _contentHandler;
 		double _cachedWidth;
 		double _cachedHeight;
-		Graphics.Size _measureCache;
+		Size _measureCache;
+
+		public TizenScrollViewHandler()
+			: base(Mapper, CommandMapper)
+		{
+		}
+
+		public TizenScrollViewHandler(IPropertyMapper? mapper)
+			: base(mapper ?? Mapper, CommandMapper)
+		{
+		}
+
+		public TizenScrollViewHandler(IPropertyMapper? mapper, CommandMapper? commandMapper)
+			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
+		{
+		}
 
 		protected override ScrollView CreatePlatformView() => new MauiScrollView(VirtualView);
 
@@ -97,11 +142,13 @@ namespace Microsoft.Maui.Handlers
 			UpdateContentSize();
 		}
 
-		void OnContentLayoutUpdated(object? sender, Tizen.UIExtensions.Common.LayoutEventArgs e)
+		void OnContentLayoutUpdated(object? sender, global::Tizen.UIExtensions.Common.LayoutEventArgs e)
 		{
 			OnContentLayoutUpdated();
 		}
 
+		// Measurement and arrangement stay with the MAUI cross-platform implementation; this only
+		// forwards the platform geometry and syncs the native content container size.
 		void OnContentLayoutUpdated()
 		{
 			var viewGroup = _contentHandler?.PlatformView as LayoutViewGroup;
@@ -128,35 +175,36 @@ namespace Microsoft.Maui.Handlers
 			}
 		}
 
-		public static void MapContent(IScrollViewHandler handler, IScrollView scrollView)
+		public static void MapContent(TizenScrollViewHandler handler, IScrollView scrollView)
 		{
-			if (handler.MauiContext == null || scrollView.PresentedContent == null || handler is not ScrollViewHandler sHandler)
+			if (handler.MauiContext == null || scrollView.PresentedContent == null)
 			{
 				return;
 			}
+
 			scrollView.PresentedContent.ToPlatform(handler.MauiContext);
-			if (scrollView.PresentedContent.Handler is IPlatformViewHandler thandler)
+			if (scrollView.PresentedContent.Handler is IPlatformViewHandler contentHandler)
 			{
-				sHandler.UpdateContent(thandler);
+				handler.UpdateContent(contentHandler);
 			}
 		}
 
-		public static void MapHorizontalScrollBarVisibility(IScrollViewHandler handler, IScrollView scrollView)
+		public static void MapHorizontalScrollBarVisibility(TizenScrollViewHandler handler, IScrollView scrollView)
 		{
 			handler.PlatformView?.UpdateHorizontalScrollBarVisibility(scrollView.HorizontalScrollBarVisibility);
 		}
 
-		public static void MapVerticalScrollBarVisibility(IScrollViewHandler handler, IScrollView scrollView)
+		public static void MapVerticalScrollBarVisibility(TizenScrollViewHandler handler, IScrollView scrollView)
 		{
 			handler.PlatformView?.UpdateVerticalScrollBarVisibility(scrollView.VerticalScrollBarVisibility);
 		}
 
-		public static void MapOrientation(IScrollViewHandler handler, IScrollView scrollView)
+		public static void MapOrientation(TizenScrollViewHandler handler, IScrollView scrollView)
 		{
 			handler.PlatformView?.UpdateOrientation(scrollView.Orientation);
 		}
 
-		public static void MapRequestScrollTo(IScrollViewHandler handler, IScrollView scrollView, object? args)
+		public static void MapRequestScrollTo(TizenScrollViewHandler handler, IScrollView scrollView, object? args)
 		{
 			if (args is ScrollToRequest request)
 			{

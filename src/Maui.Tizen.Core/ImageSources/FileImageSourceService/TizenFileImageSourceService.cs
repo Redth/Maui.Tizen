@@ -1,15 +1,30 @@
-﻿#nullable enable
+// Ported from dotnet/maui as part of the Maui.Tizen extraction.
+// Standalone Tizen service; see ITizenImageSourceService.cs for why the neutral type is not extended.
+#nullable enable
 using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.Platform;
 using AppFW = Tizen.Applications;
+using Microsoft.Maui;
 
-namespace Microsoft.Maui
+namespace Microsoft.Maui.Platforms.Tizen
 {
-	public partial class FileImageSourceService
+	/// <summary>Loads an <see cref="IFileImageSource"/> from the application's resource directories.</summary>
+	public class TizenFileImageSourceService : TizenImageSourceService, ITizenImageSourceService<IFileImageSource>
 	{
+		public TizenFileImageSourceService()
+			: this(null)
+		{
+		}
+
+		public TizenFileImageSourceService(ILogger<TizenFileImageSourceService>? logger = null)
+			: base(logger)
+		{
+		}
+
 		public override Task<IImageSourceServiceResult<MauiImageSource>?> GetImageAsync(IImageSource imageSource, CancellationToken cancellationToken = default) =>
 			GetImageAsync((IFileImageSource)imageSource, cancellationToken);
 
@@ -41,9 +56,6 @@ namespace Microsoft.Maui
 				throw;
 			}
 		}
-
-		static Task<IImageSourceServiceResult<MauiImageSource>?> FromResult(IImageSourceServiceResult<MauiImageSource>? result) =>
-			Task.FromResult(result);
 
 		static string GetPath(string res)
 		{
