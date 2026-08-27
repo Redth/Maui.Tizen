@@ -250,8 +250,6 @@ public class TizenTargetsTests : TestBase
 		var app = CreateApp();
 		app.Generate();
 
-		AssertBuildSucceeded(app.Build());
-
 		var first = app.Build();
 		AssertBuildSucceeded(first);
 
@@ -289,6 +287,27 @@ public class TizenTargetsTests : TestBase
 
 		Assert.Contains(healed.ItemsOf("TizenTpkUserIncludeFiles"), i =>
 			i.Metadata1.Replace('\\', '/').TrimEnd('/') == "shared/res/splash");
+	}
+
+	[Fact]
+	public void IncrementalBuildKeepsACompleteSplashCache()
+	{
+		var app = CreateApp();
+		app.Generate();
+
+		var first = app.Build();
+		AssertBuildSucceeded(first);
+
+		var splashDirectory = Path.Combine(
+			app.ProjectDirectory,
+			first.Property("MauiTizenIntermediateOutputPath"),
+			GenerateTizenSplashScreens.SplashDirectoryName);
+		var sentinel = Path.Combine(splashDirectory, "cache-sentinel.txt");
+		File.WriteAllText(sentinel, "generation did not rerun");
+
+		AssertBuildSucceeded(app.Build());
+
+		Assert.True(File.Exists(sentinel), "A complete splash cache was unnecessarily regenerated.");
 	}
 
 	/// <summary>

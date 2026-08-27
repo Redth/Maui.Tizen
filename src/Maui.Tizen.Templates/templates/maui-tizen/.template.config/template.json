@@ -123,7 +123,7 @@
     },
     "tizenIdSafe": {
       "identifier": "replace",
-      "pattern": "[^a-z0-9]",
+      "pattern": "[^a-z0-9.]",
       "replacement": ""
     },
     "tizenIdLowerSafe": {

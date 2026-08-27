@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using Xunit;
 
 using Maui.Tizen.Build.Tasks;
@@ -167,6 +168,27 @@ public class ComputeTizenResourceLayoutTests : TestBase
 	{
 		var searchRoot = P(Path.GetTempPath(), "app", "obj");
 		var directory = P(Path.GetTempPath(), "elsewhere", "res", "contents", "default_All-HDPI");
+
+		Assert.False(ComputeTizenResourceLayout.TrySplit(directory, searchRoot, out _, out _));
+	}
+
+	[Fact]
+	public void TrySplitRejectsPrefixSiblingOfTheSearchRoot()
+	{
+		var searchRoot = P(Path.GetTempPath(), "app", "obj");
+		var directory = P(Path.GetTempPath(), "app", "obj-other", "res", "contents", "default_All-HDPI");
+
+		Assert.False(ComputeTizenResourceLayout.TrySplit(directory, searchRoot, out _, out _));
+	}
+
+	[Fact]
+	public void TrySplitDoesNotFoldPathCaseOnUnix()
+	{
+		if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+			return;
+
+		var searchRoot = P(Path.GetTempPath(), "app", "obj");
+		var directory = P(Path.GetTempPath(), "App", "obj", "res", "contents", "default_All-HDPI");
 
 		Assert.False(ComputeTizenResourceLayout.TrySplit(directory, searchRoot, out _, out _));
 	}

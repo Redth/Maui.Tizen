@@ -207,7 +207,10 @@
     <ItemGroup>
       <!-- Each line is "resolution|orientation|splash/<file>"; the third field is relative to the
            generated splash directory. -->
-      <_MauiTizenMappedSplashScreen Include="@(_MauiTizenSplashMapLine->'$(MauiTizenIntermediateOutputPath)%(Identity)')" />
+      <_MauiTizenSplashMapLine>
+        <RelativePath>$([System.Text.RegularExpressions.Regex]::Replace('%(_MauiTizenSplashMapLine.Identity)', '^[^|]*\|[^|]*\|', ''))</RelativePath>
+      </_MauiTizenSplashMapLine>
+      <_MauiTizenMappedSplashScreen Include="$(MauiTizenIntermediateOutputPath)%(_MauiTizenSplashMapLine.RelativePath)" />
       <_MauiTizenMissingSplashScreen Include="@(_MauiTizenMappedSplashScreen)" Condition="!Exists('%(Identity)')" />
     </ItemGroup>
 

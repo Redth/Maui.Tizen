@@ -169,6 +169,18 @@ public class PackageContentTests : TestBase
 		Assert.Contains("buildTransitive/" + relativePath, EntriesOf("Maui.Tizen.Build.Tasks"));
 	}
 
+	[Fact]
+	public void MuslHostsDoNotFallBackToAGlibcNative()
+	{
+		var project = File.ReadAllText(Path.Combine(BuildTasksProjectDirectory, "Maui.Tizen.Build.Tasks.csproj"));
+
+		Assert.Contains(
+			"'$(_MauiTizenHostIsMusl)' != 'true'",
+			project,
+			StringComparison.Ordinal);
+		Assert.Contains("Code=\"MAUITIZEN1012\"", project, StringComparison.Ordinal);
+	}
+
 	/// <summary>
 	/// The macOS binary is a universal build, so it ships once, flat.
 	/// </summary>

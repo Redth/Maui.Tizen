@@ -128,7 +128,8 @@ namespace Maui.Tizen.Build.Tasks
 			root = string.Empty;
 			subDir = string.Empty;
 
-			var trimmed = directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+			var trimmed = Path.GetFullPath(directory)
+				.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 			var segments = trimmed.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
 
 			// Everything at or above the search root is out of bounds.
@@ -138,7 +139,8 @@ namespace Maui.Tizen.Build.Tasks
 				var normalizedRoot = Path.GetFullPath(searchRoot!)
 					.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-				if (!trimmed.StartsWith(normalizedRoot, PathComparison))
+				if (!string.Equals(trimmed, normalizedRoot, PathComparison)
+					&& !trimmed.StartsWith(normalizedRoot + Path.DirectorySeparatorChar, PathComparison))
 					return false;
 
 				lowerBound = normalizedRoot
@@ -182,8 +184,8 @@ namespace Maui.Tizen.Build.Tasks
 			=> string.Equals(segment, name, StringComparison.OrdinalIgnoreCase);
 
 		static StringComparison PathComparison =>
-			RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
-				? StringComparison.Ordinal
-				: StringComparison.OrdinalIgnoreCase;
+			RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+				? StringComparison.OrdinalIgnoreCase
+				: StringComparison.Ordinal;
 	}
 }

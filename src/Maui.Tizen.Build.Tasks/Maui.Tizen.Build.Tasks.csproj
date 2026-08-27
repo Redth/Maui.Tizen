@@ -118,10 +118,11 @@
       value remains as a fallback for hosts that report an unexpected RID.
     -->
     <_MauiTizenHostRuntimeIdentifier>$([System.Runtime.InteropServices.RuntimeInformation]::RuntimeIdentifier)</_MauiTizenHostRuntimeIdentifier>
+    <_MauiTizenHostIsMusl Condition="$([System.String]::Copy('$(_MauiTizenHostRuntimeIdentifier)').StartsWith('linux-musl-'))">true</_MauiTizenHostIsMusl>
     <_MauiTizenLinuxNativeRoot>$(PkgSkiaSharp_NativeAssets_Linux_NoDependencies)\runtimes</_MauiTizenLinuxNativeRoot>
 
     <_MauiTizenHostNativeSkiaSharp Condition="$([MSBuild]::IsOSPlatform('Linux')) And Exists('$(_MauiTizenLinuxNativeRoot)\$(_MauiTizenHostRuntimeIdentifier)\native\libSkiaSharp.so')">$(_MauiTizenLinuxNativeRoot)\$(_MauiTizenHostRuntimeIdentifier)\native\libSkiaSharp.so</_MauiTizenHostNativeSkiaSharp>
-    <_MauiTizenHostNativeSkiaSharp Condition="$([MSBuild]::IsOSPlatform('Linux')) And '$(_MauiTizenHostNativeSkiaSharp)' == ''">$(_MauiTizenLinuxNativeRoot)\linux-$(_MauiTizenHostArchitecture)\native\libSkiaSharp.so</_MauiTizenHostNativeSkiaSharp>
+    <_MauiTizenHostNativeSkiaSharp Condition="$([MSBuild]::IsOSPlatform('Linux')) And '$(_MauiTizenHostNativeSkiaSharp)' == '' And '$(_MauiTizenHostIsMusl)' != 'true'">$(_MauiTizenLinuxNativeRoot)\linux-$(_MauiTizenHostArchitecture)\native\libSkiaSharp.so</_MauiTizenHostNativeSkiaSharp>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(_MauiTizenHostNativeSkiaSharp)' != '' And Exists('$(_MauiTizenHostNativeSkiaSharp)')">
@@ -138,7 +139,10 @@
     an unrelated MSBuild target on one operating system.
   -->
   <Target Name="_MauiTizenValidateHostNativeSkiaSharp" AfterTargets="ResolvePackageAssets" Condition="'$(_MauiTizenSkipHostNativeValidation)' != 'true'">
-    <Error Condition="'$(_MauiTizenHostNativeSkiaSharp)' == ''"
+    <Error Condition="'$(_MauiTizenHostIsMusl)' == 'true' And '$(_MauiTizenHostNativeSkiaSharp)' == ''"
+           Code="MAUITIZEN1012"
+           Text="The SkiaSharp native-assets package does not contain a binary for host runtime '$(_MauiTizenHostRuntimeIdentifier)'. A glibc Linux binary cannot be used on a musl host." />
+    <Error Condition="'$(_MauiTizenHostNativeSkiaSharp)' == '' And '$(_MauiTizenHostIsMusl)' != 'true'"
            Code="MAUITIZEN1010"
            Text="No native SkiaSharp binary is configured for this host operating system, so the Tizen build tasks would fail when rasterizing images." />
     <Error Condition="!Exists('$(_MauiTizenHostNativeSkiaSharp)')"

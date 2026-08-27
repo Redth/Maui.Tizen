@@ -220,6 +220,20 @@ public class TemplateInstantiationTests : TestBase
 	}
 
 	[Fact]
+	public void PunctuationThatIsValidInAnApplicationIdRemainsDistinct()
+	{
+		var dotted = File.ReadAllText(Instantiate("Contoso.Tizen").ProjectPath);
+		var unseparated = File.ReadAllText(Instantiate("ContosoTizen").ProjectPath);
+
+		var dottedId = ReadProperty(dotted, "ApplicationId");
+		var unseparatedId = ReadProperty(unseparated, "ApplicationId");
+
+		Assert.Equal("com.companyname.contoso.tizen", dottedId);
+		Assert.Equal("com.companyname.contosotizen", unseparatedId);
+		Assert.NotEqual(dottedId, unseparatedId);
+	}
+
+	[Fact]
 	public void ApplicationIdCanBeOverridden()
 	{
 		var instantiation = Instantiate("ContosoTizenApp", "--ApplicationId", "org.tizen.example.custom");
@@ -239,7 +253,7 @@ public class TemplateInstantiationTests : TestBase
 
 		var applicationId = ReadProperty(projectFile, "ApplicationId");
 
-		Assert.Equal("com.companyname.contosotizenapp1", applicationId);
+		Assert.Equal("com.companyname.contoso.tizenapp1", applicationId);
 		Assert.Matches("^[a-zA-Z0-9.]+$", applicationId);
 	}
 
