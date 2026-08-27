@@ -48,6 +48,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		double IndicatorSize => _indicatorView.IndicatorSize;
 
+		/// <summary>Disposes the handler created for a templated indicator.</summary>
+		public void DisposeTemplatedViewHandler()
+		{
+			_templatedViewHandler?.Dispose();
+			_templatedViewHandler = null;
+		}
+
 		public void ResetIndicators()
 		{
 			ClearIndicatorView();
@@ -68,8 +75,30 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 
 			UpdateIndicatorColor(_currentPoistion, _indicatorView.IndicatorColor);
-			_currentPoistion = _indicatorView.Position;
+			_currentPoistion = GetVisiblePosition();
 			UpdateIndicatorColor(_currentPoistion, _indicatorView.SelectedIndicatorColor);
+		}
+
+		/// <summary>
+		/// Maps <see cref="IIndicatorView.Position"/> onto the index of the dot that represents it.
+		/// </summary>
+		/// <remarks>
+		/// The number of dots is capped at <see cref="IIndicatorView.MaximumVisible"/>, but the
+		/// position is not: with 20 items and a maximum of 5, position 10 indexed past the end of the
+		/// dot list. <c>UpdateIndicatorColor</c> bounds-checks and returns silently, so the selected
+		/// dot simply stopped being highlighted once the position exceeded the cap — the indicator
+		/// looked stuck at the last dot it managed to draw.
+		/// <para>
+		/// The window slides so the selected item stays visible, which is the point of capping the
+		/// dot count in the first place.
+		/// </para>
+		/// </remarks>
+		int GetVisiblePosition()
+		{
+			return TizenPortableExtensions.GetVisibleIndicatorPosition(
+				_indicatorView.Position,
+				_indicatorView.Count,
+				_indicators.Count);
 		}
 
 		public void UpdateCount()
@@ -77,7 +106,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (!UseDefaultIndicator || _contentView == null)
 				return;
 
-			var count = Math.Min(_indicatorView.Count, _indicatorView.MaximumVisible);
+			// HideSingle had no implementation at all: a single-item indicator stayed on screen.
+			if (_indicatorView.HideSingle && _indicatorView.Count <= 1)
+				Hide();
+			else
+				Show();
+
+			var count = Math.Max(0, Math.Min(_indicatorView.Count, _indicatorView.MaximumVisible));
 			var diff = _indicators.Count - count;
 			var needIncrease = diff < 0;
 

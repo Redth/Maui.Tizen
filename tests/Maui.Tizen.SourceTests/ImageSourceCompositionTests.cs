@@ -85,7 +85,7 @@ public class ImageSourceCompositionTests
 		var service = (ITizenImageSourceService)provider.GetImageSourceService(typeof(IFontImageSource))!;
 		await service.GetImageAsync(new StubFontImageSource());
 
-		Assert.Contains(sink.Messages, m => m.Contains("not rasterised", StringComparison.Ordinal));
+		Assert.Contains(sink.Messages, m => m.Contains("not supported on Tizen", StringComparison.Ordinal));
 	}
 
 	sealed class HostApplication : Microsoft.Maui.Controls.Application

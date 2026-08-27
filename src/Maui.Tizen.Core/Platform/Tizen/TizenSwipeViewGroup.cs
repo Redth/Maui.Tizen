@@ -64,6 +64,19 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_swipeTransitionMode = swipeTransitionMode;
 		}
 
+		/// <summary>Disposes the content and swipe-item handlers this view created.</summary>
+		/// <remarks>
+		/// The swipe view materialises handlers for its content and for each swipe item, so it owns
+		/// them and must release them when its own handler is disconnected.
+		/// </remarks>
+		public void DisposeChildHandlers()
+		{
+			_contentHandler?.Dispose();
+			_contentHandler = null;
+
+			DisposeSwipeItems();
+		}
+
 		public void UpdateContent()
 		{
 			if (_contentView != null)

@@ -41,6 +41,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 					return TScrollOrientation.Horizontal;
 				case ScrollOrientation.Vertical:
 					return TScrollOrientation.Vertical;
+				case ScrollOrientation.Neither:
+					// Neither means "do not scroll". The imported code fell through to Both here, so
+					// disabling scrolling actually enabled it on both axes.
+					return TScrollOrientation.Neither;
 				default:
 					return TScrollOrientation.Both;
 			}

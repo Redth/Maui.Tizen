@@ -172,7 +172,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 					var platformView = handler.PlatformView.Icon;
 					if (platformView is null || cancellationToken.IsCancellationRequested)
 					{
-						return Task.CompletedTask;
+						return Task.FromResult(TizenImageApplyResult.Cancelled);
 					}
 
 					return platformView.ApplyImageSourceAsync(
@@ -185,6 +185,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 							}
 						},
 						cancellationToken);
+				},
+				() =>
+				{
+					// Nothing resolved, so the previous image must come down rather than linger.
+					var platformView = handler.PlatformView.Icon;
+					if (platformView is not null)
+					{
+						platformView.ResourceUrl = null;
+					}
 				});
 		}
 	}

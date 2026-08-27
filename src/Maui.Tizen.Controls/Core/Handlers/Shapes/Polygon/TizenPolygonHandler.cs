@@ -21,6 +21,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public static new IPropertyMapper<Polygon, TizenPolygonHandler> Mapper =
 			new PropertyMapper<Polygon, TizenPolygonHandler>(TizenShapeViewHandler.Mapper)
 			{
+				// Shape is remapped here as well as inherited: the base mapper replaces the whole
+				// ShapeDrawable, which discards the winding mode applied to the old one.
+				[nameof(IShapeView.Shape)] = MapShape,
 				[nameof(Polygon.Points)] = MapPoints,
 				[nameof(Polygon.FillRule)] = MapFillRule,
 			};
@@ -98,20 +101,31 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public static void MapPoints(TizenPolygonHandler handler, Polygon polygon)
 		{
 			handler.UpdatePointsSubscription(polygon.Points);
-			handler.PlatformView?.InvalidateShape(polygon);
+			ApplyFillRule(handler, polygon);
 		}
 
-		public static void MapFillRule(TizenPolygonHandler handler, Polygon polygon)
+		/// <summary>Rebuilds the drawable for a new shape, preserving the winding mode.</summary>
+		/// <remarks>
+		/// <c>UpdateShape</c> assigns a brand new <c>ShapeDrawable</c>, so the fill rule pushed into
+		/// the old one is lost. Without reapplying it, an EvenOdd polygon silently reverts to
+		/// NonZero the next time its shape changes.
+		/// </remarks>
+		public static void MapShape(TizenPolygonHandler handler, Polygon polygon)
 		{
-			IDrawable? drawable = handler.PlatformView?.Drawable;
+			handler.PlatformView?.UpdateShape(polygon);
+			ApplyFillRule(handler, polygon);
+		}
 
-			if (drawable is null)
+		public static void MapFillRule(TizenPolygonHandler handler, Polygon polygon) =>
+			ApplyFillRule(handler, polygon);
+
+		static void ApplyFillRule(TizenPolygonHandler handler, Polygon polygon)
+		{
+			if (handler.PlatformView?.Drawable is not ShapeDrawable shapeDrawable)
 				return;
 
-			if (drawable is ShapeDrawable shapeDrawable)
-			{
-				shapeDrawable.UpdateWindingMode(polygon.FillRule == FillRule.EvenOdd ? WindingMode.EvenOdd : WindingMode.NonZero);
-			}
+			shapeDrawable.UpdateWindingMode(
+				polygon.FillRule == FillRule.EvenOdd ? WindingMode.EvenOdd : WindingMode.NonZero);
 
 			handler.PlatformView?.InvalidateShape(polygon);
 		}

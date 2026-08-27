@@ -231,4 +231,77 @@ public class MapperDispatchTests
 
 		return failures;
 	}
+
+	/// <summary>
+	/// Keys that only exist once Controls has remapped must be re-declared by Wave B.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <c>StrokeDashArray</c> is added by <c>Shape.RemapForControls()</c> to the NEUTRAL
+	/// <c>ShapeViewHandler.Mapper</c>. Wave B mirrors that handler rather than chaining it, so the
+	/// key is invisible until re-declared — before which setting the property did nothing at all.
+	/// </para>
+	/// <para>
+	/// Deliberately asserts on the Tizen mapper, not by dispatching the neutral one. The neutral
+	/// shape mapper casts the handler to <c>IShapeViewHandler</c>, so dispatching it with any
+	/// handler that does not implement that interface throws — which is a neat demonstration of why
+	/// mirroring rather than chaining is what keeps Wave B safe here, and is covered by
+	/// <see cref="MappersChainedByWaveBContainNoConcreteHandlerMappings"/>.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void ControlsContributedShapeKeysAreMappedByWaveB()
+	{
+		ControlsHost.EnsureBuilt();
+
+		var shapeHandler = WaveBSource.Handlers.Single(h => h.TypeName == "TizenShapeViewHandler");
+
+		Assert.Contains("StrokeDashArray", shapeHandler.PropertyMappers.Select(m => m.Key));
+
+		// Inherited by every shape handler through TizenShapeViewHandler.Mapper.
+		var shapeHandlers = WaveBSource.Handlers
+			.Where(h => h.BaseType == "TizenShapeViewHandler")
+			.ToList();
+
+		Assert.NotEmpty(shapeHandlers);
+	}
+
+	/// <summary>
+	/// Every Controls-contributed key on a mapper Wave B mirrors must be re-declared by Wave B.
+	/// </summary>
+	/// <remarks>
+	/// Generalises the check above. Wave B mirrors neutral handlers rather than chaining them, so
+	/// any key Controls adds to a neutral mapper is invisible to Wave B until it is re-declared.
+	/// This is how <c>StrokeDashArray</c> and <c>IconColor</c> were silently unmapped.
+	/// </remarks>
+	[Fact]
+	public void ControlsContributedKeysAreMirroredByWaveB()
+	{
+		ControlsHost.EnsureBuilt();
+
+		(string Neutral, string Tizen)[] mirrored =
+		{
+			("ShapeViewHandler", "TizenShapeViewHandler"),
+			("SwipeItemMenuItemHandler", "TizenSwipeItemMenuItemHandler"),
+		};
+
+		var failures = new List<string>();
+
+		foreach (var (neutralName, tizenName) in mirrored)
+		{
+			var neutral = NeutralMaui.FindHandler(neutralName);
+			Assert.NotNull(neutral);
+
+			var tizen = WaveBSource.Handlers.Single(h => h.TypeName == tizenName);
+			var declared = tizen.PropertyMappers.Select(m => m.Key).ToHashSet(StringComparer.Ordinal);
+
+			foreach (var key in NeutralMaui.MapperKeys(neutral!, "Mapper"))
+			{
+				if (!declared.Contains(key) && !NeutralMaui.ViewMapperKeys.Contains(key))
+					failures.Add($"{tizenName} does not mirror '{key}' from {neutralName}.");
+			}
+		}
+
+		Assert.Empty(failures);
+	}
 }

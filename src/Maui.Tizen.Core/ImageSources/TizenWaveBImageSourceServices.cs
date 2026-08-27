@@ -67,10 +67,17 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// Resolves <see cref="IFontImageSource"/> images on Tizen.
 	/// </summary>
 	/// <remarks>
-	/// UNSUPPORTED, carried over from dotnet/maui: the Tizen backend has never had a glyph
-	/// rasterisation path, so upstream returned an empty image source and the glyph rendered blank.
-	/// That behaviour is preserved deliberately - the alternative is throwing from inside a property
-	/// mapper. See docs/wave-b-mapper-parity.md.
+	/// <para>
+	/// UNSUPPORTED: Tizen has no glyph rasterisation path in this backend. Upstream returned an
+	/// empty image source, which reported <em>success</em> while rendering nothing — the worst of
+	/// both worlds, because the caller is told the image loaded and has no way to discover it did
+	/// not.
+	/// </para>
+	/// <para>
+	/// This returns <see langword="null"/> instead, which the loader treats as a failed load: the
+	/// previous image is cleared, <c>LoadingCompleted(false)</c> is raised, and a warning is logged.
+	/// The caller can then act on the failure. Nothing hangs and nothing reports false success.
+	/// </para>
 	/// </remarks>
 	public class TizenFontImageSourceService : ITizenImageSourceService, IImageSourceService<IFontImageSource>
 	{
@@ -95,16 +102,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (imageSource is not IFontImageSource fontImageSource || fontImageSource.IsEmpty)
 				return Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(null);
 
-			// No rasterisation path exists; see the class remarks. Log it, because a blank image with
-			// no diagnostic is indistinguishable from a broken glyph name.
+			// Rasterising a glyph needs a font rasteriser this backend does not have. Returning a
+			// blank image would report success for something that renders nothing, so the load is
+			// failed explicitly instead: the loader clears the view and raises
+			// LoadingCompleted(false), which the caller can actually act on.
 			_logger?.LogWarning(
-				"Font image sources are not rasterised on Tizen; '{Glyph}' will render blank.",
+				"Font image sources are not supported on Tizen; '{Glyph}' cannot be rendered.",
 				fontImageSource.Glyph);
 
-			var image = new TizenImageSource();
-
-			return Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(
-				new TizenImageSourceServiceResult(image, image.Dispose));
+			return Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(null);
 		}
 	}
 

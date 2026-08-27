@@ -57,17 +57,45 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void DisconnectHandler(TizenRefreshLayout platformView)
 		{
 			platformView.Refreshing -= OnRefreshing;
+
+			// Stop any refresh in flight before the view goes away.
+			platformView.IsRefreshing = false;
+
+			// The content handler is owned here, so tearing this handler down must tear it down too.
+			platformView.DisposeContentHandler();
 			platformView.Content = null;
+
 			base.DisconnectHandler(platformView);
 		}
 
 		void OnRefreshing(object? sender, EventArgs e)
 		{
+			// Tizen's RefreshLayout has no API to disable the pull gesture, so the gesture still
+			// fires when IsRefreshEnabled is false. Refusing it here is what actually makes the
+			// property mean something: without this the control refreshes anyway and immediately
+			// snaps back, which reads as a glitch rather than as "disabled".
+			if (!VirtualView.IsRefreshEnabled)
+			{
+				PlatformView.IsRefreshing = false;
+				return;
+			}
+
 			VirtualView.IsRefreshing = true;
 		}
 
-		public static void MapIsRefreshing(TizenRefreshViewHandler handler, IRefreshView refreshView) =>
+		public static void MapIsRefreshing(TizenRefreshViewHandler handler, IRefreshView refreshView)
+		{
+			// A refresh that was started before the view was disabled must be cancelled, not left
+			// spinning forever with no way to complete it.
+			if (refreshView.IsRefreshing && !refreshView.IsRefreshEnabled)
+			{
+				handler.PlatformView.IsRefreshing = false;
+				refreshView.IsRefreshing = false;
+				return;
+			}
+
 			handler.PlatformView.UpdateIsRefreshing(refreshView);
+		}
 
 		public static void MapContent(TizenRefreshViewHandler handler, IRefreshView refreshView) =>
 			handler.PlatformView.UpdateContent(handler.VirtualView.Content, handler.MauiContext);
@@ -79,12 +107,22 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			handler.PlatformView.UpdateBackground(view);
 
 		/// <summary>
-		/// Intentional no-op. Tizen's <c>RefreshLayout</c> exposes no API to disable the pull gesture
-		/// while keeping the control enabled, so <see cref="IRefreshView.IsRefreshEnabled"/> cannot be
-		/// honoured independently. Disabling the whole view via <c>IsEnabled</c> still works.
+		/// Applies <see cref="IRefreshView.IsRefreshEnabled"/>.
 		/// </summary>
+		/// <remarks>
+		/// Tizen's <c>RefreshLayout</c> has no property to disable the pull gesture, so this cannot
+		/// be pushed to the native view directly. It is enforced instead at the two points that
+		/// matter: an incoming gesture is refused, and a refresh already running when the view is
+		/// disabled is cancelled. Previously this mapper was an empty body and the property had no
+		/// effect at all.
+		/// </remarks>
 		public static void MapIsRefreshEnabled(TizenRefreshViewHandler handler, IRefreshView refreshView)
 		{
+			if (!refreshView.IsRefreshEnabled && handler.PlatformView.IsRefreshing)
+			{
+				handler.PlatformView.IsRefreshing = false;
+				refreshView.IsRefreshing = false;
+			}
 		}
 	}
 }

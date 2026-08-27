@@ -52,6 +52,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override TizenSwipeViewGroup CreatePlatformView() => new TizenSwipeViewGroup(VirtualView);
 
+		/// <inheritdoc />
+		/// <remarks>
+		/// The swipe view creates handlers for its content and for every swipe item, so tearing this
+		/// handler down must tear those down too or they outlive it.
+		/// </remarks>
+		protected override void DisconnectHandler(TizenSwipeViewGroup platformView)
+		{
+			platformView.DisposeChildHandlers();
+			base.DisconnectHandler(platformView);
+		}
+
 		public override void SetVirtualView(IView view)
 		{
 			base.SetVirtualView(view);

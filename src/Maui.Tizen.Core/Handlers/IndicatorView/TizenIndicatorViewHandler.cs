@@ -54,6 +54,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override TizenPageControl CreatePlatformView() => new TizenPageControl(VirtualView);
 
+		/// <inheritdoc />
+		/// <remarks>
+		/// A templated indicator creates a handler for its template, which this handler owns.
+		/// </remarks>
+		protected override void DisconnectHandler(TizenPageControl platformView)
+		{
+			platformView.DisposeTemplatedViewHandler();
+			base.DisconnectHandler(platformView);
+		}
+
 		public static void MapCount(TizenIndicatorViewHandler handler, IIndicatorView indicator) => handler.PlatformView.UpdateCount();
 
 		public static void MapPosition(TizenIndicatorViewHandler handler, IIndicatorView indicator) => handler.PlatformView.UpdatePosition();

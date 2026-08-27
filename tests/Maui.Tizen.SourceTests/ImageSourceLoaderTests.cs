@@ -41,9 +41,19 @@ public class ImageSourceLoaderTests
 
 	sealed class StubProvider : IImageSourceServiceProvider
 	{
-		readonly Func<IImageSource, CancellationToken, Task<TizenImageSource?>> _resolve;
+		readonly Func<IImageSource, CancellationToken, Task<IImageSourceServiceResult<TizenImageSource>?>> _resolve;
 
-		public StubProvider(Func<IImageSource, CancellationToken, Task<TizenImageSource?>> resolve) =>
+		public StubProvider(Func<IImageSource, CancellationToken, Task<TizenImageSource?>> resolve)
+			: this(async (source, token) =>
+			{
+				var image = await resolve(source, token);
+				return image is null ? null : new TizenImageSourceServiceResult(image);
+			})
+		{
+		}
+
+		// Returns the result instance itself, so tests can observe whether the loader disposed it.
+		public StubProvider(Func<IImageSource, CancellationToken, Task<IImageSourceServiceResult<TizenImageSource>?>> resolve) =>
 			_resolve = resolve;
 
 		public IImageSourceService? GetImageSourceService(Type imageSource) => new Service(_resolve);
@@ -62,22 +72,20 @@ public class ImageSourceLoaderTests
 
 		sealed class Service : ITizenImageSourceService
 		{
-			readonly Func<IImageSource, CancellationToken, Task<TizenImageSource?>> _resolve;
+			readonly Func<IImageSource, CancellationToken, Task<IImageSourceServiceResult<TizenImageSource>?>> _resolve;
 
-			public Service(Func<IImageSource, CancellationToken, Task<TizenImageSource?>> resolve) =>
+			public Service(Func<IImageSource, CancellationToken, Task<IImageSourceServiceResult<TizenImageSource>?>> resolve) =>
 				_resolve = resolve;
 
-			public async Task<IImageSourceServiceResult<TizenImageSource>?> GetImageAsync(
+			public Task<IImageSourceServiceResult<TizenImageSource>?> GetImageAsync(
 				IImageSource imageSource,
-				CancellationToken cancellationToken = default)
-			{
-				var image = await _resolve(imageSource, cancellationToken);
-				return image is null ? null : new TizenImageSourceServiceResult(image);
-			}
+				CancellationToken cancellationToken = default) =>
+				_resolve(imageSource, cancellationToken);
 		}
 	}
 
-	static Task NoopApply(TizenImageSource? image, CancellationToken token) => Task.CompletedTask;
+	static Task<TizenImageApplyResult> NoopApply(TizenImageSource? image, CancellationToken token) =>
+		Task.FromResult(TizenImageApplyResult.Success);
 
 	[Fact]
 	public async Task LoadAppliesTheResolvedImage()
@@ -88,7 +96,7 @@ public class ImageSourceLoaderTests
 		TizenImageSource? applied = null;
 		using var loader = new TizenImageSourceLoader();
 
-		await loader.LoadAsync(part, provider, (image, _) => { applied = image; return Task.CompletedTask; });
+		await loader.LoadAsync(part, provider, (image, _) => { applied = image; return Task.FromResult(TizenImageApplyResult.Success); });
 
 		Assert.Equal("a.png", applied?.ResourceUrl);
 		Assert.Equal(new[] { true }, part.Completions);
@@ -122,14 +130,14 @@ public class ImageSourceLoaderTests
 		using var loader = new TizenImageSourceLoader();
 
 		var applied = new List<string?>();
-		Task Apply(TizenImageSource? image, CancellationToken token)
+		Task<TizenImageApplyResult> Apply(TizenImageSource? image, CancellationToken token)
 		{
 			lock (applied)
 			{
 				applied.Add(image?.ResourceUrl);
 			}
 
-			return Task.CompletedTask;
+			return Task.FromResult(TizenImageApplyResult.Success);
 		}
 
 		var slow = loader.LoadAsync(part, provider, Apply);
@@ -178,14 +186,14 @@ public class ImageSourceLoaderTests
 		using var loader = new TizenImageSourceLoader();
 
 		var applied = new List<string?>();
-		Task Apply(TizenImageSource? image, CancellationToken token)
+		Task<TizenImageApplyResult> Apply(TizenImageSource? image, CancellationToken token)
 		{
 			lock (applied)
 			{
 				applied.Add(image?.ResourceUrl);
 			}
 
-			return Task.CompletedTask;
+			return Task.FromResult(TizenImageApplyResult.Success);
 		}
 
 		var slow = loader.LoadAsync(part, provider, Apply);
@@ -215,7 +223,7 @@ public class ImageSourceLoaderTests
 		var applied = false;
 		using var loader = new TizenImageSourceLoader();
 
-		var pending = loader.LoadAsync(part, provider, (_, _) => { applied = true; return Task.CompletedTask; });
+		var pending = loader.LoadAsync(part, provider, (_, _) => { applied = true; return Task.FromResult(TizenImageApplyResult.Success); });
 
 		loader.Cancel();
 		gate.SetResult();
@@ -243,6 +251,7 @@ public class ImageSourceLoaderTests
 			var never = new TaskCompletionSource();
 			using var registration = token.Register(() => never.TrySetResult());
 			await never.Task;
+			return TizenImageApplyResult.Cancelled;
 		});
 
 		Assert.False(pending.IsCompleted);
@@ -276,7 +285,7 @@ public class ImageSourceLoaderTests
 					applied.Add(image?.ResourceUrl);
 				}
 
-				return Task.CompletedTask;
+				return Task.FromResult(TizenImageApplyResult.Success);
 			}));
 		}
 
@@ -324,8 +333,232 @@ public class ImageSourceLoaderTests
 		loader.Dispose();
 
 		var applied = false;
-		await loader.LoadAsync(part, provider, (_, _) => { applied = true; return Task.CompletedTask; });
+		await loader.LoadAsync(part, provider, (_, _) => { applied = true; return Task.FromResult(TizenImageApplyResult.Success); });
 
 		Assert.False(applied);
+	}
+
+	// ---------------------------------------------------------------------------------------
+	// Ownership, disposal and honest completion reporting.
+	// ---------------------------------------------------------------------------------------
+
+	/// <summary>
+	/// A load started before a disconnect must not complete into the reconnected view.
+	/// </summary>
+	/// <remarks>
+	/// This is why the loader tracks a monotonic generation and not just a token. <see cref="TizenImageSourceLoader.Cancel"/>
+	/// replaces the token source, so the old token being cancelled says nothing about whether the
+	/// handler that started the load is still the one on screen. The generation never goes
+	/// backwards, so a pre-disconnect load can always be recognised as stale.
+	/// </remarks>
+	[Fact]
+	public async Task ALoadStartedBeforeDisconnectCannotCompleteIntoAReconnectedView()
+	{
+		var part = new StubPart { Source = new StubImageSource("s") };
+		var gate = new TaskCompletionSource();
+
+		// Ignores the token, exactly as a badly behaved service would.
+		var provider = new StubProvider(async (_, _) =>
+		{
+			await gate.Task;
+			return new TizenImageSource { ResourceUrl = "stale.png" };
+		});
+
+		using var loader = new TizenImageSourceLoader();
+
+		var applied = false;
+		var pending = loader.LoadAsync(part, provider, (_, _) =>
+		{
+			applied = true;
+			return Task.FromResult(TizenImageApplyResult.Success);
+		});
+
+		// Disconnect, then reconnect: a new generation begins.
+		loader.Cancel();
+
+		gate.SetResult();
+		await pending;
+
+		Assert.False(applied);
+	}
+
+	/// <summary>A successful load takes ownership of its result and disposes what it replaces.</summary>
+	[Fact]
+	public async Task ReplacingAnImageDisposesThePreviousResult()
+	{
+		var part = new StubPart { Source = new StubImageSource("first") };
+
+		var results = new List<TizenImageSourceServiceResult>();
+		var provider = new StubProvider((_, _) =>
+		{
+			var result = new TizenImageSourceServiceResult(new TizenImageSource());
+			results.Add(result);
+			return Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(result);
+		});
+
+		using var loader = new TizenImageSourceLoader();
+
+		await loader.LoadAsync(part, provider, NoopApply);
+		Assert.All(results, r => Assert.False(r.IsDisposed));
+
+		part.Source = new StubImageSource("second");
+		await loader.LoadAsync(part, provider, NoopApply);
+
+		// The first result is no longer displayed, so it must have been released.
+		Assert.True(results[0].IsDisposed);
+		Assert.False(results[1].IsDisposed);
+	}
+
+	/// <summary>Tearing the handler down releases the image it was holding.</summary>
+	[Fact]
+	public async Task CancelDisposesTheCurrentResult()
+	{
+		var part = new StubPart { Source = new StubImageSource("s") };
+
+		TizenImageSourceServiceResult? result = null;
+		var provider = new StubProvider((_, _) =>
+		{
+			result = new TizenImageSourceServiceResult(new TizenImageSource());
+			return Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(result);
+		});
+
+		using var loader = new TizenImageSourceLoader();
+		await loader.LoadAsync(part, provider, NoopApply);
+
+		Assert.False(result!.IsDisposed);
+
+		loader.Cancel();
+
+		Assert.True(result.IsDisposed);
+	}
+
+	/// <summary>Setting the source to null must take the previous image down.</summary>
+	/// <remarks>
+	/// Without this the control keeps showing the old image and appears not to have changed at all,
+	/// which reads as "the binding is broken" rather than "the source is empty".
+	/// </remarks>
+	[Fact]
+	public async Task ANullSourceClearsThePreviousImage()
+	{
+		var part = new StubPart { Source = new StubImageSource("s") };
+		var provider = new StubProvider((_, _) => Task.FromResult<TizenImageSource?>(new TizenImageSource()));
+
+		using var loader = new TizenImageSourceLoader();
+		await loader.LoadAsync(part, provider, NoopApply);
+
+		var cleared = false;
+		part.Source = null;
+		await loader.LoadAsync(part, provider, NoopApply, () => cleared = true);
+
+		Assert.True(cleared);
+	}
+
+	/// <summary>A source that resolves to nothing clears the view and reports failure.</summary>
+	/// <remarks>This is the path a font image source takes, since Tizen cannot rasterise glyphs.</remarks>
+	[Fact]
+	public async Task AnUnresolvableSourceClearsAndReportsFailure()
+	{
+		var part = new StubPart { Source = new StubImageSource("s") };
+		var provider = new StubProvider((_, _) => Task.FromResult<TizenImageSource?>(null));
+
+		var cleared = false;
+		using var loader = new TizenImageSourceLoader();
+
+		await loader.LoadAsync(part, provider, NoopApply, () => cleared = true);
+
+		Assert.True(cleared);
+		Assert.Equal(new[] { false }, part.Completions);
+		Assert.False(part.IsLoading);
+	}
+
+	/// <summary>A failing service clears the view rather than leaving a stale image behind.</summary>
+	[Fact]
+	public async Task AFailingServiceClearsTheView()
+	{
+		var part = new StubPart { Source = new StubImageSource("s") };
+		var provider = new StubProvider((_, _) => Task.FromException<TizenImageSource?>(new InvalidOperationException("boom")));
+
+		var cleared = false;
+		using var loader = new TizenImageSourceLoader();
+
+		await loader.LoadAsync(part, provider, NoopApply, () => cleared = true);
+
+		Assert.True(cleared);
+		Assert.Single(part.Failures);
+	}
+
+	/// <summary>
+	/// A platform that reports a failed decode must not be recorded as a successful load.
+	/// </summary>
+	/// <remarks>
+	/// NUI assigns a resource URL synchronously and only later reports whether the bytes decoded.
+	/// Treating the assignment as success marks a broken or missing image as loaded, which is
+	/// exactly the state a caller cannot recover from because nothing told it anything went wrong.
+	/// </remarks>
+	[Fact]
+	public async Task APlatformDecodeFailureIsReportedAsFailure()
+	{
+		var part = new StubPart { Source = new StubImageSource("s") };
+
+		TizenImageSourceServiceResult? result = null;
+		var provider = new StubProvider((_, _) =>
+		{
+			result = new TizenImageSourceServiceResult(new TizenImageSource());
+			return Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(result);
+		});
+
+		var cleared = false;
+		using var loader = new TizenImageSourceLoader();
+
+		await loader.LoadAsync(
+			part,
+			provider,
+			(_, _) => Task.FromResult(TizenImageApplyResult.Failed),
+			() => cleared = true);
+
+		Assert.Equal(new[] { false }, part.Completions);
+		Assert.True(cleared);
+
+		// A result that never made it to the screen must not be retained.
+		Assert.True(result!.IsDisposed);
+	}
+
+	/// <summary>A cancelled apply reports failure but must not clear a newer image.</summary>
+	[Fact]
+	public async Task ACancelledApplyDoesNotClearTheView()
+	{
+		var part = new StubPart { Source = new StubImageSource("s") };
+		var provider = new StubProvider((_, _) => Task.FromResult<TizenImageSource?>(new TizenImageSource()));
+
+		var cleared = false;
+		using var loader = new TizenImageSourceLoader();
+
+		await loader.LoadAsync(
+			part,
+			provider,
+			(_, _) => Task.FromResult(TizenImageApplyResult.Cancelled),
+			() => cleared = true);
+
+		Assert.Equal(new[] { false }, part.Completions);
+		Assert.False(cleared);
+	}
+
+	/// <summary>Every started load advances the generation.</summary>
+	[Fact]
+	public async Task EachLoadAdvancesTheGeneration()
+	{
+		var part = new StubPart { Source = new StubImageSource("s") };
+		var provider = new StubProvider((_, _) => Task.FromResult<TizenImageSource?>(new TizenImageSource()));
+
+		using var loader = new TizenImageSourceLoader();
+
+		var before = loader.Generation;
+		await loader.LoadAsync(part, provider, NoopApply);
+		var afterLoad = loader.Generation;
+
+		loader.Cancel();
+
+		Assert.True(afterLoad > before);
+		Assert.True(loader.Generation > afterLoad);
 	}
 }

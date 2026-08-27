@@ -72,6 +72,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (!platformView.HasBody())
 				return;
 
+			// The content handler is created here, so it must be released here. Without this the
+			// child handler outlives its parent and keeps the native content view alive.
+			UpdateContent(null);
+
 			base.DisconnectHandler(platformView);
 			platformView.Scrolling -= OnScrolled;
 			platformView.ScrollAnimationEnded -= ScrollAnimationEnded;
@@ -131,6 +135,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			}
 			_contentHandler = content;
 
+			if (_contentHandler is null)
+			{
+				// Reset the cached extents too, otherwise the next real content is compared against
+				// the removed child's size and the container is never resized.
+				_cachedWidth = 0;
+				_cachedHeight = 0;
+				_measureCache = default;
+				PlatformView.ContentContainer.SizeWidth = 0;
+				PlatformView.ContentContainer.SizeHeight = 0;
+				return;
+			}
+
 			if (_contentHandler != null)
 			{
 				PlatformView.ContentContainer.Add(_contentHandler.PlatformView);
@@ -178,8 +194,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapContent(TizenScrollViewHandler handler, IScrollView scrollView)
 		{
-			if (handler.MauiContext == null || scrollView.PresentedContent == null)
+			if (handler.MauiContext is null)
 			{
+				return;
+			}
+
+			// A null content is a real state change. The imported code returned early here, so the
+			// old child stayed parented and the content container kept its previous size - the
+			// scroll view carried on showing content that had been removed.
+			if (scrollView.PresentedContent is null)
+			{
+				handler.UpdateContent(null);
 				return;
 			}
 
@@ -205,21 +230,45 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			handler.PlatformView?.UpdateOrientation(scrollView.Orientation);
 		}
 
+		/// <summary>
+		/// Scrolls to the requested offset.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// NUI's <c>ScrollableBase.ScrollTo</c> takes a single position along the view's own
+		/// scrolling axis; there is no two-axis overload. The imported code handled that by using the
+		/// vertical offset only for <see cref="ScrollOrientation.Vertical"/> and the HORIZONTAL
+		/// offset for everything else — so a <see cref="ScrollOrientation.Both"/> scroll view sent
+		/// the X offset as its vertical position, and scrolling to (0, 500) went nowhere.
+		/// </para>
+		/// <para>
+		/// Each orientation now uses its own axis. For <see cref="ScrollOrientation.Both"/> the
+		/// vertical offset is applied, because that is the axis <c>ScrollableBase</c> scrolls by
+		/// default; the horizontal component of a simultaneous two-axis programmatic scroll is
+		/// UNSUPPORTED and documented in docs/wave-b-mapper-parity.md rather than silently
+		/// mistranslated. <see cref="ScrollOrientation.Neither"/> does not scroll at all.
+		/// </para>
+		/// </remarks>
 		public static void MapRequestScrollTo(TizenScrollViewHandler handler, IScrollView scrollView, object? args)
 		{
-			if (args is ScrollToRequest request)
+			if (args is not ScrollToRequest request)
 			{
-				var x = request.HorizontalOffset;
-				var y = request.VerticalOffset;
+				return;
+			}
 
-				var pos = scrollView.Orientation == ScrollOrientation.Vertical ? y : x;
+			if (scrollView.Orientation != ScrollOrientation.Neither)
+			{
+				var offset = scrollView.Orientation == ScrollOrientation.Horizontal
+					? request.HorizontalOffset
+					: request.VerticalOffset;
 
-				handler.PlatformView.ScrollTo(pos.ToPixel(), !request.Instant);
+				handler.PlatformView.ScrollTo(offset.ToPixel(), !request.Instant);
+			}
 
-				if (request.Instant)
-				{
-					scrollView.ScrollFinished();
-				}
+			// A request that cannot move the view must still complete, or the caller waits forever.
+			if (request.Instant || scrollView.Orientation == ScrollOrientation.Neither)
+			{
+				scrollView.ScrollFinished();
 			}
 		}
 	}

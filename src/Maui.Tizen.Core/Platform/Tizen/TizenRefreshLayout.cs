@@ -37,6 +37,17 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 		}
 
+		/// <summary>Disposes the content handler this layout created.</summary>
+		/// <remarks>
+		/// The layout creates the child handler in <c>UpdateContent</c>, so it owns it. Without this
+		/// the child handler outlives its parent and keeps the native content view alive.
+		/// </remarks>
+		public void DisposeContentHandler()
+		{
+			_contentHandler?.Dispose();
+			_contentHandler = null;
+		}
+
 		public void UpdateIsRefreshing(IRefreshView view)
 		{
 			IsRefreshing = view.IsRefreshing;

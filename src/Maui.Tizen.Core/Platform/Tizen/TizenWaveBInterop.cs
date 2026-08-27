@@ -96,9 +96,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// Applies a resolved image to a native Tizen view.
 	/// </summary>
 	/// <remarks>
-	/// Cancellation and supersede handling live in <see cref="TizenImageSourceLoader"/>, which has no
-	/// NUI dependency and is therefore executable in tests. This type holds only the part that
-	/// genuinely requires NUI: waiting for the decode.
+	/// Cancellation, generation tracking and disposal live in <see cref="TizenImageSourceLoader"/>,
+	/// which has no NUI dependency and is therefore executable in tests. This type holds only the
+	/// part that genuinely requires NUI: waiting for the decode and reporting its outcome.
 	/// </remarks>
 	public static class TizenImageSourcePartExtensions
 	{
@@ -106,22 +106,20 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// Hands <paramref name="platformImage"/> to <paramref name="setImage"/> and, for a native
 		/// image view, waits until NUI reports the resource ready.
 		/// </summary>
+		/// <returns>
+		/// What the platform actually did. Assigning a resource URL is NOT success: NUI resolves the
+		/// URL synchronously and only later reports whether the bytes decoded, so reporting success
+		/// on assignment would mark a broken or missing image as loaded.
+		/// </returns>
 		/// <remarks>
-		/// <para>
-		/// NUI decodes asynchronously. Without this wait, <c>LoadingCompleted</c> fires and
-		/// <c>IsLoading</c> clears while the view is still blank, so a loading spinner disappears
-		/// before there is anything to see.
-		/// </para>
-		/// <para>
 		/// Three departures from upstream, each fixing a hang or a crash rather than changing
 		/// behaviour: the wait observes <paramref name="cancellationToken"/> so a superseded or
 		/// disconnected load cannot wait forever on an event that will never arrive;
 		/// <c>TrySetResult</c> replaces <c>SetResult</c>, which throws if NUI raises
-		/// <c>ResourceReady</c> more than once; and the image is not written at all once the token is
-		/// cancelled, so a stale load cannot overwrite a newer one.
-		/// </para>
+		/// <c>ResourceReady</c> more than once; and nothing is written once the token is cancelled,
+		/// so a stale load cannot overwrite a newer one.
 		/// </remarks>
-		public static async Task ApplyImageSourceAsync(
+		public static async Task<TizenImageApplyResult> ApplyImageSourceAsync(
 			this NView destinationContext,
 			TizenImageSource? platformImage,
 			Action<TizenImageSource?> setImage,
@@ -129,13 +127,17 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			ArgumentNullException.ThrowIfNull(setImage);
 
-			if (platformImage is null || cancellationToken.IsCancellationRequested)
-				return;
+			if (cancellationToken.IsCancellationRequested)
+				return TizenImageApplyResult.Cancelled;
+
+			if (platformImage is null)
+				return TizenImageApplyResult.Failed;
 
 			if (destinationContext is not TizenNativeImageView imageView)
 			{
+				// No decode notification is available, so the assignment is all we can report on.
 				setImage.Invoke(platformImage);
-				return;
+				return TizenImageApplyResult.Success;
 			}
 
 			var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -146,16 +148,23 @@ namespace Microsoft.Maui.Platforms.Tizen
 			using var registration = cancellationToken.Register(static state =>
 				((TaskCompletionSource<bool>)state!).TrySetResult(false), completion);
 
+			bool ready;
+
 			try
 			{
 				imageView.ResourceReady += OnResourceReady;
 				setImage.Invoke(platformImage);
-				await completion.Task.ConfigureAwait(false);
+				ready = await completion.Task.ConfigureAwait(false);
 			}
 			finally
 			{
 				imageView.ResourceReady -= OnResourceReady;
 			}
+
+			if (cancellationToken.IsCancellationRequested)
+				return TizenImageApplyResult.Cancelled;
+
+			return ready ? TizenImageApplyResult.Success : TizenImageApplyResult.Failed;
 		}
 	}
 }

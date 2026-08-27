@@ -320,6 +320,11 @@
       "NeutralHandler": "Microsoft.Maui.Controls.Handlers.PathHandler",
       "PropertyMappers": [
         {
+          "Key": "Shape",
+          "Method": "MapShape",
+          "Status": "Supported"
+        },
+        {
           "Key": "Data",
           "Method": "MapData",
           "Status": "Supported"
@@ -340,6 +345,11 @@
       "NeutralHandler": "Microsoft.Maui.Controls.Handlers.PolygonHandler",
       "PropertyMappers": [
         {
+          "Key": "Shape",
+          "Method": "MapShape",
+          "Status": "Supported"
+        },
+        {
           "Key": "Points",
           "Method": "MapPoints",
           "Status": "Supported"
@@ -359,6 +369,11 @@
       "File": "src/Maui.Tizen.Controls/Core/Handlers/Shapes/Polyline/TizenPolylineHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Controls.Handlers.PolylineHandler",
       "PropertyMappers": [
+        {
+          "Key": "Shape",
+          "Method": "MapShape",
+          "Status": "Supported"
+        },
         {
           "Key": "Points",
           "Method": "MapPoints",
@@ -417,8 +432,7 @@
         {
           "Key": "IsRefreshEnabled",
           "Method": "MapIsRefreshEnabled",
-          "Status": "NoOp",
-          "Reason": "Intentional no-op. Tizen\u0027s \u003Cc\u003ERefreshLayout\u003C/c\u003E exposes no API to disable the pull gesture while keeping the control enabled, so \u003Csee cref=\u0022IRefreshView.IsRefreshEnabled\u0022/\u003E cannot be honoured independently. Disabling the whole view via \u003Cc\u003EIsEnabled\u003C/c\u003E still works."
+          "Status": "Supported"
         },
         {
           "Key": "Background",
