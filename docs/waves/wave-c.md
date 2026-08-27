@@ -159,7 +159,8 @@ never reaches method bodies.
 
 **Where method bodies actually get executed is `tests/Maui.Tizen.SourceTests`.** The pure-Controls
 adapters - `ToolbarDrawerToggle`, `TizenToolbarNavigationSlot`, `ShellElementTree`,
-`ShellTemplateResolver`, `ShellFlyoutTemplateResolution`, `ToolbarOwnership` - are compiled straight
+`ShellTemplateResolver`, `ShellFlyoutTemplateResolution`, `ToolbarOwnership`, `ItemSelectionState` -
+are compiled straight
 into that net11 test assembly and run. Any Wave C logic that must be verified before the Core rebase
 belongs in a file that project can compile; anything else is currently taken on faith, and should be
 described that way.
@@ -365,6 +366,18 @@ so the gap is closed deliberately rather than forgotten.
 
 Runtime behaviour. There is no Tizen emulator or device here, so item recycling, virtualization
 performance, navigation animation and Shell lazy content are **compile-verified only**.
+
+## Item selection visuals
+
+The in-tree backend set the internal `View.IsItemSelected`. Wave C drives `VisualStateManager`
+directly instead, on the claim that entering the `Selected` state was that property's only observable
+effect - which is the entire justification for dropping the internal dependency, and was unverified
+until now.
+
+`WaveCItemSelectionStateTests` executes the adapter: select enters `Selected`, deselect returns to
+`Normal`, repeated selection is idempotent (recycled rows must be re-driven, not toggled), focus
+enters `Focused` and sets `IsFocused`, and both a null view and an item whose template declares no
+visual states are safe to drive. Negative control: stubbing the state transition out fails 4 of the 7.
 
 ## The toolbar navigation slot
 

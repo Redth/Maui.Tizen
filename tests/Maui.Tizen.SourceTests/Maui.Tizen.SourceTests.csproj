@@ -66,6 +66,8 @@
              LinkBase="WaveCAdapters" />
     <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls.Navigation/Adapters/ShellFlyoutTemplateResolution.cs"
              LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls.Navigation/Adapters/ItemSelectionState.cs"
+             LinkBase="WaveCAdapters" />
   </ItemGroup>
 
 </Project>
