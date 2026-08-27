@@ -10,13 +10,16 @@
 #
 # Usage:
 #   evaluate-release-gate.sh --required <true|false> \
+#                            --release-validation <true|false|empty> \
 #                            --lab-enabled <true|false> \
 #                            --matrix-result <success|failure|cancelled|skipped> \
-#                            --required-profiles "mobile tv" \
+#                            --consumer-result <success|failure|cancelled|skipped> \
+#                            --required-profiles "mobile-mdpi mobile-hdpi mobile-xhdpi tv-fhd tv-uhd" \
 #                            --results-dir <dir>
 #
-# <results-dir> holds one file per profile, named 'device-result-<profile>.txt', written by the
-# device job. Each must contain 'lane_available=true' and 'status=pass'. Reporting through
+# <results-dir> holds one file per required visual target, named
+# 'device-result-<profile>-<density>.txt', written by the device job. Each must contain
+# 'lane_available=true' and 'status=pass'. Reporting through
 # artifacts rather than job outputs is deliberate: matrix job outputs collapse to a single
 # last-writer-wins value, so a passing profile could mask a failing one.
 #
@@ -25,16 +28,20 @@
 set -euo pipefail
 
 REQUIRED=false
+RELEASE_VALIDATION=false
 LAB_ENABLED=false
 MATRIX_RESULT=skipped
+CONSUMER_RESULT=skipped
 REQUIRED_PROFILES=""
 RESULTS_DIR=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --required)          REQUIRED="$2"; shift 2 ;;
+    --release-validation) RELEASE_VALIDATION="${2:-}"; shift 2 ;;
     --lab-enabled)       LAB_ENABLED="$2"; shift 2 ;;
     --matrix-result)     MATRIX_RESULT="$2"; shift 2 ;;
+    --consumer-result)   CONSUMER_RESULT="$2"; shift 2 ;;
     --required-profiles) REQUIRED_PROFILES="$2"; shift 2 ;;
     --results-dir)       RESULTS_DIR="$2"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -43,6 +50,14 @@ done
 
 fail() { echo "BLOCKED: $*"; }
 ok()   { echo "OK: $*"; }
+gate_output() {
+  if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+    echo "gate_passed=$1" >> "$GITHUB_OUTPUT"
+  fi
+}
+
+# Fail closed for callers. Informational runs and failures must not produce a success-shaped output.
+gate_output false
 
 # Not a release: the lane is informational and must never block an ordinary pull request.
 if [[ "$REQUIRED" != "true" ]]; then
@@ -61,6 +76,11 @@ fi
 # ships with no device validation at all.
 if [[ "$MATRIX_RESULT" != "success" ]]; then
   fail "the device matrix did not succeed (result: $MATRIX_RESULT)."
+  exit 1
+fi
+
+if [[ "$CONSUMER_RESULT" != "success" ]]; then
+  fail "the real-package consumer restore did not succeed on a workload-equipped runner (result: $CONSUMER_RESULT)."
   exit 1
 fi
 
@@ -111,4 +131,7 @@ if [[ $BLOCKED -ne 0 ]]; then
 fi
 
 ok "every required profile was validated on hardware; release may proceed"
+if [[ "$RELEASE_VALIDATION" == "true" ]]; then
+  gate_output true
+fi
 exit 0

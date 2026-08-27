@@ -48,7 +48,7 @@ public static class ValidationSkip
             return;
 
         Because(
-            "The maui-tizen workload is not installed on this runner. Tizen target-framework " +
+            "The Samsung Tizen workload is not installed on this runner. Tizen target-framework " +
             "builds, TPK creation and deploy/run are covered by the device lane " +
             "(.github/workflows/tizen-device-validation.yml).");
     }

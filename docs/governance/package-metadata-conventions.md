@@ -61,6 +61,12 @@ session to avoid duplicate or conflicting edits).
   protected GitHub Environment (see `.github/workflows/release.yml`).
   Until an organization signing service/certificate is provisioned, the
   `sign` job is a placeholder that fails closed (does not silently skip).
+- The signer consumes the exact versioned unsigned workflow artifact emitted
+  by `pack`, verifies its SHA-256 manifest, and writes signed copies to a
+  separate directory. There is no rebuild and no unsigned fallback.
+- Signature verification, SHA-256 recording, GitHub build-provenance
+  attestation, and upload of the versioned signed artifact are mandatory
+  steps after the signer. They do not use `continue-on-error`.
 
 ## 4. Ownership & trusted publishing
 
@@ -96,3 +102,6 @@ session to avoid duplicate or conflicting edits).
 - Release artifacts (`.nupkg`/`.snupkg`) produced by CI should be
   retained as workflow artifacts for audit, independent of whether the
   publish step actually runs.
+- Publishing downloads only the versioned signed artifact, then re-verifies
+  its hashes, NuGet signatures, and GitHub attestation before the disabled
+  publishing guard. It never reads the unsigned artifact from `pack`.

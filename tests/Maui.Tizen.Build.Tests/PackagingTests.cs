@@ -171,20 +171,46 @@ public class PackagingTests
 
         var packagesDirectory = Path.Combine(RepoLayout.Root, "artifacts", "packages");
 
-        ValidationSkip.When(
-            !Directory.Exists(packagesDirectory) ||
-            !Directory.EnumerateFiles(packagesDirectory, "*.nupkg").Any(),
-            $"No packages have been produced in '{RepoLayout.Relative(packagesDirectory)}'. The " +
-            "shipping packages target the Tizen framework and cannot be packed until the Samsung " +
-            "workload is available; see docs/validation/blockers.md.");
+        // Presence of ANY .nupkg is the wrong question. Other probes in this repository pack
+        // internal artifacts into the same directory (eng/tests/PackReadmeProbe produces
+        // Maui.Tizen.Internal.PackReadmeProbe), so a non-empty directory does not mean the
+        // SHIPPING packages were built. Ask per declared package instead.
+        var produced = ids
+            .Where(id => NuPkg.FindPackagePaths(packagesDirectory, id).Count > 0)
+            .ToList();
 
-        foreach (var id in ids)
+        ValidationSkip.When(
+            produced.Count == 0,
+            $"None of the {ids.Count} declared shipping package(s) have been produced in " +
+            $"'{RepoLayout.Relative(packagesDirectory)}'. They target the Tizen framework and " +
+            "cannot be packed until the Samsung workload is available; see " +
+            "docs/validation/blockers.md. (Release runs assert this instead of skipping - see " +
+            "ReleaseReadinessTests.)");
+
+        // Whatever HAS been produced is held to its contract, so a partial pack still gets checked.
+        foreach (var id in produced)
         {
             using var package = NuPkg.OpenFromDirectory(packagesDirectory, id);
 
             var evaluation = PackageContentContract.Load(id).Evaluate(package.Entries);
 
             Assert.True(evaluation.Passed, evaluation.Describe(package.Entries));
+        }
+    }
+
+    [Fact]
+    public async Task PackageLookupRejectsFilenamePrefixSpoofing()
+    {
+        var (workspace, output) = await PackProbeAsync().ConfigureAwait(true);
+
+        using (workspace)
+        {
+            var real = Assert.Single(Directory.EnumerateFiles(output, "*.nupkg"));
+            var spoof = Path.Combine(output, "Maui.Tizen.Core.Extra.1.0.0.nupkg");
+            File.Move(real, spoof);
+
+            Assert.Empty(NuPkg.FindPackagePaths(output, "Maui.Tizen.Core"));
+            Assert.Single(NuPkg.FindPackagePaths(output, "maui.tizen.harnessprobe"));
         }
     }
 }

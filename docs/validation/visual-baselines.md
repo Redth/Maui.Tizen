@@ -14,8 +14,8 @@ tests/VisualBaselines/{profile}/{apiLevel}/{theme}/{density}/{caseId}.json
 Example:
 
 ```
-tests/VisualBaselines/mobile/API15/dark/hdpi/button-default.png
-tests/VisualBaselines/mobile/API15/dark/hdpi/button-default.json
+tests/VisualBaselines/mobile/API15/system/hdpi/button-default.png
+tests/VisualBaselines/mobile/API15/system/hdpi/button-default.json
 ```
 
 Every segment is there because it changes pixels — profile changes default metrics, API level
@@ -37,7 +37,7 @@ correct one, and the only way to judge a diff is to re-capture and eyeball it.
   "caseId": "button-default",
   "profile": "mobile",
   "apiLevel": "API15",
-  "theme": "dark",
+  "theme": "system",
   "density": "hdpi",
   "targetFramework": "net11.0-tizen11.0",
   "deviceImage": "tizen-11.0-mobile-x86",

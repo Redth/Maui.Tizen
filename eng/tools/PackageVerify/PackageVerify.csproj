@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RootNamespace>Migration.PackageVerify</RootNamespace>
+    <AssemblyName>maui-tizen-packageverify</AssemblyName>
+    <!-- Internal build tool, not a shipped/documented library. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- Performs REAL NuGet package signature verification (integrity + trust) via
+         NuGet.Packaging, not just a bare System.Security.Cryptography.Pkcs.SignedCms check on the
+         .signature.p7s blob in isolation. A SignedCms check alone only proves the signature blob
+         is internally well-formed; it says nothing about whether the *package contents* still
+         match what was signed. NuGet.Packaging's IntegrityVerificationProvider recomputes the
+         package's content hash and compares it against the hash embedded in the signature, which
+         is what actually detects a modified archive that still carries its original,
+         cryptographically-valid signature entry. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NuGet.Packaging" />
+  </ItemGroup>
+
+</Project>

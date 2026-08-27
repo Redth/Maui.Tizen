@@ -199,3 +199,290 @@ public class TizenAgentConnectionTests
     public void RejectsPortsOutsideTheValidRange(int port) =>
         Assert.Throws<ArgumentOutOfRangeException>(() => new TizenAgentConnection(devicePort: port));
 }
+
+/// <summary>
+/// Activation semantics: a tap must never report success for something it merely focused.
+/// </summary>
+public class NativeActivationPolicyTests
+{
+    static NativeActivationDecision Decide(
+        bool hasElement = true,
+        bool isButton = false,
+        bool isFocusable = false,
+        string typeName = "MauiView",
+        bool syntheticInputAvailable = false) =>
+        NativeActivationPolicy.Decide(hasElement, isButton, isFocusable, typeName, syntheticInputAvailable);
+
+    [Fact]
+    public void NativeButton_CanBeActivated()
+    {
+        var decision = Decide(isButton: true, typeName: "MauiButton");
+
+        Assert.True(decision.CanActivate);
+        Assert.Equal(NativeActivationOutcome.Activate, decision.Outcome);
+        Assert.Null(decision.Reason);
+    }
+
+    public class AgentLifecycleStartupTests
+    {
+        sealed class TestApplication;
+
+        [Fact]
+        public void FirstActiveLifecycleEventStartsTheAgent()
+        {
+            var application = new TestApplication();
+            var running = false;
+            var bound = false;
+            var starts = 0;
+            var binds = 0;
+            var startup = new AgentLifecycleStartup<TestApplication>(
+                () => application,
+                () => running,
+                () => bound,
+                _ =>
+                {
+                    starts++;
+                    running = true;
+                    bound = true;
+                },
+                _ =>
+                {
+                    binds++;
+                    bound = true;
+                });
+
+            Assert.True(startup.OnApplicationActive());
+            Assert.Equal(1, starts);
+            Assert.Equal(0, binds);
+        }
+
+        public class NativeTapResultTests
+        {
+            [Fact]
+            public void SuccessfulNativeActivationReturnsTheDevFlowHandledSentinel() =>
+                Assert.Equal("ok", NativeTapResult.FromError(null));
+
+            [Fact]
+            public void NativeActivationErrorsRemainErrors() =>
+                Assert.Equal("not activatable", NativeTapResult.FromError("not activatable"));
+        }
+
+        [Fact]
+        public void ResumeRebindsARunningAppLessAgent()
+        {
+            var application = new TestApplication();
+            var bound = false;
+            var binds = 0;
+            var startup = new AgentLifecycleStartup<TestApplication>(
+                () => application,
+                () => true,
+                () => bound,
+                _ => Assert.Fail("A running agent must not be started twice."),
+                _ =>
+                {
+                    binds++;
+                    bound = true;
+                });
+
+            Assert.True(startup.OnApplicationActive());
+            Assert.Equal(1, binds);
+        }
+
+        [Fact]
+        public void LifecycleWaitsUntilTheApplicationExists()
+        {
+            var startup = new AgentLifecycleStartup<TestApplication>(
+                () => null,
+                () => false,
+                () => false,
+                _ => Assert.Fail("No application is available."),
+                _ => Assert.Fail("No application is available."));
+
+            Assert.False(startup.OnApplicationActive());
+        }
+    }
+
+    [Fact]
+    public void FocusableNonButton_IsNotActivatable()
+    {
+        // The regression: focusing used to be treated as a successful tap. A driver would see
+        // "tap succeeded" while the control's command never ran.
+        var decision = Decide(isFocusable: true, typeName: "MauiEntry");
+
+        Assert.False(decision.CanActivate);
+        Assert.Equal(NativeActivationOutcome.NotActivatable, decision.Outcome);
+        Assert.Contains("focusing is not activation", decision.Reason!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NonFocusableNonButton_IsNotActivatable()
+    {
+        var decision = Decide(typeName: "MauiLabel");
+
+        Assert.False(decision.CanActivate);
+        Assert.Contains("MauiLabel", decision.Reason!, StringComparison.Ordinal);
+        Assert.DoesNotContain("focusing is not activation", decision.Reason!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FocusableButton_ActivatesRatherThanFocusing()
+    {
+        // Being focusable must never downgrade a real activation path.
+        Assert.True(Decide(isButton: true, isFocusable: true).CanActivate);
+    }
+
+    [Fact]
+    public void MissingElement_IsReportedDistinctly()
+    {
+        var decision = Decide(hasElement: false);
+
+        Assert.Equal(NativeActivationOutcome.NoElement, decision.Outcome);
+        Assert.False(decision.CanActivate);
+    }
+
+    [Fact]
+    public void AdviceReflectsWhetherSynthesisedInputIsAvailable()
+    {
+        // The verdict must not change with privilege - only the suggested way forward.
+        var withPrivilege = Decide(isFocusable: true, syntheticInputAvailable: true);
+        var withoutPrivilege = Decide(isFocusable: true, syntheticInputAvailable: false);
+
+        Assert.False(withPrivilege.CanActivate);
+        Assert.False(withoutPrivilege.CanActivate);
+
+        Assert.Contains("real hit-testing", withPrivilege.Reason!, StringComparison.Ordinal);
+        Assert.Contains(TizenPrivileges.InputGenerator, withoutPrivilege.Reason!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EveryNonActivatableOutcomeCarriesAReason()
+    {
+        foreach (var decision in new[]
+                 {
+                     Decide(hasElement: false),
+                     Decide(isFocusable: true),
+                     Decide(),
+                 })
+        {
+            Assert.False(string.IsNullOrWhiteSpace(decision.Reason));
+        }
+    }
+}
+
+/// <summary>Key injection is privileged, exactly like touch.</summary>
+public class KeyCapabilityTests
+{
+    static TizenAgentEnvironment Environment(bool inputGenerator) =>
+        new()
+        {
+            GrantedPrivileges = inputGenerator
+                ? [TizenPrivileges.Internet, TizenPrivileges.InputGenerator]
+                : [TizenPrivileges.Internet],
+        };
+
+    [Fact]
+    public void KeyIsUnsupportedWithoutTheInputGeneratorPrivilege()
+    {
+        // Previously advertised on window presence alone, so the endpoint reported success and did
+        // nothing - which reaches a driver as "pressed a key, nothing happened".
+        var key = TizenAgentCapabilityPolicy.Compute(Environment(inputGenerator: false))[
+            TizenAgentCapabilityPolicy.Keys.Key];
+
+        Assert.False(key.Supported);
+        Assert.Contains(TizenPrivileges.InputGenerator, key.UnsupportedReason!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void KeyIsSupportedWithThePrivilege() =>
+        Assert.True(
+            TizenAgentCapabilityPolicy.Compute(Environment(inputGenerator: true))[
+                TizenAgentCapabilityPolicy.Keys.Key].Supported);
+
+    [Fact]
+    public void KeyAndNativeInputAgree()
+    {
+        // The TV focus harness drives ui/actions/key; if these two ever disagreed, the capability
+        // map would advertise one thing and the endpoint do another.
+        foreach (var granted in new[] { true, false })
+        {
+            var capabilities = TizenAgentCapabilityPolicy.Compute(Environment(granted));
+
+            Assert.Equal(
+                capabilities[TizenAgentCapabilityPolicy.Keys.NativeInput].Supported,
+                capabilities[TizenAgentCapabilityPolicy.Keys.Key].Supported);
+        }
+    }
+}
+
+/// <summary>The on-device convention protocol.</summary>
+public class ConventionProtocolTests : IDisposable
+{
+    public void Dispose() => ConventionAssertionProviderRegistry.Clear();
+
+    sealed class FakeProvider(ConventionAssertionReport report) : IConventionAssertionProvider
+    {
+        public Task<ConventionAssertionReport> RunAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(report);
+    }
+
+    [Fact]
+    public void NoProviderIsRegisteredByDefault()
+    {
+        // The agent assembly must not supply assertions of its own; the app under test does. With a
+        // default provider, a device lane pointed at a non-self-asserting app would look clean.
+        Assert.False(ConventionAssertionProviderRegistry.HasProvider);
+        Assert.Null(ConventionAssertionProviderRegistry.Current);
+    }
+
+    [Fact]
+    public async Task ARegisteredProviderIsUsed()
+    {
+        ConventionAssertionProviderRegistry.Register(new FakeProvider(new ConventionAssertionReport(3, [], [])));
+
+        Assert.True(ConventionAssertionProviderRegistry.HasProvider);
+
+        var report = await ConventionAssertionProviderRegistry.Current!
+            .RunAsync(TestContext.Current.CancellationToken)
+            .ConfigureAwait(true);
+
+        Assert.Equal(3, report.Total);
+        Assert.True(report.Passed);
+    }
+
+    [Fact]
+    public void AnEmptyRunIsNotAPass()
+    {
+        // Zero assertions is indistinguishable from a run that never happened.
+        Assert.False(ConventionAssertionReport.Empty.Passed);
+        Assert.False(new ConventionAssertionReport(0, [], ["everything skipped"]).Passed);
+    }
+
+    [Fact]
+    public void AnyFailureFailsTheReport() =>
+        Assert.False(new ConventionAssertionReport(5, ["ButtonHandler.Mapper missing TextColor"], []).Passed);
+
+    [Fact]
+    public void SkipsAloneDoNotFailARunThatAlsoAsserted() =>
+        Assert.True(new ConventionAssertionReport(4, [], ["Geocoding unsupported on API15"]).Passed);
+
+    [Fact]
+    public void PayloadCarriesEverythingTheHarnessReads()
+    {
+        var payload = new ConventionAssertionReport(2, ["a"], ["b"]).ToPayload();
+
+        Assert.Equal(2, payload["total"]);
+        Assert.Equal(false, payload["passed"]);
+        Assert.Equal(["a"], (IReadOnlyList<string>)payload["failed"]);
+        Assert.Equal(["b"], (IReadOnlyList<string>)payload["skipped"]);
+    }
+
+    [Fact]
+    public void ExtensionIdentityIsStable()
+    {
+        // The agent registers with these values and the harness discovers the route by namespace;
+        // drift between the two would produce a 404 that looks like a missing app.
+        Assert.Equal("org.dotnet.maui.tizen", TizenDevFlowConventions.Namespace);
+        Assert.Equal("/conventions/run", TizenDevFlowConventions.RunRoute);
+        Assert.Contains(TizenDevFlowConventions.ConventionsFeature, TizenDevFlowConventions.Features);
+    }
+}

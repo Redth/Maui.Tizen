@@ -31,8 +31,13 @@
       "primaryInput": "touch",
       "inputMethods": ["touch", "key"],
       "requiresFocusNavigation": false,
-      "themes": ["light", "dark"],
+      "themes": ["system"],
       "densities": ["mdpi", "hdpi", "xhdpi"],
+      "visualTargets": {
+        "mdpi": { "width": 360, "height": 640, "displayDensity": 1.0 },
+        "hdpi": { "width": 540, "height": 960, "displayDensity": 1.5 },
+        "xhdpi": { "width": 720, "height": 1280, "displayDensity": 2.0 }
+      },
       "screen": { "width": 720, "height": 1280 },
       "emulator": {
         "kind": "tizen-emulator",
@@ -47,8 +52,12 @@
       "primaryInput": "remote",
       "inputMethods": ["remote", "key"],
       "requiresFocusNavigation": true,
-      "themes": ["dark"],
+      "themes": ["system"],
       "densities": ["fhd", "uhd"],
+      "visualTargets": {
+        "fhd": { "width": 1920, "height": 1080, "displayDensity": 1.0 },
+        "uhd": { "width": 3840, "height": 2160, "displayDensity": 2.0 }
+      },
       "screen": { "width": 1920, "height": 1080 },
       "emulator": {
         "kind": "tizen-emulator",

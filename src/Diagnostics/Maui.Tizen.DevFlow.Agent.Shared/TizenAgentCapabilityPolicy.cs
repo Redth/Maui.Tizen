@@ -156,8 +156,15 @@ public static class TizenAgentCapabilityPolicy
             $"The '{TizenPrivileges.InputGenerator}' privilege is not granted, so native input events " +
             "cannot be synthesised. Framework-level tap and fill remain available.");
 
-        // Key events reach the app without privilege; only injecting them system-wide is privileged.
-        Add(Keys.Key, environment.HasWindow, "No NUI window is attached yet.");
+        // Key delivery is synthesised through InputGenerator exactly like touch, so it needs the
+        // same privilege. Advertising it on window presence alone was wrong: the endpoint would be
+        // reported as supported and then do nothing, which surfaces to a driver as a test that
+        // pressed a key and observed no reaction - far harder to diagnose than a clean 501.
+        Add(
+            Keys.Key,
+            nativeInput,
+            $"Key injection is synthesised through InputGenerator and requires the " +
+            $"'{TizenPrivileges.InputGenerator}' privilege, which is not granted.");
 
         Add(
             Keys.Resize,

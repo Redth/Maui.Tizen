@@ -67,20 +67,49 @@ lane's absence is visible on every run rather than only when someone goes lookin
 
 ## Environments
 
-| Environment | Purpose |
-|---|---|
-| `tizen-device-lab` | Scopes access to lab resources. No secrets are referenced by this repository. |
-| `tizen-release` | Human approval before a release proceeds. |
+| Environment | Purpose | Status |
+|---|---|---|
+| `tizen-device-lab` | Scopes access to lab resources. No secrets are referenced by this repository. | not yet created |
+| `tizen-release` | Reviewer approval before the gate returns a verdict. Attached to `release-gate` — the job that decides — rather than to `device-matrix`, which would gate the work while leaving the verdict ungated. | not yet created |
+
+Neither environment exists yet, so **no approval is currently enforced**. The workflow references
+them so that creating the environments is the only remaining step; until then the references are
+inert.
+
+## Reuse by the release pipeline
+
+`tizen-device-validation.yml` is callable via `workflow_call` and publishes a `gate_passed` output.
+It is **fail-closed**: `gate_passed` is written `false` first and only set `true` after the gate
+script exits 0, so any failure or early exit leaves it false or unset. A caller must treat anything
+other than `'true'` as a failure.
+
+This is not yet wired into a release pipeline. Coordination with the governance work (PR #1) is
+needed so `release.yml` invokes this workflow and depends on `gate_passed` **before** signing or
+publishing. Until that wiring exists, nothing prevents a release from bypassing the device lane —
+the gate can only block what actually calls it.
 
 ## Repository variables
 
 | Variable | Meaning |
 |---|---|
 | `TIZEN_DEVICE_LAB_ENABLED` | `true` when a `tizen`-labelled runner is registered |
-| `TIZEN_CATALOG_APP_ID` | Application id used by the lifecycle harness |
+| `TIZEN_CATALOG_PROJECT` | Path to the application under test. Unset today, so a release is blocked rather than passing vacuously. |
+| `TIZEN_CATALOG_APP_ID` | Application id used to launch and for the lifecycle harness |
+| `TIZEN_MOBILE_HOME_APP_ID` / `TIZEN_TV_HOME_APP_ID` | Profile-specific home application ids used to background the app under test |
+| `TIZEN_MOBILE_MDPI_SERIAL` / `TIZEN_MOBILE_HDPI_SERIAL` / `TIZEN_MOBILE_XHDPI_SERIAL` | Distinct mobile targets with the declared effective metrics |
+| `TIZEN_TV_FHD_SERIAL` / `TIZEN_TV_UHD_SERIAL` | Distinct TV targets with the declared effective resolution |
 
 Variables, not secrets — none of these are sensitive, and using secrets would make them invisible in
 logs where they are useful for diagnosis.
+
+## Cross-profile gates run in the gate job
+
+The release readiness gates are cross-profile assertions, so they run in `release-gate` after every
+profile artifact has been downloaded — not inside the matrix.
+
+Run per profile they could only ever fail: the current profile's result file still says
+`status=running`, and the other profile's artifact does not exist yet. `WorkflowOrderingTests`
+asserts the placement.
 
 ## Release-only checks
 

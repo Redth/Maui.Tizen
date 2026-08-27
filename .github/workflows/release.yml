@@ -172,20 +172,11 @@ jobs:
   # so contributors can produce and inspect CI packages without needing any
   # signing credential or approval.
   #
-  # Packing the real Maui.Tizen.* packages requires building the
-  # net11.0-tizen11.0 projects, which in turn requires the Samsung Tizen
-  # workload - not yet published, per eng/baselines.json and the
-  # "Tizen workload availability" gate job in .github/workflows/ci.yml.
-  # Until that gate lifts, this job can only report the block; it must not
-  # fabricate empty/fake packages, and it must not attempt
-  # `dotnet workload install tizen`: that command can only resolve
-  # workloads discoverable through the SDK's public workload search, and
-  # the Samsung manifest is third-party and side-loaded, so the command
-  # cannot succeed here regardless of whether Samsung has shipped - it can
-  # only ever report a false negative (or, worse, silently resolve MAUI's
-  # unrelated empty `maui-tizen` alias instead of Samsung's real workload).
-  # See docs/migration.md and .github/workflows/ci.yml's
-  # tizen-workload-gate job, whose feed-probe logic this step reuses.
+  # The workload transition is delegated to the same fail-closed script used
+  # by CI. It probes the exact Samsung manifest IDs, installs a published
+  # manifest through Samsung's commit-pinned supported installer from #310,
+  # verifies the installed manifest through ReportTizenWorkload, and invokes
+  # eng/build-tizen.sh. It never uses the unrelated `tizen` workload alias.
   # -------------------------------------------------------------------------
   pack:
     name: Pack (unsigned CI packages)
@@ -200,90 +191,50 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Probe for the Samsung Tizen workload manifest (release gate)
-        id: probe
+      - name: Install, verify, build and pack through the workload transition gate
+        env:
+          PackageVersion: ${{ needs.build.outputs.package_version }}
+        run: ./eng/ci/tizen-workload-gate.sh
+
+      - name: Stage the exact unsigned shipping artifact
+        id: unsigned
         run: |
           set -euo pipefail
+          shopt -s nullglob
 
-          # Mirrors .github/workflows/ci.yml's tizen-workload-gate probe: ask nuget.org
-          # directly whether Samsung has published a manifest package for this SDK band,
-          # rather than asking the SDK's workload search (which cannot see it - see the
-          # job-level comment above). Both spellings are checked because NuGet IDs are
-          # case-insensitive and the flat-container path is lowercase.
-          BAND="$(python3 -c "import json;print(json.load(open('eng/baselines.json'))['target']['sdkBand'])")"
+          packages=(
+            artifacts/packages/Maui.Tizen.*.nupkg
+            artifacts/packages/Maui.Tizen.*.snupkg
+          )
 
-          FOUND=false
-          for id in "samsung.net.sdk.tizen.manifest-${BAND}" "samsung.net.sdk.tizen.manifest-11.0.100"; do
-            code="$(curl -s -o /dev/null -w '%{http_code}' "https://api.nuget.org/v3-flatcontainer/${id}/index.json")"
-            echo "  ${id} -> HTTP ${code}"
-            if [ "$code" = "200" ]; then FOUND=true; fi
-          done
-
-          echo "available=$FOUND" >> "$GITHUB_OUTPUT"
-
-          if [ "$FOUND" = "true" ]; then
-            echo "Samsung Tizen workload manifest is published - proceeding to install/detect/pack."
-          else
-            echo "Samsung Tizen workload manifest is not published yet (see eng/baselines.json)."
-            echo "net11.0-tizen11.0 cannot be built or packed until it ships; this is an"
-            echo "expected external gate, not a failure. See docs/migration.md."
+          if (( ${#packages[@]} == 0 )); then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "No shipping packages were produced; the Samsung workload remains externally gated."
+            exit 0
           fi
 
-      - name: Install Samsung Tizen workload (only once the manifest is published)
-        if: steps.probe.outputs.available == 'true'
+          rm -rf artifacts/release-unsigned
+          mkdir -p artifacts/release-unsigned
+          cp -- "${packages[@]}" artifacts/release-unsigned/
+          (
+            cd artifacts/release-unsigned
+            shasum -a 256 Maui.Tizen.*.nupkg Maui.Tizen.*.snupkg > SHA256SUMS
+          )
+          echo "available=true" >> "$GITHUB_OUTPUT"
+
+      - name: Require real packages when publishing is requested
+        if: ${{ inputs.confirm_publish == 'PUBLISH' && steps.unsigned.outputs.available != 'true' }}
         run: |
-          # Installation goes through Samsung's supported installer / local manifest path
-          # (see docs/migration.md "When the gate lifts", and the target contract
-          # provenance in Samsung workload PR #310), NOT `dotnet workload install tizen`,
-          # which cannot discover a side-loaded third-party manifest.
-          #
-          # That supported install path is not yet concretely defined in this repository
-          # because Samsung has not published anything to install - the same reason
-          # .github/workflows/ci.yml's own "Build Tizen projects" step is still a
-          # placeholder. This step intentionally fails loudly, the moment the probe above
-          # ever reports "true", so a human wires up the real installer rather than the
-          # workflow silently skipping straight to an unverified pack.
-          echo "::error::Samsung manifest is published, but the supported installer/local manifest flow is not yet wired up in this workflow. Install it per docs/migration.md, then replace this step."
+          echo "::error::Publishing was requested, but the exact unsigned shipping artifact does not exist."
           exit 1
 
-      - name: Verify workload detection (reuses eng/tests/test-workload-detection.sh's target)
-        if: steps.probe.outputs.available == 'true'
-        run: |
-          # Same detection this repository's own tests pin: dotnet msbuild -t:ReportTizenWorkload
-          # against a Tizen project, reading TizenWorkloadAvailable back out. This is the
-          # single source of truth for "is the workload actually usable right now" (see
-          # Directory.Build.targets' _DetectTizenWorkload/ReportTizenWorkload/
-          # ValidateTizenWorkloadAvailable targets) - packing must not proceed on the feed
-          # probe alone, only once the SDK itself agrees the workload is installed.
-          STATUS="$(dotnet msbuild src/Maui.Tizen.Core/Maui.Tizen.Core.csproj -t:ReportTizenWorkload -nologo -v:m \
-            | grep -oE 'TizenWorkloadAvailable=[a-z]+' | head -1 | cut -d= -f2)"
-          echo "TizenWorkloadAvailable=$STATUS"
-          if [ "$STATUS" != "true" ]; then
-            echo "::error::Feed probe reported the manifest as published, but the SDK does not see it installed (TizenWorkloadAvailable=$STATUS). Do not proceed to pack."
-            exit 1
-          fi
-
-      - name: Pack (blocked on Samsung Tizen workload)
-        env:
-          WORKLOAD_AVAILABLE: ${{ steps.probe.outputs.available }}
-          PACKAGE_VERSION: ${{ needs.build.outputs.package_version }}
-        run: |
-          if [ "$WORKLOAD_AVAILABLE" = "true" ]; then
-            echo "TODO: dotnet pack for each Maui.Tizen.* project, version $PACKAGE_VERSION"
-            echo "Conventions: docs/governance/package-metadata-conventions.md section 2."
-            echo "Output must remain UNSIGNED at this stage - see the sign job."
-          else
-            echo "Skipping net11.0-tizen11.0 pack: blocked on the Samsung workload manifest (see probe step above)."
-          fi
-
-      - name: Upload unsigned package artifacts (if any were produced)
+      - name: Upload the exact unsigned package artifact
+        if: steps.unsigned.outputs.available == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: maui-tizen-packages-unsigned-${{ needs.build.outputs.package_version }}
-          path: |
-            **/*.nupkg
-            **/*.snupkg
-          if-no-files-found: warn
+          path: artifacts/release-unsigned
+          if-no-files-found: error
           retention-days: 90
 
   # -------------------------------------------------------------------------
@@ -352,21 +303,25 @@ jobs:
     needs: [release-gate, build]
     if: ${{ inputs.confirm_publish == 'PUBLISH' }}
     environment: nuget-signing
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Download the unsigned packages produced by pack
-        # continue-on-error: today pack cannot produce real packages (the Samsung
-        # workload is unpublished - see the pack job), so upload-artifact there
-        # uploads nothing and this download has nothing to find. That must not be
-        # the failure a reviewer sees; the very next step below fails closed with
-        # the real, actionable reason regardless of whether this one succeeds.
-        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: maui-tizen-packages-unsigned-${{ needs.build.outputs.package_version }}
           path: artifacts/unsigned
+
+      - name: Verify the exact unsigned artifact
+        run: |
+          set -euo pipefail
+          cd artifacts/unsigned
+          shasum -a 256 --check SHA256SUMS
 
       - name: Sign (placeholder - fails closed)
         run: |
@@ -375,24 +330,37 @@ jobs:
           echo "This step fails intentionally so packages cannot be mistaken for signed."
           exit 1
 
-      # The step above always exits 1 today, so nothing below it runs. Left in place,
-      # commented out, to show the intended shape once a real signing credential exists:
-      #
-      # - name: Sign packages and symbols
-      #   run: |
-      #     echo "TODO: Authenticode-sign + NuGet-sign every artifacts/unsigned/*.nupkg and *.snupkg"
-      #     echo "using the organization-owned certificate from the nuget-signing environment."
-      #     echo "Conventions: docs/governance/package-metadata-conventions.md section 3."
-      #     mkdir -p artifacts/signed
-      #     cp artifacts/unsigned/*.nupkg artifacts/unsigned/*.snupkg artifacts/signed/ 2>/dev/null || true
-      #
-      # - name: Upload signed package artifacts
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: maui-tizen-packages-signed-${{ needs.build.outputs.package_version }}
-      #     path: artifacts/signed
-      #     if-no-files-found: error
-      #     retention-days: 90
+      # Replace only the fail-closed step above with the organization signing
+      # service. It must write the signed copies to artifacts/signed; the active
+      # verification, provenance and upload steps below are intentionally not
+      # optional and must remain fail-closed.
+
+      - name: Verify signed packages and record their exact hashes
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          packages=(artifacts/signed/Maui.Tizen.*.nupkg artifacts/signed/Maui.Tizen.*.snupkg)
+          (( ${#packages[@]} > 0 ))
+          dotnet nuget verify --all "${packages[@]}"
+          (
+            cd artifacts/signed
+            shasum -a 256 Maui.Tizen.*.nupkg Maui.Tizen.*.snupkg > SHA256SUMS
+          )
+
+      - name: Generate build provenance for the signed packages
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            artifacts/signed/Maui.Tizen.*.nupkg
+            artifacts/signed/Maui.Tizen.*.snupkg
+
+      - name: Upload the exact signed package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: maui-tizen-packages-signed-${{ needs.build.outputs.package_version }}
+          path: artifacts/signed
+          if-no-files-found: error
+          retention-days: 90
 
   # -------------------------------------------------------------------------
   # Publish. Double-gated: requires both the `nuget-production` environment
@@ -413,9 +381,32 @@ jobs:
     needs: [sign, build]
     if: ${{ inputs.confirm_publish == 'PUBLISH' }}
     environment: nuget-production
+    permissions:
+      contents: read
+      id-token: write
+      attestations: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download the signed packages produced by sign
+        uses: actions/download-artifact@v4
+        with:
+          name: maui-tizen-packages-signed-${{ needs.build.outputs.package_version }}
+          path: artifacts/signed
+
+      - name: Verify signed artifact hashes, signatures and provenance
+        run: |
+          set -euo pipefail
+          cd artifacts/signed
+          shasum -a 256 --check SHA256SUMS
+          shopt -s nullglob
+          packages=(Maui.Tizen.*.nupkg Maui.Tizen.*.snupkg)
+          (( ${#packages[@]} > 0 ))
+          dotnet nuget verify --all "${packages[@]}"
+          for package in "${packages[@]}"; do
+            gh attestation verify "$package" --repo "$GITHUB_REPOSITORY"
+          done
 
       - name: Guard - publishing prerequisites
         run: |
@@ -425,16 +416,8 @@ jobs:
           echo "and this guard step must be replaced with a real check, before removing this exit."
           exit 1
 
-      # The guard step above always exits 1 today, so nothing below it runs (and `sign`
-      # never actually produces a `maui-tizen-packages-signed-*` artifact yet either - see
-      # that job). Left in place, commented out, to show the intended shape once both are
-      # replaced:
-      #
-      # - name: Download the signed packages produced by sign
-      #   uses: actions/download-artifact@v4
-      #   with:
-      #     name: maui-tizen-packages-signed-${{ needs.build.outputs.package_version }}
-      #     path: artifacts/signed
+      # The guard step above always exits 1 today. Once ownership and trusted
+      # publishing are configured, replace only that guard with the push:
       #
       # - name: Publish via trusted publishing
       #   run: |

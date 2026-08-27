@@ -113,6 +113,12 @@
       "lowercaseId": "samsung.net.sdk.tizen.manifest-11.0.100-preview.7",
       "status": "unavailable",
       "probedUtc": "2026-08-26",
+      "activation": {
+        "$comment": "When Samsung publishes the manifest, set all three values in a reviewed commit before enabling installation. The gate verifies the exact package hash and NuGet signing certificate before executing Samsung's installer.",
+        "version": null,
+        "packageSha256": null,
+        "signerFingerprint": null
+      },
       "publishedBands": [
         { "id": "samsung.net.sdk.tizen.manifest-9.0.100", "latest": "10.0.104" },
         { "id": "samsung.net.sdk.tizen.manifest-10.0.100", "latest": "10.0.123" }

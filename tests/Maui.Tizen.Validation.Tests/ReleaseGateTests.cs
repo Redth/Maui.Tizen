@@ -28,7 +28,10 @@ public class ReleaseGateTests
         string labEnabled,
         string matrixResult,
         string requiredProfiles,
-        string resultsDirectory)
+        string resultsDirectory,
+        string? releaseValidation = null,
+        string? githubOutput = null,
+        string consumerResult = "success")
     {
         var psi = new ProcessStartInfo("bash")
         {
@@ -41,14 +44,21 @@ public class ReleaseGateTests
         psi.ArgumentList.Add(ScriptPath);
         psi.ArgumentList.Add("--required");
         psi.ArgumentList.Add(required);
+        psi.ArgumentList.Add("--release-validation");
+        psi.ArgumentList.Add(releaseValidation ?? string.Empty);
         psi.ArgumentList.Add("--lab-enabled");
         psi.ArgumentList.Add(labEnabled);
         psi.ArgumentList.Add("--matrix-result");
         psi.ArgumentList.Add(matrixResult);
+        psi.ArgumentList.Add("--consumer-result");
+        psi.ArgumentList.Add(consumerResult);
         psi.ArgumentList.Add("--required-profiles");
         psi.ArgumentList.Add(requiredProfiles);
         psi.ArgumentList.Add("--results-dir");
         psi.ArgumentList.Add(resultsDirectory);
+
+        if (githubOutput is not null)
+            psi.Environment["GITHUB_OUTPUT"] = githubOutput;
 
         using var process = Process.Start(psi)!;
         var output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
@@ -162,6 +172,23 @@ public class ReleaseGateTests
         Assert.Contains(matrixResult, output, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("skipped")]
+    [InlineData("failure")]
+    [InlineData("cancelled")]
+    public void Release_IsBlockedWhenRealPackageConsumerRestoreDidNotSucceed(string consumerResult)
+    {
+        using var workspace = TempWorkspace.Create("gate-consumer");
+        WriteResult(workspace, "mobile", laneAvailable: "true", status: "pass");
+
+        var (exitCode, output) = Evaluate(
+            "true", "true", "success", "mobile", workspace.Path, consumerResult: consumerResult);
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("real-package consumer restore", output, StringComparison.Ordinal);
+        Assert.Contains(consumerResult, output, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Release_IsBlockedWhenNoLabIsAttached()
     {
@@ -223,6 +250,54 @@ public class ReleaseGateTests
         Assert.Contains("release may proceed", output, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("false")]
+    public void GateOutput_IsFalseWhenReleaseValidationIsOmittedOrFalse(string? releaseValidation)
+    {
+        using var workspace = TempWorkspace.Create("gate-output-informational");
+        var outputFile = workspace.Combine("github-output.txt");
+
+        var (exitCode, _) = Evaluate(
+            "false", "false", "success", "mobile tv", workspace.Path, releaseValidation, outputFile);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("gate_passed=false", File.ReadAllText(outputFile).Trim());
+    }
+
+    [Fact]
+    public void GateOutput_IsTrueOnlyForAPassingExplicitReleaseValidationCall()
+    {
+        using var workspace = TempWorkspace.Create("gate-output-release");
+        WriteResult(workspace, "mobile", laneAvailable: "true", status: "pass");
+        WriteResult(workspace, "tv", laneAvailable: "true", status: "pass");
+        var outputFile = workspace.Combine("github-output.txt");
+
+        var (exitCode, _) = Evaluate(
+            "true", "true", "success", "mobile tv", workspace.Path, "true", outputFile);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(
+            ["gate_passed=false", "gate_passed=true"],
+            File.ReadAllLines(outputFile));
+    }
+
+    [Fact]
+    public void PassingRequiredTagGateStillOutputsFalseWithoutReleaseValidationInput()
+    {
+        using var workspace = TempWorkspace.Create("gate-output-tag");
+        WriteResult(workspace, "mobile", laneAvailable: "true", status: "pass");
+        WriteResult(workspace, "tv", laneAvailable: "true", status: "pass");
+        var outputFile = workspace.Combine("github-output.txt");
+
+        var (exitCode, _) = Evaluate(
+            "true", "true", "success", "mobile tv", workspace.Path, "false", outputFile);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("gate_passed=false", File.ReadAllText(outputFile).Trim());
+    }
+
     [Fact]
     public void RequiredProfiles_MatchTheReleaseGatingProfilesInTheMatrix()
     {
@@ -231,5 +306,10 @@ public class ReleaseGateTests
         var expected = TizenProfiles.ReleaseGatingProfiles.Select(p => p.Id).OrderBy(p => p, StringComparer.Ordinal);
 
         Assert.Equal(["mobile", "tv"], expected);
+
+        var requiredTargets = TizenProfiles.ReleaseGatingProfiles
+            .SelectMany(p => p.Densities.Select(d => $"{p.Id}-{d}"))
+            .OrderBy(p => p, StringComparer.Ordinal);
+        Assert.Equal(["mobile-hdpi", "mobile-mdpi", "mobile-xhdpi", "tv-fhd", "tv-uhd"], requiredTargets);
     }
 }

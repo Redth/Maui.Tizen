@@ -28,7 +28,10 @@ Environment-specific values arrive at runtime:
 | Variable | Purpose |
 |---|---|
 | `TIZEN_PROFILE` | `mobile` or `tv` |
-| `TIZEN_DEVICE_SERIAL` | `sdb` serial; empty uses the sole attached target |
+| `TIZEN_DEVICE_SERIAL` | `sdb` serial for the current profile+density target |
+| `TIZEN_REQUIRED_SERIALS` | Comma-separated serials for all five required visual targets. They must be distinct and connected. |
+| `TIZEN_DENSITY` | Current declared visual target (`mdpi`, `hdpi`, `xhdpi`, `fhd`, or `uhd`) |
+| `TIZEN_DEVICE_IMAGE` | Recorded in capture sidecars; must name an image, never a machine |
 | `TIZEN_TFM` | Target framework; defaults to `eng/baselines.json > target.targetFramework` |
 | `DEVFLOW_HOST_PORT` / `DEVFLOW_DEVICE_PORT` | Tunnel ports, default `9223` |
 | `APP_ID` | Application id for the lifecycle harness |
@@ -51,7 +54,9 @@ repository variable.
 |---|---|
 | `TIZEN_CATALOG_PROJECT` | Path to the application under test. **Unset today**, so the device job reports no application and a release is blocked rather than passing vacuously. There is deliberately no hard-coded path: a workflow step that builds a non-existent project looks plausible for as long as the job never runs. |
 | `TIZEN_CATALOG_APP_ID` | Tizen application id, for launch and lifecycle. |
-| `TIZEN_HOME_APP_ID` | Home application id, used to background the app under test. Profile-specific, so it has no default. |
+| `TIZEN_MOBILE_HOME_APP_ID` / `TIZEN_TV_HOME_APP_ID` | Profile-specific home application ids used to background the app under test. |
+| `TIZEN_MOBILE_MDPI_SERIAL` / `TIZEN_MOBILE_HDPI_SERIAL` / `TIZEN_MOBILE_XHDPI_SERIAL` | Separately configured mobile targets for each declared density. |
+| `TIZEN_TV_FHD_SERIAL` / `TIZEN_TV_UHD_SERIAL` | Separately configured TV targets for each declared resolution. |
 
 Verify with:
 
@@ -76,13 +81,75 @@ spread across YAML, folder names and assertions.
 
 | Profile | Input | Themes | Densities | Focus traversal |
 |---|---|---|---|---|
-| `mobile` | touch, key | light, dark | mdpi, hdpi, xhdpi | no |
-| `tv` | remote, key | dark | fhd, uhd | **yes** |
+| `mobile` | touch, key | system | mdpi, hdpi, xhdpi | no |
+| `tv` | remote, key | system | fhd, uhd | **yes** |
+
+Tizen does not expose a per-application light/dark override. The lane therefore records the
+effective system theme once per separately configured density instead of relabelling unchanged
+captures as light and dark variants.
 
 Only `net11.0-tizen11.0` gates a release. `alsoValidTargets` (`tizen10.1`, `10.0`, `9.0`, `8.0`) are
 marked `confirmed: false` and are exercised opportunistically, because they have not been verified
 against real Samsung tooling. A test asserts none of them claims to be confirmed — a confirmed
 target belongs in `eng/baselines.json`, not in an opportunistic list.
+
+## The app must be built with the agent compiled in
+
+`AddMauiDevFlowAgent()` is conventionally guarded by `#if DEBUG`, so a Release build excludes the
+agent entirely and the driver has nothing to talk to. The device lane therefore builds with
+`-p:MauiTizenValidation=true`, and the application is expected to guard registration as:
+
+```csharp
+#if DEBUG || MAUITIZEN_DEVFLOW
+    builder.AddMauiDevFlowAgent();
+#endif
+```
+
+The property is expected to define `MAUITIZEN_DEVFLOW`. This keeps the agent out of shipping builds
+while allowing a Release-configuration build to be driven.
+
+## Install, launch, tunnel, wait - in that order
+
+Installing does not start anything. An earlier version installed, forwarded and then queried the
+agent, which could only have worked if something else had already launched the app.
+
+The wait is equally load-bearing: the agent binds its port during application startup, so a query
+issued immediately after launch fails in a way that looks like a broken tunnel.
+`wait-for-agent` polls with a bounded timeout (`AGENT_TIMEOUT_SECONDS`, default 60) and, on
+timeout, says to check whether the agent was compiled in at all.
+
+`WorkflowOrderingTests` asserts this order.
+
+## Baselines are captured *and* compared
+
+`baselines` captures into the same folder shape as the baselines themselves —
+`{profile}/{apiLevel}/{theme}/{density}/{caseId}.png` — so each capture maps to exactly one
+baseline rather than being matched by guesswork. It then runs the comparison
+(`VisualBaselineComparisonTests`), which uses the deterministic comparer and writes
+`expected.png` / `actual.png` / `diff.png` per failure into `artifacts/visual-diffs/`. The workflow
+uploads screenshots and diffs whatever the outcome: on failure they are the evidence, on success
+they are what a reviewer needs to approve an intentional visual change.
+
+Theme is applied through DevFlow. Density/resolution is not relabelled in a loop: the workflow has
+five separately configured targets and verifies `device.windowWidth`, `device.windowHeight`, and
+`device.displayDensity` from the serialized `/agent/status` payload against the corresponding
+`visualTargets` entry in `tizen-profiles.json` before capture.
+
+All DevFlow calls use `curl --fail`. Without it curl exits 0 on a 4xx/5xx and writes the error body
+to the output file, so a `501` would be saved as a `.png` and the capture step would report success.
+
+## One profile at a time, on distinct ports
+
+The matrix sets `max-parallel: 1` and gives each profile its own host port (mobile 9223, tv 9224).
+Either alone would be insufficient: distinct ports stop a leaked `sdb forward` from capturing the
+other profile's traffic, and serialising stops two jobs contending for `sdb` and for the attached
+targets.
+
+## Only device work runs on device hardware
+
+The device lane runs the comparison suite (`MAUI_TIZEN_SUITES`), not the whole hosted lane. The
+hosted suites already ran on `ubuntu-latest`; repeating them on scarce lab hardware would spend
+device time re-proving things that never touch a device.
 
 ## Lifecycle is a real suspend/resume
 
@@ -94,9 +161,10 @@ re-attach their renderer, because the process survives and the surface does not.
 Three things are asserted after resume, because each fails independently:
 
 1. the process is still running after backgrounding (a terminated app is a lifecycle failure);
-2. the agent responds and the visual tree is non-empty (handlers re-attached - an app can answer
+2. `app.processId` is identical before and after the cycle (persistent preferences cannot distinguish
+   a cold restart);
+3. the agent responds and the visual tree is non-empty (handlers re-attached - an app can answer
    `/agent/status` with a detached renderer);
-3. a marker written before backgrounding survives (proving this was a resume, not a cold start).
 
 ## On-device assertions run on the device
 

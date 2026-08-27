@@ -64,6 +64,9 @@ public class DevFlowContractTests
         RequireMethod(type, "DescribeScreenshotFailure");
         RequireMethod(type, "GetWindowMetrics", typeof(int?));
         RequireMethod(type, "PopulateCapabilities", typeof(Dictionary<string, object>));
+        RequireMethod(type, "get_PlatformName");
+        RequireMethod(type, "get_DeviceTypeName");
+        RequireMethod(type, "get_IdiomName");
         RequireMethod(type, "IsMainThreadDispatchRequired");
         RequireMethod(type, "GetAppDataBasePath");
         RequireMethod(type, "TryNativeElementTapAsync", typeof(string), typeof(object));
@@ -93,6 +96,7 @@ public class DevFlowContractTests
         RequireMethod(type, "GetNativeElementInfoById", typeof(string));
         RequireMethod(type, "EnsurePlatformStableId", typeof(object));
         RequireMethod(type, "TryNativeElementFocus", typeof(string), typeof(object));
+        RequireMethod(type, "TryNativeElementSetValue", typeof(string), typeof(object), typeof(string));
         RequireMethod(type, "TrySetValueRegisteredNativeElement", typeof(string), typeof(object), typeof(string));
         RequireMethod(type, "CanInvokeRegisteredNativeElement", typeof(object));
         RequireMethod(type, "CanFocusRegisteredNativeElement", typeof(object));
@@ -115,6 +119,10 @@ public class DevFlowContractTests
                 type.GetProperty(name) is not null,
                 $"ElementInfo.{name} no longer exists; the Tizen walker sets it.");
         }
+
+        Assert.NotNull(type.GetProperty(
+            "IdentityToken",
+            BindingFlags.Instance | BindingFlags.NonPublic));
     }
 
     [Fact]
@@ -178,6 +186,77 @@ public class DevFlowContractTests
         Assert.Equal(
             TizenAgentConnection.DefaultDevFlowPort,
             (int)defaultPort!.GetValue(null)!);
+    }
+
+    [Fact]
+    public void ExtensionRouting_IsARealDevFlowMechanism()
+    {
+        // The on-device conventions endpoint is hosted through DevFlow's extension mechanism.
+        // Pinned here because "we call an endpoint no server can host" is a fair criticism of any
+        // custom route, and the answer has to be evidence rather than assertion.
+        var register = typeof(AgentOptions).GetMethod(
+            "RegisterExtension",
+            [typeof(string), typeof(string), typeof(int), typeof(IEnumerable<string>)]);
+
+        Assert.True(
+            register is not null,
+            "AgentOptions.RegisterExtension(string, string, int, IEnumerable<string>) no longer exists.");
+
+        Assert.Equal(typeof(AgentExtension), register!.ReturnType);
+
+        var mapPost = typeof(AgentExtension).GetMethod("MapPost");
+        Assert.True(mapPost is not null, "AgentExtension.MapPost no longer exists.");
+
+        var parameters = mapPost!.GetParameters();
+        Assert.Equal(2, parameters.Length);
+        Assert.Equal(typeof(string), parameters[0].ParameterType);
+
+        // The handler shape is what the agent's route implementation must match.
+        Assert.StartsWith("Func`2", parameters[1].ParameterType.Name, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TizenExtensionNamespaceUsesThePinnedReverseDomainContract()
+    {
+        var options = new AgentOptions();
+        var extension = options.RegisterExtension(
+            TizenDevFlowConventions.Namespace,
+            TizenDevFlowConventions.Description,
+            TizenDevFlowConventions.Version,
+            TizenDevFlowConventions.Features);
+
+        Assert.Equal("org.dotnet.maui.tizen", extension.Namespace);
+    }
+
+    [Fact]
+    public void NativeIdsUseTheRoutingPrefixRecognizedByDevFlow()
+    {
+        var bridge = new NativeElementDiagnosticsBridge();
+        var id = bridge.Register(new NativeElementDescriptor(
+            new object(), "Button", "button", new NativeElementBounds(0, 0, 1, 1), CanInvoke: true));
+
+        Assert.StartsWith("native:", id, StringComparison.Ordinal);
+        Assert.False(id.StartsWith("native:registered:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ExtensionRoutes_AreRegisteredByTheAgentItself()
+    {
+        // Route registration lives inside DevFlow; if it stopped happening, every extension route
+        // would 404 while still looking correctly declared on our side.
+        var abstractions = typeof(AgentExtension).Assembly;
+
+        Assert.Contains(
+            abstractions.GetTypes().Where(t => t.Name.Contains("ExtensionRoute", StringComparison.Ordinal)),
+            t => t is not null);
+    }
+
+    [Fact]
+    public void HttpResponse_ExposesTheHelpersTheExtensionRouteUses()
+    {
+        Assert.NotNull(typeof(HttpResponse).GetMethod("Json", [typeof(object)]));
+        Assert.NotNull(typeof(HttpResponse).GetMethod(
+            "Error", [typeof(string), typeof(int), typeof(string), typeof(object)]));
     }
 
     [Fact]

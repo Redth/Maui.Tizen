@@ -171,8 +171,13 @@ probe's TFM is plain `net11.0`, and reference assemblies carry no implementation
 **Blocks:** live mapper parity, live DI and Essentials coverage.
 
 These need the Tizen backend executing in-process, so they can only run inside a deployed
-application. The device lane invokes them through a DevFlow extension endpoint
-(`extensions/maui-tizen/conventions/run`) which the catalog application must register.
+application. The agent registers a DevFlow **extension route** for them
+(`AgentOptions.RegisterExtension` → `AgentExtension.MapPost`, which DevFlow hosts via
+`RegisterExtensionRoutes`); the catalog application supplies the assertions by registering an
+`IConventionAssertionProvider`. Until it does, the route answers 501 rather than an empty pass.
+
+The harness **discovers** the route from the agent's advertised capabilities rather than composing a
+URL blind, so it never calls an endpoint the server has not said it hosts.
 
 Until that application exists, `TIZEN_CATALOG_PROJECT` is unset, the device job reports no
 application under test, and a **release is blocked** rather than passing with those suites skipped.

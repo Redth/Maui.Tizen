@@ -20,6 +20,12 @@ namespace Maui.Tizen.DevFlow.Agent;
 /// </remarks>
 public class TizenAgentService : MauiDevFlowAgentService
 {
+    /// <summary>Body shape accepted by <c>POST /api/v1/ui/actions/key</c>.</summary>
+    sealed class TizenKeyRequest
+    {
+        public string? Key { get; set; }
+    }
+
     readonly TizenAgentEnvironment _environment;
     readonly TizenPlatformIdentity _identity;
     readonly TizenScreenshotCapture _capture;
@@ -50,8 +56,14 @@ public class TizenAgentService : MauiDevFlowAgentService
     public IReadOnlyDictionary<string, TizenCapability> Capabilities =>
         TizenAgentCapabilityPolicy.Compute(_environment);
 
+    protected override string PlatformName => TizenPlatformIdentity.TizenPlatformName;
+
+    protected override string DeviceTypeName => _identity.Profile;
+
+    protected override string IdiomName => _identity.Idiom;
+
     protected override VisualTreeWalker CreateTreeWalker() =>
-        new TizenVisualTreeWalker(NativeElementDiagnosticsBridge.Current);
+        new TizenVisualTreeWalker(NativeElementDiagnosticsBridge.Current, _nativeInput);
 
     protected override void PopulateCapabilities(Dictionary<string, object> capabilities)
     {
@@ -134,10 +146,11 @@ public class TizenAgentService : MauiDevFlowAgentService
                 .ConfigureAwait(false);
 
             if (error is null)
-                return null;
+                return NativeTapResult.Success;
         }
 
-        return await _nativeInput.TryInvokeAsync(nativeElement).ConfigureAwait(false);
+        var invocationError = await _nativeInput.TryInvokeAsync(nativeElement).ConfigureAwait(false);
+        return NativeTapResult.FromError(invocationError);
     }
 
     static BoundsInfo? TreeWalkerBounds(object nativeElement) =>
@@ -150,6 +163,67 @@ public class TizenAgentService : MauiDevFlowAgentService
                 Height = view.CurrentSize.Height,
             }
             : null;
+
+    /// <summary>
+    /// Routes <c>POST /api/v1/ui/actions/key</c> to synthesised key injection.
+    /// </summary>
+    /// <remarks>
+    /// Without this override the endpoint falls through to the framework default, which cannot
+    /// deliver a real key event on Tizen. The TV remote focus harness depends on real key events:
+    /// setting focus programmatically would validate the code that sets focus rather than the
+    /// traversal order a remote actually produces.
+    /// </remarks>
+    protected override async Task<HttpResponse> HandleKey(HttpRequest request)
+    {
+        var key = ReadKeyName(request);
+
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return CreatePlatformError(
+                "A key name is required, e.g. {\"key\":\"Down\"}.",
+                PlatformErrorReasonInvalidRequest,
+                400,
+                CreatePlatformErrorDetails());
+        }
+
+        if (!_nativeInput.SupportsSyntheticInput)
+        {
+            // 501 with a reason, matching how DevFlow reports any unsupported capability, and
+            // consistent with the ui.key entry in the advertised capability map.
+            return CreatePlatformError(
+                $"Key injection requires the '{TizenPrivileges.InputGenerator}' privilege, which is " +
+                "not granted on this device.",
+                PlatformErrorReasonMissingPermission,
+                501,
+                CreatePlatformErrorDetails());
+        }
+
+        var error = await _nativeInput.TryInjectKeyAsync(key!).ConfigureAwait(false);
+
+        return error is null
+            ? HttpResponse.Json(new Dictionary<string, object> { ["ok"] = true, ["key"] = key! })
+            : CreatePlatformError(error, PlatformErrorReasonUnknown, 500, CreatePlatformErrorDetails());
+    }
+
+    /// <summary>Accepts the key from the JSON body or, for convenience, the query string.</summary>
+    static string? ReadKeyName(HttpRequest request)
+    {
+        if (request.QueryParams is not null &&
+            request.QueryParams.TryGetValue("key", out var fromQuery) &&
+            !string.IsNullOrWhiteSpace(fromQuery))
+        {
+            return fromQuery;
+        }
+
+        try
+        {
+            return request.BodyAs<TizenKeyRequest>()?.Key;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
 
     protected override Task StopBackendAsync()    {
         NativeElementDiagnosticsBridge.Current.Clear();
