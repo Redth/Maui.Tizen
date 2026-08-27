@@ -228,7 +228,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				{
 					if (ReferenceEquals(_stack.Top, platformView))
 					{
-						await _stack.PopAsync(animated).ConfigureAwait(true);
+						await _stack.PopAsync(animated && !_host.IsBatchPopping).ConfigureAwait(true);
 						platformViewDisposed = true;
 					}
 					else

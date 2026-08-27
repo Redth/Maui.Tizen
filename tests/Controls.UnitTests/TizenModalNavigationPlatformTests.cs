@@ -145,6 +145,22 @@ public class TizenModalNavigationPlatformTests
 	}
 
 	[Fact]
+	public async Task BatchPopSuppressesAnimationSoIntermediateModalsDoNotFlash()
+	{
+		var (platform, host, stack, _, _) = Build();
+		using var _p = platform;
+		var modal = new ContentPage();
+		host.RecordPush(modal);
+		await platform.PushModalAsync(modal, animated: false);
+
+		host.IsBatchPopping = true;
+		host.RecordPop(modal);
+		await platform.PopModalAsync(modal, animated: true);
+
+		Assert.False(Assert.Single(stack.PopAnimations));
+	}
+
+	[Fact]
 	public async Task MultipleModalsPopInReverseOrder()
 	{
 		var (platform, host, stack, realizer, _) = Build();

@@ -466,7 +466,7 @@ public class ProvisionalModalNavigationContractTests
 	[Theory]
 	[InlineData(typeof(IModalNavigationPlatform), "IsReady", "PushModalAsync", "PopModalAsync", "PageAttached")]
 	[InlineData(typeof(IModalNavigationPlatformFactory), "CreateModalNavigationPlatform")]
-	[InlineData(typeof(IModalNavigationHost), "Window", "MauiContext", "PlatformModalStack", "CurrentPage", "CurrentPlatformPage", "IsWindowReady", "IsBatchPushing", "RequestSync")]
+	[InlineData(typeof(IModalNavigationHost), "Window", "MauiContext", "PlatformModalStack", "CurrentPage", "CurrentPlatformPage", "IsWindowReady", "IsBatchPushing", "IsBatchPopping", "RequestSync")]
 	public void TheProvisionalShapeMatchesTheUpstreamPullRequest(Type contract, params string[] expectedMembers)
 	{
 		var actual = contract

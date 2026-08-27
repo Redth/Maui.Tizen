@@ -266,6 +266,50 @@ public class TizenAlertManagerSubscriptionTests
 
 		Assert.True(dialog.Closed);
 		Assert.False(await Completed(args.Result.Task));
+		Assert.Equal(1, dialog.DisposeCount);
+	}
+
+	[Fact]
+	public async Task AlertCloseFailureDuringTeardownFaultsTheCaller()
+	{
+		var fixture = new Fixture();
+		var args = Alert();
+		fixture.Subscription.OnAlertRequested(fixture.Page, args);
+		fixture.Dialogs.LastAlert!.CloseFailure = new InvalidOperationException("close failed");
+
+		Assert.Throws<AggregateException>(fixture.Subscription.Dispose);
+
+		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(args.Result.Task));
+		Assert.Equal("close failed", exception.Message);
+		Assert.Equal(1, fixture.Dialogs.LastAlert!.DisposeCount);
+	}
+
+	[Fact]
+	public async Task ActionSheetCloseFailureDuringTeardownFaultsTheCaller()
+	{
+		var fixture = new Fixture();
+		var args = ActionSheet();
+		fixture.Subscription.OnActionSheetRequested(fixture.Page, args);
+		fixture.Dialogs.LastActionSheet!.CloseFailure = new InvalidOperationException("close failed");
+
+		Assert.Throws<AggregateException>(fixture.Subscription.Dispose);
+
+		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(args.Result.Task));
+		Assert.Equal("close failed", exception.Message);
+	}
+
+	[Fact]
+	public async Task PromptCloseFailureDuringTeardownFaultsTheCaller()
+	{
+		var fixture = new Fixture();
+		var args = Prompt();
+		fixture.Subscription.OnPromptRequested(fixture.Page, args);
+		fixture.Dialogs.LastPrompt!.CloseFailure = new InvalidOperationException("close failed");
+
+		Assert.Throws<AggregateException>(fixture.Subscription.Dispose);
+
+		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(args.Result.Task));
+		Assert.Equal("close failed", exception.Message);
 	}
 
 	[Fact]

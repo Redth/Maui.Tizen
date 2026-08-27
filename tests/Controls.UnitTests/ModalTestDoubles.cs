@@ -177,6 +177,8 @@ internal sealed class FakeModalNavigationHost : IModalNavigationHost
 
 	public bool IsBatchPushing { get; set; }
 
+	public bool IsBatchPopping { get; set; }
+
 	public int RequestSyncCount { get; private set; }
 
 	public void RequestSync() => RequestSyncCount++;

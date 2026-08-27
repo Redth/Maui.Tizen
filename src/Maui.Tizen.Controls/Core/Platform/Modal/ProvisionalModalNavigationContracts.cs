@@ -148,6 +148,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 		bool IsBatchPushing { get; }
 
 		/// <summary>
+		/// Gets a value indicating whether several modals are being dismissed as a single batch.
+		/// </summary>
+		bool IsBatchPopping { get; }
+
+		/// <summary>
 		/// Asks the framework to re-run the reconciliation loop between the requested modal stack
 		/// and <see cref="PlatformModalStack"/>.
 		/// </summary>

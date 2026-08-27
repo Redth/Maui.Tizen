@@ -107,6 +107,8 @@ Two behaviours worth calling out:
 
 - **Batch push.** `PushModalAsync` passes `animated && !host.IsBatchPushing`, suppressing animation
   while the framework applies several modal presentations as one batch.
+- **Batch pop.** `PopModalAsync` passes `animated && !host.IsBatchPopping`, suppressing animation
+  while the framework dismisses several modal presentations as one batch.
 - **Back button.** Core's per-window back route is the sole page-navigation owner; the modal
   platform does not register a second callback that could dispatch the top page twice.
 
