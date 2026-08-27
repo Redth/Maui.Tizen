@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Maui.Storage;
-using TizenPreference = Tizen.Applications.Preference;
 using Tizen.Security.SecureRepository;
 
 namespace Microsoft.Maui.Platforms.Tizen.Essentials
@@ -132,6 +131,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		}
 
 		/// <inheritdoc/>
+		/// <remarks>
+		/// Removes only the namespaced alias owned by this implementation. A tombstone suppresses
+		/// fallback to a same-named legacy raw alias, which cannot be safely deleted because the
+		/// secure-repository alias space is shared with unrelated application components.
+		/// </remarks>
 		public bool Remove(string key)
 		{
 			ArgumentNullException.ThrowIfNull(key);
@@ -157,7 +161,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// <inheritdoc/>
 		/// <remarks>
 		/// Removes only the aliases this API owns. Other secure-repository entries belonging to the
-		/// application are left untouched.
+		/// application are left untouched. A persistent global tombstone suppresses fallback to
+		/// legacy raw aliases after the clear. Tombstones intentionally accumulate: they cannot be
+		/// garbage-collected while a shadowed raw alias exists because that would resurrect data.
 		/// </remarks>
 		public void RemoveAll()
 		{
@@ -242,30 +248,55 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	{
 		const string Prefix = "maui.tizen.securestorage.tombstone:v1:";
 		const string AllKey = Prefix + "all";
+		readonly ITizenPreferencesStore _store;
 
-		public static TizenSecureStorageTombstones Instance { get; } = new();
+		public static TizenSecureStorageTombstones Instance { get; } =
+			new(TizenPreferencesStore.Instance);
 
-		TizenSecureStorageTombstones()
+		internal TizenSecureStorageTombstones(ITizenPreferencesStore store)
 		{
+			_store = store;
 		}
 
-		public bool ContainsAll => TizenPreference.Contains(AllKey);
+		public bool ContainsAll
+		{
+			get
+			{
+				lock (_store.SyncRoot)
+					return _store.Contains(AllKey);
+			}
+		}
 
-		public bool Contains(string key) =>
-			TizenPreference.Contains(Prefix + "key:" + TizenStorageKeyEncoding.Encode(key));
+		public bool Contains(string key)
+		{
+			lock (_store.SyncRoot)
+				return _store.Contains(GetKeyTombstone(key));
+		}
 
-		public void Add(string key) =>
-			TizenPreference.Set(Prefix + "key:" + TizenStorageKeyEncoding.Encode(key), true);
+		public void Add(string key)
+		{
+			lock (_store.SyncRoot)
+				_store.Set(GetKeyTombstone(key), true);
+		}
 
 		public void Remove(string key)
 		{
-			var tombstone = Prefix + "key:" + TizenStorageKeyEncoding.Encode(key);
-			if (TizenPreference.Contains(tombstone))
-				TizenPreference.Remove(tombstone);
+			lock (_store.SyncRoot)
+			{
+				var tombstone = GetKeyTombstone(key);
+				if (_store.Contains(tombstone))
+					_store.Remove(tombstone);
+			}
 		}
 
-		public void AddAll() =>
-			TizenPreference.Set(AllKey, true);
+		public void AddAll()
+		{
+			lock (_store.SyncRoot)
+				_store.Set(AllKey, true);
+		}
+
+		static string GetKeyTombstone(string key) =>
+			Prefix + "key:" + TizenStorageKeyEncoding.Encode(key);
 	}
 
 	sealed class InMemorySecureStorageTombstones : ITizenSecureStorageTombstones

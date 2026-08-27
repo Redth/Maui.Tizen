@@ -432,6 +432,35 @@ public class TizenServiceBehaviorTests
 		Assert.Equal("legacy-value", repository[TizenSecureStorage.ToAlias("token")]);
 	}
 
+	[Fact]
+	public async Task PreferencesAndSecureStorageShareOneSynchronizedBackingStore()
+	{
+		var preferenceStore = new FakePreferencesStore
+		{
+			RequireSynchronization = true,
+			["legacy-preference"] = "legacy-value",
+		};
+		var preferences = new TizenPreferences(preferenceStore);
+		var repository = new FakeSecureRepository
+		{
+			["secret"] = "unowned-raw-value",
+		};
+		var secureStorage = new TizenSecureStorage(
+			repository,
+			new TizenSecureStorageTombstones(preferenceStore));
+		var cancellationToken = TestContext.Current.CancellationToken;
+
+		await Task.WhenAll(
+			Task.Run(() => preferences.Get("legacy-preference", "missing"), cancellationToken),
+			Task.Run(() => preferences.Clear(), cancellationToken),
+			Task.Run(() => secureStorage.Remove("secret"), cancellationToken),
+			Task.Run(() => secureStorage.SetAsync("secret", "new-value"), cancellationToken));
+
+		Assert.Equal(1, preferenceStore.MaximumConcurrentOperations);
+		Assert.Equal("unowned-raw-value", repository["secret"]);
+		Assert.Contains(await secureStorage.GetAsync("secret"), new string?[] { null, "new-value" });
+	}
+
 	// -------------------------------------------------------------------------------------------
 	// TextToSpeech cancellation.
 	// -------------------------------------------------------------------------------------------
@@ -499,6 +528,84 @@ public class TizenServiceBehaviorTests
 
 		await Assert.ThrowsAsync<ObjectDisposedException>(() => readiness.Task);
 		await Assert.ThrowsAsync<ObjectDisposedException>(() => utterance.Task);
+	}
+
+	[Fact]
+	public async Task QueuedTextToSpeechReinitializesAfterActiveCancellation()
+	{
+		using var speakLock = new SemaphoreSlim(1, 1);
+		using var cancellation = new CancellationTokenSource();
+		var activeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var activeCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var currentClient = "stale";
+		string? queuedClient = null;
+
+		var active = TizenTextToSpeech.RunWithCurrentClientAsync(
+			speakLock,
+			cancellation.Token,
+			_ => Task.FromResult(currentClient),
+			async _ =>
+			{
+				activeStarted.SetResult();
+				await activeCompletion.Task;
+			});
+
+		await activeStarted.Task;
+		var queued = TizenTextToSpeech.RunWithCurrentClientAsync(
+			speakLock,
+			CancellationToken.None,
+			_ => Task.FromResult(currentClient),
+			client =>
+			{
+				queuedClient = client;
+				return Task.CompletedTask;
+			});
+
+		currentClient = "fresh";
+		cancellation.Cancel();
+		activeCompletion.SetCanceled(cancellation.Token);
+
+		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => active);
+		await queued;
+		Assert.Equal("fresh", queuedClient);
+	}
+
+	[Fact]
+	public async Task QueuedTextToSpeechReinitializesAfterActiveNativeError()
+	{
+		using var speakLock = new SemaphoreSlim(1, 1);
+		var activeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var activeCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var currentClient = "stale";
+		string? queuedClient = null;
+
+		var active = TizenTextToSpeech.RunWithCurrentClientAsync(
+			speakLock,
+			CancellationToken.None,
+			_ => Task.FromResult(currentClient),
+			async _ =>
+			{
+				activeStarted.SetResult();
+				await activeCompletion.Task;
+			});
+
+		await activeStarted.Task;
+		var queued = TizenTextToSpeech.RunWithCurrentClientAsync(
+			speakLock,
+			CancellationToken.None,
+			_ => Task.FromResult(currentClient),
+			client =>
+			{
+				queuedClient = client;
+				return Task.CompletedTask;
+			});
+
+		currentClient = "fresh";
+		activeCompletion.SetException(new InvalidOperationException("native error"));
+
+		await Assert.ThrowsAsync<InvalidOperationException>(() => active);
+		await queued;
+		Assert.Equal("fresh", queuedClient);
 	}
 
 	// -------------------------------------------------------------------------------------------
@@ -773,8 +880,13 @@ public class TizenServiceBehaviorTests
 	{
 		readonly Dictionary<string, object?> _values = new(StringComparer.Ordinal);
 		readonly Dictionary<string, int> _setCounts = new(StringComparer.Ordinal);
+		int _activeOperations;
 
-		public IEnumerable<string> Keys => _values.Keys.ToArray();
+		public object SyncRoot { get; } = new();
+		public bool RequireSynchronization { get; init; }
+		public int MaximumConcurrentOperations { get; private set; }
+
+		public IEnumerable<string> Keys => Access(() => _values.Keys.ToArray());
 
 		public object? this[string key]
 		{
@@ -783,22 +895,49 @@ public class TizenServiceBehaviorTests
 		}
 
 		public bool Contains(string key) =>
-			_values.ContainsKey(key);
+			Access(() => _values.ContainsKey(key));
 
 		public void Remove(string key) =>
-			_values.Remove(key);
+			Access(() => _values.Remove(key));
 
 		public void Set<T>(string key, T value)
 		{
-			_values[key] = value;
-			_setCounts[key] = GetSetCount(key) + 1;
+			Access(() =>
+			{
+				_values[key] = value;
+				_setCounts[key] = GetSetCount(key) + 1;
+			});
 		}
 
 		public T Get<T>(string key) =>
-			(T)_values[key]!;
+			Access(() => (T)_values[key]!);
 
 		public int GetSetCount(string key) =>
 			_setCounts.TryGetValue(key, out var count) ? count : 0;
+
+		T Access<T>(Func<T> action)
+		{
+			if (RequireSynchronization && !System.Threading.Monitor.IsEntered(SyncRoot))
+				throw new InvalidOperationException("Preference access was not synchronized.");
+
+			var active = Interlocked.Increment(ref _activeOperations);
+			MaximumConcurrentOperations = Math.Max(MaximumConcurrentOperations, active);
+			try
+			{
+				return action();
+			}
+			finally
+			{
+				Interlocked.Decrement(ref _activeOperations);
+			}
+		}
+
+		void Access(Action action) =>
+			Access(() =>
+			{
+				action();
+				return true;
+			});
 	}
 
 	sealed class FakeContactRecord : IDisposable

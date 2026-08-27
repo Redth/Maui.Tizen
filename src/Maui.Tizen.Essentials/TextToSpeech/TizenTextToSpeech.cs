@@ -116,26 +116,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			cancelToken.ThrowIfCancellationRequested();
 
-			var client = await InitializeAsync(cancelToken).ConfigureAwait(false);
-
-			await _speakLock.WaitAsync(cancelToken).ConfigureAwait(false);
-			try
-			{
-				// Re-check after acquiring the lock. Initialization and queuing behind another
-				// utterance can both take arbitrarily long, and starting speech for a request that
-				// was cancelled while waiting is exactly the surprise a cancellation token exists to
-				// prevent.
-				cancelToken.ThrowIfCancellationRequested();
-
+			await RunWithCurrentClientAsync(
+				_speakLock,
+				cancelToken,
+				InitializeAsync,
+				async client =>
+				{
 				var utterance = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 				_utterance = utterance;
 
-				using var registration = cancelToken.Register(() =>
-					CancelUtterance(utterance, cancelToken, () => InvalidateClient(client)));
-
 				try
 				{
-					cancelToken.ThrowIfCancellationRequested();
+					using var registration = cancelToken.Register(() =>
+						CancelUtterance(utterance, cancelToken, () => InvalidateClient(client)));
 
 					var (resolvedLanguage, voiceType) = ResolveVoice(client, language);
 					client.AddText(text, resolvedLanguage, (int)voiceType, ResolveRate(client, rate));
@@ -144,19 +137,39 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					cancelToken.ThrowIfCancellationRequested();
 
 					client.Play();
+
+					await utterance.Task.ConfigureAwait(false);
 				}
 				catch (Exception) when (cancelToken.IsCancellationRequested)
 				{
 					cancelToken.ThrowIfCancellationRequested();
 					throw;
 				}
+				finally
+				{
+					if (ReferenceEquals(_utterance, utterance))
+						_utterance = null;
+				}
+			}).ConfigureAwait(false);
+		}
 
-				await utterance.Task.ConfigureAwait(false);
+		internal static async Task RunWithCurrentClientAsync<TClient>(
+			SemaphoreSlim speakLock,
+			CancellationToken cancelToken,
+			Func<CancellationToken, Task<TClient>> initialize,
+			Func<TClient, Task> operation)
+		{
+			await speakLock.WaitAsync(cancelToken).ConfigureAwait(false);
+			try
+			{
+				cancelToken.ThrowIfCancellationRequested();
+				var client = await initialize(cancelToken).ConfigureAwait(false);
+				cancelToken.ThrowIfCancellationRequested();
+				await operation(client).ConfigureAwait(false);
 			}
 			finally
 			{
-				_utterance = null;
-				_speakLock.Release();
+				speakLock.Release();
 			}
 		}
 

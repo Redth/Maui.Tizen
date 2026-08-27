@@ -17,7 +17,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// </remarks>
 	public sealed class TizenPreferences : IPreferences
 	{
-		static readonly object Locker = new();
 		readonly ITizenPreferencesStore _store;
 
 		/// <summary>
@@ -38,7 +37,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			ArgumentNullException.ThrowIfNull(key);
 
-			lock (Locker)
+			lock (_store.SyncRoot)
 			{
 				if (_store.Contains(GetFullKey(key, sharedName)))
 					return true;
@@ -54,7 +53,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			ArgumentNullException.ThrowIfNull(key);
 
-			lock (Locker)
+			lock (_store.SyncRoot)
 			{
 				var fullKey = GetFullKey(key, sharedName);
 				if (_store.Contains(fullKey))
@@ -72,7 +71,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// </remarks>
 		public void Clear(string? sharedName = null)
 		{
-			lock (Locker)
+			lock (_store.SyncRoot)
 			{
 				var prefix = TizenStorageKeyEncoding.GetSharedNamePrefix(sharedName ?? string.Empty);
 
@@ -88,7 +87,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			ArgumentNullException.ThrowIfNull(key);
 
-			lock (Locker)
+			lock (_store.SyncRoot)
 			{
 				SetCore(GetFullKey(key, sharedName), value);
 				if (value is null)
@@ -103,7 +102,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			ArgumentNullException.ThrowIfNull(key);
 
-			lock (Locker)
+			lock (_store.SyncRoot)
 			{
 				var fullKey = GetFullKey(key, sharedName);
 
@@ -188,6 +187,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 	internal interface ITizenPreferencesStore
 	{
+		object SyncRoot { get; }
+
 		IEnumerable<string> Keys { get; }
 
 		bool Contains(string key);
@@ -201,24 +202,47 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 	sealed class TizenPreferencesStore : ITizenPreferencesStore
 	{
+		readonly object _syncRoot = new();
+
 		public static TizenPreferencesStore Instance { get; } = new();
 
 		TizenPreferencesStore()
 		{
 		}
 
-		public IEnumerable<string> Keys => TizenPreference.Keys;
+		public object SyncRoot => _syncRoot;
 
-		public bool Contains(string key) =>
-			TizenPreference.Contains(key);
+		public IEnumerable<string> Keys
+		{
+			get
+			{
+				lock (SyncRoot)
+					return TizenPreference.Keys.ToArray();
+			}
+		}
 
-		public void Remove(string key) =>
-			TizenPreference.Remove(key);
+		public bool Contains(string key)
+		{
+			lock (SyncRoot)
+				return TizenPreference.Contains(key);
+		}
 
-		public void Set<T>(string key, T value) =>
-			TizenPreference.Set(key, value);
+		public void Remove(string key)
+		{
+			lock (SyncRoot)
+				TizenPreference.Remove(key);
+		}
 
-		public T Get<T>(string key) =>
-			TizenPreference.Get<T>(key);
+		public void Set<T>(string key, T value)
+		{
+			lock (SyncRoot)
+				TizenPreference.Set(key, value);
+		}
+
+		public T Get<T>(string key)
+		{
+			lock (SyncRoot)
+				return TizenPreference.Get<T>(key);
+		}
 	}
 }

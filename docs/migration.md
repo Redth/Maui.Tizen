@@ -76,7 +76,9 @@ the legacy value intact.
 `Remove` and `RemoveAll` delete only namespaced aliases and write tombstones in the application
 preference store. Those tombstones suppress legacy fallback, so an unowned raw alias cannot
 resurrect a removed SecureStorage value. There is no safe way to distinguish an old SecureStorage
-raw alias from certificates, keys, or another component's data in the shared repository.
+raw alias from certificates, keys, or another component's data in the shared repository. Tombstones
+are persistent and may accumulate: removing one while its shadowed raw alias still exists would
+make deleted data readable again.
 
 ### Preferences data migration
 
