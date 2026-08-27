@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
+using Microsoft.Maui.Storage;
 using TizenAppControl = Tizen.Applications.AppControl;
 using TizenAppControlData = Tizen.Applications.AppControlData;
 using TizenAppControlOperations = Tizen.Applications.AppControlOperations;
@@ -67,8 +69,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			if (!string.IsNullOrEmpty(request.Title))
 				appControl.ExtraData.Add(TizenAppControlData.Title, request.Title);
 
-			if (payload.Paths.Count > 0)
-				appControl.ExtraData.Add(TizenAppControlData.Path, payload.Paths);
+			AddPaths(
+				payload,
+				(key, value) => appControl.ExtraData.Add(key, value),
+				(key, values) => appControl.ExtraData.Add(key, values));
 
 			TizenAppControl.SendLaunchRequest(appControl);
 
@@ -84,18 +88,80 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			return new(
 				paths.Length > 1 ? TizenAppControlOperations.MultiShare : TizenAppControlOperations.Share,
-				ResolveMime(validFiles.Select(file => file.ContentType)),
+				ResolveMime(validFiles),
 				paths);
 		}
 
-		internal static string ResolveMime(IEnumerable<string?> contentTypes)
+		internal static void AddPaths(
+			TizenFilePayload payload,
+			Action<string, string> addSingle,
+			Action<string, IEnumerable<string>> addMultiple)
 		{
-			var types = contentTypes
+			if (payload.Paths.Count == 1)
+				addSingle(TizenAppControlData.Path, payload.Paths[0]);
+			else if (payload.Paths.Count > 1)
+				addMultiple(TizenAppControlData.Path, payload.Paths);
+		}
+
+		internal static string ResolveMime(IEnumerable<FileBase> files)
+		{
+			var types = files
+				.Select(ResolveMime)
 				.Where(type => !string.IsNullOrWhiteSpace(type))
 				.Distinct(StringComparer.OrdinalIgnoreCase)
 				.ToArray();
 
 			return types.Length == 1 ? types[0]! : TizenFileMimeTypes.All;
+		}
+
+		static string? ResolveMime(FileBase file)
+		{
+			try
+			{
+				var contentType = file.ContentType;
+				if (!string.IsNullOrWhiteSpace(contentType))
+					return contentType;
+			}
+			catch (NotImplementedException)
+			{
+			}
+
+			var extension = Path.GetExtension(file.FullPath);
+			if (string.IsNullOrEmpty(extension))
+				return null;
+
+			try
+			{
+				var contentType = TizenFileSystem.GetContentType(extension);
+				if (!string.IsNullOrWhiteSpace(contentType))
+					return contentType;
+			}
+			catch (ArgumentException)
+			{
+			}
+			catch (InvalidOperationException)
+			{
+			}
+			catch (NotSupportedException)
+			{
+			}
+
+			return extension.ToLowerInvariant() switch
+			{
+				".png" => TizenFileMimeTypes.ImagePng,
+				".jpg" or ".jpeg" => TizenFileMimeTypes.ImageJpg,
+				".pdf" => TizenFileMimeTypes.Pdf,
+				".gif" => "image/gif",
+				".webp" => "image/webp",
+				".mp4" => "video/mp4",
+				".mp3" => "audio/mpeg",
+				".txt" => "text/plain",
+				".html" or ".htm" => "text/html",
+				".json" => "application/json",
+				".xml" => "application/xml",
+				".zip" => "application/zip",
+				_ => null,
+			};
 		}
 	}
 

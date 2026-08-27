@@ -1220,12 +1220,20 @@ public class TizenServiceBehaviorTests
 	[Fact]
 	public void ShareFilePayloadHandlesOneFile()
 	{
-		var payload = TizenShare.CreateFilePayload(
-			[new ShareFile("/tmp/photo.png", TizenFileMimeTypes.ImagePng)]);
+		var payload = TizenShare.CreateFilePayload([new ShareFile("/tmp/photo.png")]);
+		string? scalarPath = null;
+		IEnumerable<string>? multiplePaths = null;
+
+		TizenShare.AddPaths(
+			payload,
+			(_, path) => scalarPath = path,
+			(_, paths) => multiplePaths = paths);
 
 		Assert.Equal(TizenAppControlOperations.Share, payload.Operation);
 		Assert.Equal(TizenFileMimeTypes.ImagePng, payload.Mime);
 		Assert.Equal(["/tmp/photo.png"], payload.Paths);
+		Assert.Equal("/tmp/photo.png", scalarPath);
+		Assert.Null(multiplePaths);
 	}
 
 	[Fact]
@@ -1236,10 +1244,19 @@ public class TizenServiceBehaviorTests
 			new ShareFile("/tmp/photo.png", TizenFileMimeTypes.ImagePng),
 			new ShareFile("/tmp/document.pdf", TizenFileMimeTypes.Pdf),
 		]);
+		string? scalarPath = null;
+		IEnumerable<string>? multiplePaths = null;
+
+		TizenShare.AddPaths(
+			payload,
+			(_, path) => scalarPath = path,
+			(_, paths) => multiplePaths = paths);
 
 		Assert.Equal(TizenAppControlOperations.MultiShare, payload.Operation);
 		Assert.Equal(TizenFileMimeTypes.All, payload.Mime);
 		Assert.Equal(["/tmp/photo.png", "/tmp/document.pdf"], payload.Paths);
+		Assert.Null(scalarPath);
+		Assert.Equal(payload.Paths, multiplePaths);
 	}
 
 	[Fact]
@@ -1254,6 +1271,16 @@ public class TizenServiceBehaviorTests
 		Assert.Equal(TizenAppControlOperations.Compose, payload.Operation);
 		Assert.Equal(TizenFileMimeTypes.ImagePng, payload.Mime);
 		Assert.Equal(["/tmp/first.png", "/tmp/second.png"], payload.Paths);
+	}
+
+	[Fact]
+	public void EmailPathOnlyAttachmentResolvesMimeFromExtension()
+	{
+		var payload = TizenEmail.CreateAttachmentPayload(
+			[new EmailAttachment("/tmp/document.pdf")]);
+
+		Assert.Equal(TizenFileMimeTypes.Pdf, payload.Mime);
+		Assert.Equal(["/tmp/document.pdf"], payload.Paths);
 	}
 
 	[Fact]

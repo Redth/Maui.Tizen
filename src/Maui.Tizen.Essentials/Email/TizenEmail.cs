@@ -68,7 +68,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			return new(
 				TizenAppControlOperations.Compose,
-				TizenShare.ResolveMime(validAttachments.Select(attachment => attachment.ContentType)),
+				TizenShare.ResolveMime(validAttachments),
 				validAttachments.Select(attachment => attachment.FullPath).ToArray());
 		}
 
