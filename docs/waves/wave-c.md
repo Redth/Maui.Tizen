@@ -281,6 +281,15 @@ different questions. The capability stays `true` while a back button is showing;
 applies precedence, because only one icon fits. `WaveCToolbarDrawerToggleTests` pins exactly that —
 the test asserting the capability survives `BackButtonVisible = true` fails under the old latch.
 
+**One slot, three claimants, and an async race.** Back button, drawer toggle and title icon all
+render into the same navigation slot, and title icons load asynchronously. A completion callback
+that lands after the navigation state moved on would silently overwrite whichever icon is now
+correct, and two racing loads could land out of order. `TizenToolbarNavigationSlot` gives every
+update a generation and rejects any callback that is superseded — by a newer update, or by the title
+icon itself having been replaced. Reviewing the approved upstream head surfaced this: upstream added
+the same guard, and Wave C's port had the unguarded callback. Four of the eleven
+`WaveCToolbarNavigationSlotTests` fail without it.
+
 One off-tree wrinkle worth recording: `ShellToolbar` is not an `Element`, so there is **no public
 path from a toolbar to its shell**. Rather than re-introduce a latch to bridge that, the caller that
 already knows the owner passes it in, and a caller that does not gets `false`. On adoption every

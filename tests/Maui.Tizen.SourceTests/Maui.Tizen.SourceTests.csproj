@@ -54,6 +54,8 @@
       Compiled by link rather than via ProjectReference because the Wave C project targets
       the Tizen framework and cannot be restored until the Samsung workload ships.
     -->
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls.Navigation/Platform/Toolbar/TizenToolbarNavigationSlot.cs"
+             LinkBase="WaveCAdapters" />
     <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls.Navigation/Platform/Toolbar/ToolbarOwnership.cs"
              LinkBase="WaveCAdapters" />
     <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls.Navigation/Adapters/ToolbarDrawerToggle.cs"

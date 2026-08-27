@@ -90,7 +90,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 			new(
 				ToolbarDrawerToggleVisible,
 				"Microsoft.Maui.Controls.Toolbar.DrawerToggleVisible",
-				"interface IToolbarDrawerToggleVisible { bool DrawerToggleVisible { get; } } (dotnet/maui#37863, OPEN at head 24ae20ff)",
+				"interface IToolbarDrawerToggleVisible { bool DrawerToggleVisible { get; } } (dotnet/maui#37863, exact-head APPROVED at 53b9073, not yet merged or packaged)",
 				nameof(ToolbarDrawerToggle),
 				"Platforms with a drawer cannot render a correct toolbar without knowing whether a drawer toggle is available. Upstream settled on an ADDITIVE capability interface rather than a new IToolbar member, so IToolbar is unchanged and the property is READ-ONLY - the in-tree Tizen write/latch is removed. Wave C therefore computes the value instead of storing it, and renders back-precedence rather than mutual exclusivity."),
 		};

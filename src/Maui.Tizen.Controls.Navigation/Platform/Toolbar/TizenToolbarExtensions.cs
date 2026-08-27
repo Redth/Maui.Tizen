@@ -53,6 +53,30 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		}
 
 		public static void UpdateTitleIcon(this MauiToolbar platformToolbar, Toolbar toolbar, IMauiContext mauiContext, bool drawerToggleVisible)
+			=> platformToolbar.UpdateTitleIcon(
+				toolbar,
+				mauiContext,
+				drawerToggleVisible,
+				TizenToolbarNavigationSlot.BeginNavigationIconUpdate(toolbar));
+
+		/// <summary>
+		/// Applies the toolbar's title icon, discarding the result if a newer update superseded it.
+		/// </summary>
+		/// <param name="generation">
+		/// The generation from <see cref="TizenToolbarNavigationSlot.BeginNavigationIconUpdate"/>.
+		/// </param>
+		/// <remarks>
+		/// Loading an image source is asynchronous, and the callback writes into the same single
+		/// navigation slot the back button and drawer toggle use. Without the generation check a
+		/// late callback silently overwrites whichever icon is now correct - and two racing loads
+		/// can land out of order, leaving the older image on screen.
+		/// </remarks>
+		static void UpdateTitleIcon(
+			this MauiToolbar platformToolbar,
+			Toolbar toolbar,
+			IMauiContext mauiContext,
+			bool drawerToggleVisible,
+			int generation)
 		{
 			ArgumentNullException.ThrowIfNull(mauiContext);
 
@@ -60,9 +84,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			if (source is null || source.IsEmpty)
 			{
-				// Only clear the icon when nothing else owns that slot, otherwise the back button
-				// or drawer toggle would be silently erased.
-				if (!toolbar.BackButtonVisible && !drawerToggleVisible)
+				// Only clear the slot when nothing else owns it, otherwise the back button or drawer
+				// toggle would be silently erased.
+				if (TizenToolbarNavigationSlot.GetNavigationIconKind(toolbar, drawerToggleVisible)
+					== TizenNavigationIconKind.None)
 				{
 					platformToolbar.Icon = null;
 				}
@@ -72,7 +97,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			source.LoadImage(mauiContext, result =>
 			{
-				if (result?.Value is not null)
+				if (result?.Value is not null
+					&& TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(toolbar, generation, source))
 				{
 					platformToolbar.Icon = new TImage { ResourceUrl = result.Value.ResourceUrl };
 				}
@@ -94,17 +120,34 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// </remarks>
 		public static void UpdateBackButton(this MauiToolbar platformToolbar, Toolbar toolbar, bool drawerToggleVisible)
 		{
-			if (toolbar.BackButtonVisible)
+			// Taken up front so that any title-icon load already in flight is superseded: it must not
+			// be allowed to land after the navigation icon decided below.
+			int generation = TizenToolbarNavigationSlot.BeginNavigationIconUpdate(toolbar);
+
+			switch (TizenToolbarNavigationSlot.GetNavigationIconKind(toolbar, drawerToggleVisible))
 			{
-				platformToolbar.Icon = CreateIconButton(platformToolbar, toolbar.IconColor, MaterialIcons.ArrowBack);
-			}
-			else if (drawerToggleVisible)
-			{
-				platformToolbar.Icon = CreateIconButton(platformToolbar, toolbar.IconColor, MaterialIcons.Menu);
-			}
-			else if (toolbar.TitleIcon is null)
-			{
-				platformToolbar.Icon = null;
+				case TizenNavigationIconKind.BackButton:
+					platformToolbar.Icon = CreateIconButton(platformToolbar, toolbar.IconColor, MaterialIcons.ArrowBack);
+					break;
+
+				case TizenNavigationIconKind.DrawerToggle:
+					platformToolbar.Icon = CreateIconButton(platformToolbar, toolbar.IconColor, MaterialIcons.Menu);
+					break;
+
+				default:
+					// Nothing owns the slot, so the title icon may claim it. Routed through
+					// UpdateTitleIcon rather than clearing directly, so a title icon that is set but
+					// still loading is not dropped.
+					if (toolbar.Handler?.MauiContext is { } mauiContext)
+					{
+						platformToolbar.UpdateTitleIcon(toolbar, mauiContext, drawerToggleVisible, generation);
+					}
+					else if (toolbar.TitleIcon is null)
+					{
+						platformToolbar.Icon = null;
+					}
+
+					break;
 			}
 		}
 
