@@ -60,6 +60,29 @@ exists so `#if TIZEN` code is checked by a compiler rather than by inspection.
 
 ---
 
+### G10. Controls owns the Tizen accessibility binding, and upstream never implemented it
+
+`AutomationProperties.IsInAccessibleTree` and `ExcludedWithChildren` arrive as their own mapper
+keys, and the action behind those keys lives in **Controls'** per-platform code
+(`src/Controls/src/Core/Element/Tizen.cs`), not in Core. A backend package cannot supply it without
+referencing Controls, which would invert the dependency direction.
+
+Upstream both methods are empty:
+
+```csharp
+public static void MapAutomationPropertiesIsInAccessibleTree(IElementHandler handler, Element element)
+{
+    //TODO : Need to impl
+}
+```
+
+So these annotations have never worked on Tizen, and the stub disappears entirely when dotnet/maui
+drops its Tizen target. Core now ships the native half - `UpdateIsInAccessibleTree` and
+`UpdateExcludedWithChildren`, built on NUI's `AccessibilityHighlightable` and
+`AccessibilityHidden` - so whoever ends up owning the Controls binding has something correct to
+call. Closing the gap needs either a Controls-side change or an explicit owner in a later wave.
+
+
 ## 2. External blockers
 
 ### B1 - Samsung Tizen workload manifest for the 11.0.100 SDK band does not exist

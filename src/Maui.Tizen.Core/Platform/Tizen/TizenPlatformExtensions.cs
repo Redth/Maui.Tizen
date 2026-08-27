@@ -571,6 +571,59 @@ namespace Microsoft.Maui.Platforms.Tizen
 		// Label (ported from LabelExtensions).
 		// ---------------------------------------------------------------------------------------
 
+		/// <summary>
+		/// Applies MAUI Controls' <c>AutomationProperties.IsInAccessibleTree</c>.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// The native half of a binding that this package cannot complete on its own. Controls
+		/// exposes IsInAccessibleTree as its OWN mapper key, and the action behind that key lives in
+		/// Controls' per-platform code - <c>Element.Tizen.cs</c> - not in Core. A backend package
+		/// cannot supply it without taking a dependency on Controls, which would invert the
+		/// dependency direction.
+		/// </para>
+		/// <para>
+		/// Worth knowing: upstream that method is an empty <c>//TODO : Need to impl</c> stub, so
+		/// this annotation has never actually worked on Tizen. When dotnet/maui drops its Tizen
+		/// target the stub disappears with it. Implementing the native side here means whoever ends
+		/// up owning the Controls binding has something correct to call. See docs/net11-status.md.
+		/// </para>
+		/// <para>
+		/// <c>AccessibilityHighlightable</c> is what decides whether AT can reach the element;
+		/// <c>AccessibilityHidden</c> removes it outright. Both are set so that turning the flag
+		/// back on genuinely restores the element rather than leaving it hidden.
+		/// </para>
+		/// </remarks>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="isInAccessibleTree">Whether assistive technology may reach the view.</param>
+		public static void UpdateIsInAccessibleTree(this TizenNativeView platformView, bool isInAccessibleTree)
+		{
+			ArgumentNullException.ThrowIfNull(platformView);
+
+			platformView.AccessibilityHighlightable = isInAccessibleTree;
+			platformView.AccessibilityHidden = !isInAccessibleTree;
+		}
+
+		/// <summary>
+		/// Applies MAUI Controls' <c>AutomationProperties.ExcludedWithChildren</c>.
+		/// </summary>
+		/// <remarks>
+		/// Same ownership caveat as <see cref="UpdateIsInAccessibleTree"/>. NUI's
+		/// <c>AccessibilityHidden</c> already applies to the subtree, so excluding a view excludes
+		/// its children without walking them.
+		/// </remarks>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="excluded">Whether the view and its children are excluded.</param>
+		public static void UpdateExcludedWithChildren(this TizenNativeView platformView, bool excluded)
+		{
+			ArgumentNullException.ThrowIfNull(platformView);
+
+			platformView.AccessibilityHidden = excluded;
+
+			if (excluded)
+				platformView.AccessibilityHighlightable = false;
+		}
+
 		/// <summary>Applies <see cref="ILabel.Text"/>.</summary>
 		/// <param name="platformLabel">The platform label.</param>
 		/// <param name="label">The cross-platform label.</param>

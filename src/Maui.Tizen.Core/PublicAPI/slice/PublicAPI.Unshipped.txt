@@ -331,12 +331,14 @@ static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateBackgroundCo
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateBounds(this Tizen.NUI.BaseComponents.View! platformView, Tizen.UIExtensions.Common.Rect bounds) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateCharacterSpacing(this Tizen.UIExtensions.NUI.Label! platformLabel, Microsoft.Maui.ILabel! label) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateClip(this Tizen.NUI.BaseComponents.View! platformView, Microsoft.Maui.IView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateExcludedWithChildren(this Tizen.NUI.BaseComponents.View! platformView, bool excluded) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateFlowDirection(this Tizen.NUI.BaseComponents.View! platformView, Microsoft.Maui.IView! view) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateFont(this Tizen.UIExtensions.NUI.Label! platformLabel, Microsoft.Maui.ILabel! label, Microsoft.Maui.IFontManager! fontManager) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateHeight(this Tizen.NUI.Window! platformWindow, Microsoft.Maui.IWindow! window) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateHorizontalTextAlignment(this Tizen.UIExtensions.NUI.Label! platformLabel, Microsoft.Maui.ILabel! label) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateInputTransparent(this Tizen.NUI.BaseComponents.View! platformView, Microsoft.Maui.IView! view) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateIsEnabled(this Tizen.NUI.BaseComponents.View! platformView, Microsoft.Maui.IView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateIsInAccessibleTree(this Tizen.NUI.BaseComponents.View! platformView, bool isInAccessibleTree) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateLabelText(this Tizen.UIExtensions.NUI.Label! platformLabel, Microsoft.Maui.ILabel! label) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateLineHeight(this Tizen.UIExtensions.NUI.Label! platformLabel, Microsoft.Maui.ILabel! label) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateMaximumHeight(this Tizen.NUI.BaseComponents.View! platformView, Microsoft.Maui.IView! view) -> void
