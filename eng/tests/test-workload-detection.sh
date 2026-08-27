@@ -62,13 +62,21 @@ expect() {
 expect "current manifest layout is detected"        present-versioned      true
 
 # Legacy layout, no version directory. Still supported so an older SDK does not
-# silently regress to "missing".
+# silently regress to "missing". Also a preview.6 band, proving detection tolerates
+# drift within the .NET 11 line - this SDK ships manifests under both preview.6 and
+# preview.7, so pinning an exact preview segment would be a false negative.
 expect "legacy manifest layout is detected"         present-legacy         true
 
 # THE SUBSTRING TRAP. This fixture contains a `maui-tizen` manifest and a
 # `microsoft.net.sdk.maui` manifest, but no `samsung.net.sdk.tizen`. Anything matching
 # "tizen" loosely reports true here and skips the gate.
 expect "maui-tizen alone is NOT Samsung's workload"  absent-maui-tizen-only false
+
+# THE WRONG-BAND TRAP. Samsung workloads ARE installed here - but for .NET 9 and .NET 10.
+# They cannot satisfy net11.0-tizen11.0. An unrestricted `sdk-manifests/*` glob reports
+# true, lifts the gate, and the build then fails much later with an unrelated-looking
+# error about missing Tizen reference packs.
+expect "old-band workloads do NOT satisfy net11"     absent-old-band-only   false
 
 # Nothing installed at all.
 expect "empty manifest root reports missing"        absent-empty           false

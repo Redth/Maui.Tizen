@@ -45,10 +45,14 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 	/// </summary>
 	public bool CompleteAsynchronously { get; set; }
 
+	/// <summary>Records ShownBehindPage as observed at the moment of each push.</summary>
+	public List<bool> ShownBehindPageDuringPush { get; } = new();
+
 	public async Task PushAsync(object platformView, bool animated)
 	{
 		Operations.Add($"Push({animated})");
 		PushAnimations.Add(animated);
+		ShownBehindPageDuringPush.Add(ShownBehindPage);
 
 		if (CompleteAsynchronously)
 		{

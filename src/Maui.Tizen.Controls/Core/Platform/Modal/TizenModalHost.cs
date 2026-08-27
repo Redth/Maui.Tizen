@@ -49,6 +49,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			var placeholder = _stack.CreatePlaceholder();
 
+			// ShownBehindPage is stack-wide state that belongs to whatever is already presented,
+			// not to this dialog. It is set so the placeholder does not hide the page underneath -
+			// a dialog floats above it - and then RESTORED rather than forced to false, because
+			// forcing false silently reconfigures how every later push renders for the lifetime of
+			// the window.
+			var shownBehindPage = _stack.ShownBehindPage;
 			_stack.ShownBehindPage = true;
 
 			try
@@ -60,7 +66,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 			finally
 			{
-				_stack.ShownBehindPage = false;
+				_stack.ShownBehindPage = shownBehindPage;
 			}
 
 			try

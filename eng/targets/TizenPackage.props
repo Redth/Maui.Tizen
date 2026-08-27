@@ -105,28 +105,69 @@
 
   <ItemGroup>
     <!--
-      Enforces the PublicAPI.Shipped/Unshipped baselines that travel with each project.
+      Enforces the PublicAPI.Shipped/Unshipped baselines that a project opts into.
       Without the analyzer those files are inert text, and the API surface this repository
       is supposed to preserve could drift silently.
 
       PrivateAssets=all: an analyzer is a build-time tool and must not become a dependency
       of the shipped package.
+
+      The analyzer is inert until a project supplies AdditionalFiles - see below.
     -->
     <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
   </ItemGroup>
 
+  <!--
+    PUBLIC API BASELINES ARE NOT ATTACHED AUTOMATICALLY. This is deliberate.
+
+    A glob like `AdditionalFiles Include="PublicAPI/**/PublicAPI.*.txt"` looks obviously
+    right and is wrong in two independent ways here.
+
+    1. It attaches the WRONG baseline. The imported PublicAPI files are upstream's
+       MONOLITHIC per-assembly baselines: src/Maui.Tizen.Core's is the entire
+       Microsoft.Maui.Core surface - 3,268 entries, of which only 447 are the
+       Microsoft.Maui.Platform types this assembly will actually contain. Our assemblies
+       are SPLIT (Tizen implementation only), so the moment a project starts compiling,
+       every one of the ~2,800 non-Tizen entries becomes RS0017 "part of the declared API
+       but could not be found". That is thousands of errors describing a mismatch between
+       two different assemblies, not a real API regression.
+
+    2. It silently misses half the projects. The glob is rooted at the project directory,
+       so it matched Core, Essentials and BlazorWebView (PublicAPI/ at the root) and
+       silently matched NOTHING for Controls, Maps and Graphics, whose imported baselines
+       are nested one level deeper (Core/PublicAPI/, Xaml/PublicAPI/, Graphics.Skia/...)
+       because those packages merge two upstream assemblies. Measured: 2/2/2 items for the
+       first three, 0/0/0 for the rest. Silent absence of enforcement is worse than no
+       enforcement, because it looks enforced.
+
+    So the imported baselines under src/**/PublicAPI/** are PROVENANCE FIXTURES: they
+    record what upstream shipped for net-tizen and feed the API-baseline diffing in
+    eng/api-baselines/. They are not this repository's API contract.
+
+    To opt a project in once it compiles and ships public API, declare its own baseline
+    explicitly in the project file:
+
+      <PropertyGroup>
+        <EnablePublicApiAnalyzer>true</EnablePublicApiAnalyzer>
+      </PropertyGroup>
+      <ItemGroup>
+        <AdditionalFiles Include="PublicAPI/tizen/PublicAPI.Shipped.txt" />
+        <AdditionalFiles Include="PublicAPI/tizen/PublicAPI.Unshipped.txt" />
+      </ItemGroup>
+
+    The baseline must describe THIS assembly, not the upstream one it was split from.
+    Do not point it at the imported provenance fixtures, and do not suppress RS0016/RS0017
+    to make a mismatched baseline quiet - that discards the enforcement entirely. An
+    invariant test asserts both rules.
+
+    See eng/tests/PublicApiOptIn for a worked example that the CI lane compiles.
+  -->
+  <PropertyGroup>
+    <EnablePublicApiAnalyzer Condition="'$(EnablePublicApiAnalyzer)' == ''">false</EnablePublicApiAnalyzer>
+  </PropertyGroup>
+
   <ItemGroup Condition="'$(EnableDefaultCompileItems)' == 'false'">
     <None Include="**/*.cs" Exclude="bin/**;obj/**" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!--
-      PublicAPI baselines travel with their project. They are the net11.0 net-tizen
-      baselines imported from dotnet/maui and are consumed by the API comparison tooling
-      in eng/api-baselines/.
-    -->
-    <AdditionalFiles Include="PublicAPI/**/PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI/**/PublicAPI.Unshipped.txt" />
   </ItemGroup>
 
 </Project>

@@ -33,6 +33,8 @@
     <Project Path="tests/Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj" />
     <Project Path="tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj" />
     <Project Path="eng/tests/PackageGraphProbe/PackageGraphProbe.csproj" />
+    <Project Path="eng/tests/PublicApiOptIn/PublicApiOptIn.csproj" />
+    <Project Path="eng/tests/PackReadmeProbe/PackReadmeProbe.csproj" />
   </Folder>
 
   <Folder Name="/eng/">

@@ -191,6 +191,50 @@ public class TizenModalHostTests
 		Assert.Equal(2, stack.PopAnimations.Count);
 	}
 
+	// ShownBehindPage is stack-wide state owned by whatever is already presented. A dialog must
+	// borrow it, not take it over.
+
+	[Fact]
+	public async Task ShownBehindPageIsRestoredRatherThanForcedFalse()
+	{
+		var stack = new FakeNavigationStack { ShownBehindPage = true };
+		var host = new TizenModalHost(stack);
+
+		await host.RunModalAsync(() => Task.CompletedTask);
+
+		// Forcing false here silently reconfigures how every later push renders.
+		Assert.True(stack.ShownBehindPage);
+	}
+
+	[Fact]
+	public async Task ShownBehindPageIsRestoredEvenWhenThePlaceholderPushFails()
+	{
+		var stack = new FakeNavigationStack
+		{
+			ShownBehindPage = true,
+			PushFailure = new InvalidOperationException("stack push failed"),
+		};
+		var host = new TizenModalHost(stack);
+
+		await Assert.ThrowsAsync<InvalidOperationException>(() => host.RunModalAsync(() => Task.CompletedTask));
+
+		Assert.True(stack.ShownBehindPage);
+	}
+
+	[Fact]
+	public async Task ShownBehindPageIsSetWhileThePlaceholderIsBeingPushed()
+	{
+		var stack = new FakeNavigationStack();
+		var host = new TizenModalHost(stack);
+
+		await host.RunModalAsync(() => Task.CompletedTask);
+
+		// The page underneath must keep rendering while the placeholder goes on, which is the
+		// whole reason the flag is touched at all.
+		Assert.True(Assert.Single(stack.ShownBehindPageDuringPush));
+		Assert.False(stack.ShownBehindPage);
+	}
+
 	[Fact]
 	public async Task ANullOperationIsRejected()
 	{
