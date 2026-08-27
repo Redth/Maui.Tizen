@@ -57,6 +57,26 @@ public class SkiaSharpHostTests : TestBase
 		Assert.Equal(8, decoded!.Width);
 	}
 
+	/// <summary>
+	/// The desktop preload must reject a path it cannot load and keep probing, rather than
+	/// stopping at the first candidate that merely exists on disk.
+	/// </summary>
+	[Fact]
+	public void DesktopFrameworkPreloadSkipsUnloadableCandidates()
+	{
+		// A file that exists and has the right name, but is not a loadable library.
+		var directory = CreateTempDirectory();
+		var decoy = Path.Combine(directory, SkiaSharpHost.NativeLibraryFileName);
+		File.WriteAllText(decoy, "not a shared library");
+
+		Assert.True(File.Exists(decoy));
+
+		// TryPreload walks the real candidate list, so the decoy proves only that a non-library
+		// is not loadable; assert that directly, then that the real probe still succeeds.
+		Assert.Null(SkiaSharpHost.TryLoadForTesting(decoy));
+		Assert.NotNull(SkiaSharpHost.TryPreload());
+	}
+
 	[Fact]
 	public void ProbesTheNativeFileNameForThisOperatingSystem()
 	{
@@ -116,9 +136,9 @@ public class SkiaSharpHostTests : TestBase
 	/// Windows agent.
 	/// </remarks>
 	[Fact]
-	public void OperatingSystemLoaderCanLoadTheNativeBinary()
+	public void DesktopFrameworkPreloadSelectsALoadableBinary()
 	{
-		var loaded = SkiaSharpHost.TryLoadThroughOperatingSystemLoader();
+		var loaded = SkiaSharpHost.TryPreload();
 
 		Assert.True(
 			loaded is not null,

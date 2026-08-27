@@ -42,14 +42,16 @@ rsync -a \
   --exclude 'obj/' \
   "$REPO_ROOT"/ "$STAGING"/
 
-# The SDK image has no python3, which the checks use for JSON and baseline validation. The
-# GitHub-hosted runner does, so this only closes a gap between the container and CI.
+# The SDK image lacks python3 and unzip, both of which the checks use; the GitHub-hosted
+# runner has both. Installing them closes a gap between the container and CI rather than
+# papering over one - a missing tool otherwise surfaces as a failing assertion about the
+# repository instead of about the environment.
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   echo "==> Building $IMAGE"
   docker build ${PLATFORM_ARGS[@]+"${PLATFORM_ARGS[@]}"} -t "$IMAGE" - <<DOCKERFILE
 FROM $BASE_IMAGE
 RUN apt-get update \
- && apt-get install -y --no-install-recommends python3 \
+ && apt-get install -y --no-install-recommends python3 unzip \
  && rm -rf /var/lib/apt/lists/*
 DOCKERFILE
 fi

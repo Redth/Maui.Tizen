@@ -148,22 +148,45 @@ namespace Maui.Tizen.Build.Tasks
 		/// </remarks>
 		static void PreloadForDesktopFramework()
 		{
+			var preloaded = TryPreload();
+
+			if (preloaded is null)
+			{
+				RegistrationError = "No native SkiaSharp binary could be preloaded for this host.";
+				return;
+			}
+
+			IsRegistered = true;
+			RegistrationError = null;
+			PreloadedPath = preloaded;
+		}
+
+		/// <summary>
+		/// Walks the candidate list and loads the first binary the OS loader accepts, returning the
+		/// path that succeeded, or <c>null</c> if none did.
+		/// </summary>
+		/// <remarks>
+		/// Separated from <see cref="PreloadForDesktopFramework"/>, which only applies the result to
+		/// shared state, so that the selection logic can be exercised by tests. It would otherwise
+		/// be unreachable anywhere it can be run: the desktop path is taken only when
+		/// <c>NativeLibrary</c> is absent, which on a .NET host it never is.
+		/// </remarks>
+		/// <summary>Attempts to load one specific path, for tests. Returns null when it cannot be loaded.</summary>
+		internal static string? TryLoadForTesting(string path)
+			=> LoadNativeLibrary(path) != IntPtr.Zero ? path : null;
+
+		internal static string? TryPreload()
+		{
 			foreach (var candidate in GetCandidatePaths())
 			{
 				if (!File.Exists(candidate))
 					continue;
 
-				var handle = LoadNativeLibrary(candidate);
-				if (handle != IntPtr.Zero)
-				{
-					IsRegistered = true;
-					RegistrationError = null;
-					PreloadedPath = candidate;
-					return;
-				}
+				if (LoadNativeLibrary(candidate) != IntPtr.Zero)
+					return candidate;
 			}
 
-			RegistrationError = "No native SkiaSharp binary could be preloaded for this host.";
+			return null;
 		}
 
 		/// <summary>The path preloaded on hosts without NativeLibrary, for diagnostics and tests.</summary>
@@ -198,24 +221,7 @@ namespace Maui.Tizen.Build.Tasks
 		[DllImport("libc", EntryPoint = "dlopen")]
 		static extern IntPtr dlopen(string fileName, int flags);
 
-		/// <summary>
-		/// Loads the first available native binary through the OS loader, without touching the
-		/// shared registration state. Used to exercise the desktop-framework path on hosts where
-		/// <c>NativeLibrary</c> does exist.
-		/// </summary>
-		internal static string? TryLoadThroughOperatingSystemLoader()
-		{
-			foreach (var candidate in GetCandidatePaths())
-			{
-				if (!File.Exists(candidate))
-					continue;
 
-				if (LoadNativeLibrary(candidate) != IntPtr.Zero)
-					return candidate;
-			}
-
-			return null;
-		}
 
 		/// <summary>
 		/// Signature-compatible with <c>NativeLibrary.DllImportResolver</c>. Returns

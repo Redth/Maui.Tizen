@@ -180,16 +180,24 @@ check "restore package graph probe" "$DOTNET" restore eng/tests/PackageGraphProb
 info "Packing"
 if check "pack README probe" "$DOTNET" pack eng/tests/PackReadmeProbe/PackReadmeProbe.csproj --no-restore -c Release; then
   README_NUPKG="$(ls -t "$REPO_ROOT"/artifacts/packages/Maui.Tizen.Internal.PackReadmeProbe.*.nupkg 2>/dev/null | head -1 || true)"
-  # NOTE: `unzip -l ... | grep -q` is deliberately avoided. Under `set -o pipefail`,
-  # grep -q exits on first match and closes the pipe, so unzip can die with SIGPIPE and
-  # poison the pipeline's status - reporting a missing README for a package that contains
-  # one. That is the same failure that once made the CI provenance check report a present
-  # commit as missing; `grep -c` consumes all input, so there is no early close.
+  # Read the archive with python3 rather than unzip. python3 is already a hard dependency
+  # of this script, whereas unzip is not present in the dotnet/sdk container images - and a
+  # missing unzip is indistinguishable from a missing README, so this check reported a
+  # present README as absent. That is precisely the failure mode the original note here
+  # warned about (a present thing reported missing), reintroduced through the tool rather
+  # than the pipeline. A read error now fails loudly and separately instead.
   README_COUNT=0
+  README_PROBE_STATUS=0
   if [[ -n "$README_NUPKG" ]]; then
-    README_COUNT="$(unzip -l "$README_NUPKG" 2>/dev/null | grep -c 'README\.md' || true)"
+    README_COUNT="$(python3 -c "
+import sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as archive:
+    print(sum(1 for n in archive.namelist() if n.rsplit('/', 1)[-1] == 'README.md'))
+" "$README_NUPKG" 2>/dev/null)" || README_PROBE_STATUS=$?
   fi
-  if [[ "$README_COUNT" -gt 0 ]]; then
+  if [[ "$README_PROBE_STATUS" -ne 0 || -z "$README_COUNT" ]]; then
+    fail "could not read '$README_NUPKG' to verify its README (the package may be fine; the probe failed)"
+  elif [[ "$README_COUNT" -gt 0 ]]; then
     pass "packed nupkg contains README.md"
   else
     fail "packed nupkg is missing README.md (NU5039 risk: the README Pack item did not apply)"
