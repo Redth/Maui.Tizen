@@ -180,6 +180,75 @@ public class TizenServiceBehaviorTests
 		Assert.Equal("legacy-value", store["token"]);
 	}
 
+	[Fact]
+	public void PreferencesRemoveTombstonePreventsAmbiguousLegacyResurrection()
+	{
+		var store = new FakePreferencesStore
+		{
+			["a~b"] = "ambiguous-legacy-value",
+		};
+		var preferences = new TizenPreferences(store);
+
+		preferences.Remove("a~b");
+
+		Assert.Equal("missing", preferences.Get("a~b", "missing"));
+		Assert.Equal("ambiguous-legacy-value", store["a~b"]);
+		Assert.Equal(
+			"ambiguous-legacy-value",
+			new TizenPreferences(store).Get("b", "missing", "a"));
+	}
+
+	[Fact]
+	public void PreferencesClearTombstonePreventsStoreLegacyResurrection()
+	{
+		var store = new FakePreferencesStore
+		{
+			["legacy-default"] = "default-value",
+			["shared~legacy"] = "named-value",
+		};
+		var preferences = new TizenPreferences(store);
+
+		preferences.Clear();
+
+		Assert.Equal("missing", preferences.Get("legacy-default", "missing"));
+		Assert.Equal("named-value", preferences.Get("legacy", "missing", "shared"));
+		Assert.Equal("default-value", store["legacy-default"]);
+	}
+
+	[Fact]
+	public void PreferencesNewValueWinsAfterStoreClearTombstone()
+	{
+		var store = new FakePreferencesStore
+		{
+			["token"] = "legacy-value",
+		};
+		var preferences = new TizenPreferences(store);
+
+		preferences.Clear();
+		preferences.Set("token", "new-value");
+
+		Assert.Equal("new-value", preferences.Get("token", "missing"));
+		Assert.Equal("legacy-value", store["token"]);
+	}
+
+	[Fact]
+	public async Task ConcurrentPreferencesMigrationCreatesOneVersionedCopy()
+	{
+		var store = new FakePreferencesStore
+		{
+			["token"] = "legacy-value",
+		};
+		var preferences = new TizenPreferences(store);
+
+		var values = await Task.WhenAll(
+			Task.Run(() => preferences.Get("token", "missing")),
+			Task.Run(() => preferences.Get("token", "missing")));
+
+		Assert.Equal(["legacy-value", "legacy-value"], values);
+		Assert.Equal(1, store.GetSetCount(TizenPreferences.GetFullKey("token", null)));
+		Assert.Equal("legacy-value", store["token"]);
+	}
+
 	// -------------------------------------------------------------------------------------------
 	// SecureStorage alias namespacing.
 	// -------------------------------------------------------------------------------------------
@@ -236,7 +305,7 @@ public class TizenServiceBehaviorTests
 		var value = await storage.GetAsync("token");
 
 		Assert.Equal("legacy-value", value);
-		Assert.False(repository.Contains("token"));
+		Assert.Equal("legacy-value", repository["token"]);
 		Assert.Equal("legacy-value", repository[TizenSecureStorage.ToAlias("token")]);
 		Assert.Equal("leave-me", repository["unrelated"]);
 	}
@@ -288,6 +357,79 @@ public class TizenServiceBehaviorTests
 		Assert.Equal("save failed", exception.Message);
 		Assert.Equal("legacy-value", repository["token"]);
 		Assert.False(repository.Contains(TizenSecureStorage.ToAlias("token")));
+	}
+
+	[Fact]
+	public async Task SecureStorageRemoveTombstoneSuppressesLegacyFallback()
+	{
+		var repository = new FakeSecureRepository
+		{
+			["token"] = "unowned-raw-value",
+		};
+		var tombstones = new FakeSecureStorageTombstones();
+		var storage = new TizenSecureStorage(repository, tombstones);
+
+		Assert.False(storage.Remove("token"));
+
+		Assert.Null(await storage.GetAsync("token"));
+		Assert.Equal("unowned-raw-value", repository["token"]);
+		Assert.True(tombstones.Contains("token"));
+	}
+
+	[Fact]
+	public async Task SecureStorageRemoveAllSuppressesAllLegacyFallback()
+	{
+		var repository = new FakeSecureRepository
+		{
+			["legacy-token"] = "unowned-raw-value",
+			[TizenSecureStorage.ToAlias("owned")] = "owned-value",
+		};
+		var tombstones = new FakeSecureStorageTombstones();
+		var storage = new TizenSecureStorage(repository, tombstones);
+
+		storage.RemoveAll();
+
+		Assert.Null(await storage.GetAsync("legacy-token"));
+		Assert.Equal("unowned-raw-value", repository["legacy-token"]);
+		Assert.False(repository.Contains(TizenSecureStorage.ToAlias("owned")));
+		Assert.True(tombstones.ContainsAll);
+	}
+
+	[Fact]
+	public async Task SecureStorageSetWinsAfterRemoveTombstone()
+	{
+		var repository = new FakeSecureRepository
+		{
+			["token"] = "unowned-raw-value",
+		};
+		var tombstones = new FakeSecureStorageTombstones();
+		var storage = new TizenSecureStorage(repository, tombstones);
+
+		storage.Remove("token");
+		await storage.SetAsync("token", "new-value");
+
+		Assert.Equal("new-value", await storage.GetAsync("token"));
+		Assert.Equal("unowned-raw-value", repository["token"]);
+		Assert.False(tombstones.Contains("token"));
+	}
+
+	[Fact]
+	public async Task ConcurrentSecureStorageMigrationCreatesOneOwnedCopy()
+	{
+		var repository = new FakeSecureRepository
+		{
+			["token"] = "legacy-value",
+		};
+		var storage = new TizenSecureStorage(repository, new FakeSecureStorageTombstones());
+
+		var values = await Task.WhenAll(
+			Task.Run(() => storage.GetAsync("token")),
+			Task.Run(() => storage.GetAsync("token")));
+
+		Assert.Equal(["legacy-value", "legacy-value"], values);
+		Assert.Equal(1, repository.SuccessfulSaves);
+		Assert.Equal("legacy-value", repository["token"]);
+		Assert.Equal("legacy-value", repository[TizenSecureStorage.ToAlias("token")]);
 	}
 
 	// -------------------------------------------------------------------------------------------
@@ -545,50 +687,92 @@ public class TizenServiceBehaviorTests
 	sealed class FakeSecureRepository : ITizenSecureRepository
 	{
 		readonly Dictionary<string, byte[]> _values = new(StringComparer.Ordinal);
+		readonly object _locker = new();
 
 		public Exception? SaveException { get; init; }
+		public int SuccessfulSaves { get; private set; }
 
 		public string this[string alias]
 		{
-			get => Encoding.UTF8.GetString(_values[alias]);
-			set => _values[alias] = Encoding.UTF8.GetBytes(value);
+			get
+			{
+				lock (_locker)
+					return Encoding.UTF8.GetString(_values[alias]);
+			}
+			set
+			{
+				lock (_locker)
+					_values[alias] = Encoding.UTF8.GetBytes(value);
+			}
 		}
 
 		public void Add(string alias, string value) =>
 			_values.Add(alias, Encoding.UTF8.GetBytes(value));
 
-		public bool Contains(string alias) =>
-			_values.ContainsKey(alias);
+		public bool Contains(string alias)
+		{
+			lock (_locker)
+				return _values.ContainsKey(alias);
+		}
 
-		public byte[] Get(string alias) =>
-			_values.TryGetValue(alias, out var value)
-				? value
-				: throw new InvalidOperationException("alias not found");
+		public byte[] Get(string alias)
+		{
+			lock (_locker)
+				return _values.TryGetValue(alias, out var value)
+					? value
+					: throw new InvalidOperationException("alias not found");
+		}
 
 		public void Save(string alias, byte[] value)
 		{
-			if (SaveException is not null)
-				throw SaveException;
+			lock (_locker)
+			{
+				if (SaveException is not null)
+					throw SaveException;
 
-			if (_values.ContainsKey(alias))
-				throw new InvalidOperationException("alias already exists");
+				if (_values.ContainsKey(alias))
+					throw new InvalidOperationException("alias already exists");
 
-			_values.Add(alias, value);
+				_values.Add(alias, value);
+				SuccessfulSaves++;
+			}
 		}
 
 		public void RemoveAlias(string alias)
 		{
-			if (!_values.Remove(alias))
-				throw new InvalidOperationException("alias not found");
+			lock (_locker)
+			{
+				if (!_values.Remove(alias))
+					throw new InvalidOperationException("alias not found");
+			}
 		}
 
-		public IEnumerable<string> GetAliases() =>
-			_values.Keys.ToArray();
+		public IEnumerable<string> GetAliases()
+		{
+			lock (_locker)
+				return _values.Keys.ToArray();
+		}
+	}
+
+	sealed class FakeSecureStorageTombstones : ITizenSecureStorageTombstones
+	{
+		readonly HashSet<string> _keys = new(StringComparer.Ordinal);
+
+		public bool ContainsAll { get; private set; }
+
+		public bool Contains(string key) => _keys.Contains(key);
+
+		public void Add(string key) => _keys.Add(key);
+
+		public void Remove(string key) => _keys.Remove(key);
+
+		public void AddAll() => ContainsAll = true;
 	}
 
 	sealed class FakePreferencesStore : ITizenPreferencesStore
 	{
 		readonly Dictionary<string, object?> _values = new(StringComparer.Ordinal);
+		readonly Dictionary<string, int> _setCounts = new(StringComparer.Ordinal);
 
 		public IEnumerable<string> Keys => _values.Keys.ToArray();
 
@@ -604,11 +788,17 @@ public class TizenServiceBehaviorTests
 		public void Remove(string key) =>
 			_values.Remove(key);
 
-		public void Set<T>(string key, T value) =>
+		public void Set<T>(string key, T value)
+		{
 			_values[key] = value;
+			_setCounts[key] = GetSetCount(key) + 1;
+		}
 
 		public T Get<T>(string key) =>
 			(T)_values[key]!;
+
+		public int GetSetCount(string key) =>
+			_setCounts.TryGetValue(key, out var count) ? count : 0;
 	}
 
 	sealed class FakeContactRecord : IDisposable

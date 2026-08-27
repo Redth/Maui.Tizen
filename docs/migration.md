@@ -68,15 +68,15 @@ The standalone Essentials package stores secure values under
 the application-wide secure-repository alias space.
 
 `GetAsync` performs a one-way, per-key compatibility migration: it reads the namespaced alias first;
-only when that alias is absent does it read the exact legacy raw alias, save the value under the
-namespaced alias, and remove that exact raw alias. A migration save failure is surfaced and leaves
-the legacy value intact. If cleanup of the raw alias fails after the namespaced save succeeds, the
-namespaced value remains authoritative.
+only when that alias is absent does it read the exact legacy raw alias and save the value under the
+namespaced alias. It never deletes the raw alias because the application-wide secure repository
+cannot prove that alias is owned by SecureStorage. A migration save failure is surfaced and leaves
+the legacy value intact.
 
-`RemoveAll` deliberately does **not** delete raw aliases. There is no safe way to distinguish an
-old SecureStorage raw alias from certificates, keys, or another component's data in the shared
-repository. Applications that need eager migration must enumerate their own known SecureStorage
-keys and call `GetAsync` for each one before calling `RemoveAll`.
+`Remove` and `RemoveAll` delete only namespaced aliases and write tombstones in the application
+preference store. Those tombstones suppress legacy fallback, so an unowned raw alias cannot
+resurrect a removed SecureStorage value. There is no safe way to distinguish an old SecureStorage
+raw alias from certificates, keys, or another component's data in the shared repository.
 
 ### Preferences data migration
 
@@ -88,9 +88,10 @@ application-wide `RemoveAll`, deleting every named store too.
 Reads prefer the v2 key and fall back to the exact legacy alias used by the in-box backend and the
 first standalone package revision. A successful legacy read copies the value into v2. The old alias
 is intentionally retained because the legacy layout is ambiguous: deleting `a~b` cannot prove
-whether it belonged to the default store or a named store. Explicit per-key `Remove`/null `Set`
-removes the requested legacy candidates; `Clear` removes only the selected store's unambiguous v2
-entries and never performs a native global clear.
+whether it belonged to the default store or a named store. Per-key `Remove`/null `Set` and
+per-store `Clear` write v2 tombstones instead of deleting ambiguous aliases, so later reads cannot
+resurrect removed data or cross-delete another logical store. `Clear` removes only the selected
+store's unambiguous v2 entries and never performs a native global clear.
 
 ### Target contract provenance
 

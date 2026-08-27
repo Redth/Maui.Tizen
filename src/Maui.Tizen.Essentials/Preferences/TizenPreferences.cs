@@ -42,6 +42,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			{
 				if (_store.Contains(GetFullKey(key, sharedName)))
 					return true;
+				if (LegacyFallbackSuppressed(key, sharedName))
+					return false;
 
 				return TizenStorageKeyEncoding.GetLegacyKeys(key, sharedName).Any(_store.Contains);
 			}
@@ -58,11 +60,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				if (_store.Contains(fullKey))
 					_store.Remove(fullKey);
 
-				foreach (var legacyKey in TizenStorageKeyEncoding.GetLegacyKeys(key, sharedName))
-				{
-					if (_store.Contains(legacyKey))
-						_store.Remove(legacyKey);
-				}
+				WriteTombstone(TizenStorageKeyEncoding.GetKeyTombstone(key, sharedName));
 			}
 		}
 
@@ -80,6 +78,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 				foreach (var key in _store.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList())
 					_store.Remove(key);
+
+				WriteTombstone(TizenStorageKeyEncoding.GetStoreTombstone(sharedName));
 			}
 		}
 
@@ -92,7 +92,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			{
 				SetCore(GetFullKey(key, sharedName), value);
 				if (value is null)
-					RemoveLegacyKeys(key, sharedName);
+					WriteTombstone(TizenStorageKeyEncoding.GetKeyTombstone(key, sharedName));
+				else
+					RemoveTombstone(TizenStorageKeyEncoding.GetKeyTombstone(key, sharedName));
 			}
 		}
 
@@ -107,6 +109,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 				if (_store.Contains(fullKey))
 					return GetCore(fullKey, defaultValue);
+				if (LegacyFallbackSuppressed(key, sharedName))
+					return defaultValue;
 
 				foreach (var legacyKey in TizenStorageKeyEncoding.GetLegacyKeys(key, sharedName))
 				{
@@ -162,13 +166,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			return _store.Get<T>(fullKey);
 		}
 
-		void RemoveLegacyKeys(string key, string? sharedName)
+		bool LegacyFallbackSuppressed(string key, string? sharedName) =>
+			_store.Contains(TizenStorageKeyEncoding.GetKeyTombstone(key, sharedName)) ||
+			_store.Contains(TizenStorageKeyEncoding.GetStoreTombstone(sharedName));
+
+		void WriteTombstone(string key)
 		{
-			foreach (var legacyKey in TizenStorageKeyEncoding.GetLegacyKeys(key, sharedName))
-			{
-				if (_store.Contains(legacyKey))
-					_store.Remove(legacyKey);
-			}
+			if (!_store.Contains(key))
+				_store.Set(key, true);
+		}
+
+		void RemoveTombstone(string key)
+		{
+			if (_store.Contains(key))
+				_store.Remove(key);
 		}
 
 		internal static string GetFullKey(string key, string? sharedName) =>

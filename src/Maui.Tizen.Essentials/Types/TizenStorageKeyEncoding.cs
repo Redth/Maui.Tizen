@@ -33,6 +33,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		const string VersionPrefix = "maui.tizen.preferences:v2:";
 		const string DefaultStorePrefix = VersionPrefix + "d:";
 		const string NamedStorePrefix = VersionPrefix + "n:";
+		const string KeyTombstonePrefix = VersionPrefix + "tk:";
+		const string StoreTombstonePrefix = VersionPrefix + "ts:";
 
 		/// <summary>
 		/// Encodes a single component so it can be joined with <see cref="Separator"/> unambiguously.
@@ -109,5 +111,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			if (!string.Equals(raw, escaped, StringComparison.Ordinal))
 				yield return raw;
 		}
+
+		internal static string GetKeyTombstone(string key, string? sharedName) =>
+			KeyTombstonePrefix + EncodeLogicalKey(key, sharedName);
+
+		internal static string GetStoreTombstone(string? sharedName) =>
+			StoreTombstonePrefix + EncodeStore(sharedName);
+
+		static string EncodeLogicalKey(string key, string? sharedName) =>
+			string.IsNullOrEmpty(sharedName)
+				? "d:" + Encode(key)
+				: string.Concat("n:", Encode(sharedName), Separator.ToString(), Encode(key));
+
+		static string EncodeStore(string? sharedName) =>
+			string.IsNullOrEmpty(sharedName)
+				? "d"
+				: "n:" + Encode(sharedName);
 	}
 }

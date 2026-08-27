@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Maui.Storage;
+using TizenPreference = Tizen.Applications.Preference;
 using Tizen.Security.SecureRepository;
 
 namespace Microsoft.Maui.Platforms.Tizen.Essentials
@@ -26,7 +27,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// </remarks>
 	public sealed class TizenSecureStorage : ISecureStorage
 	{
+		static readonly object Locker = new();
 		readonly ITizenSecureRepository _repository;
+		readonly ITizenSecureStorageTombstones _tombstones;
 
 		/// <summary>
 		/// Prefix identifying aliases owned by this API.
@@ -41,13 +44,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// Creates a secure-storage service backed by Tizen's secure repository.
 		/// </summary>
 		public TizenSecureStorage()
-			: this(TizenSecureRepository.Instance)
+			: this(TizenSecureRepository.Instance, TizenSecureStorageTombstones.Instance)
 		{
 		}
 
-		internal TizenSecureStorage(ITizenSecureRepository repository)
+		internal TizenSecureStorage(
+			ITizenSecureRepository repository,
+			ITizenSecureStorageTombstones? tombstones = null)
 		{
 			_repository = repository;
+			_tombstones = tombstones ?? new InMemorySecureStorageTombstones();
 		}
 
 		/// <inheritdoc/>
@@ -55,48 +61,42 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			ArgumentNullException.ThrowIfNull(key);
 
-			try
+			lock (Locker)
 			{
-				// The second parameter is the data password, not a default value.
-				return Task.FromResult<string?>(Encoding.UTF8.GetString(_repository.Get(ToAlias(key))));
-			}
-			catch (InvalidOperationException)
-			{
-				// The namespaced alias does not exist. Try the exact raw alias used by the in-box
-				// backend, then migrate it one-way before returning it.
-			}
-			catch
-			{
-				global::Tizen.Log.Error(TizenPlatform.CurrentPackageLogTag, "Failed to load data.");
-				throw;
-			}
+				try
+				{
+					// The second parameter is the data password, not a default value.
+					return Task.FromResult<string?>(Encoding.UTF8.GetString(_repository.Get(ToAlias(key))));
+				}
+				catch (InvalidOperationException)
+				{
+					// The namespaced alias does not exist.
+				}
+				catch
+				{
+					global::Tizen.Log.Error(TizenPlatform.CurrentPackageLogTag, "Failed to load data.");
+					throw;
+				}
 
-			byte[] legacyValue;
+				if (_tombstones.Contains(key) || _tombstones.ContainsAll)
+					return Task.FromResult<string?>(null);
 
-			try
-			{
-				legacyValue = _repository.Get(key);
-			}
-			catch (InvalidOperationException)
-			{
-				return Task.FromResult<string?>(null);
-			}
+				byte[] legacyValue;
 
-			// Save before deleting so a migration failure cannot remove the only readable copy.
-			_repository.Save(ToAlias(key), legacyValue);
+				try
+				{
+					legacyValue = _repository.Get(key);
+				}
+				catch (InvalidOperationException)
+				{
+					return Task.FromResult<string?>(null);
+				}
 
-			try
-			{
-				_repository.RemoveAlias(key);
-			}
-			catch
-			{
-				// The namespaced copy is now authoritative. A stale legacy alias is safe to leave
-				// behind and can be cleaned up by a later explicit application migration.
-				global::Tizen.Log.Info(TizenPlatform.CurrentPackageLogTag, "Failed to remove migrated legacy data.");
-			}
+				// Raw aliases are unowned and may belong to another component. Copy, never delete.
+				_repository.Save(ToAlias(key), legacyValue);
 
-			return Task.FromResult<string?>(Encoding.UTF8.GetString(legacyValue));
+				return Task.FromResult<string?>(Encoding.UTF8.GetString(legacyValue));
+			}
 		}
 
 		/// <inheritdoc/>
@@ -105,29 +105,29 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			ArgumentNullException.ThrowIfNull(key);
 			ArgumentNullException.ThrowIfNull(value);
 
-			var alias = ToAlias(key);
-
-			try
+			lock (Locker)
 			{
 				try
 				{
-					// DataManager.Save throws when the alias already exists, and Tizen offers no
-					// existence probe that does not throw, so remove unconditionally first.
-					_repository.RemoveAlias(alias);
+					var alias = ToAlias(key);
+					try
+					{
+						_repository.RemoveAlias(alias);
+					}
+					catch
+					{
+						// Expected when the alias did not exist.
+					}
+
+					_repository.Save(alias, Encoding.UTF8.GetBytes(value));
+					_tombstones.Remove(key);
+					return Task.CompletedTask;
 				}
 				catch
 				{
-					// Expected when the alias did not exist.
+					global::Tizen.Log.Error(TizenPlatform.CurrentPackageLogTag, "Failed to save data.");
+					throw;
 				}
-
-				_repository.Save(alias, Encoding.UTF8.GetBytes(value));
-
-				return Task.CompletedTask;
-			}
-			catch
-			{
-				global::Tizen.Log.Error(TizenPlatform.CurrentPackageLogTag, "Failed to save data.");
-				throw;
 			}
 		}
 
@@ -136,15 +136,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			ArgumentNullException.ThrowIfNull(key);
 
-			try
+			lock (Locker)
 			{
-				_repository.RemoveAlias(ToAlias(key));
-				return true;
-			}
-			catch
-			{
-				global::Tizen.Log.Info(TizenPlatform.CurrentPackageLogTag, "Failed to remove data.");
-				return false;
+				var removed = false;
+				try
+				{
+					_repository.RemoveAlias(ToAlias(key));
+					removed = true;
+				}
+				catch
+				{
+					// Missing namespaced data is expected when only an ambiguous raw alias exists.
+				}
+
+				_tombstones.Add(key);
+				return removed;
 			}
 		}
 
@@ -155,30 +161,34 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// </remarks>
 		public void RemoveAll()
 		{
-			IEnumerable<string> aliases;
-
-			try
+			lock (Locker)
 			{
-				aliases = _repository.GetAliases();
-			}
-			catch
-			{
-				global::Tizen.Log.Info(TizenPlatform.CurrentPackageLogTag, "No saved data.");
-				return;
-			}
+				_tombstones.AddAll();
 
-			foreach (var alias in aliases)
-			{
-				if (!IsOwnedAlias(alias))
-					continue;
-
+				IEnumerable<string> aliases;
 				try
 				{
-					_repository.RemoveAlias(alias);
+					aliases = _repository.GetAliases();
 				}
 				catch
 				{
-					global::Tizen.Log.Info(TizenPlatform.CurrentPackageLogTag, "Failed to remove data.");
+					global::Tizen.Log.Info(TizenPlatform.CurrentPackageLogTag, "No saved data.");
+					return;
+				}
+
+				foreach (var alias in aliases)
+				{
+					if (!IsOwnedAlias(alias))
+						continue;
+
+					try
+					{
+						_repository.RemoveAlias(alias);
+					}
+					catch
+					{
+						global::Tizen.Log.Info(TizenPlatform.CurrentPackageLogTag, "Failed to remove data.");
+					}
 				}
 			}
 		}
@@ -213,6 +223,64 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			return separator >= 0 &&
 				alias.AsSpan(separator + 1).StartsWith(AliasPrefix, StringComparison.Ordinal);
 		}
+	}
+
+	internal interface ITizenSecureStorageTombstones
+	{
+		bool ContainsAll { get; }
+
+		bool Contains(string key);
+
+		void Add(string key);
+
+		void Remove(string key);
+
+		void AddAll();
+	}
+
+	sealed class TizenSecureStorageTombstones : ITizenSecureStorageTombstones
+	{
+		const string Prefix = "maui.tizen.securestorage.tombstone:v1:";
+		const string AllKey = Prefix + "all";
+
+		public static TizenSecureStorageTombstones Instance { get; } = new();
+
+		TizenSecureStorageTombstones()
+		{
+		}
+
+		public bool ContainsAll => TizenPreference.Contains(AllKey);
+
+		public bool Contains(string key) =>
+			TizenPreference.Contains(Prefix + "key:" + TizenStorageKeyEncoding.Encode(key));
+
+		public void Add(string key) =>
+			TizenPreference.Set(Prefix + "key:" + TizenStorageKeyEncoding.Encode(key), true);
+
+		public void Remove(string key)
+		{
+			var tombstone = Prefix + "key:" + TizenStorageKeyEncoding.Encode(key);
+			if (TizenPreference.Contains(tombstone))
+				TizenPreference.Remove(tombstone);
+		}
+
+		public void AddAll() =>
+			TizenPreference.Set(AllKey, true);
+	}
+
+	sealed class InMemorySecureStorageTombstones : ITizenSecureStorageTombstones
+	{
+		readonly HashSet<string> _keys = new(StringComparer.Ordinal);
+
+		public bool ContainsAll { get; private set; }
+
+		public bool Contains(string key) => _keys.Contains(key);
+
+		public void Add(string key) => _keys.Add(key);
+
+		public void Remove(string key) => _keys.Remove(key);
+
+		public void AddAll() => ContainsAll = true;
 	}
 
 	internal interface ITizenSecureRepository
