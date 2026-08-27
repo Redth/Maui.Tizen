@@ -369,12 +369,20 @@ would show total parity while most properties did nothing.
 `TextTransform`, `ContentLayout` and `Button.LineBreakMode` are reported as `inherited`. They are
 properties of **Controls** types that upstream applies from `Microsoft.Maui.Controls.Platform`
 rather than from a Core handler, so implementing them here would mean referencing Controls from the
-product package. Matching sources do exist under `src/Maui.Tizen.Controls` - but **that project is
-in no compiled lane**, so they are unbuilt, unexecuted and untested. An earlier revision gave these
-keys a distinct `controls` state on the strength of the files existing; that overstated reality,
-because source nobody compiles cannot be known to work. `MapperParityMatrixTests` fails if the
-project ever gains a lane, so the question gets revisited on evidence rather than left as a stale
-demotion.
+product package. Matching sources do exist under `src/Maui.Tizen.Controls` - but on this branch
+**that project is in no compiled lane**, so they are unbuilt, unexecuted and untested. An earlier
+revision gave these keys a distinct `controls` state on the strength of the files existing; that
+overstated reality, because source nobody compiles cannot be known to work.
+
+**This is expected to change at the rebase, and the guard is what will say so.** Core `efd759ea`
+adds a `Maui.Tizen.Controls.RefPackCompile` lane that builds a real `Maui.Tizen.Controls` assembly,
+so `MapperParityMatrixTests.ControlsLayerFollowUpIsNotMistakenForCoverage` - which asserts the
+project is *not* in a lane - will fail on the first rebase onto that head. That is the test doing
+its job rather than a regression: the evidence behind the demotion has changed, so each key must be
+**re-measured** against what the new lane actually compiles and binds, and promoted only where that
+holds. Note the lane compiled only `TizenControlsMappings.cs` as of `efd759ea`, so a key is covered
+only if that file binds it - `LineBreakMode` is bound there, `TextTransform` and `ContentLayout`
+are not.
 
 `RadioButton.TextTransform` is deliberately absent rather than excused: upstream guards that remap
 with `#if ANDROID || WINDOWS`, so the key does not exist on this package at all.

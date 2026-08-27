@@ -110,8 +110,19 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		/// Handler mappers chain MAUI's static mapper, so Controls remaps reach the backend.
 		/// </summary>
 		/// <remarks>
+		/// <para>
 		/// Asserted by observing a key that only exists once Controls has remapped, rather than
 		/// by inspecting the chain structure - it is the reachability that matters.
+		/// </para>
+		/// <para>
+		/// <b>Reachability only. This says nothing about whether a key does anything.</b> By this
+		/// suite's own standard - resolution is not implementation - a passing case here means the
+		/// key arrives at the backend, not that the backend acts on it. In particular
+		/// <c>TizenLabelHandler</c>'s <c>FormattedText</c> and <c>MaxLines</c> are reachable and
+		/// <b>not implemented</b>: Core binds <c>MapMaxLines</c> as an empty <c>[MissingMapper]</c>
+		/// and does not bind <c>FormattedText</c> at all. Both are assigned to Wave A and are
+		/// specified in <c>docs/wave-a-integration-plan.md</c> §5. Do not read this test as parity.
+		/// </para>
 		/// </remarks>
 		[Theory]
 		[InlineData(typeof(TizenCheckBoxHandler), "Color")]

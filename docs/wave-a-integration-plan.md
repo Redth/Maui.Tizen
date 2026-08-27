@@ -308,6 +308,93 @@ Everything past that needs the device lane the unpublished Samsung workload stil
 - [ ] Parity matrix regenerated (`MAUI_TIZEN_UPDATE_PARITY_MATRIX=1 dotnet test …`) — it is
       generated from the shipped mappers, so a Core mapper change silently staleness it.
 
+## 5. Label `MaxLines` and `FormattedText` — assigned to Wave A
+
+Core `efd759ea` binds Controls' `LineBreakMode` and the accessibility annotations in a real
+`Maui.Tizen.Controls` assembly, and **explicitly defers these two to Wave A**:
+
+```csharp
+[MissingMapper]
+public static void MapMaxLines(ILabelHandler handler, Label label) { }
+```
+
+`FormattedText` is not bound at all by `TizenControlsMappings.Register()`. Neither can be
+implemented on this branch before the rebase — the `TizenControlsMappings` file and the
+`Maui.Tizen.Controls.RefPackCompile` lane only exist on Core — so what is settled here is the
+evidence the implementation depends on.
+
+### Native capability, measured
+
+Read directly from the pinned reference assemblies
+(`Samsung.Tizen.Ref.API15 15.0.0.19396`, `Tizen.UIExtensions.NUI 0.9.2`) by enumerating metadata,
+not from memory or documentation:
+
+| API | State |
+|---|---|
+| `Tizen.UIExtensions.NUI.Label.FormattedText` | **present** |
+| `Tizen.NUI.BaseComponents.TextLabel.MaxLines` | **absent** |
+| `TextLabel.LineCount`, `TextLabel.AsyncLineCount` | present, but **read-only queries** — they report how many lines were laid out, they do not constrain it |
+| `TextLabel.MultiLine`, `Ellipsis`, `LineWrapMode`, `EnableMarkup` | present |
+
+An exhaustive search for `MaxLine*` across `Tizen.NUI.dll` and `Tizen.UIExtensions.NUI.dll` returns
+**only** those two read-only line-count properties. There is no native line-limit property.
+
+### `FormattedText` — implement
+
+Supported, and the plumbing already exists. Core's
+`Controls/Platform/Tizen/Extensions/TextExtensions.UpdateText(TLabel, Label)` already branches on
+`label.FormattedText != null` and assigns `platformLabel.FormattedText = label.ToFormattedString()`.
+
+Work required:
+
+1. Bind the key, which nothing currently does:
+   `LabelHandler.Mapper.AppendToMapping(nameof(Label.FormattedText), MapFormattedText)` in
+   `TizenControlsMappings.Register()`, alongside the existing `LineBreakMode` binding.
+2. Confirm `ToFormattedString()` (`FormattedStringExtensions`) is in the compiled Controls source
+   set — it is referenced by `UpdateText` but was **not** in `MauiTizenControlsCompile` as of
+   `efd759ea`, which currently compiles only `TizenControlsMappings.cs`. If it is missing, the
+   `FormattedText` path does not build and the binding cannot work.
+3. `TextType.Html` routes through `EnableMarkup` + `ToMarkupText()`; keep that branch reachable.
+
+### `MaxLines` — no native equivalent, document explicitly
+
+There is no property to set, so this is a **documented feature-specific limitation**, not a stub
+left by omission. That matches upstream, which also ships `[MissingMapper]` here.
+
+One case *is* honestly implementable and should be, rather than claiming total non-support:
+
+- `MaxLines == 1` → `MultiLine = false`. A single-line constraint is exactly what that flag
+  expresses, and combining it with `Ellipsis` reproduces the usual truncation behaviour.
+- `MaxLines > 1` → **not supported.** NUI offers no line-limit; approximating it by measuring line
+  height and clamping the label's height would silently mis-render on wrapped or mixed-size text,
+  which is worse than an honest no-op.
+- `MaxLines == -1` (MAUI's "unlimited" default) → `MultiLine = true`.
+
+Whatever is chosen, the unsupported range must be stated in the XML docs on the mapping and in
+`wave-a-handlers.md`, so it reads as a decision rather than an oversight.
+
+### No false parity claim
+
+`TizenHandlerMapperTests.ControlsRemappedKeysReachTheBackend` includes `FormattedText` and
+`MaxLines` for `TizenLabelHandler`. That test asserts **reachability only** and is now annotated to
+say so explicitly, because by this suite's own standard — resolution is not implementation — it
+would otherwise read as parity. Neither key is implemented today.
+
+Note that the host lane **cannot** measure this: Label's mappings live inside `#if TIZEN`, so
+`Text` — which *is* implemented — records exactly the same "nothing happened" as `MaxLines`, which
+is not. The evidence that these two are unimplemented comes from Core's source, not from a runtime
+probe. Any test claiming to prove Label implementation status on the host lane is measuring nothing.
+
+### Integration check
+
+- [ ] `FormattedText` bound in `TizenControlsMappings.Register()` and reaching
+      `TextExtensions.UpdateText`, with `FormattedStringExtensions` in the compiled source set.
+- [ ] `MaxLines` handles the `1` and `-1` cases and documents the unsupported range on the mapping.
+- [ ] `wave-a-handlers.md` states the `MaxLines` limitation as a decision, with the measured
+      evidence that no native property exists.
+- [ ] The reachability test's annotation still matches reality — if these become implemented, the
+      "not implemented" wording in it must go.
+
 ## Rebase procedure
 
 1. Confirm Core's head is **declared stable and reviewed**, not merely green.
@@ -329,14 +416,44 @@ Everything past that needs the device lane the unpublished Samsung workload stil
    The last three have guard tests. `GenerateUrl` does **not** — it is inside `#if TIZEN` and
    cannot be executed on the host lane — so it needs a human diff check. `git diff <core-head> --
    src/Maui.Tizen.Core/ImageSources/TizenImageSource.cs` is the fastest confirmation.
-4. Regenerate the PublicAPI baseline:
+4. **Expect `ControlsLayerFollowUpIsNotMistakenForCoverage` to fail, and treat that as signal.**
+   Core `efd759ea` adds a `Maui.Tizen.Controls.RefPackCompile` lane, and that guard asserts the
+   Controls project is in *no* lane. Its failure means the evidence behind the `inherited` demotion
+   has changed. Re-measure `TextTransform`, `ContentLayout` and `Button.LineBreakMode` against what
+   the new lane actually compiles and binds — as of `efd759ea` that is `TizenControlsMappings.cs`
+   alone, which binds `LineBreakMode` but not the other two — then promote only what holds. Do not
+   silence the guard without re-measuring.
+5. Implement Label `FormattedText` and `MaxLines` per §5.
+6. Regenerate the PublicAPI baseline:
    `dotnet format analyzers tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj --diagnostics RS0016 --severity warn`.
    Review the diff; an unexpected entry is the signal that baseline exists to give.
-5. Regenerate the parity matrix.
-6. Run `eng/build-workload-free.sh` — host, API15 ref-pack, PublicAPI and parity lanes.
-7. Push, dispatch CI explicitly (`gh workflow run CI --ref …`; a force-push does not trigger
+7. Regenerate the parity matrix.
+8. Run `eng/build-workload-free.sh` — host, API15 ref-pack, PublicAPI and parity lanes.
+9. Push, dispatch CI explicitly (`gh workflow run CI --ref …`; a force-push does not trigger
    `pull_request`), and confirm all three jobs.
 
 Local timing is not a signal on a loaded machine: this worktree has shown a ~2m15s `dotnet test`
 startup floor for a 45ms test class while CI ran the whole suite in 40 seconds. Measure in CI
 before treating slowness as a regression.
+
+**Do not re-enable test parallelization.** `tests/Maui.Tizen.Core.UnitTests/AssemblyInfo.cs` sets
+`[assembly: CollectionBehavior(DisableTestParallelization = true)]`, and that is load-bearing:
+`UseMauiApp<T>()` reaches `RemapForControls`, which mutates MAUI's **process-global** static
+mappers, and `PropertyMapper` stores mappings in a plain `Dictionary`. Two test classes building
+apps at once corrupt it —
+
+```
+InvalidOperationException: Operations that change non-concurrent collections must have exclusive
+access. A concurrent update was performed on this collection and corrupted its state.
+    at Microsoft.Maui.PropertyMapper.GetProperty(String key)
+    at Microsoft.Maui.Controls.TabbedPage.RemapForControls()
+    at ...UseMauiApp[TApp](MauiAppBuilder)
+```
+
+— and because .NET caches a failed type initialization permanently, one collision resurfaces as
+`TypeInitializationException` on every later access and takes out dozens of unrelated tests.
+Measured at roughly 3 failures in 15 full runs before the fix, 0 in 15 after.
+
+Seven classes in this assembly build apps, five of them Core-owned, so the race predates Wave A —
+Wave A's composition-root tests simply widened the window enough to make it visible. A single green
+run does not demonstrate a fix here; repeat the suite at least ten times.
