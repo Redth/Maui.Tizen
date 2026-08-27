@@ -41,6 +41,22 @@ Register through this property rather than hooking a Resizetizer target such as
 regardless of import order, and it does not couple your package to Resizetizer's internal target
 names.
 
+### Two things provider authors get wrong
+
+**Asset file names may be fingerprinted.** In some configurations the SDK rewrites a static web
+asset's name to include a content hash - `blazor.webview.js` is declared upstream as the relative
+path `blazor.webview#[.{fingerprint}]?.js`. Pinning the unfingerprinted name produces an item that
+looks right and resolves to nothing. Derive the name from the SDK rather than hard-coding it; for
+static web assets that means letting `ComputeStaticWebAssetsTargetPaths` compute the target path.
+
+**Drop precompressed variants.** The SDK emits `.gz` and `.br` alternatives alongside the original,
+marked `AssetRole='Alternative'`. A Tizen application serves its assets from local storage, so those
+are pure TPK bloat. Filter them unless `$(CompressionEnabled)` is explicitly true:
+
+```xml
+Condition="'$(CompressionEnabled)' != 'false' or '%(_Asset.AssetRole)' != 'Alternative' or ('%(_Asset.Extension)' != '.gz' and '%(_Asset.Extension)' != '.br')"
+```
+
 ### Duplicates are handled here
 
 Tizen resources are de-duplicated by destination path before packing, so two providers contributing
@@ -54,6 +70,10 @@ the same file cannot produce a duplicate TPK entry. Providers do not need to coo
 | `MauiAsset` -> `MauiProcessedAsset` | `Microsoft.Maui.Resizetizer` |
 | `MauiProcessedAsset` -> `TizenResource` and TPK layout | `Maui.Tizen.Build.Tasks` |
 | Packing, signing and deploying the TPK | Samsung workload |
+
+Resources are packaged through `TizenResource`; they are deliberately absent from `res.xml`, which
+describes only the DPI-variant image buckets under `res/contents`. Assets are addressed by path, not
+by screen density, so there is nothing for it to select between.
 
 Each package ships its own half, so an application only ever references packages - there are no
 globs or MSBuild snippets to copy into the app project.

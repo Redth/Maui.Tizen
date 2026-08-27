@@ -50,9 +50,7 @@ public class TemplateInstantiationTests : TestBase
 			startInfo.ArgumentList.Add(argument);
 
 		startInfo.Environment["DOTNET_CLI_HOME"] = cliHome;
-		startInfo.Environment["DOTNET_NOLOGO"] = "1";
-		startInfo.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
-		startInfo.Environment["MSBUILDTERMINALLOGGER"] = "off";
+		ConfigureIsolatedMSBuild(startInfo);
 
 		var (exitCode, standardOutput, standardError) = Run(startInfo);
 
@@ -132,7 +130,6 @@ public class TemplateInstantiationTests : TestBase
 			"msbuild",
 			projectPath,
 			"-getItem:" + itemName,
-			"-nr:false",
 			// The workload is absent, so stop the SDK from failing on the unknown platform before
 			// the evaluation result can be reported.
 			"-p:MauiTizenSkipHostNativeValidation=true",
@@ -142,7 +139,8 @@ public class TemplateInstantiationTests : TestBase
 			startInfo.ArgumentList.Add(argument);
 		}
 
-		startInfo.Environment["MSBUILDTERMINALLOGGER"] = "off";
+		foreach (var isolation in ConfigureIsolatedMSBuild(startInfo))
+			startInfo.ArgumentList.Add(isolation);
 
 		var (exitCode, output, _) = Run(startInfo);
 

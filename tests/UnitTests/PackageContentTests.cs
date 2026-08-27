@@ -49,7 +49,10 @@ public class PackageContentTests : TestBase
 			startInfo.ArgumentList.Add("-p:PackageOutputPath=" + output);
 			startInfo.ArgumentList.Add("--nologo");
 			startInfo.ArgumentList.Add("-v:q");
-			startInfo.ArgumentList.Add("-nr:false");
+
+
+			foreach (var isolation in ConfigureIsolatedMSBuild(startInfo))
+				startInfo.ArgumentList.Add(isolation);
 
 			using var process = Process.Start(startInfo)!;
 			var log = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();

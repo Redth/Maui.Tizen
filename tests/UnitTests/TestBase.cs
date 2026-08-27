@@ -36,6 +36,36 @@ public abstract class TestBase : IDisposable
 	public static string BuildTasksAssemblyPath { get; } =
 		typeof(GenerateTizenManifest).Assembly.Location;
 
+	/// <summary>
+	/// Applies the environment every MSBuild-invoking test process needs, and returns the
+	/// command-line arguments that go with it.
+	/// </summary>
+	/// <remarks>
+	/// By default the .NET CLI reuses long-lived MSBuild worker nodes and an MSBuild server, both
+	/// shared machine-wide. A test process then queues behind unrelated builds owned by other
+	/// sessions on the same machine, which presents as a test that hangs rather than one that
+	/// fails - measured here as a 26 minute run of a suite that normally takes under a minute.
+	///
+	/// Isolation is cheap for these tests: each one builds a tiny generated project, so there is
+	/// nothing for extra nodes or a persistent server to speed up.
+	///
+	///   -nodeReuse:false                 do not leave worker nodes behind, do not join existing ones
+	///   -m:1                             one node; these projects have no parallelism to exploit
+	///   DOTNET_CLI_USE_MSBUILD_SERVER=0  do not route through the shared MSBuild server
+	///
+	/// Centralized so a new test cannot quietly omit one and reintroduce the hang.
+	/// </remarks>
+	public static IReadOnlyList<string> ConfigureIsolatedMSBuild(System.Diagnostics.ProcessStartInfo startInfo)
+	{
+		startInfo.Environment["DOTNET_CLI_USE_MSBUILD_SERVER"] = "0";
+		startInfo.Environment["MSBUILDDISABLENODEREUSE"] = "1";
+		startInfo.Environment["MSBUILDTERMINALLOGGER"] = "off";
+		startInfo.Environment["DOTNET_NOLOGO"] = "1";
+		startInfo.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
+
+		return new[] { "-nodeReuse:false", "-m:1" };
+	}
+
 	/// <summary>Escapes a path for use inside a generated MSBuild attribute.</summary>
 	public static string Escape(string path)
 		=> path.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;");

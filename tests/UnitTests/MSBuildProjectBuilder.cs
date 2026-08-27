@@ -295,7 +295,7 @@ public sealed class MSBuildProjectBuilder
 
 	public BuildResult Build(params string[] extraArguments)
 	{
-		var arguments = new List<string> { "build", ProjectPath, "-v:n", "--nologo", "-nr:false" };
+		var arguments = new List<string> { "build", ProjectPath, "-v:n", "--nologo" };
 
 		arguments.AddRange(extraArguments);
 
@@ -310,10 +310,9 @@ public sealed class MSBuildProjectBuilder
 		foreach (var argument in arguments)
 			startInfo.ArgumentList.Add(argument);
 
-		// Keep the build hermetic and quiet.
-		startInfo.Environment["MSBUILDTERMINALLOGGER"] = "off";
-		startInfo.Environment["DOTNET_NOLOGO"] = "1";
-		startInfo.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
+		// Keep the build hermetic, quiet, and off the machine-wide MSBuild node/server pool.
+		foreach (var isolation in TestBase.ConfigureIsolatedMSBuild(startInfo))
+			startInfo.ArgumentList.Add(isolation);
 
 		using var process = Process.Start(startInfo)!;
 		var output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
