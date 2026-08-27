@@ -60,7 +60,37 @@ exists so `#if TIZEN` code is checked by a compiler rather than by inspection.
 
 ---
 
-### G10. Controls owns the Tizen accessibility binding, and upstream never implemented it
+### G10. Controls owns several Tizen bindings, and upstream never implemented them
+
+This affects accessibility **and** three Label properties. The shape is identical in every case:
+the value lives on a Controls type, so a backend package cannot read it without referencing
+Controls and inverting the dependency direction.
+
+| Property | Declared on | Upstream Tizen implementation |
+| --- | --- | --- |
+| `AutomationProperties.IsInAccessibleTree` | Controls | `//TODO : Need to impl` |
+| `AutomationProperties.ExcludedWithChildren` | Controls | `//TODO : Need to impl` |
+| `Label.LineBreakMode` | Controls | implemented, via a Controls-side extension |
+| `Label.MaxLines` | Controls | `[MissingMapper]`, empty |
+| `Label.FormattedText` | Controls (`FormattedString`) | not mapped |
+
+`ILabel` carries only `TextDecorations` and `LineHeight` - verified by reflection over the shipped
+`Microsoft.Maui` assembly - so none of the three Label properties is reachable from this backend.
+
+Core ships the native halves it can own: `UpdateIsInAccessibleTree`, `UpdateExcludedWithChildren`
+and `UpdateLineBreakMode`. The last one matters because the two `LineBreakMode` enums are **not**
+ordinal-compatible - `Microsoft.Maui.LineBreakMode.NoWrap` is 0 while
+`Tizen.UIExtensions.Common.LineBreakMode.NoWrap` is 1 - so casting between them turns NoWrap into
+None and shifts every value after it.
+
+`MaxLines` has deliberately **no** Core primitive: there is no native equivalent. `TextLabel`
+exposes `LineCount` (read-only), `MultiLine` and `Ellipsis`, none of which caps rendered lines, and
+`Tizen.UIExtensions.NUI.Label` exposes only `LineBreakMode`. That is almost certainly why upstream
+marks its mapper `[MissingMapper]`. A resolver here would be dead code dressed up as coverage.
+
+Closing the gap needs a Controls-side change or an explicit owner in a later wave.
+
+### G10a. Original accessibility note
 
 `AutomationProperties.IsInAccessibleTree` and `ExcludedWithChildren` arrive as their own mapper
 keys, and the action behind those keys lives in **Controls'** per-platform code

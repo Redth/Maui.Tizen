@@ -66,6 +66,68 @@ namespace Microsoft.Maui.Platforms.Tizen
 			return result;
 		}
 
+		/// <summary>Native <c>Tizen.UIExtensions.Common.LineBreakMode</c> values.</summary>
+		/// <remarks>
+		/// Mirrored as integers so this file stays free of TizenFX, and verified against the
+		/// shipped assembly's metadata.
+		/// </remarks>
+		public const int NoneLineBreak = 0;
+
+		/// <summary>Native <c>NoWrap</c>.</summary>
+		public const int NoWrapLineBreak = 1;
+
+		/// <summary>Native <c>CharacterWrap</c>.</summary>
+		public const int CharacterWrapLineBreak = 2;
+
+		/// <summary>Native <c>WordWrap</c>.</summary>
+		public const int WordWrapLineBreak = 3;
+
+		/// <summary>Native <c>MixedWrap</c>.</summary>
+		public const int MixedWrapLineBreak = 4;
+
+		/// <summary>Native <c>HeadTruncation</c>.</summary>
+		public const int HeadTruncationLineBreak = 5;
+
+		/// <summary>Native <c>MiddleTruncation</c>.</summary>
+		public const int MiddleTruncationLineBreak = 6;
+
+		/// <summary>Native <c>TailTruncation</c>.</summary>
+		public const int TailTruncationLineBreak = 7;
+
+		/// <summary>
+		/// Converts Controls' <c>LineBreakMode</c> ordinal to the native line-break mode.
+		/// </summary>
+		/// <remarks>
+		/// The two enums are NOT ordinal-compatible and casting between them silently produces the
+		/// wrong mode - Microsoft.Maui's NoWrap is 0 while the native NoWrap is 1, so a cast turns
+		/// every NoWrap into None and shifts all six values. Both sets were read from the shipped
+		/// assemblies' metadata rather than assumed; an earlier version of this table was written
+		/// from a plausible guess and was wrong.
+		///
+		/// Anything unrecognised falls back to WordWrap, matching upstream's default arm.
+		/// </remarks>
+		/// <param name="lineBreakMode">The cross-platform line break mode.</param>
+		public static int ResolveLineBreakMode(LineBreakMode lineBreakMode) => lineBreakMode switch
+		{
+			LineBreakMode.NoWrap => NoWrapLineBreak,
+			LineBreakMode.WordWrap => WordWrapLineBreak,
+			LineBreakMode.CharacterWrap => CharacterWrapLineBreak,
+			LineBreakMode.HeadTruncation => HeadTruncationLineBreak,
+			LineBreakMode.TailTruncation => TailTruncationLineBreak,
+			LineBreakMode.MiddleTruncation => MiddleTruncationLineBreak,
+			_ => WordWrapLineBreak,
+		};
+
+		// MaxLines is deliberately absent.
+		//
+		// There is no native equivalent in this TizenFX. Tizen.NUI TextLabel exposes LineCount
+		// (read-only), MultiLine and Ellipsis - none of which caps the number of rendered lines -
+		// and Tizen.UIExtensions.NUI.Label exposes only LineBreakMode. Read from the shipped
+		// assemblies' metadata, not assumed.
+		//
+		// That is almost certainly why upstream MAUI marks its Tizen MapMaxLines [MissingMapper]
+		// and leaves the body empty. A resolver here would be dead code dressed up as coverage.
+
 		/// <summary>
 		/// Resolves a minimum dimension to a native constraint, treating "not set" as no
 		/// constraint rather than as "leave whatever was there before".

@@ -34,6 +34,46 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		public void SingleDecorationsMapToTheirNativeBit(TextDecorations decorations, int expected) =>
 			Assert.Equal(expected, TizenPropertyResolvers.ResolveTextDecorations(decorations));
 
+		[Theory]
+		// Microsoft.Maui ordinal -> native Tizen.UIExtensions ordinal. Both read from metadata.
+		[InlineData(LineBreakMode.NoWrap, TizenPropertyResolvers.NoWrapLineBreak)]
+		[InlineData(LineBreakMode.WordWrap, TizenPropertyResolvers.WordWrapLineBreak)]
+		[InlineData(LineBreakMode.CharacterWrap, TizenPropertyResolvers.CharacterWrapLineBreak)]
+		[InlineData(LineBreakMode.HeadTruncation, TizenPropertyResolvers.HeadTruncationLineBreak)]
+		[InlineData(LineBreakMode.TailTruncation, TizenPropertyResolvers.TailTruncationLineBreak)]
+		[InlineData(LineBreakMode.MiddleTruncation, TizenPropertyResolvers.MiddleTruncationLineBreak)]
+		public void EveryLineBreakModeMapsToItsNativeCounterpart(LineBreakMode mode, int expected) =>
+			Assert.Equal(expected, TizenPropertyResolvers.ResolveLineBreakMode(mode));
+
+		[Fact]
+		public void LineBreakModesAreNotOrdinalCompatibleSoCastingIsWrong()
+		{
+			// The reason a conversion table exists at all. Microsoft.Maui's NoWrap is 0 while the
+			// native NoWrap is 1, so a straight cast turns NoWrap into None and shifts every value
+			// after it. Nothing throws; labels just wrap wrongly.
+			Assert.NotEqual((int)LineBreakMode.NoWrap, TizenPropertyResolvers.ResolveLineBreakMode(LineBreakMode.NoWrap));
+
+			// Spelled out for the one that silently becomes "None".
+			Assert.Equal(0, (int)LineBreakMode.NoWrap);
+			Assert.Equal(TizenPropertyResolvers.NoneLineBreak, 0);
+			Assert.Equal(1, TizenPropertyResolvers.ResolveLineBreakMode(LineBreakMode.NoWrap));
+		}
+
+		[Fact]
+		public void EveryDeclaredLineBreakModeIsMappedExplicitly()
+		{
+			// Guards against a new enum member silently landing on the WordWrap default arm.
+			foreach (var mode in Enum.GetValues<LineBreakMode>())
+			{
+				var resolved = TizenPropertyResolvers.ResolveLineBreakMode(mode);
+
+				Assert.InRange(resolved, TizenPropertyResolvers.NoWrapLineBreak, TizenPropertyResolvers.TailTruncationLineBreak);
+			}
+
+			// Six members today; if that changes, the table above needs revisiting.
+			Assert.Equal(6, Enum.GetValues<LineBreakMode>().Length);
+		}
+
 		[Fact]
 		public void ClearingAMinimumResetsTheNativeConstraint()
 		{

@@ -144,6 +144,7 @@ Microsoft.Maui.Platforms.Tizen.TizenMauiContextExtensions
 Microsoft.Maui.Platforms.Tizen.TizenNaviPage
 Microsoft.Maui.Platforms.Tizen.TizenNaviPage.Content.get -> Tizen.NUI.BaseComponents.View?
 Microsoft.Maui.Platforms.Tizen.TizenNaviPage.Content.set -> void
+Microsoft.Maui.Platforms.Tizen.TizenNaviPage.DetachContent() -> Tizen.NUI.BaseComponents.View?
 Microsoft.Maui.Platforms.Tizen.TizenNaviPage.TitleView.get -> Tizen.UIExtensions.NUI.TitleView?
 Microsoft.Maui.Platforms.Tizen.TizenNaviPage.TitleView.set -> void
 Microsoft.Maui.Platforms.Tizen.TizenNaviPage.TizenNaviPage() -> void
@@ -368,6 +369,7 @@ static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateInputTranspa
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateIsEnabled(this Tizen.NUI.BaseComponents.View! platformView, Microsoft.Maui.IView! view) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateIsInAccessibleTree(this Tizen.NUI.BaseComponents.View! platformView, bool isInAccessibleTree) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateLabelText(this Tizen.UIExtensions.NUI.Label! platformLabel, Microsoft.Maui.ILabel! label) -> void
+static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateLineBreakMode(this Tizen.UIExtensions.NUI.Label! platformLabel, Microsoft.Maui.LineBreakMode lineBreakMode) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateLineHeight(this Tizen.UIExtensions.NUI.Label! platformLabel, Microsoft.Maui.ILabel! label) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateMaximumHeight(this Tizen.NUI.BaseComponents.View! platformView, Microsoft.Maui.IView! view) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateMaximumWidth(this Tizen.NUI.BaseComponents.View! platformView, Microsoft.Maui.IView! view) -> void

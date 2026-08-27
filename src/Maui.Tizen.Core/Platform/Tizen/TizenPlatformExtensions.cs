@@ -8,6 +8,7 @@ using NColor = Tizen.UIExtensions.Common.Color;
 using NPoint = Tizen.UIExtensions.Common.Point;
 using NRect = Tizen.UIExtensions.Common.Rect;
 using NSize = Tizen.UIExtensions.Common.Size;
+using NLineBreakMode = Tizen.UIExtensions.Common.LineBreakMode;
 using NTextDecorations = Tizen.UIExtensions.Common.TextDecorations;
 using Color = Microsoft.Maui.Graphics.Color;
 using NFontAttributes = Tizen.UIExtensions.Common.FontAttributes;
@@ -545,24 +546,44 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			ArgumentNullException.ThrowIfNull(platformView);
 
-			if (platformView is TizenLayoutViewGroup layoutViewGroup)
-				layoutViewGroup.SetNeedMeasureUpdate();
-			else if (platformView is TizenContentViewGroup contentViewGroup)
-				contentViewGroup.SetNeedMeasureUpdate();
-			else if (platformView is ViewGroup viewGroup)
-				viewGroup.MarkChanged();
-			else if (platformView.GetParent() is ViewGroup parentViewGroup)
+			// Walk up to the nearest group that caches a measurement and tell it the measurement is
+			// stale. MarkChanged alone is not enough: TizenLayoutViewGroup and TizenContentViewGroup
+			// keep a _needMeasureUpdate flag, and their measure pass reuses the cached intrinsic
+			// size until that flag is set. Marking such a parent merely "changed" re-lays-out the
+			// children at the size it had already computed, so a label whose text grew repaints
+			// clipped and the containing stack never reflows.
+			//
+			// The walk starts at the view itself, because a group invalidating its own measure is
+			// the common case, and continues through the parents, because leaf natives are not
+			// groups at all - TizenLabelView is a NUI TextLabel with a null Layout, which makes
+			// RequestLayout() on it a silent no-op.
+			for (TizenNativeView? candidate = platformView; candidate is not null; candidate = candidate.GetParent() as TizenNativeView)
 			{
-				// The branch every LEAF view takes, and the one whose absence is invisible.
-				// TizenLabelView is a NUI TextLabel, not a ViewGroup, so it falls through all three
-				// checks above. Its Layout is null unless something assigns one - nothing here does
-				// - which makes RequestLayout() a silent no-op. Without marking the PARENT changed,
-				// setting Text or Font after first layout repaints at the stale measured size and
-				// the containing stack never reflows.
-				parentViewGroup.MarkChanged();
+				switch (candidate)
+				{
+					case TizenLayoutViewGroup layoutViewGroup:
+						// SetNeedMeasureUpdate already marks changed and requests layout.
+						layoutViewGroup.SetNeedMeasureUpdate();
+						return;
+
+					case TizenContentViewGroup contentViewGroup:
+						contentViewGroup.SetNeedMeasureUpdate();
+						return;
+				}
 			}
-			else
-				platformView.Layout?.RequestLayout();
+
+			// No measure-caching ancestor. Fall back to the nearest plain group, then to the view's
+			// own layout.
+			for (TizenNativeView? candidate = platformView; candidate is not null; candidate = candidate.GetParent() as TizenNativeView)
+			{
+				if (candidate is ViewGroup viewGroup)
+				{
+					viewGroup.MarkChanged();
+					return;
+				}
+			}
+
+			platformView.Layout?.RequestLayout();
 		}
 
 		static bool IsExplicitSet(double value) => !double.IsNaN(value) && value >= 0;
@@ -713,6 +734,31 @@ namespace Microsoft.Maui.Platforms.Tizen
 			// tested on the host; this is just the native assignment.
 			platformLabel.TextDecorations =
 				(NTextDecorations)TizenPropertyResolvers.ResolveTextDecorations(label.TextDecorations);
+		}
+
+		/// <summary>Applies a line break mode to the platform label.</summary>
+		/// <remarks>
+		/// <para>
+		/// <c>LineBreakMode</c> is declared in Microsoft.Maui, so this backend can own the
+		/// conversion - but the PROPERTY is <c>Microsoft.Maui.Controls.Label.LineBreakMode</c>.
+		/// <see cref="ILabel"/> carries only TextDecorations and LineHeight, so the backend has no
+		/// way to read it and the binding stays Controls-owned, exactly as with the accessibility
+		/// annotations in gap G10.
+		/// </para>
+		/// <para>
+		/// This is the native half, so whoever owns the Controls binding has something correct to
+		/// call. Correct matters here: the two enums are not ordinal-compatible, and casting
+		/// between them turns NoWrap into None and shifts everything after it.
+		/// </para>
+		/// </remarks>
+		/// <param name="platformLabel">The platform label.</param>
+		/// <param name="lineBreakMode">The cross-platform line break mode.</param>
+		public static void UpdateLineBreakMode(this Label platformLabel, LineBreakMode lineBreakMode)
+		{
+			ArgumentNullException.ThrowIfNull(platformLabel);
+
+			platformLabel.LineBreakMode =
+				(NLineBreakMode)TizenPropertyResolvers.ResolveLineBreakMode(lineBreakMode);
 		}
 
 		/// <summary>Applies <see cref="ITextStyle.CharacterSpacing"/>.</summary>

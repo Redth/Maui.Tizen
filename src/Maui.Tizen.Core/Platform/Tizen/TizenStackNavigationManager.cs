@@ -35,6 +35,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 		readonly Dictionary<IView, TizenNaviPage> _pageMap = new();
 		readonly Dictionary<IView, IViewHandler?> _handlerMap = new();
 
+		/// <summary>Pages whose handlers have been disposed, kept so they cannot be resurrected.</summary>
+		readonly HashSet<IView> _released = new();
+
 		TizenToolbarView? _toolbar;
 
 		/// <summary>Initializes a new instance of the <see cref="TizenStackNavigationManager"/> class.</summary>
@@ -220,22 +223,24 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			ArgumentNullException.ThrowIfNull(page);
 
-			// Order matters. Detach the content BEFORE disposing the wrapper, then dispose the
-			// handler.
+			// One owner per native view: the handler owns the page content, the wrapper owns its
+			// title view and itself.
 			//
-			// The wrapper's Content is the handler's platform view, which the handler owns and
-			// disposes. Disposing the wrapper while it still holds that content would dispose the
-			// child native view too, and the handler would then dispose it a second time. Clearing
-			// Content first makes the two disposals disjoint.
+			// So the content is DETACHED rather than cleared. Assigning Content = null runs the
+			// setter, which disposes what it replaces - correct for a view this page owns, wrong
+			// for the handler's platform view, which the handler then disposed a second time. A
+			// double dispose throws nowhere near the mistake, if at all.
 			//
-			// The wrapper itself was previously only dropped from the map and never disposed, so
-			// every page that left the stack leaked its TizenNaviPage.
+			// The wrapper itself must still be disposed; before this it was only dropped from the
+			// map, so every page leaving the stack leaked one.
 			if (_pageMap.TryGetValue(page, out var naviPage))
 			{
-				naviPage.Content = null;
+				naviPage.DetachContent();
 				naviPage.Dispose();
 				_pageMap.Remove(page);
 			}
+
+			_released.Add(page);
 
 			if (_handlerMap.TryGetValue(page, out var handler))
 			{
@@ -327,6 +332,16 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			if (_pageMap.TryGetValue(page, out var existing))
 				return existing;
+
+			// Creating a wrapper for a page that has already been released would call
+			// ToPlatformView on a view whose handler is disposed. That happened silently, because
+			// this method creates on miss and a released page is always a miss.
+			if (_released.Contains(page))
+			{
+				throw new InvalidOperationException(
+					$"The page has already been removed from this navigation stack and its handler disposed. " +
+					$"Navigating back to it requires a new page instance.");
+			}
 
 			var naviPage = CreateNavigationItem(page);
 
