@@ -37,6 +37,23 @@
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <Nullable>enable</Nullable>
+
+    <!--
+      TizenPackage.props defaults EnableDefaultCompileItems to FALSE, because most projects in this
+      repository still hold raw imported dotnet/maui sources that do not compile yet and are listed
+      as <None> so they stay navigable.
+
+      The sample is not one of those. It is four hand-written files, all of which compile. Without
+      this opt-in it evaluated Compile=[] - an application head that built successfully while
+      containing no code at all, produced no entry point, and silently proved nothing. Verified with
+      `dotnet msbuild -getItem:Compile`, which returned an empty array.
+
+      Default globbing rather than an explicit list, because that is what a real Tizen app head
+      does and this project's job is to look like one. The ref-pack sample lane compiles the same
+      files from @(MauiTizenSampleCompile); RealSampleCompilesItsOwnSources and
+      SampleLaneCompilesExactlyTheRealSamplesSources pin the two sets together so neither can drift.
+    -->
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
   </PropertyGroup>
 
 

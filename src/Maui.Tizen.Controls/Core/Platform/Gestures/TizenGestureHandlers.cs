@@ -306,6 +306,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 			switch (args.State)
 			{
 				case TizenGestureState.Started:
+				// Continuing is deliberately included. dotnet/maui's in-box Tizen handler drops it,
+				// so a Tizen long press never reports GestureStatus.Running and an app that tracks
+				// the gesture's progress sees Started jump straight to Completed. iOS maps its
+				// equivalent (UIGestureRecognizerState.Changed) to Running, and that is the correct
+				// behaviour; the in-box gap is not copied here.
+				case TizenGestureState.Continuing:
 				case TizenGestureState.Finished:
 				case TizenGestureState.Canceled:
 					Dispatcher.SendLongPress(Recognizer, view, args.State, position);

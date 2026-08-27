@@ -133,10 +133,17 @@ WORKLOAD_FREE_PROJECTS=(
   #                               (mapper and DI registration, hosting, dispatching, density,
   #                               layout z-index ordering).
   #
-  #   Maui.Tizen.Core.RefPackCompile  type-checks every `#if TIZEN` source, and the sample
-  #                               head, against the REAL TizenFX reference assemblies from
-  #                               Samsung.Tizen.Ref.API15. It is compile-only and unpackable,
-  #                               so it cannot become a neutral fallback for the product.
+  #   Maui.Tizen.Core.RefPackCompile  type-checks every `#if TIZEN` backend source against the
+  #                               REAL TizenFX reference assemblies from Samsung.Tizen.Ref.API15,
+  #                               and enforces the backend's PublicAPI baseline. Compile-only and
+  #                               unpackable, so it cannot become a neutral fallback.
+  #
+  #   Maui.Tizen.Sample.RefPackCompile  compiles the sample head as its OWN assembly with a
+  #                               ProjectReference to the backend, so the sample crosses a real
+  #                               package boundary. It used to be folded into the backend lane,
+  #                               which merged both into one assembly and meant the boundary was
+  #                               never actually exercised - and left PublicAPI ownership
+  #                               unverifiable, since either baseline satisfied either assembly.
   #
   #   Maui.Tizen.Controls.RefPackCompile  the same, for the Controls platform layer. Separate
   #                               from the Core lane because these sources need
@@ -147,6 +154,7 @@ WORKLOAD_FREE_PROJECTS=(
   #                               gestures) and EXECUTES it. See the project file for why
   #                               source inclusion rather than a ProjectReference.
   "tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj"
+  "tests/Maui.Tizen.Sample.RefPackCompile/Maui.Tizen.Sample.RefPackCompile.csproj"
   "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj"
   "tests/Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj"
   "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj"

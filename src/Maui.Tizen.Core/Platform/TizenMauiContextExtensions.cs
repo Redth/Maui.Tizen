@@ -61,7 +61,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ArgumentNullException.ThrowIfNull(mauiContext);
 			ArgumentNullException.ThrowIfNull(platformApplication);
 
-			return AsTizenContext(mauiContext).AddSpecific(platformApplication);
+			// A NEW context, never the caller's. AsTizenContext returns its argument unchanged when
+			// it is already a TizenMauiContext, so routing through it here would publish the
+			// platform application into the ROOT context and silently pollute any context a caller
+			// passed in. MakeWindowScope already gets this right via WithServices.
+			return new TizenMauiContext(mauiContext.Services).AddSpecific(platformApplication);
 		}
 
 		/// <summary>

@@ -26,7 +26,7 @@ Measured against **MAUI 11.0.0-preview.7.26426.4**, which contains
 | `SwipeGestureRecognizer` | `PanGestureDetector` | `ISwipeGestureController` | ✅ Works |
 | `TapGestureRecognizer` | `TapGestureDetector` | `SendTapped` | ✅ Works |
 | `PointerGestureRecognizer` | `View.TouchEvent` + `View.HoverEvent` | `SendPointerEntered` / `Exited` / `Moved` / `Pressed` / `Released` | ✅ Works |
-| `LongPressGestureRecognizer` | `LongPressGestureDetector` | ❌ `SendLongPressed` / `SendLongPressing` still internal | ⚠️ Blocked on MAUI |
+| `LongPressGestureRecognizer` | `LongPressGestureDetector` | ❌ `SendLongPressed` / `SendLongPressing` still internal — [#37861](https://github.com/dotnet/maui/pull/37861) open | ⚠️ Blocked on MAUI |
 | `DragGestureRecognizer` | ❌ no view-level NUI equivalent | `SendDragStarting` / `SendDropCompleted` | ❌ Not supported (detection) |
 | `DropGestureRecognizer` | ❌ no view-level NUI equivalent | `SendDragOver` / `SendDragLeave` / `SendDrop` | ❌ Not supported (detection) |
 
@@ -181,7 +181,36 @@ non-matching counts are ignored, matching the original backend. Dispatched throu
 
 `LongPressGestureDetector` supports the touch count only.
 
-> **`MinimumPressDuration` is not honoured on Tizen.** `Tizen.NUI.LongPressGestureDetector`
+Detection is complete and the state machine is implemented and tested; only the final dispatch
+call is blocked. [dotnet/maui#37861](https://github.com/dotnet/maui/pull/37861) makes
+`SendLongPressed` and `SendLongPressing` public and is code/CI complete but **not yet merged**, so
+it is not in the pinned package.
+
+**The mapping is already specified, so adoption is a small change rather than a fresh
+translation.** It follows iOS, which is the reference behaviour:
+
+| Native Tizen state | `GestureStatus` | Events raised |
+|---|---|---|
+| `Started` | `Started` | `LongPressing` |
+| `Continuing` | `Running` | `LongPressing` |
+| `Finished` | `Completed` | `LongPressed` **first**, then `LongPressing` |
+| `Cancelled` | `Canceled` | `LongPressing` only — never `LongPressed`, never the command |
+
+> **Do not copy the in-box Tizen handler when adopting.** `LongPressGestureHandler.cs` on
+> dotnet/maui `net11.0` has **no `Continuing` branch at all**, so a Tizen long press never reports
+> `GestureStatus.Running` and an app tracking the gesture sees `Started` jump straight to
+> `Completed`. iOS maps its equivalent (`UIGestureRecognizerState.Changed`) to `Running`. This
+> backend follows iOS.
+>
+> `TizenGestureDispatcher.ToLongPressStatus` and `CompletesLongPress` encode the table above and
+> are unit tested, including a test named for this specific gap. Reintroducing it fails four tests
+> across both the mapping and the handler's ordering.
+
+A canceled press reports a status change but is **not** a press, so it must never raise
+`LongPressed` or run the recognizer's `Command` — that would run the app's handler for a gesture
+the user aborted.
+
+> **`MinimumPressDuration` is not honourable on Tizen.** `Tizen.NUI.LongPressGestureDetector`
 > exposes no minimum-holding-time API — only `SetTouchesRequired`. The system-wide long-press
 > duration applies instead.
 >
@@ -272,7 +301,7 @@ factory can therefore refine this table without changing any other code.
 |---|---|
 | Gesture translation (totals, scaling, gesture identity, tap counts, pointer mapping) | `tests/Controls.UnitTests/TizenGestureTranslationTests.cs` |
 | Manager and detector lifecycle (attach, detach, enable, dispose, collection changes) | `tests/Controls.UnitTests/TizenGesturePlatformManagerTests.cs` |
-| Dispatch through real MAUI recognizers, screen/local/unknown position resolution, button masks, and the one blocked gesture | `tests/Controls.UnitTests/TizenGestureDispatcherTests.cs` |
+| Dispatch through real MAUI recognizers, screen/local/unknown position resolution, button masks, long-press status mapping, and the one blocked gesture | `tests/Controls.UnitTests/TizenGestureDispatcherTests.cs` |
 | Pixel scaler registration and lazy display-factor lookup | `tests/Controls.UnitTests/TizenServiceRegistrationTests.cs` |
 | DI registration and lifetimes | `tests/Controls.UnitTests/TizenServiceRegistrationTests.cs` |
 | NUI adapters under `Core/Platform/Nui` | Type-checked against `Samsung.Tizen.Ref.API15` and `Tizen.UIExtensions.NUI` 0.9.2 by `tests/Maui.Tizen.Controls.RefPackCompile`; behaviour needs a device |

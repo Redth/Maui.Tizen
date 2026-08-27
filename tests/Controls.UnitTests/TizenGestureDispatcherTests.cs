@@ -346,6 +346,46 @@ public class TizenGestureDispatcherTests
 		Assert.False(dispatcher.IsSupported(TizenGestureKind.LongPress));
 	}
 
+	// The mapping onto MAUI's GestureStatus is defined and tested ahead of the dispatch itself, so
+	// adopting dotnet/maui#37861 is a small, already-specified change rather than a fresh
+	// translation written under time pressure. These pin it against iOS, the reference behaviour.
+
+	[Theory]
+	[InlineData(TizenGestureState.Started, GestureStatus.Started)]
+	[InlineData(TizenGestureState.Continuing, GestureStatus.Running)]
+	[InlineData(TizenGestureState.Finished, GestureStatus.Completed)]
+	[InlineData(TizenGestureState.Canceled, GestureStatus.Canceled)]
+	public void LongPressStatesMapOntoTheSameStatusesIosUses(TizenGestureState state, GestureStatus expected)
+	{
+		Assert.Equal(expected, TizenGestureDispatcher.ToLongPressStatus(state));
+	}
+
+	[Fact]
+	public void ContinuingMapsToRunningRatherThanBeingDropped()
+	{
+		// The in-box Tizen handler has no Continuing branch at all, so Running is never reported
+		// there. Guarding it explicitly because it is the exact gap this backend must not inherit.
+		Assert.Equal(GestureStatus.Running, TizenGestureDispatcher.ToLongPressStatus(TizenGestureState.Continuing));
+	}
+
+	[Fact]
+	public void AStateWithNoLongPressMeaningMapsToNothing()
+	{
+		Assert.Null(TizenGestureDispatcher.ToLongPressStatus(TizenGestureState.Possible));
+	}
+
+	[Theory]
+	[InlineData(TizenGestureState.Started, false)]
+	[InlineData(TizenGestureState.Continuing, false)]
+	[InlineData(TizenGestureState.Canceled, false)]
+	[InlineData(TizenGestureState.Finished, true)]
+	public void OnlyAFinishedPressRaisesLongPressedAndTheCommand(TizenGestureState state, bool expected)
+	{
+		// A canceled press reports a status change but is not a press: firing LongPressed or the
+		// command there would run the app's handler for a gesture the user aborted.
+		Assert.Equal(expected, TizenGestureDispatcher.CompletesLongPress(state));
+	}
+
 	[Fact]
 	public void LongPressSendMembersAreStillInternalUpstream()
 	{

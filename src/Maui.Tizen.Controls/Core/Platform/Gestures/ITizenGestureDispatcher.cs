@@ -224,6 +224,57 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public void SendLongPress(LongPressGestureRecognizer recognizer, View view, TizenGestureState state, TizenGesturePosition position) =>
 			ReportUnsupported(TizenGestureKind.LongPress);
 
+		/// <summary>
+		/// Maps a native Tizen gesture state onto the .NET MAUI long-press status.
+		/// </summary>
+		/// <param name="state">The native gesture state.</param>
+		/// <returns>
+		/// The status to report, or <see langword="null"/> when the state carries no long-press
+		/// meaning.
+		/// </returns>
+		/// <remarks>
+		/// <para>
+		/// This mirrors what iOS does, which is the reference behaviour:
+		/// </para>
+		/// <list type="table">
+		/// <item><term>Started</term><description><see cref="GestureStatus.Started"/> - raise <c>LongPressing</c>.</description></item>
+		/// <item><term>Continuing</term><description><see cref="GestureStatus.Running"/> - raise <c>LongPressing</c>.</description></item>
+		/// <item><term>Finished</term><description><see cref="GestureStatus.Completed"/> - raise <c>LongPressed</c> FIRST, then <c>LongPressing</c>.</description></item>
+		/// <item><term>Canceled</term><description><see cref="GestureStatus.Canceled"/> - raise <c>LongPressing</c> only. Never <c>LongPressed</c>, and never the command: a canceled press is not a press.</description></item>
+		/// </list>
+		/// <para>
+		/// The <c>Continuing</c> row is the one that matters. dotnet/maui's in-box Tizen handler
+		/// omits it, so a Tizen long press never reports <see cref="GestureStatus.Running"/> and an
+		/// app tracking the gesture sees <c>Started</c> jump straight to <c>Completed</c>. That gap
+		/// is deliberately not reproduced here.
+		/// </para>
+		/// <para>
+		/// The mapping is defined and tested ahead of the dispatch itself so that adopting
+		/// dotnet/maui#37861 - which makes <c>SendLongPressed</c> and <c>SendLongPressing</c>
+		/// public - is a small, already-specified change rather than a fresh translation.
+		/// </para>
+		/// </remarks>
+		internal static GestureStatus? ToLongPressStatus(TizenGestureState state) => state switch
+		{
+			TizenGestureState.Started => GestureStatus.Started,
+			TizenGestureState.Continuing => GestureStatus.Running,
+			TizenGestureState.Finished => GestureStatus.Completed,
+			TizenGestureState.Canceled => GestureStatus.Canceled,
+			_ => null,
+		};
+
+		/// <summary>
+		/// Gets a value indicating whether <paramref name="state"/> completes a long press, and so
+		/// must raise <c>LongPressed</c> and run the recognizer's command.
+		/// </summary>
+		/// <param name="state">The native gesture state.</param>
+		/// <remarks>
+		/// Only <see cref="TizenGestureState.Finished"/> qualifies. A canceled press reports a
+		/// status change but is not a press, so it must not fire the event or the command.
+		/// </remarks>
+		internal static bool CompletesLongPress(TizenGestureState state) =>
+			state == TizenGestureState.Finished;
+
 		/// <inheritdoc/>
 		public void SendPointer(PointerGestureRecognizer recognizer, View view, TizenPointerAction action, TizenGesturePosition position, TizenPointerButton button)
 		{

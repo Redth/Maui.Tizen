@@ -1,20 +1,32 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Compile-validation lane.
+    Backend compile-validation lane.
 
     The product assembly targets net11.0-tizen11.0 and cannot be restored until Samsung publishes
     the 11.0.100 workload manifest. That would normally leave every NUI-touching source file in this
-    repository completely unverified.
-
-    Samsung.Tizen.Ref.API15 does, however, ship real `ref/net8.0` reference assemblies for the whole
-    of TizenFX. This project pulls them down with PackageDownload (which skips NuGet's TFM
-    compatibility check) and compiles the backend's Tizen-only sources against them with TIZEN
-    defined, on a plain net11.0 host.
+    repository completely unverified. This project compiles the backend's Tizen-only sources against
+    the real TizenFX reference assemblies with TIZEN defined, on a plain net11.0 host.
 
     This is NOT a neutral fallback for the product - it produces no shippable output
     (IsPackable=false, reference-only assemblies, never executed). It exists purely so `#if TIZEN`
     code is type-checked in CI instead of being taken on faith.
+
+    SCOPE: backend sources ONLY.
+
+    This lane used to compile the sample's sources too. That was wrong in two ways, both of which a
+    review caught:
+
+      * It produced a single merged Core+sample assembly, so the sample never actually crossed the
+        package boundary it exists to demonstrate. A sample that touched an internal, or a type it
+        could not see through a real assembly reference, would have compiled clean here.
+      * The analyzer saw one merged public surface with both baseline pairs attached, so PublicAPI
+        ownership was false-green: moving a Core type into the SAMPLE's baseline still passed.
+        Verified by mutation - Microsoft.Maui.Platforms.Tizen.TizenFlyoutView was moved into the
+        sample baseline and the build still succeeded.
+
+    The sample is now compiled by tests/Maui.Tizen.Sample.RefPackCompile, which reaches this
+    assembly through a ProjectReference exactly as a package consumer would.
   -->
 
   <Import Project="$(RepositoryRoot)eng/Maui.props" />
@@ -23,7 +35,14 @@
   <PropertyGroup>
     <TargetFramework>$(DotNetTfm)</TargetFramework>
     <IsTizenProject>false</IsTizenProject>
-    <AssemblyName>Maui.Tizen.Core.RefPackCompile</AssemblyName>
+
+    <!--
+      Deliberately the REAL product assembly name, not a lane-specific one. The sample lane
+      references this project, and the point of that reference is to reproduce what a consumer sees
+      when they reference the Maui.Tizen.Core package. Referencing something called
+      "Maui.Tizen.Core.RefPackCompile" would exercise a boundary that does not exist in the product.
+    -->
+    <AssemblyName>Maui.Tizen.Core</AssemblyName>
     <RootNamespace>Microsoft.Maui.Platforms.Tizen</RootNamespace>
 
     <IsPackable>false</IsPackable>
@@ -33,74 +52,44 @@
 
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
 
-    <!-- The whole point of this lane: exercise the `#if TIZEN` branches. -->
-    <DefineConstants>$(DefineConstants);TIZEN;PLATFORM</DefineConstants>
+    <!--
+      TIZEN only, and it must stay that way. PLATFORM was also defined here but NOT by the product,
+      which meant a future `#if PLATFORM` block would compile in this lane and vanish from the
+      shipping assembly - the exact class of drift this lane exists to prevent.
+      RefPackLaneAndProductDefineTheSameSymbols pins the two define sets together.
+    -->
+    <DefineConstants>$(DefineConstants);TIZEN</DefineConstants>
   </PropertyGroup>
 
   <!--
     Runs the PublicAPI analyzer over the REAL product sources with the REAL slice baselines.
-    src/Maui.Tizen.Core cannot be built without the Samsung workload, so this is the only lane
-    where RS0016/RS0017 can actually be enforced before that ships.
+    src/Maui.Tizen.Core cannot be built without the Samsung workload, so this is the only lane where
+    RS0016/RS0017 can actually be enforced before that ships.
+
+    ONLY the backend baseline is attached. The sample's baseline belongs to the sample's own
+    compilation, and attaching it here is precisely what made ownership unverifiable.
   -->
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <!--
-      The product baseline. This is the one that matters: it is what src/Maui.Tizen.Core itself
-      consumes, and what a reviewer should read to see this package's public surface.
-    -->
+
     <AdditionalFiles Include="$(RepositoryRoot)src/Maui.Tizen.Core/PublicAPI/slice/PublicAPI.Shipped.txt" />
     <AdditionalFiles Include="$(RepositoryRoot)src/Maui.Tizen.Core/PublicAPI/slice/PublicAPI.Unshipped.txt" />
-
-    <!--
-      The sample's baseline, kept separate so the product baseline is not polluted with app types.
-      This lane compiles the sample sources too (so they are type-checked against real TizenFX), and
-      the analyzer sees one merged API surface, hence both files.
-    -->
-    <AdditionalFiles Include="$(RepositoryRoot)samples/Maui.Tizen.Sample/PublicAPI/PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="$(RepositoryRoot)samples/Maui.Tizen.Sample/PublicAPI/PublicAPI.Unshipped.txt" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Core" />
-
-    <!--
-      PackageDownload rather than PackageReference: these packages publish no net11.0-compatible
-      assets, so a normal reference fails restore with NU1202. We only want the files on disk.
-    -->
-    <PackageDownload Include="$(TizenReferencePackId)" Version="[$(TizenReferencePackVersion)]" />
-    <PackageDownload Include="Tizen.UIExtensions.NUI" Version="[$(TizenUIExtensionsPackageVersion)]" />
     <PackageReference Include="Microsoft.Maui.Graphics" />
   </ItemGroup>
 
-  <Target Name="_AddTizenReferenceAssemblies" BeforeTargets="ResolveAssemblyReferences">
-    <PropertyGroup>
-      <_TizenRefPackDir>$(NuGetPackageRoot)$(TizenReferencePackId.ToLowerInvariant())/$(TizenReferencePackVersion)/ref/net8.0/</_TizenRefPackDir>
-      <_TizenUIExtensionsDir>$(NuGetPackageRoot)tizen.uiextensions.nui/$(TizenUIExtensionsPackageVersion)/lib/tizen10.0/</_TizenUIExtensionsDir>
-    </PropertyGroup>
-
-    <Error Condition="!Exists('$(_TizenRefPackDir)Tizen.NUI.dll')"
-           Code="MAUITIZEN0102"
-           Text="Could not find Tizen.NUI.dll under '$(_TizenRefPackDir)'. Expected it from $(TizenReferencePackId) $(TizenReferencePackVersion); run 'dotnet restore' for this project first." />
-
-    <ItemGroup>
-      <Reference Include="$(_TizenRefPackDir)Tizen.NUI.dll" Private="false" />
-      <Reference Include="$(_TizenRefPackDir)Tizen.NUI.Components.dll" Private="false" />
-      <Reference Include="$(_TizenRefPackDir)Tizen.Applications.Common.dll" Private="false" />
-      <Reference Include="$(_TizenRefPackDir)Tizen.Applications.UI.dll" Private="false" />
-      <Reference Include="$(_TizenRefPackDir)Tizen.Log.dll" Private="false" />
-      <Reference Include="$(_TizenRefPackDir)Tizen.dll" Private="false" />
-      <Reference Include="$(_TizenUIExtensionsDir)Tizen.UIExtensions.NUI.dll" Private="false" Condition="Exists('$(_TizenUIExtensionsDir)Tizen.UIExtensions.NUI.dll')" />
-    </ItemGroup>
-  </Target>
+  <Import Project="$(RepositoryRoot)eng/targets/TizenRefPack.targets" />
 
   <ItemGroup>
     <Compile Include="@(MauiTizenPortableCompile)" LinkBase="Backend" />
     <Compile Include="@(MauiTizenHandlerCompile)" LinkBase="Backend" />
     <Compile Include="@(MauiTizenPlatformCompile)" LinkBase="Backend" />
-    <Compile Include="@(MauiTizenSampleCompile)" LinkBase="Sample" />
   </ItemGroup>
 
 </Project>

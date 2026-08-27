@@ -218,20 +218,63 @@ public class TizenGestureTranslationTests
 	}
 
 	[Fact]
-	public void LongPressReportsStartCompletionAndCancellation()
+	public void LongPressReportsTheFullGestureSequenceInOrder()
 	{
 		var recognizer = new LongPressGestureRecognizer();
 		var (handler, detector, dispatcher, _) = Build((d, disp, s) => new TizenLongPressGestureHandler(recognizer, d, disp, s));
 		using var _handler = handler;
 
 		detector.Raise(new TizenGestureEventArgs(TizenGestureKind.LongPress, TizenGestureState.Started) { LocalPosition = new Point(8, 16) });
+		detector.Raise(Event(TizenGestureKind.LongPress, TizenGestureState.Continuing));
+		detector.Raise(Event(TizenGestureKind.LongPress, TizenGestureState.Continuing));
 		detector.Raise(Event(TizenGestureKind.LongPress, TizenGestureState.Finished));
+
+		// Continuing must survive translation. dotnet/maui's in-box Tizen handler drops it, so a
+		// Tizen long press never reports Running and an app tracking the gesture sees Started jump
+		// straight to Completed.
+		Assert.Equal(
+			new[]
+			{
+				TizenGestureState.Started,
+				TizenGestureState.Continuing,
+				TizenGestureState.Continuing,
+				TizenGestureState.Finished,
+			},
+			dispatcher.LongPresses.Select(l => l.State));
+
+		Assert.Equal(new Point(4, 8), dispatcher.LongPresses[0].Position);
+	}
+
+	[Fact]
+	public void LongPressReportsCancellation()
+	{
+		var recognizer = new LongPressGestureRecognizer();
+		var (handler, detector, dispatcher, _) = Build((d, disp, s) => new TizenLongPressGestureHandler(recognizer, d, disp, s));
+		using var _handler = handler;
+
+		detector.Raise(Event(TizenGestureKind.LongPress, TizenGestureState.Started));
+		detector.Raise(Event(TizenGestureKind.LongPress, TizenGestureState.Continuing));
 		detector.Raise(Event(TizenGestureKind.LongPress, TizenGestureState.Canceled));
 
 		Assert.Equal(
-			new[] { TizenGestureState.Started, TizenGestureState.Finished, TizenGestureState.Canceled },
+			new[] { TizenGestureState.Started, TizenGestureState.Continuing, TizenGestureState.Canceled },
 			dispatcher.LongPresses.Select(l => l.State));
-		Assert.Equal(new Point(4, 8), dispatcher.LongPresses[0].Position);
+
+		// A canceled press must never be reported as finished - that is what would fire
+		// LongPressed and the recognizer's command.
+		Assert.DoesNotContain(TizenGestureState.Finished, dispatcher.LongPresses.Select(l => l.State));
+	}
+
+	[Fact]
+	public void LongPressIgnoresStatesThatCarryNoMeaning()
+	{
+		var recognizer = new LongPressGestureRecognizer();
+		var (handler, detector, dispatcher, _) = Build((d, disp, s) => new TizenLongPressGestureHandler(recognizer, d, disp, s));
+		using var _handler = handler;
+
+		detector.Raise(Event(TizenGestureKind.LongPress, TizenGestureState.Possible));
+
+		Assert.Empty(dispatcher.LongPresses);
 	}
 
 	[Fact]
