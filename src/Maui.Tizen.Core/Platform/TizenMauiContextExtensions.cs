@@ -86,6 +86,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 			this IMauiContext mauiContext,
 			TizenNativeWindow platformWindow,
 			out IServiceScope scope)
+			=> MakeWindowScope(mauiContext, platformWindow, platformSpecific: null, out scope);
+
+		internal static IMauiContext MakeWindowScope(
+			this IMauiContext mauiContext,
+			TizenNativeWindow platformWindow,
+			object? platformSpecific,
+			out IServiceScope scope)
 		{
 			ArgumentNullException.ThrowIfNull(mauiContext);
 			ArgumentNullException.ThrowIfNull(platformWindow);
@@ -95,6 +102,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 			var scopedContext = AsTizenContext(mauiContext)
 				.WithServices(scope.ServiceProvider)
 				.AddSpecific(platformWindow);
+
+			scopedContext.AddSpecific<IMauiContext>(scopedContext);
+
+			if (platformSpecific is not null)
+				scopedContext.AddSpecific(platformSpecific.GetType(), platformSpecific);
 
 			scopedContext.InitializeTizenScopedServices();
 

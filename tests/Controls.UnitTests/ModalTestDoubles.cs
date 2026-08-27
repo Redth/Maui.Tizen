@@ -24,6 +24,8 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 
 	public object? Top => _entries.Count == 0 ? null : _entries[^1];
 
+	public bool Contains(object platformView) => _entries.Contains(platformView);
+
 	public bool ShownBehindPage { get; set; }
 
 	public List<bool> ShownBehindPageWrites { get; } = new();
@@ -32,10 +34,18 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 
 	public Exception? PopFailure { get; set; }
 
+	public bool MutateBeforePushFailure { get; set; }
+
+	public bool MutateBeforePopFailure { get; set; }
+
+	public List<FakePlaceholder> Placeholders { get; } = new();
+
 	public object CreatePlaceholder()
 	{
 		Operations.Add("CreatePlaceholder");
-		return new object();
+		var placeholder = new FakePlaceholder();
+		Placeholders.Add(placeholder);
+		return placeholder;
 	}
 
 	/// <summary>
@@ -59,12 +69,17 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 			await Task.Yield();
 		}
 
-		if (PushFailure is not null)
+		if (PushFailure is not null && !MutateBeforePushFailure)
 		{
 			throw PushFailure;
 		}
 
 		_entries.Add(platformView);
+
+		if (PushFailure is not null)
+		{
+			throw PushFailure;
+		}
 	}
 
 	public Task PopAsync(bool animated)
@@ -72,7 +87,7 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 		Operations.Add($"Pop({animated})");
 		PopAnimations.Add(animated);
 
-		if (PopFailure is not null)
+		if (PopFailure is not null && !MutateBeforePopFailure)
 		{
 			return Task.FromException(PopFailure);
 		}
@@ -82,7 +97,7 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 			_entries.RemoveAt(_entries.Count - 1);
 		}
 
-		return Task.CompletedTask;
+		return PopFailure is null ? Task.CompletedTask : Task.FromException(PopFailure);
 	}
 
 	public void Remove(object platformView)
@@ -90,6 +105,13 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 		Operations.Add("Remove");
 		_entries.Remove(platformView);
 	}
+}
+
+internal sealed class FakePlaceholder : IDisposable
+{
+	public bool Disposed { get; private set; }
+
+	public void Dispose() => Disposed = true;
 }
 
 /// <summary>
@@ -138,6 +160,8 @@ internal sealed class FakeModalNavigationHost : IModalNavigationHost
 /// </summary>
 internal sealed class FakeModalPageRealizer : ITizenModalPageRealizer
 {
+	readonly Dictionary<Page, object> _platformViews = new();
+
 	public List<Page> Realized { get; } = new();
 
 	public List<Page> Released { get; } = new();
@@ -145,10 +169,14 @@ internal sealed class FakeModalPageRealizer : ITizenModalPageRealizer
 	public object Realize(Page page, IMauiContext mauiContext)
 	{
 		Realized.Add(page);
-		return new object();
+		var platformView = new object();
+		_platformViews[page] = platformView;
+		return platformView;
 	}
 
 	public void Release(Page page) => Released.Add(page);
+
+	public object PlatformViewFor(Page page) => _platformViews[page];
 }
 
 internal sealed class FakeWindowBackButton : ITizenWindowBackButton

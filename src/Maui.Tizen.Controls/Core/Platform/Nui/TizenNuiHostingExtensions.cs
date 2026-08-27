@@ -38,6 +38,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 			ArgumentNullException.ThrowIfNull(services);
 
 			services.TryAddSingleton<ITizenAlertDialogFactory, NuiAlertDialogFactory>();
+			services.TryAddEnumerable(
+				ServiceDescriptor.Scoped<IMauiInitializeScopedService, NuiWindowScopeInitializer>());
 
 			// Must be registered before AddTizenGestures, whose TryAdd would otherwise bind the
 			// identity scaler. Identity is only correct on a 1x display; Tizen wearables and TVs
@@ -85,9 +87,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 		/// </param>
 		/// <remarks>
 		/// <para>
-		/// This is what the Tizen window handler calls so that window-affine alert routing, dialog
-		/// modal coordination and modal page navigation all resolve the right window. The window
-		/// scope must already contain the scoped registrations added by
+		/// The Core layer publishes the native window and navigation stack into the window context,
+		/// and this package's scoped initializer calls this method so window-affine alert routing,
+		/// dialog modal coordination and modal page navigation all resolve the right window. The
+		/// window scope must already contain the scoped registrations added by
 		/// <see cref="AddTizenNuiControlsPlatform"/>; when it does not, this is a no-op rather than
 		/// a throw, so a partially configured host degrades instead of failing at window creation.
 		/// </para>
@@ -122,6 +125,40 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 				(services?.GetService<ITizenWindowBackButton>() as TizenScopedWindowBackButton)
 					?.Attach(backButton);
 			}
+		}
+
+		internal sealed class NuiWindowScopeInitializer : IMauiInitializeScopedService
+		{
+			public void Initialize(IServiceProvider services)
+			{
+				ArgumentNullException.ThrowIfNull(services);
+
+				var mauiContext = services.GetService<IMauiContext>();
+				var window = services.GetService<TWindow>();
+				var navigationStack = services.GetService<NavigationStack>();
+
+				if (mauiContext is null || window is null || navigationStack is null)
+				{
+					return;
+				}
+
+				TizenNuiHostingExtensions.AttachTizenWindow(
+					mauiContext,
+					window,
+					navigationStack,
+					new NuiWindowBackButton(window));
+			}
+		}
+
+		internal sealed class NuiWindowBackButton : ITizenWindowBackButton
+		{
+			readonly TWindow _window;
+
+			public NuiWindowBackButton(TWindow window) =>
+				_window = window ?? throw new ArgumentNullException(nameof(window));
+
+			public void SetBackButtonPressedHandler(Func<bool>? handler) =>
+				_window.SetBackButtonPressedHandler(handler ?? (static () => false));
 		}
 	}
 }

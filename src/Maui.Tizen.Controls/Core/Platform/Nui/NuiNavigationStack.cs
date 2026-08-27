@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using global::Tizen.UIExtensions.NUI;
 using NView = global::Tizen.NUI.BaseComponents.View;
@@ -32,6 +33,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 		public object? Top => _stack.Top;
 
 		/// <inheritdoc/>
+		public bool Contains(object platformView) =>
+			_stack.Stack.Contains(AsView(platformView, nameof(platformView)));
+
+		/// <inheritdoc/>
 		public bool ShownBehindPage
 		{
 			get => _stack.ShownBehindPage;
@@ -49,8 +54,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 		public Task PopAsync(bool animated) => _stack.Pop(animated);
 
 		/// <inheritdoc/>
-		public void Remove(object platformView) =>
-			_stack.Pop(AsView(platformView, nameof(platformView)));
+		public void Remove(object platformView)
+		{
+			var view = AsView(platformView, nameof(platformView));
+
+			if (ReferenceEquals(_stack.Top, view))
+			{
+				// Pop(View) does not refresh NavigationStack.Top. Use the normal nonanimated pop
+				// for the top entry so the preceding view is shown and focus is restored.
+				_stack.Pop(false).GetAwaiter().GetResult();
+			}
+			else
+			{
+				_stack.Pop(view);
+			}
+		}
 
 		static NView AsView(object platformView, string parameterName)
 		{

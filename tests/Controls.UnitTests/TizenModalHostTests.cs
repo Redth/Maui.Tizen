@@ -103,6 +103,7 @@ public class TizenModalHostTests
 		Assert.DoesNotContain("Pop(False)", stack.Operations.Skip(1));
 		Assert.Contains("Remove", stack.Operations);
 		Assert.Equal(1, stack.Count);
+		Assert.True(Assert.Single(stack.Placeholders).Disposed);
 	}
 
 	[Fact]
@@ -166,6 +167,22 @@ public class TizenModalHostTests
 	}
 
 	[Fact]
+	public async Task APlaceholderPushThatMutatesBeforeFaultingIsRolledBackAndDisposed()
+	{
+		var stack = new FakeNavigationStack
+		{
+			PushFailure = new InvalidOperationException("stack push failed"),
+			MutateBeforePushFailure = true,
+		};
+		var host = new TizenModalHost(stack);
+
+		await Assert.ThrowsAsync<InvalidOperationException>(() => host.RunModalAsync(() => Task.CompletedTask));
+
+		Assert.Equal(0, stack.Count);
+		Assert.True(Assert.Single(stack.Placeholders).Disposed);
+	}
+
+	[Fact]
 	public async Task AFailedPlaceholderPopSurfacesToTheCaller()
 	{
 		var stack = new FakeNavigationStack { PopFailure = new InvalidOperationException("stack pop failed") };
@@ -175,6 +192,24 @@ public class TizenModalHostTests
 			host.RunModalAsync(() => Task.CompletedTask));
 
 		Assert.Equal("stack pop failed", exception.Message);
+		Assert.Equal(0, stack.Count);
+		Assert.True(Assert.Single(stack.Placeholders).Disposed);
+	}
+
+	[Fact]
+	public async Task APlaceholderPopThatMutatesBeforeFaultingStillDisposesThePlaceholder()
+	{
+		var stack = new FakeNavigationStack
+		{
+			PopFailure = new InvalidOperationException("stack pop failed"),
+			MutateBeforePopFailure = true,
+		};
+		var host = new TizenModalHost(stack);
+
+		await Assert.ThrowsAsync<InvalidOperationException>(() => host.RunModalAsync(() => Task.CompletedTask));
+
+		Assert.Equal(0, stack.Count);
+		Assert.True(Assert.Single(stack.Placeholders).Disposed);
 	}
 
 	[Fact]

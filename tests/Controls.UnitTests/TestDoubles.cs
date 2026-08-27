@@ -20,6 +20,10 @@ internal sealed class FakeAlertDialog<TResult> : ITizenAlertDialog<TResult>
 
 	public bool Disposed { get; private set; }
 
+	public Exception? CloseFailure { get; set; }
+
+	public int DisposeCount { get; private set; }
+
 	public Task<TResult> OpenAsync()
 	{
 		Opened = true;
@@ -29,10 +33,20 @@ internal sealed class FakeAlertDialog<TResult> : ITizenAlertDialog<TResult>
 	public void Close()
 	{
 		Closed = true;
+
+		if (CloseFailure is not null)
+		{
+			throw CloseFailure;
+		}
+
 		_completion.TrySetCanceled();
 	}
 
-	public void Dispose() => Disposed = true;
+	public void Dispose()
+	{
+		Disposed = true;
+		DisposeCount++;
+	}
 
 	public void CompleteWith(TResult result) => _completion.TrySetResult(result);
 
@@ -95,6 +109,8 @@ internal sealed class FakeBusyIndicator : ITizenBusyIndicator
 
 	public bool Disposed { get; private set; }
 
+	public Exception? CloseFailure { get; set; }
+
 	public void Open()
 	{
 		if (IsOpen)
@@ -108,6 +124,11 @@ internal sealed class FakeBusyIndicator : ITizenBusyIndicator
 
 	public void Close()
 	{
+		if (CloseFailure is not null)
+		{
+			throw CloseFailure;
+		}
+
 		if (!IsOpen)
 		{
 			return;

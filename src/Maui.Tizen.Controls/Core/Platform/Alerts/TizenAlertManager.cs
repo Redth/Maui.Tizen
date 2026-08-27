@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Internals;
@@ -33,6 +34,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		readonly ITizenModalHost _modalHost;
 		readonly ITizenPlatformWindowProvider _windowProvider;
 		readonly ILogger<TizenAlertManager>? _logger;
+		readonly List<TizenAlertManagerSubscription> _subscriptions = new();
 
 		TizenAlertManagerSubscription? _subscription;
 		bool _disposed;
@@ -90,6 +92,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				_dialogs,
 				_modalHost,
 				_windowProvider);
+			_subscriptions.Add(_subscription);
 		}
 
 		/// <inheritdoc/>
@@ -153,9 +156,28 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			_disposed = true;
 
-			var subscription = _subscription;
 			_subscription = null;
-			subscription?.Dispose();
+
+			List<Exception>? failures = null;
+
+			foreach (var subscription in _subscriptions)
+			{
+				try
+				{
+					subscription.Dispose();
+				}
+				catch (Exception ex)
+				{
+					(failures ??= new()).Add(ex);
+				}
+			}
+
+			_subscriptions.Clear();
+
+			if (failures is not null)
+			{
+				throw new AggregateException("One or more Tizen alert subscriptions failed during window teardown.", failures);
+			}
 		}
 	}
 }

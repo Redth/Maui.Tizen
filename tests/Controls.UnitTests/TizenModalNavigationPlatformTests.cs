@@ -144,6 +144,80 @@ public class TizenModalNavigationPlatformTests
 	}
 
 	[Fact]
+	public async Task APushThatMutatesBeforeFaultingRemovesTheViewAndReleasesTheHandler()
+	{
+		var (platform, host, stack, realizer, _) = Build();
+		using var _p = platform;
+		stack.PushFailure = new InvalidOperationException("native failure");
+		stack.MutateBeforePushFailure = true;
+
+		var modal = new ContentPage();
+		host.RecordPush(modal);
+
+		await Assert.ThrowsAsync<InvalidOperationException>(() => platform.PushModalAsync(modal, false));
+
+		Assert.Equal(0, stack.Count);
+		Assert.Equal(modal, Assert.Single(realizer.Released));
+	}
+
+	[Fact]
+	public async Task APopThatMutatesBeforeFaultingStillReleasesTheHandler()
+	{
+		var (platform, host, stack, realizer, _) = Build();
+		using var _p = platform;
+		var modal = new ContentPage();
+		host.RecordPush(modal);
+		await platform.PushModalAsync(modal, false);
+
+		stack.PopFailure = new InvalidOperationException("native failure");
+		stack.MutateBeforePopFailure = true;
+		host.RecordPop(modal);
+
+		await Assert.ThrowsAsync<InvalidOperationException>(() => platform.PopModalAsync(modal, false));
+
+		Assert.Equal(0, stack.Count);
+		Assert.Equal(modal, Assert.Single(realizer.Released));
+	}
+
+	[Fact]
+	public async Task APopFailureBeforeMutationStillRemovesTheViewAndReleasesTheHandler()
+	{
+		var (platform, host, stack, realizer, _) = Build();
+		using var _p = platform;
+		var modal = new ContentPage();
+		host.RecordPush(modal);
+		await platform.PushModalAsync(modal, false);
+
+		stack.PopFailure = new InvalidOperationException("native failure");
+		host.RecordPop(modal);
+
+		await Assert.ThrowsAsync<InvalidOperationException>(() => platform.PopModalAsync(modal, true));
+
+		Assert.Equal(0, stack.Count);
+		Assert.Equal(modal, Assert.Single(realizer.Released));
+	}
+
+	[Fact]
+	public async Task PopDoesNotRemoveAnUnrelatedTopWhenTheTrackedModalViewIsAlreadyGone()
+	{
+		var (platform, host, stack, realizer, _) = Build();
+		using var _p = platform;
+		var modal = new ContentPage();
+		host.RecordPush(modal);
+		await platform.PushModalAsync(modal, false);
+
+		stack.Remove(realizer.PlatformViewFor(modal));
+		var replacementRoot = new object();
+		await stack.PushAsync(replacementRoot, false);
+		host.RecordPop(modal);
+
+		await platform.PopModalAsync(modal, false);
+
+		Assert.Same(replacementRoot, stack.Top);
+		Assert.Equal(modal, Assert.Single(realizer.Released));
+	}
+
+	[Fact]
 	public void PageAttachedInstallsTheBackButtonHandler()
 	{
 		var (platform, _, _, _, backButton) = Build();
@@ -229,6 +303,24 @@ public class TizenModalNavigationPlatformTests
 
 		platform.Dispose();
 		platform.Dispose();
+	}
+
+	[Fact]
+	public async Task DisposeRemovesBuriedModalViewsAndReleasesEveryHandler()
+	{
+		var (platform, host, stack, realizer, _) = Build();
+		var first = new ContentPage();
+		var second = new ContentPage();
+
+		host.RecordPush(first);
+		await platform.PushModalAsync(first, false);
+		host.RecordPush(second);
+		await platform.PushModalAsync(second, false);
+
+		platform.Dispose();
+
+		Assert.Equal(0, stack.Count);
+		Assert.Equal(new[] { second, first }, realizer.Released);
 	}
 
 	[Fact]

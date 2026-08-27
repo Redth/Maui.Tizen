@@ -162,8 +162,9 @@ was open — it is removed by identity rather than popped, matching the original
 ## Window-scoped services
 
 `ITizenNavigationStack` and `ITizenWindowBackButton` wrap objects the window owns, but registration
-happens at host-build time, before any window exists. They are registered **scoped** as holders
-that the Tizen window handler fills in:
+happens at host-build time, before any window exists. They are registered **scoped** as holders.
+Core creates the native `NavigationStack`, publishes it and the native window into the window
+`IMauiContext`, and the Controls scoped initializer fills the holders:
 
 ```csharp
 TizenNuiHostingExtensions.AttachTizenWindow(mauiContext, nativeWindow, navigationStack);
@@ -174,7 +175,7 @@ The two holders behave differently on purpose:
 - `TizenScopedNavigationStack` **throws** when used before attachment. A modal that reports success
   without appearing is worse than a clear failure.
 - `TizenScopedWindowBackButton` **records and replays** the handler. The modal platform installs
-  its handler on `PageAttached`, which can run before the window handler attaches the native
+  its handler on `PageAttached`, which can run before the scoped initializer attaches the native
   window, and a missing back button is not fatal — presses just fall through to the platform
   default.
 

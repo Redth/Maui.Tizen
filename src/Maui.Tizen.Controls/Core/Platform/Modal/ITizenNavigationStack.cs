@@ -26,6 +26,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <summary>Gets the entry currently on top, or <see langword="null"/> when empty.</summary>
 		object? Top { get; }
 
+		/// <summary>Returns whether <paramref name="platformView"/> is currently in the stack.</summary>
+		/// <param name="platformView">The native view to find.</param>
+		bool Contains(object platformView);
+
 		/// <summary>
 		/// Gets or sets a value indicating whether the entry below the top one stays visible.
 		/// </summary>

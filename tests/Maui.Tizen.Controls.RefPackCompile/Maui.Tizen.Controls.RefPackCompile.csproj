@@ -68,6 +68,10 @@
     <PackageDownload Include="Tizen.UIExtensions.NUI" Version="[$(TizenUIExtensionsPackageVersion)]" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj" />
+  </ItemGroup>
+
   <Target Name="_AddTizenReferenceAssemblies" BeforeTargets="ResolveAssemblyReferences">
     <PropertyGroup>
       <_TizenRefPackDir>$(NuGetPackageRoot)$(TizenReferencePackId.ToLowerInvariant())/$(TizenReferencePackVersion)/ref/net8.0/</_TizenRefPackDir>

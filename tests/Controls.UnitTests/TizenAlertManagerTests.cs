@@ -194,6 +194,25 @@ public class TizenAlertManagerTests
 	}
 
 	[Fact]
+	public async Task DisposeDismissesDialogsOwnedByDetachedSubscriptions()
+	{
+		var fixture = new Fixture();
+		fixture.Manager.Subscribe();
+
+		var args = Alert();
+		fixture.Manager.RequestAlert(fixture.Page, args);
+		var dialog = fixture.Dialogs.LastAlert!;
+
+		fixture.Manager.Unsubscribe();
+		fixture.Manager.Subscribe();
+		fixture.Manager.Dispose();
+
+		Assert.True(dialog.Closed);
+		Assert.True(dialog.Disposed);
+		Assert.False(await Completed(args.Result.Task));
+	}
+
+	[Fact]
 	public async Task DisposeDismissesInFlightDialogs()
 	{
 		var fixture = new Fixture();

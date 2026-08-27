@@ -359,4 +359,36 @@ public class TizenAlertManagerSubscriptionTests
 		Assert.False(indicator.IsOpen);
 		Assert.True(indicator.Disposed);
 	}
+
+	[Fact]
+	[Obsolete("Exercises the obsolete page-busy notification on purpose.")]
+	public void BusyIndicatorIsDisposedEvenWhenCloseFails()
+	{
+		var fixture = new Fixture();
+		fixture.Subscription.OnPageBusy(fixture.Page, true);
+		var indicator = fixture.Dialogs.LastBusyIndicator!;
+		indicator.CloseFailure = new InvalidOperationException("close failed");
+
+		Assert.Throws<InvalidOperationException>(() => fixture.Subscription.OnPageBusy(fixture.Page, false));
+		Assert.True(indicator.Disposed);
+	}
+
+	[Fact]
+	public void DisposeContinuesThroughEveryOpenDialogWhenOneCloseFails()
+	{
+		var fixture = new Fixture();
+		var alert = Alert();
+		var prompt = Prompt();
+		fixture.Subscription.OnAlertRequested(fixture.Page, alert);
+		var alertDialog = fixture.Dialogs.LastAlert!;
+		fixture.Subscription.OnPromptRequested(fixture.Page, prompt);
+		var promptDialog = fixture.Dialogs.LastPrompt!;
+		alertDialog.CloseFailure = new InvalidOperationException("close failed");
+
+		Assert.Throws<AggregateException>(fixture.Subscription.Dispose);
+
+		Assert.True(alertDialog.Disposed);
+		Assert.True(promptDialog.Closed);
+		Assert.True(promptDialog.Disposed);
+	}
 }

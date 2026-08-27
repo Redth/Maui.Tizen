@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Controls;
@@ -105,6 +108,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 		readonly ITizenModalPageRealizer _realizer;
 		readonly ITizenWindowBackButton? _backButton;
 		readonly ILogger<TizenModalNavigationPlatform>? _logger;
+		readonly Dictionary<Page, object> _platformViews = new();
+		readonly List<Page> _presentationOrder = new();
 
 		bool _disposed;
 
@@ -147,7 +152,43 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			var platformView = _realizer.Realize(modal, _host.MauiContext);
 
-			await _stack.PushAsync(platformView, animated).ConfigureAwait(true);
+			try
+			{
+				await _stack.PushAsync(platformView, animated).ConfigureAwait(true);
+				_platformViews.Add(modal, platformView);
+				_presentationOrder.Add(modal);
+			}
+			catch (Exception pushFailure)
+			{
+				var cleanupFailures = new List<Exception>();
+
+				try
+				{
+					await RemovePlatformViewAsync(platformView).ConfigureAwait(true);
+				}
+				catch (Exception ex)
+				{
+					cleanupFailures.Add(ex);
+				}
+
+				try
+				{
+					_realizer.Release(modal);
+				}
+				catch (Exception ex)
+				{
+					cleanupFailures.Add(ex);
+				}
+
+				if (cleanupFailures.Count > 0)
+				{
+					cleanupFailures.Insert(0, pushFailure);
+					throw new AggregateException("The modal push and its rollback both failed.", cleanupFailures);
+				}
+
+				ExceptionDispatchInfo.Capture(pushFailure).Throw();
+				throw new InvalidOperationException("Unreachable.");
+			}
 		}
 
 		/// <inheritdoc/>
@@ -164,9 +205,67 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			// A batch pop dismisses several modals at once, for example a Shell pop-to-root.
 			// Animating the intermediate ones makes them flash on screen.
-			await _stack.PopAsync(animated && !_host.IsBatchPopping).ConfigureAwait(true);
+			_platformViews.TryGetValue(modal, out var platformView);
 
-			_realizer.Release(modal);
+			Exception? popFailure = null;
+
+			try
+			{
+				if (platformView is not null && _stack.Contains(platformView))
+				{
+					if (ReferenceEquals(_stack.Top, platformView))
+					{
+						await _stack.PopAsync(animated && !_host.IsBatchPopping).ConfigureAwait(true);
+					}
+					else
+					{
+						_stack.Remove(platformView);
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				popFailure = ex;
+
+				if (platformView is not null)
+				{
+					try
+					{
+						await RemovePlatformViewAsync(platformView).ConfigureAwait(true);
+					}
+					catch (Exception cleanupFailure)
+					{
+						popFailure = new AggregateException(
+							"The modal pop and its rollback both failed.",
+							ex,
+							cleanupFailure);
+					}
+				}
+			}
+			finally
+			{
+				_platformViews.Remove(modal);
+				_presentationOrder.Remove(modal);
+
+				try
+				{
+					_realizer.Release(modal);
+				}
+				catch (Exception releaseFailure)
+				{
+					popFailure = popFailure is null
+						? releaseFailure
+						: new AggregateException(
+							"The modal pop and handler release both failed.",
+							popFailure,
+							releaseFailure);
+				}
+			}
+
+			if (popFailure is not null)
+			{
+				ExceptionDispatchInfo.Capture(popFailure).Throw();
+			}
 		}
 
 		/// <inheritdoc/>
@@ -199,11 +298,92 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
+			List<Exception>? failures = null;
+
 			_disposed = true;
-			_backButton?.SetBackButtonPressedHandler(null);
+
+			try
+			{
+				_backButton?.SetBackButtonPressedHandler(null);
+			}
+			catch (Exception ex)
+			{
+				(failures ??= new()).Add(ex);
+			}
+
+			foreach (var page in _presentationOrder.AsEnumerable().Reverse())
+			{
+				var platformView = _platformViews[page];
+
+				try
+				{
+					if (_stack.Contains(platformView))
+					{
+						_stack.Remove(platformView);
+					}
+				}
+				catch (Exception ex)
+				{
+					(failures ??= new()).Add(ex);
+				}
+
+				try
+				{
+					_realizer.Release(page);
+				}
+				catch (Exception ex)
+				{
+					(failures ??= new()).Add(ex);
+				}
+			}
+
+			_platformViews.Clear();
+			_presentationOrder.Clear();
+
+			if (failures is not null)
+			{
+				throw new AggregateException("One or more Tizen modal pages failed during window teardown.", failures);
+			}
 		}
 
 		bool OnBackButtonPressed() => _host.CurrentPage?.SendBackButtonPressed() ?? false;
+
+		async Task RemovePlatformViewAsync(object platformView)
+		{
+			if (!_stack.Contains(platformView))
+			{
+				return;
+			}
+
+			if (ReferenceEquals(_stack.Top, platformView))
+			{
+				try
+				{
+					await _stack.PopAsync(false).ConfigureAwait(true);
+				}
+				catch (Exception retryFailure)
+				{
+					try
+					{
+						if (_stack.Contains(platformView))
+						{
+							_stack.Remove(platformView);
+						}
+					}
+					catch (Exception removeFailure)
+					{
+						throw new AggregateException(
+							"The nonanimated modal rollback and identity removal both failed.",
+							retryFailure,
+							removeFailure);
+					}
+				}
+			}
+			else
+			{
+				_stack.Remove(platformView);
+			}
+		}
 	}
 
 	/// <summary>

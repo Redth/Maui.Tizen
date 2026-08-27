@@ -129,9 +129,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 				TouchCount = (int)tap.NumberOfTouches,
 				LocalPosition = new GPoint(tap.LocalPoint.X, tap.LocalPoint.Y),
 				ScreenPosition = new GPoint(tap.ScreenPoint.X, tap.ScreenPoint.Y),
+				Button = ToButton(tap.SourceData),
 				ViewSize = ViewSizeOf(AttachedView),
 			});
 		}
+
+		static TizenPointerButton ToButton(Gesture.SourceDataType sourceData) => sourceData switch
+		{
+			Gesture.SourceDataType.MousePrimary => TizenPointerButton.Primary,
+			Gesture.SourceDataType.MouseSecondary => TizenPointerButton.Secondary,
+			Gesture.SourceDataType.MouseTertiary => TizenPointerButton.Tertiary,
+			_ => TizenPointerButton.Unknown,
+		};
 	}
 
 	/// <summary>

@@ -23,7 +23,8 @@
     the neutral sources into a non-shipping test assembly keeps that rule intact - no
     neutral product assembly is ever produced - while still running the logic.
 
-    The NUI implementations under Core/Platform/Nui are covered by device tests instead.
+    The NUI implementations under Core/Platform/Nui are type-checked against API15 by
+    Maui.Tizen.Controls.RefPackCompile. Their runtime behaviour remains a device-test gap.
   -->
 
   <PropertyGroup>

@@ -180,6 +180,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public void Dispose()
 		{
 			ITizenAlertDialog[] open;
+			List<Exception>? failures = null;
 
 			lock (_sync)
 			{
@@ -195,7 +196,6 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			foreach (var dialog in open)
 			{
-				// The task that opened the dialog owns disposal; closing is enough to cancel it.
 				try
 				{
 					dialog.Close();
@@ -204,10 +204,38 @@ namespace Microsoft.Maui.Platforms.Tizen
 				{
 					// The dialog raced us to teardown; nothing left to dismiss.
 				}
+				catch (Exception ex)
+				{
+					(failures ??= new()).Add(ex);
+				}
+				finally
+				{
+					try
+					{
+						dialog.Dispose();
+					}
+					catch (Exception ex)
+					{
+						(failures ??= new()).Add(ex);
+					}
+				}
 			}
 
 			_busyCount = 0;
-			CloseBusyIndicator();
+
+			try
+			{
+				CloseBusyIndicator();
+			}
+			catch (Exception ex)
+			{
+				(failures ??= new()).Add(ex);
+			}
+
+			if (failures is not null)
+			{
+				throw new AggregateException("One or more Tizen dialogs failed during window teardown.", failures);
+			}
 		}
 
 		bool ShouldHandle(Page sender)
@@ -344,8 +372,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
-			indicator.Close();
-			indicator.Dispose();
+			try
+			{
+				indicator.Close();
+			}
+			finally
+			{
+				indicator.Dispose();
+			}
 		}
 	}
 }

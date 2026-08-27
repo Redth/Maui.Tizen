@@ -304,7 +304,7 @@ factory can therefore refine this table without changing any other code.
 | Dispatch through real MAUI recognizers, screen/local/unknown position resolution, button masks, long-press status mapping, and the one blocked gesture | `tests/Controls.UnitTests/TizenGestureDispatcherTests.cs` |
 | Pixel scaler registration and lazy display-factor lookup | `tests/Controls.UnitTests/TizenServiceRegistrationTests.cs` |
 | DI registration and lifetimes | `tests/Controls.UnitTests/TizenServiceRegistrationTests.cs` |
-| NUI adapters under `Core/Platform/Nui` | Type-checked against `Samsung.Tizen.Ref.API15` and `Tizen.UIExtensions.NUI` 0.9.2 by `tests/Maui.Tizen.Controls.RefPackCompile`; behaviour needs a device |
+| NUI adapters under `Core/Platform/Nui`, including native `TapGesture.SourceData` button mapping | Type-checked against `Samsung.Tizen.Ref.API15` and `Tizen.UIExtensions.NUI` 0.9.2 by `tests/Maui.Tizen.Controls.RefPackCompile`; behaviour needs a device |
 
 The NUI adapters cannot be executed until the Samsung .NET 11 workload ships
 (`eng/baselines.json` → `target.workloadManifest`). They *can* be type-checked without it:

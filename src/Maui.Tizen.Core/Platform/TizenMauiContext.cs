@@ -56,6 +56,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 			return this;
 		}
 
+		internal TizenMauiContext AddSpecific(Type serviceType, object instance)
+		{
+			ArgumentNullException.ThrowIfNull(serviceType);
+			ArgumentNullException.ThrowIfNull(instance);
+
+			_specific[serviceType] = instance;
+			return this;
+		}
+
 		/// <summary>
 		/// Creates a context that shares this context's specific instances but resolves everything
 		/// else from another provider - used when entering a DI scope.

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui;
@@ -27,6 +28,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		static readonly ConditionalWeakTable<TizenNativeWindow, ITizenPlatformViewHandler> s_windowContentHandler = new();
 		static readonly ConditionalWeakTable<TizenNativeWindow, Action> s_windowCloseRequestHandler = new();
 		static readonly ConditionalWeakTable<TizenNativeWindow, Func<bool>> s_windowBackButtonPressedHandler = new();
+		static readonly ConditionalWeakTable<TizenNativeWindow, NavigationStack> s_windowNavigationStack = new();
 
 		/// <summary>Gets the process-wide NUI window.</summary>
 		/// <remarks>
@@ -71,7 +73,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 			var platformWindow = GetDefaultWindow()
 				?? throw new InvalidOperationException("The default NUI window was not found.");
 
-			var mauiContext = applicationContext.MakeWindowScope(platformWindow, out var windowScope);
+			var navigationStack = GetNavigationStack(platformWindow);
+			var mauiContext = applicationContext.MakeWindowScope(
+				platformWindow,
+				navigationStack,
+				out var windowScope);
 
 			platformWindow.SetWindowCloseRequestHandler(platformApplication.Exit);
 
@@ -112,9 +118,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <see cref="Handlers.TizenWindowHandler.MapContent"/> is a property mapper on
 		/// <see cref="IWindow.Content"/>, so it re-runs whenever the content changes. Adding without
 		/// removing would leave the previous view parented and visible underneath the new one, and
-		/// leak its whole NUI subtree. dotnet/maui avoids this by clearing a per-window
-		/// <c>NavigationStack</c> before pushing; this backend has no modal stack yet, so it tracks
-		/// the current content directly.
+		/// leak its whole NUI subtree. The per-window navigation stack is also the stack used by
+		/// modal pages and dialog placeholders, so replacing the root content must clear and push
+		/// through that stack rather than adding a competing child directly to the window.
 		/// </remarks>
 		/// <param name="platformWindow">The platform window.</param>
 		/// <param name="content">The content view.</param>
@@ -123,33 +129,63 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ArgumentNullException.ThrowIfNull(platformWindow);
 			ArgumentNullException.ThrowIfNull(content);
 
+			var navigationStack = GetNavigationStack(platformWindow);
+
 			if (s_windowContent.TryGetValue(platformWindow, out var previous))
 			{
 				if (ReferenceEquals(previous, content))
 					return;
 
-				platformWindow.Remove(previous);
+				var stackDisposedPrevious = navigationStack.Stack.Count <= 1;
+
+				if (stackDisposedPrevious)
+				{
+					navigationStack.Clear();
+					_ = navigationStack.Push(content, true);
+				}
+				else
+				{
+					// Root replacement must not clear modal pages above it. Insert the new content
+					// below the current bottom entry, then remove the previous root by identity.
+					// The visible top remains unchanged when a modal is active.
+					navigationStack.Insert(navigationStack.Stack[0], content);
+
+					if (navigationStack.Stack.Contains(previous))
+					{
+						navigationStack.Pop(previous);
+					}
+				}
 
 				// Removing the native view only unparents it. The handler still holds the platform
 				// view, its event subscriptions and its child handler graph, so without an explicit
 				// disconnect the whole previous page leaks on every content swap.
 				if (s_windowContentHandler.TryGetValue(platformWindow, out var previousHandler))
 				{
-					previousHandler.Dispose();
+					if (stackDisposedPrevious)
+					{
+						((IElementHandler)previousHandler).DisconnectHandler();
+					}
+					else
+					{
+						previousHandler.Dispose();
+					}
 					s_windowContentHandler.Remove(platformWindow);
 				}
-				else
+				else if (!stackDisposedPrevious)
 				{
 					previous.Dispose();
 				}
+			}
+			else
+			{
+				navigationStack.Clear();
+				_ = navigationStack.Push(content, true);
 			}
 
 			content.WidthSpecification = LayoutParamPolicies.MatchParent;
 			content.HeightSpecification = LayoutParamPolicies.MatchParent;
 			content.WidthResizePolicy = ResizePolicyType.FillToParent;
 			content.HeightResizePolicy = ResizePolicyType.FillToParent;
-
-			platformWindow.Add(content);
 
 			s_windowContent.Remove(platformWindow);
 			s_windowContent.Add(platformWindow, content);
@@ -164,10 +200,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// window.
 		/// </summary>
 		/// <remarks>
-		/// Ported from the workable subset of <c>WindowExtensions.Initialize</c> in dotnet/maui.
-		/// The <c>NavigationStack</c> that the upstream version also creates is not included: modal
-		/// navigation is outside this vertical slice. Without this call the device would never
-		/// rotate and the hardware back key would be inert.
+		/// Ported from <c>WindowExtensions.Initialize</c> in dotnet/maui. Without this call the
+		/// device would never rotate, the hardware back key would be inert, and window-scoped
+		/// presentation services would have no native navigation stack to attach to.
 		/// </remarks>
 		/// <param name="platformWindow">The platform window.</param>
 		public static void InitializePlatformWindow(this TizenNativeWindow platformWindow)
@@ -184,6 +219,20 @@ namespace Microsoft.Maui.Platforms.Tizen
 				if (e.Key.IsDeclineKeyEvent())
 					OnBackButtonPressed(platformWindow);
 			};
+
+			if (!s_windowNavigationStack.TryGetValue(platformWindow, out _))
+			{
+				var navigationStack = new NavigationStack
+				{
+					HeightSpecification = LayoutParamPolicies.MatchParent,
+					WidthSpecification = LayoutParamPolicies.MatchParent,
+					WidthResizePolicy = ResizePolicyType.FillToParent,
+					HeightResizePolicy = ResizePolicyType.FillToParent,
+				};
+
+				platformWindow.GetDefaultLayer().Add(navigationStack);
+				s_windowNavigationStack.Add(platformWindow, navigationStack);
+			}
 		}
 
 		/// <summary>Registers the handler invoked when the window asks to close.</summary>
@@ -221,6 +270,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (s_windowCloseRequestHandler.TryGetValue(platformWindow, out var closeHandler))
 				closeHandler();
 		}
+
+		static NavigationStack GetNavigationStack(TizenNativeWindow platformWindow) =>
+			s_windowNavigationStack.TryGetValue(platformWindow, out var navigationStack)
+				? navigationStack
+				: throw new InvalidOperationException(
+					"The platform window has no navigation stack. Call InitializePlatformWindow before creating its MAUI window scope.");
 
 		static void SetHandler(IElement element, object platformElement, IMauiContext context)
 		{
