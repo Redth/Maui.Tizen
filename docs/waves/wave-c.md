@@ -195,6 +195,26 @@ references to those two types - zero warnings, nothing else outstanding.
 `AcceptanceGateMustBeReopenedOnceCoreLandsThePrimitives` fails as soon as core provides either, so
 the flag cannot be left off once the blocker clears.
 
+### Mapper dispatch — a known, deliberate gap
+
+Wave A hit a crash pattern worth stating plainly here: MAUI's
+`PropertyMapper<TVirtualView, TViewHandler>` **casts** the handler when it dispatches a mapping, so
+an interface-declared mapper instantiated over a concrete built-in handler makes any chained Tizen
+mapping throw at runtime. Wave C is structurally exposed — all 86 of its mapper delegates take a
+concrete `Tizen*Handler`.
+
+`WaveCMapperDispatchTests` pins the two source-level invariants that keep that safe: delegates must
+match their mapper's declared handler type (checked **per class**, since several handlers share a
+file and reuse names like `MapText`), and no mapper may be declared over a handler interface. Both
+pass today.
+
+Those are **necessary but not sufficient**. Proving dispatch is safe needs a real Controls host that
+registers the Tizen handlers, enumerates every key including inherited and chained ones, and
+actually invokes each mapping — only that catches an inherited concrete-handler cast or a no-op body
+that never runs. That cannot be written until the predecessor stack lands, and host tests cannot
+instantiate NUI views. A placeholder test therefore **fails the moment the acceptance gate opens**,
+so the gap is closed deliberately rather than forgotten.
+
 ### What is still unverified
 
 Runtime behaviour. There is no Tizen emulator or device here, so item recycling, virtualization
@@ -231,6 +251,8 @@ the whole suite passes.
   deleted rather than kept as a diverging parallel implementation
 - superseded raw sources never reach a compiled item list
   (`WaveCSupersededSourceTests`)
+- every mapping delegate accepts exactly the handler type its mapper is declared over, and no
+  mapper is declared over a MAUI handler *interface* (`WaveCMapperDispatchTests`)
 - the validation lane still targets a real Tizen TFM and still compiles the same sources as the
   shipping project
 
