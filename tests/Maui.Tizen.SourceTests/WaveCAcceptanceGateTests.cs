@@ -27,10 +27,19 @@ public class WaveCAcceptanceGateTests
 	/// The only two types keeping Wave C out of the acceptance lane, and the Core types expected to
 	/// replace them.
 	/// </summary>
+	/// <remarks>
+	/// Names confirmed by the Core session on 2026-08-26 (first landed in 163677d), under
+	/// <c>Microsoft.Maui.Platforms.Tizen</c>. Wave C waits for Core's final <em>reviewed</em> head
+	/// before rebasing, so these are recorded rather than adopted.
+	/// </remarks>
 	public static readonly (string InTreeType, string ExpectedCoreType)[] BlockedPrimitives =
 	{
 		("MauiToolbar", "TizenToolbarView"),
 		("StackNavigationManager", "TizenStackNavigationManager"),
+
+		// NaviPage is not referenced by Wave C directly - Core's stack manager owns it - but it is
+		// part of the same agreed rename set, so it is tracked here to keep one list rather than two.
+		("NaviPage", "TizenNaviPage"),
 	};
 
 	static string SourcesProps() => File.ReadAllText(RepoPaths.Combine("eng", "Maui.Tizen.WaveC.Sources.props"));

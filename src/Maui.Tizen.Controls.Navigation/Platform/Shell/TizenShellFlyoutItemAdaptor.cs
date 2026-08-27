@@ -54,7 +54,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			if (header != null)
 			{
-				DataTemplate? template = (Shell as IShellController)?.GetFlyoutItemDataTemplate(ShellTemplateResolver.GetBindableObjectWithFlyoutItemTemplate(header as BindableObject));
+				DataTemplate? template = ShellFlyoutTemplateResolution.ResolveFlyoutItemTemplate(Shell, header as BindableObject);
 
 				View? view = null;
 				if (template != null)
@@ -91,14 +91,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			var item = this[index];
 			if (item is BindableObject bo)
 			{
-				var bo2 = ShellTemplateResolver.GetBindableObjectWithFlyoutItemTemplate(bo);
-				DataTemplate? template = (Shell as IShellController)?.GetFlyoutItemDataTemplate(bo2);
+				// The raw item, never a pre-resolved template owner - see
+				// ShellFlyoutTemplateResolution for why that distinction matters.
+				DataTemplate? template = ShellFlyoutTemplateResolution.ResolveFlyoutItemTemplate(Shell, bo);
 
 				View? view;
 				if (template != null)
 				{
-					var selectedTemplate = ShellTemplateResolver.SelectDataTemplate(template, item, Shell);
-					view = (View)selectedTemplate.CreateContent();
+					view = (View)template.CreateContent();
 				}
 				else
 				{

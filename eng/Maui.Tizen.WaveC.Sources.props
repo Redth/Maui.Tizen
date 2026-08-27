@@ -33,7 +33,22 @@
     TizenContentViewGroup - Wave C must NOT declare its own, or the repository ends up with two
     authoritative toolbars and a genuinely ambiguous compiled set.
 
-    Until Core lands them (expected names: TizenToolbarView, TizenStackNavigationManager), Wave C
+    Core confirmed the shapes on 2026-08-26 (first landed in 163677d), under
+    Microsoft.Maui.Platforms.Tizen:
+
+      * TizenToolbarView : TitleView - IconPressed, SearchBar, ExpandedHeight, Expand/Collapse,
+        SendIconPressed
+      * ITizenToolbarContainer.SetToolbar(TizenToolbarView) - replaces AND disposes any prior
+        toolbar, so the container must not also hold its own reference
+      * TizenStackNavigationManager : View, ITizenToolbarContainer - NavigationStack, SetToolbar,
+        Connect(IView), Disconnect, RequestNavigation, protected MauiContext / NavigationView /
+        PlatformNavigation / virtual InitializeStack(IReadOnlyList<IView>, bool).
+        Connect MUST precede RequestNavigation.
+      * TizenNaviPage : View, IContainable<View> - TitleView, Content. Not referenced by Wave C
+        directly (Core's stack manager owns it) but part of the same rename set.
+
+    Wave C waits for Core's FINAL REVIEWED head before rebasing, so none of this is adopted yet.
+    Until then, Wave C
     cannot be type-checked here. The transitive blast radius is 25 of 50 files, so excluding just
     the six direct consumers would leave the lane verifying almost nothing - which is the same
     false confidence the lower-band lane gave, in a different costume.
@@ -66,6 +81,7 @@
   -->
   <ItemGroup Condition="'$(MauiTizenWaveCAcceptance)' == 'true'" Label="Wave C adapters">
     <MauiTizenWaveCAdapterCompile Include="$(MauiTizenNavigationDir)Adapters/ItemSelectionState.cs" />
+    <MauiTizenWaveCAdapterCompile Include="$(MauiTizenNavigationDir)Adapters/ShellFlyoutTemplateResolution.cs" />
     <MauiTizenWaveCAdapterCompile Include="$(MauiTizenNavigationDir)Adapters/ShellElementTree.cs" />
     <MauiTizenWaveCAdapterCompile Include="$(MauiTizenNavigationDir)Adapters/ShellTemplateResolver.cs" />
     <MauiTizenWaveCAdapterCompile Include="$(MauiTizenNavigationDir)Adapters/ToolbarDrawerToggle.cs" />

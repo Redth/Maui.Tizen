@@ -42,9 +42,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 			new(
 				"MAUI-TIZEN-API-0001",
 				"Microsoft.Maui.Controls.Shell.GetBindableObjectWithFlyoutItemTemplate(BindableObject)",
-				"A public flyout item template contract on Shell (dotnet/maui#37862, OPEN and still being designed - currently moving toward a single resolve-style call returning the final DataTemplate)",
-				nameof(ShellTemplateResolver),
-				"Any backend rendering a flyout must resolve which element owns the item template. Only partially reproducible off-tree: the MenuShellItem redirect cannot be expressed at all because MenuShellItem and its MenuItem property are both internal, so bare MenuItems in a flyout fall back to the shell-level template. Upstream dotnet/maui#37862 is OPEN and its shape is still moving (internal helper -> three-method contract -> single resolve-style call). The adapter stays provisional and no shape is baked in until the design merges and ships in a referenced package; the expiry test matches the concept rather than any proposed name."),
+				"static DataTemplate? Shell.ResolveFlyoutItemTemplate(Shell? shell, BindableObject flyoutItem) (dotnet/maui#37862, OPEN)",
+				nameof(ShellFlyoutTemplateResolution),
+				"Any backend rendering a flyout must resolve which element owns the item template. Only partially reproducible off-tree: the MenuShellItem redirect cannot be expressed at all because MenuShellItem and its MenuItem property are both internal, so bare MenuItems in a flyout fall back to the shell-level template. Upstream dotnet/maui#37862 is OPEN and its shape is still moving (internal helper -> three-method contract -> single resolve-style call). The adapter stays provisional and no shape is baked in until the design merges and ships in a referenced package; the expiry test matches the concept rather than any proposed name. Adapters/ShellFlyoutTemplateResolution.cs is the adoption seam: its signature already matches the proposed API, so adopting it is a one-line body swap."),
 			new(
 				"MAUI-TIZEN-API-0002",
 				"Microsoft.Maui.Controls.ViewExtensions.FindParentOfType<T>(Element, bool)",
