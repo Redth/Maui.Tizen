@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Media;
+using Microsoft.Maui.Devices.Sensors;
 using Microsoft.Maui.Platforms.Tizen.Essentials;
 using Xunit;
 
@@ -89,6 +90,25 @@ public class TizenUnsupportedCapabilityTests
 		Assert.Contains("Tizen.Maps", placemarks.Message, StringComparison.Ordinal);
 
 		Assert.Throws<FeatureNotSupportedException>(() => { _ = geocoding.GetLocationsAsync("nowhere"); });
+	}
+
+	[Fact]
+	public void GeocodingIsUnsupportedWithoutBeingHostileToTheHost()
+	{
+		// The contract is precise: the two operations Tizen cannot perform throw, and NOTHING else
+		// does. Construction, property access and disposal all happen during MauiApp startup and
+		// teardown, so a throw from any of them would turn an unsupported capability into an
+		// application that cannot start.
+		var geocoding = new TizenGeocoding();
+
+		var exception = Record.Exception(() =>
+		{
+			geocoding.MapServiceToken = "token";
+			_ = geocoding.MapServiceToken;
+			_ = ((IGeocoding)geocoding).GetType();
+		});
+
+		Assert.Null(exception);
 	}
 
 	[Fact]

@@ -2,25 +2,6 @@
 Microsoft.Maui.Platforms.Tizen.Handlers.ITizenApplicationHandler
 Microsoft.Maui.Platforms.Tizen.Handlers.ITizenApplicationHandler.PlatformView.get -> Tizen.Applications.CoreApplication!
 Microsoft.Maui.Platforms.Tizen.Handlers.ITizenApplicationHandler.VirtualView.get -> Microsoft.Maui.IApplication!
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenContentViewHandler
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenContentViewHandler.PlatformView.get -> Microsoft.Maui.Platforms.Tizen.TizenContentViewGroup!
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenContentViewHandler.VirtualView.get -> Microsoft.Maui.IContentView!
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLabelHandler
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLabelHandler.PlatformView.get -> Microsoft.Maui.Platforms.Tizen.TizenLabelView!
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLabelHandler.VirtualView.get -> Microsoft.Maui.ILabel!
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLayoutHandler
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLayoutHandler.Add(Microsoft.Maui.IView! view) -> void
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLayoutHandler.Clear() -> void
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLayoutHandler.Insert(int index, Microsoft.Maui.IView! view) -> void
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLayoutHandler.PlatformView.get -> Microsoft.Maui.Platforms.Tizen.TizenLayoutViewGroup!
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLayoutHandler.Remove(Microsoft.Maui.IView! view) -> void
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLayoutHandler.Update(int index, Microsoft.Maui.IView! view) -> void
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLayoutHandler.UpdateZIndex(Microsoft.Maui.IView! view) -> void
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLayoutHandler.VirtualView.get -> Microsoft.Maui.ILayout!
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenPageHandler
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenWindowHandler
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenWindowHandler.PlatformView.get -> Tizen.NUI.Window!
-Microsoft.Maui.Platforms.Tizen.Handlers.ITizenWindowHandler.VirtualView.get -> Microsoft.Maui.IWindow!
 Microsoft.Maui.Platforms.Tizen.Handlers.TizenApplicationHandler
 Microsoft.Maui.Platforms.Tizen.Handlers.TizenApplicationHandler.TizenApplicationHandler() -> void
 Microsoft.Maui.Platforms.Tizen.Handlers.TizenApplicationHandler.TizenApplicationHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
@@ -55,6 +36,8 @@ Microsoft.Maui.Platforms.Tizen.Hosting.TizenMauiAppBuilderExtensions
 Microsoft.Maui.Platforms.Tizen.ITizenPlatformViewHandler
 Microsoft.Maui.Platforms.Tizen.ITizenPlatformViewHandler.ContainerView.get -> Tizen.NUI.BaseComponents.View?
 Microsoft.Maui.Platforms.Tizen.ITizenPlatformViewHandler.PlatformView.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.ITizenToolbarContainer
+Microsoft.Maui.Platforms.Tizen.ITizenToolbarContainer.SetToolbar(Microsoft.Maui.Platforms.Tizen.TizenToolbarView! toolbar) -> void
 Microsoft.Maui.Platforms.Tizen.LifecycleEvents.ITizenLifecycleBuilder
 Microsoft.Maui.Platforms.Tizen.LifecycleEvents.TizenLifecycle
 Microsoft.Maui.Platforms.Tizen.LifecycleEvents.TizenLifecycle.OnAppControlReceived
@@ -107,6 +90,10 @@ Microsoft.Maui.Platforms.Tizen.TizenDispatcherTimer.Stop() -> void
 Microsoft.Maui.Platforms.Tizen.TizenDispatcherTimer.Tick -> System.EventHandler?
 Microsoft.Maui.Platforms.Tizen.TizenDispatcherTimer.TizenDispatcherTimer(System.Threading.SynchronizationContext! context) -> void
 Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity
+Microsoft.Maui.Platforms.Tizen.TizenFlyoutBehaviorExtensions
+Microsoft.Maui.Platforms.Tizen.TizenFlyoutView
+Microsoft.Maui.Platforms.Tizen.TizenFlyoutView.TizenFlyoutView() -> void
+Microsoft.Maui.Platforms.Tizen.TizenFlyoutViewExtensions
 Microsoft.Maui.Platforms.Tizen.TizenLabelView
 Microsoft.Maui.Platforms.Tizen.TizenLabelView.TizenLabelView() -> void
 Microsoft.Maui.Platforms.Tizen.TizenLayoutExtensions
@@ -133,10 +120,39 @@ Microsoft.Maui.Platforms.Tizen.TizenMauiContext.Services.get -> System.IServiceP
 Microsoft.Maui.Platforms.Tizen.TizenMauiContext.TizenMauiContext(System.IServiceProvider! services) -> void
 Microsoft.Maui.Platforms.Tizen.TizenMauiContext.WithServices(System.IServiceProvider! services) -> Microsoft.Maui.Platforms.Tizen.TizenMauiContext!
 Microsoft.Maui.Platforms.Tizen.TizenMauiContextExtensions
+Microsoft.Maui.Platforms.Tizen.TizenNaviPage
+Microsoft.Maui.Platforms.Tizen.TizenNaviPage.Content.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.TizenNaviPage.Content.set -> void
+Microsoft.Maui.Platforms.Tizen.TizenNaviPage.TitleView.get -> Tizen.UIExtensions.NUI.TitleView?
+Microsoft.Maui.Platforms.Tizen.TizenNaviPage.TitleView.set -> void
+Microsoft.Maui.Platforms.Tizen.TizenNaviPage.TizenNaviPage() -> void
 Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.GetNavigationItem(Microsoft.Maui.IView! page) -> Microsoft.Maui.Platforms.Tizen.TizenNaviPage!
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.MauiContext.get -> Microsoft.Maui.IMauiContext?
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.MauiContext.set -> void
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.NavigationStack.get -> System.Collections.Generic.IReadOnlyList<Microsoft.Maui.IView!>!
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.NavigationView.get -> Microsoft.Maui.IStackNavigation?
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.NavigationView.set -> void
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.PlatformNavigation.get -> Tizen.UIExtensions.NUI.NavigationStack!
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.SetToolbar(Microsoft.Maui.Platforms.Tizen.TizenToolbarView! toolbar) -> void
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.TizenStackNavigationManager() -> void
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.Toolbar.get -> Microsoft.Maui.Platforms.Tizen.TizenToolbarView?
+Microsoft.Maui.Platforms.Tizen.TizenTVFlyoutView
+Microsoft.Maui.Platforms.Tizen.TizenTVFlyoutView.TizenTVFlyoutView() -> void
 Microsoft.Maui.Platforms.Tizen.TizenTicker
 Microsoft.Maui.Platforms.Tizen.TizenTicker.Dispose() -> void
 Microsoft.Maui.Platforms.Tizen.TizenTicker.TizenTicker() -> void
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView.Collapse() -> void
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView.Expand() -> void
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView.IconPressed -> System.EventHandler?
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView.SearchBar.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView.SearchBar.set -> void
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView.SendIconPressed() -> void
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView.TizenToolbarView() -> void
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView.UpdateMenuButton(Microsoft.Maui.IToolbar! toolbar) -> void
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView.UpdateTitle(Microsoft.Maui.IToolbar! toolbar) -> void
 Microsoft.Maui.Platforms.Tizen.TizenWindowLifecycleBridge
 Microsoft.Maui.Platforms.Tizen.TizenWindowLifecycleBridge.OnCreate() -> void
 Microsoft.Maui.Platforms.Tizen.TizenWindowLifecycleBridge.OnPause() -> void
@@ -184,25 +200,25 @@ static Microsoft.Maui.Platforms.Tizen.Handlers.TizenApplicationHandler.MapActiva
 static Microsoft.Maui.Platforms.Tizen.Handlers.TizenApplicationHandler.MapCloseWindow(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenApplicationHandler! handler, Microsoft.Maui.IApplication! application, object? args) -> void
 static Microsoft.Maui.Platforms.Tizen.Handlers.TizenApplicationHandler.MapOpenWindow(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenApplicationHandler! handler, Microsoft.Maui.IApplication! application, object? args) -> void
 static Microsoft.Maui.Platforms.Tizen.Handlers.TizenApplicationHandler.MapTerminate(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenApplicationHandler! handler, Microsoft.Maui.IApplication! application, object? args) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenContentViewHandler.MapBackground(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenContentViewHandler! handler, Microsoft.Maui.IContentView! view) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenContentViewHandler.MapContent(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenContentViewHandler! handler, Microsoft.Maui.IContentView! view) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapBackground(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapCharacterSpacing(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapFont(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapHorizontalTextAlignment(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapLineHeight(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapOpacity(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapPadding(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapShadow(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapText(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapTextColor(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapTextDecorations(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapVerticalTextAlignment(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLayoutHandler.MapBackground(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLayoutHandler! handler, Microsoft.Maui.ILayout! layout) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLayoutHandler.MapClipsToBounds(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLayoutHandler! handler, Microsoft.Maui.ILayout! layout) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLayoutHandler.MapInputTransparent(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLayoutHandler! handler, Microsoft.Maui.ILayout! layout) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPageHandler.MapPageBackground(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenPageHandler! handler, Microsoft.Maui.IContentView! page) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPageHandler.MapTitle(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenPageHandler! handler, Microsoft.Maui.IContentView! page) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenContentViewHandler.MapBackground(Microsoft.Maui.Handlers.IContentViewHandler! handler, Microsoft.Maui.IContentView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenContentViewHandler.MapContent(Microsoft.Maui.Handlers.IContentViewHandler! handler, Microsoft.Maui.IContentView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapBackground(Microsoft.Maui.Handlers.ILabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapCharacterSpacing(Microsoft.Maui.Handlers.ILabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapFont(Microsoft.Maui.Handlers.ILabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapHorizontalTextAlignment(Microsoft.Maui.Handlers.ILabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapLineHeight(Microsoft.Maui.Handlers.ILabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapOpacity(Microsoft.Maui.Handlers.ILabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapPadding(Microsoft.Maui.Handlers.ILabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapShadow(Microsoft.Maui.Handlers.ILabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapText(Microsoft.Maui.Handlers.ILabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapTextColor(Microsoft.Maui.Handlers.ILabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapTextDecorations(Microsoft.Maui.Handlers.ILabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapVerticalTextAlignment(Microsoft.Maui.Handlers.ILabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLayoutHandler.MapBackground(Microsoft.Maui.ILayoutHandler! handler, Microsoft.Maui.ILayout! layout) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLayoutHandler.MapClipsToBounds(Microsoft.Maui.ILayoutHandler! handler, Microsoft.Maui.ILayout! layout) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLayoutHandler.MapInputTransparent(Microsoft.Maui.ILayoutHandler! handler, Microsoft.Maui.ILayout! layout) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPageHandler.MapPageBackground(Microsoft.Maui.Handlers.IPageHandler! handler, Microsoft.Maui.IContentView! page) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPageHandler.MapTitle(Microsoft.Maui.Handlers.IPageHandler! handler, Microsoft.Maui.IContentView! page) -> void
 static Microsoft.Maui.Platforms.Tizen.Handlers.TizenViewMappers.MapAnchorX(Microsoft.Maui.IViewHandler! handler, Microsoft.Maui.IView! view) -> void
 static Microsoft.Maui.Platforms.Tizen.Handlers.TizenViewMappers.MapAnchorY(Microsoft.Maui.IViewHandler! handler, Microsoft.Maui.IView! view) -> void
 static Microsoft.Maui.Platforms.Tizen.Handlers.TizenViewMappers.MapAutomationId(Microsoft.Maui.IViewHandler! handler, Microsoft.Maui.IView! view) -> void
@@ -232,13 +248,13 @@ static Microsoft.Maui.Platforms.Tizen.Handlers.TizenViewMappers.MapTranslationY(
 static Microsoft.Maui.Platforms.Tizen.Handlers.TizenViewMappers.MapVisibility(Microsoft.Maui.IViewHandler! handler, Microsoft.Maui.IView! view) -> void
 static Microsoft.Maui.Platforms.Tizen.Handlers.TizenViewMappers.MapWidth(Microsoft.Maui.IViewHandler! handler, Microsoft.Maui.IView! view) -> void
 static Microsoft.Maui.Platforms.Tizen.Handlers.TizenViewMappers.MapZIndex(Microsoft.Maui.IViewHandler! handler, Microsoft.Maui.IView! view, object? args) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenWindowHandler.MapContent(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenWindowHandler! handler, Microsoft.Maui.IWindow! window) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenWindowHandler.MapHeight(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenWindowHandler! handler, Microsoft.Maui.IWindow! window) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenWindowHandler.MapRequestDisplayDensity(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenWindowHandler! handler, Microsoft.Maui.IWindow! window, object? args) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenWindowHandler.MapTitle(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenWindowHandler! handler, Microsoft.Maui.IWindow! window) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenWindowHandler.MapWidth(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenWindowHandler! handler, Microsoft.Maui.IWindow! window) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenWindowHandler.MapX(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenWindowHandler! handler, Microsoft.Maui.IWindow! window) -> void
-static Microsoft.Maui.Platforms.Tizen.Handlers.TizenWindowHandler.MapY(Microsoft.Maui.Platforms.Tizen.Handlers.ITizenWindowHandler! handler, Microsoft.Maui.IWindow! window) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenWindowHandler.MapContent(Microsoft.Maui.Handlers.IWindowHandler! handler, Microsoft.Maui.IWindow! window) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenWindowHandler.MapHeight(Microsoft.Maui.Handlers.IWindowHandler! handler, Microsoft.Maui.IWindow! window) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenWindowHandler.MapRequestDisplayDensity(Microsoft.Maui.Handlers.IWindowHandler! handler, Microsoft.Maui.IWindow! window, object? args) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenWindowHandler.MapTitle(Microsoft.Maui.Handlers.IWindowHandler! handler, Microsoft.Maui.IWindow! window) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenWindowHandler.MapWidth(Microsoft.Maui.Handlers.IWindowHandler! handler, Microsoft.Maui.IWindow! window) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenWindowHandler.MapX(Microsoft.Maui.Handlers.IWindowHandler! handler, Microsoft.Maui.IWindow! window) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenWindowHandler.MapY(Microsoft.Maui.Handlers.IWindowHandler! handler, Microsoft.Maui.IWindow! window) -> void
 static Microsoft.Maui.Platforms.Tizen.Hosting.TizenHandlerCollectionExtensions.AddTizenHandlers(this Microsoft.Maui.Hosting.IMauiHandlersCollection! handlers) -> Microsoft.Maui.Hosting.IMauiHandlersCollection!
 static Microsoft.Maui.Platforms.Tizen.Hosting.TizenHandlerCollectionExtensions.AddTizenPageHandler<TPage>(this Microsoft.Maui.Hosting.IMauiHandlersCollection! handlers) -> Microsoft.Maui.Hosting.IMauiHandlersCollection!
 static Microsoft.Maui.Platforms.Tizen.Hosting.TizenMauiAppBuilderExtensions.ConfigureTizen(this Microsoft.Maui.Hosting.MauiAppBuilder! builder) -> Microsoft.Maui.Hosting.MauiAppBuilder!
@@ -273,6 +289,14 @@ static Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity.SetDensityOverride(dou
 static Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity.ToScaledDP(this double pixel) -> double
 static Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity.ToScaledDP(this int pixel) -> double
 static Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity.ToScaledPixel(this double dp) -> int
+static Microsoft.Maui.Platforms.Tizen.TizenFlyoutBehaviorExtensions.ToTizenDrawerBehavior(this Microsoft.Maui.FlyoutBehavior behavior) -> Tizen.UIExtensions.Common.DrawerBehavior
+static Microsoft.Maui.Platforms.Tizen.TizenFlyoutBehaviorExtensions.ToTizenDrawerBehavior(this Microsoft.Maui.IFlyoutView! flyoutView) -> Tizen.UIExtensions.Common.DrawerBehavior
+static Microsoft.Maui.Platforms.Tizen.TizenFlyoutViewExtensions.UpdateDetail(this Tizen.UIExtensions.NUI.DrawerView! platformDrawerView, Microsoft.Maui.IFlyoutView! flyoutView, Microsoft.Maui.IMauiContext! context) -> void
+static Microsoft.Maui.Platforms.Tizen.TizenFlyoutViewExtensions.UpdateFlyout(this Tizen.UIExtensions.NUI.DrawerView! platformDrawerView, Microsoft.Maui.IFlyoutView! flyoutView, Microsoft.Maui.IMauiContext! context) -> void
+static Microsoft.Maui.Platforms.Tizen.TizenFlyoutViewExtensions.UpdateFlyoutBehavior(this Tizen.UIExtensions.NUI.DrawerView! platformDrawerView, Microsoft.Maui.IFlyoutView! flyoutView) -> void
+static Microsoft.Maui.Platforms.Tizen.TizenFlyoutViewExtensions.UpdateFlyoutWidth(this Tizen.UIExtensions.NUI.DrawerView! platformDrawerView, Microsoft.Maui.IFlyoutView! flyoutView) -> void
+static Microsoft.Maui.Platforms.Tizen.TizenFlyoutViewExtensions.UpdateIsGestureEnabled(this Tizen.UIExtensions.NUI.DrawerView! platformDrawerView, Microsoft.Maui.IFlyoutView! flyoutView) -> void
+static Microsoft.Maui.Platforms.Tizen.TizenFlyoutViewExtensions.UpdateIsPresented(this Tizen.UIExtensions.NUI.DrawerView! platformDrawerView, Microsoft.Maui.IFlyoutView! flyoutView) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenLayoutExtensions.GetLayoutHandlerIndex(this Microsoft.Maui.ILayout! layout, Microsoft.Maui.IView! view) -> int
 static Microsoft.Maui.Platforms.Tizen.TizenLayoutExtensions.OrderByZIndex(this Microsoft.Maui.ILayout! layout) -> System.Linq.IOrderedEnumerable<Microsoft.Maui.IView!>!
 static Microsoft.Maui.Platforms.Tizen.TizenMauiApplication.Current.get -> Microsoft.Maui.Platforms.Tizen.TizenMauiApplication!
@@ -336,22 +360,30 @@ static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateVisibility(t
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateWidth(this Tizen.NUI.Window! platformWindow, Microsoft.Maui.IWindow! window) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateX(this Tizen.NUI.Window! platformWindow, Microsoft.Maui.IWindow! window) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateY(this Tizen.NUI.Window! platformWindow, Microsoft.Maui.IWindow! window) -> void
+static Microsoft.Maui.Platforms.Tizen.TizenToolbarView.ExpandedHeight.get -> float
 static Microsoft.Maui.Platforms.Tizen.TizenWindowLifecycleBridge.GetCurrentWindow() -> Microsoft.Maui.IWindow?
 static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenApplicationHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.IApplication!, Microsoft.Maui.Platforms.Tizen.Handlers.ITizenApplicationHandler!>!
 static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenApplicationHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.IApplication!, Microsoft.Maui.Platforms.Tizen.Handlers.ITizenApplicationHandler!>!
-static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenContentViewHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.IContentView!, Microsoft.Maui.Platforms.Tizen.Handlers.ITizenContentViewHandler!>!
-static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenContentViewHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.IContentView!, Microsoft.Maui.Platforms.Tizen.Handlers.ITizenContentViewHandler!>!
-static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.ILabel!, Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLabelHandler!>!
-static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.ILabel!, Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLabelHandler!>!
-static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenLayoutHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.ILayout!, Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLayoutHandler!>!
-static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenLayoutHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.ILayout!, Microsoft.Maui.Platforms.Tizen.Handlers.ITizenLayoutHandler!>!
-static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenPageHandler.PageCommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.IContentView!, Microsoft.Maui.Platforms.Tizen.Handlers.ITizenPageHandler!>!
-static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenPageHandler.PageMapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.IContentView!, Microsoft.Maui.Platforms.Tizen.Handlers.ITizenPageHandler!>!
+static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenContentViewHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.IContentView!, Microsoft.Maui.Handlers.IContentViewHandler!>!
+static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenContentViewHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.IContentView!, Microsoft.Maui.Handlers.IContentViewHandler!>!
+static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.ILabel!, Microsoft.Maui.Handlers.ILabelHandler!>!
+static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.ILabel!, Microsoft.Maui.Handlers.ILabelHandler!>!
+static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenLayoutHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.ILayout!, Microsoft.Maui.ILayoutHandler!>!
+static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenLayoutHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.ILayout!, Microsoft.Maui.ILayoutHandler!>!
+static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenPageHandler.PageCommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.IContentView!, Microsoft.Maui.Handlers.IPageHandler!>!
+static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenPageHandler.PageMapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.IContentView!, Microsoft.Maui.Handlers.IPageHandler!>!
 static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenViewMappers.ViewCommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.IView!, Microsoft.Maui.IViewHandler!>!
 static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenViewMappers.ViewMapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.IView!, Microsoft.Maui.IViewHandler!>!
-static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenWindowHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.IWindow!, Microsoft.Maui.Platforms.Tizen.Handlers.ITizenWindowHandler!>!
-static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenWindowHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.IWindow!, Microsoft.Maui.Platforms.Tizen.Handlers.ITizenWindowHandler!>!
+static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenWindowHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.IWindow!, Microsoft.Maui.Handlers.IWindowHandler!>!
+static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenWindowHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.IWindow!, Microsoft.Maui.Handlers.IWindowHandler!>!
 virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenViewHandler<TVirtualView, TPlatformView>.Dispose(bool disposing) -> void
 virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenViewHandler<TVirtualView, TPlatformView>.Measure(double availableWidth, double availableHeight) -> Microsoft.Maui.Graphics.Size
 virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenViewHandler<TVirtualView, TPlatformView>.OnFocused() -> void
 virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenViewHandler<TVirtualView, TPlatformView>.OnUnfocused() -> void
+virtual Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.Connect(Microsoft.Maui.IView! navigationView) -> void
+virtual Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.CreateNavigationItem(Microsoft.Maui.IView! page) -> Microsoft.Maui.Platforms.Tizen.TizenNaviPage!
+virtual Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.Disconnect() -> void
+virtual Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.InitializeStack(System.Collections.Generic.IReadOnlyList<Microsoft.Maui.IView!>! newStack, bool animated) -> System.Threading.Tasks.Task!
+virtual Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.OnNavigationFinished(System.Collections.Generic.IReadOnlyList<Microsoft.Maui.IView!>! stack) -> void
+virtual Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.OnPageRemoved(Microsoft.Maui.IView! page) -> void
+virtual Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.RequestNavigation(Microsoft.Maui.NavigationRequest! e) -> void

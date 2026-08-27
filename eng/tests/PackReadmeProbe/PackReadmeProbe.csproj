@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    README packing regression.
+
+    A review flagged that Directory.Build.props' README <None Pack="true"> lives in an
+    ItemGroup conditioned on '$(IsPackable)' == 'true', and that a project opting into
+    packing from its own body would therefore miss it and fail with NU5039 ("readme file
+    does not exist in the package").
+
+    That turns out NOT to be how MSBuild evaluates: properties across ALL imports and the
+    project body are evaluated in an earlier pass than any item, so an ItemGroup condition
+    in Directory.Build.props already observes the final $(IsPackable). Packing this project
+    - which opts in exactly the way a shipping package would, including importing
+    TizenPackage.props - produces a nupkg containing README.md and no NU5039.
+
+    The concern was reasonable, and the reasoning would hold in a language with top-to-
+    bottom evaluation. Rather than move working configuration on a theory, this project
+    pins the actual behaviour: eng/build-workload-free.sh packs it and asserts README.md is
+    present in the nupkg. If a future MSBuild change or refactor breaks it, the lane says
+    so immediately instead of the failure surfacing in whichever PR first ships a package.
+  -->
+
+  <Import Project="$(MSBuildThisFileDirectory)../../targets/TizenPackage.props" />
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+
+    <!-- Not a Tizen project: it must pack in the workload-free lane. -->
+    <IsTizenProject>false</IsTizenProject>
+
+    <!-- The point of the test: opt into packing from the project body. -->
+    <IsPackable>true</IsPackable>
+
+    <PackageId>Maui.Tizen.Internal.PackReadmeProbe</PackageId>
+    <Description>Internal packing regression probe. Never published.</Description>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+
+    <!--
+      Build output IS included. Suppressing it alongside SuppressDependenciesWhenPacking
+      leaves the package with neither content nor dependencies, which fails NU5017 before
+      the README assertion is ever reached - a probe that fails for its own reasons tests
+      nothing.
+    -->
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Minimal real content so the package is valid; the README is what is under test. -->
+    <Compile Include="Probe.cs" />
+  </ItemGroup>
+
+</Project>

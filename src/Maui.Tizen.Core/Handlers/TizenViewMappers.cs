@@ -30,8 +30,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	public static class TizenViewMappers
 	{
 		/// <summary>Base property mapper for <see cref="IView"/> on Tizen.</summary>
+		/// <remarks>
+		/// Chains MAUI's static <c>ViewHandler.ViewMapper</c> deliberately. MAUI Controls'
+		/// <c>RemapForControls</c> mutates that instance at runtime, adding Controls-level keys
+		/// (<c>BackgroundColor</c>, <c>BackgroundImageSource</c>, <c>Description</c>, <c>Hint</c>,
+		/// <c>HeadingLevel</c>, <c>IsInAccessibleTree</c>, <c>ExcludedWithChildren</c>) whose
+		/// implementations route back into the platform mappers below. Chaining is the only way an
+		/// out-of-repo backend can observe them.
+		/// <para>
+		/// Own entries are checked before the chain, so the real Tizen bodies still win over MAUI's
+		/// neutral no-op ones for every key this backend implements.
+		/// </para>
+		/// </remarks>
 		public static readonly IPropertyMapper<IView, IViewHandler> ViewMapper =
-			new PropertyMapper<IView, IViewHandler>
+			new PropertyMapper<IView, IViewHandler>(Microsoft.Maui.Handlers.ViewHandler.ViewMapper)
 			{
 				[nameof(IView.AutomationId)] = MapAutomationId,
 				[nameof(IView.Clip)] = MapClip,
@@ -247,13 +259,23 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		/// <summary>
-		/// Maps <see cref="IView.Semantics"/>. Empty on purpose, matching dotnet/maui's Tizen
-		/// implementation.
+		/// Maps <see cref="IView.Semantics"/> onto NUI's accessibility properties.
 		/// </summary>
+		/// <remarks>
+		/// dotnet/maui's Tizen <c>UpdateSemantics</c> is an empty stub. TizenFX API15 does expose
+		/// <c>AccessibilityName</c>, <c>AccessibilityDescription</c> and
+		/// <c>AccessibilityHighlightable</c>, so this backend implements it rather than inheriting
+		/// the stub - Controls routes <c>Description</c>, <c>Hint</c>, <c>HeadingLevel</c>,
+		/// <c>IsInAccessibleTree</c> and <c>ExcludedWithChildren</c> back through this key.
+		/// </remarks>
 		/// <param name="handler">The handler.</param>
 		/// <param name="view">The view.</param>
 		public static void MapSemantics(IViewHandler handler, IView view)
 		{
+			Applied(handler, nameof(IView.Semantics));
+#if TIZEN
+			Platform(handler)?.UpdateSemantics(view);
+#endif
 		}
 
 		/// <summary>Maps <see cref="IView.TranslationX"/>.</summary>
@@ -360,7 +382,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			Applied(handler, nameof(IView.ZIndex));
 
 			if (view.Parent is ILayout layout)
-				layout.Handler?.Invoke(nameof(ITizenLayoutHandler.UpdateZIndex), view);
+				layout.Handler?.Invoke(nameof(ILayoutHandler.UpdateZIndex), view);
 		}
 
 		static void MapInvalidateMeasure(IViewHandler handler, IView view, object? args)

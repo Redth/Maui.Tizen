@@ -42,6 +42,35 @@
     <PackageReference Include="Microsoft.Maui.Core" />
   </ItemGroup>
 
+  <!--
+    PublicAPI baselines.
+
+    Opted in explicitly, per eng/targets/TizenPackage.props: the automatic `PublicAPI/**` glob was
+    removed because it attached upstream's monolithic per-assembly baseline to our split assembly.
+
+    The inherited PublicAPI/net-tizen files describe the whole of upstream's
+    Microsoft.Maui.Essentials surface. This assembly exports Microsoft.Maui.Platforms.Tizen.Essentials.*
+    plus one Microsoft.Maui.Hosting extensions class and consumes the rest from the published
+    package, so leaving them attached would fail the build with RS0017 for every inherited entry
+    absent here and RS0016 for everything this assembly does export.
+
+    They stay on disk as the imported provenance record consumed by eng/api-baselines/, and are
+    simply detached here in favour of baselines describing this assembly. See PublicAPI/slice/README.md.
+
+    tests/Maui.Tizen.Essentials.RefPackCompile runs the analyzer over these same sources with these
+    same baselines, which is the only place it can execute until the Samsung workload ships.
+  -->
+  <PropertyGroup>
+    <EnablePublicApiAnalyzer>true</EnablePublicApiAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Remove="PublicAPI/net-tizen/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Remove="PublicAPI/net-tizen/PublicAPI.Unshipped.txt" />
+    <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="Maui.Tizen.Essentials.HostVerification" />
   </ItemGroup>
