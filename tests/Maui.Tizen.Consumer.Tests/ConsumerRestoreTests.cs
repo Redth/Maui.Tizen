@@ -202,11 +202,23 @@ public class ConsumerRestoreTests
     {
         var packagesDirectory = Path.Combine(RepoLayout.Root, "artifacts", "packages");
 
+        // As in PackagingTests: a non-empty artifacts/packages does not mean the SHIPPING packages
+        // exist. Other probes pack internal artifacts into the same directory, and restoring a
+        // net11.0-tizen11.0 consumer without the workload fails with NETSDK1139 - which would look
+        // like a packaging defect rather than the absent workload it actually is.
+        var declared = PackageContentContract.EnumerateDeclaredPackageIds();
+
+        var produced = declared
+            .Where(id => Directory.Exists(packagesDirectory) && Directory
+                .EnumerateFiles(packagesDirectory, $"{id}.*.nupkg")
+                .Any(p => !p.EndsWith(".symbols.nupkg", StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
         ValidationSkip.When(
-            !Directory.Exists(packagesDirectory) ||
-            !Directory.EnumerateFiles(packagesDirectory, "*.nupkg").Any(),
-            "No packages have been produced. The shipping packages target the Tizen framework and " +
-            "cannot be packed until the Samsung workload is available; see docs/validation/blockers.md.");
+            produced.Count != declared.Count || declared.Count == 0,
+            $"Only {produced.Count} of {declared.Count} declared shipping package(s) have been " +
+            "produced. A consumer restore needs the full set, and they cannot be packed until the " +
+            "Samsung workload is available; see docs/validation/blockers.md.");
 
         using var workspace = TempWorkspace.Create("consumer-real");
         WriteIsolation(workspace);
@@ -214,8 +226,7 @@ public class ConsumerRestoreTests
 
         var references = string.Join(
             Environment.NewLine,
-            PackageContentContract.EnumerateDeclaredPackageIds()
-                .Select(id => $"""    <PackageReference Include="{id}" Version="*" />"""));
+            produced.Select(id => $"""    <PackageReference Include="{id}" Version="*" />"""));
 
         workspace.WriteFile("Consumer/Consumer.csproj",
             $"""
