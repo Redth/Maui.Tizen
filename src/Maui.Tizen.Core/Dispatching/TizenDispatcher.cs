@@ -24,11 +24,32 @@ namespace Microsoft.Maui.Platforms.Tizen
 	public class TizenDispatcher : IDispatcher
 	{
 		readonly SynchronizationContext _context;
+		readonly TimeProvider _timeProvider;
 
 		/// <summary>Initializes a new instance of the <see cref="TizenDispatcher"/> class.</summary>
 		/// <param name="context">The synchronization context of the Tizen main loop.</param>
-		public TizenDispatcher(SynchronizationContext context) =>
+		public TizenDispatcher(SynchronizationContext context)
+			: this(context, TimeProvider.System)
+		{
+		}
+
+		/// <summary>
+		/// Initializes a new instance with an explicit <see cref="TimeProvider"/>, so delayed
+		/// dispatch can be driven deterministically.
+		/// </summary>
+		/// <remarks>
+		/// Internal rather than public: it exists for testability, and the unit-test lane compiles
+		/// these sources directly, so it does not need to widen the package's public surface.
+		///
+		/// Without it the delayed-dispatch tests could only wait on the wall clock and hope, which
+		/// is exactly how ConcurrentDelayedDispatchesEachFireExactlyOnce came to fail in CI with
+		/// none of its callbacks fired - the dispatcher was fine, the runner was just busy.
+		/// </remarks>
+		internal TizenDispatcher(SynchronizationContext context, TimeProvider timeProvider)
+		{
 			_context = context ?? throw new ArgumentNullException(nameof(context));
+			_timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+		}
 
 		/// <inheritdoc />
 		public bool IsDispatchRequired => _context != SynchronizationContext.Current;
@@ -59,7 +80,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			ArgumentNullException.ThrowIfNull(action);
 
-			var state = new DelayedDispatch(_context, action);
+			var state = new DelayedDispatch(_context, action, _timeProvider);
 			state.Start(delay);
 
 			return true;
@@ -73,23 +94,35 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			readonly SynchronizationContext _context;
 			readonly Action _action;
-			Timer? _timer;
+			readonly TimeProvider _timeProvider;
+			ITimer? _timer;
+			int _fired;
 
-			public DelayedDispatch(SynchronizationContext context, Action action)
+			public DelayedDispatch(SynchronizationContext context, Action action, TimeProvider timeProvider)
 			{
 				_context = context;
 				_action = action;
+				_timeProvider = timeProvider;
 			}
 
 			public void Start(TimeSpan delay)
 			{
 				// Created stopped, then armed, so _timer is non-null by the time OnTick can run.
-				_timer = new Timer(static s => ((DelayedDispatch)s!).OnTick(), this, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+				_timer = _timeProvider.CreateTimer(
+					static s => ((DelayedDispatch)s!).OnTick(), this, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+
 				_timer.Change(delay, Timeout.InfiniteTimeSpan);
 			}
 
 			void OnTick()
 			{
+				// Interlocked rather than the timer period alone. The period being infinite is the
+				// first line of defence and disposing before posting is the second, but neither is
+				// airtight on its own if the timer implementation ever queues a tick concurrently.
+				// This makes "exactly once" a property of the dispatch itself.
+				if (Interlocked.Exchange(ref _fired, 1) != 0)
+					return;
+
 				// Dispose before posting: the timer is already one-shot, so there is nothing left
 				// to cancel, and this cannot suppress the dispatch.
 				_timer?.Dispose();
@@ -100,7 +133,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		}
 
 		/// <inheritdoc />
-		public IDispatcherTimer CreateTimer() => new TizenDispatcherTimer(_context);
+		public IDispatcherTimer CreateTimer() => new TizenDispatcherTimer(_context, _timeProvider);
 	}
 
 	/// <summary>
@@ -110,14 +143,27 @@ namespace Microsoft.Maui.Platforms.Tizen
 	public class TizenDispatcherTimer : IDispatcherTimer, IDisposable
 	{
 		readonly SynchronizationContext _context;
-		readonly Timer _timer;
+		readonly ITimer _timer;
+		volatile bool _disposed;
 
 		/// <summary>Initializes a new instance of the <see cref="TizenDispatcherTimer"/> class.</summary>
 		/// <param name="context">The synchronization context of the Tizen main loop.</param>
 		public TizenDispatcherTimer(SynchronizationContext context)
+			: this(context, TimeProvider.System)
+		{
+		}
+
+		/// <summary>
+		/// Initializes a new instance with an explicit <see cref="TimeProvider"/>, so ticks can be
+		/// driven deterministically. Internal; see <see cref="TizenDispatcher"/>.
+		/// </summary>
+		internal TizenDispatcherTimer(SynchronizationContext context, TimeProvider timeProvider)
 		{
 			_context = context ?? throw new ArgumentNullException(nameof(context));
-			_timer = new Timer(_ => _context.Post(OnTimerTick, null), null, Timeout.Infinite, Timeout.Infinite);
+			ArgumentNullException.ThrowIfNull(timeProvider);
+
+			_timer = timeProvider.CreateTimer(
+				_ => _context.Post(OnTimerTick, null), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 		}
 
 		/// <inheritdoc />
@@ -135,13 +181,17 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <inheritdoc />
 		public void Start()
 		{
+			ObjectDisposedException.ThrowIf(_disposed, this);
+
 			if (IsRunning)
 				return;
 
 			IsRunning = true;
 
-			// The interval is applied separately so the callback cannot run before the field is set.
-			_timer.Change(Interval, Interval);
+			// A non-repeating timer is armed with an infinite PERIOD rather than being armed to
+			// repeat and then disarmed after the first tick. The latter leaves a real window in
+			// which the underlying timer can queue a second tick before the disarm lands.
+			_timer.Change(Interval, IsRepeating ? Interval : Timeout.InfiniteTimeSpan);
 		}
 
 		/// <inheritdoc />
@@ -151,26 +201,60 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 
 			IsRunning = false;
-			_timer.Change(Timeout.Infinite, Timeout.Infinite);
+
+			if (!_disposed)
+				_timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 		}
 
 		void OnTimerTick(object? state)
 		{
-			if (!IsRunning)
+			// A tick is posted to the main loop, so it is queued behind whatever else is on the
+			// loop and can be delivered AFTER Stop or Dispose has already run. Both are checked
+			// here, and again after the handler, because the handler itself is a very common place
+			// to call Stop() or Dispose().
+			//
+			// The _disposed half of this entry check is redundant with IsRunning on a single
+			// thread, since Dispose clears both; it is kept for the concurrent case and is
+			// deliberately NOT claimed as test-covered - no deterministic test can distinguish it.
+			if (_disposed || !IsRunning)
 				return;
+
+			// The shot has been fired, so a one-shot is no longer running BEFORE the handler sees
+			// it. Start() is a no-op while IsRunning is true, so leaving it set meant a handler
+			// that called Start() to re-arm was silently ignored and the timer stopped dead - the
+			// standard shape for a self-scheduling loop with a variable delay, which MAUI's own
+			// animation code uses.
+			if (!IsRepeating)
+				IsRunning = false;
 
 			Tick?.Invoke(this, EventArgs.Empty);
 
-			if (!IsRepeating)
-			{
-				IsRunning = false;
-				_timer.Change(Timeout.Infinite, Timeout.Infinite);
-			}
+			if (_disposed)
+				return;
+
+			// IsRunning now reflects whatever the handler did: left alone for a one-shot it is
+			// false and the timer is disarmed; if the handler called Start() it is true and the
+			// timer is already re-armed, so this correctly leaves that arming alone.
+			//
+			// A generation counter was tried here to distinguish "handler re-armed" from "one-shot
+			// finished". With IsRunning cleared before the handler it turned out to be redundant -
+			// no mutation of it could be made to fail a test - so it was removed rather than kept
+			// as unjustifiable complexity.
+			if (!IsRunning)
+				_timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 		}
 
 		/// <inheritdoc />
 		public void Dispose()
 		{
+			if (_disposed)
+				return;
+
+			// Mark disposed BEFORE tearing the timer down, so a tick already queued on the loop
+			// sees the flag and returns instead of raising Tick on a disposed timer.
+			_disposed = true;
+			IsRunning = false;
+
 			_timer.Dispose();
 			GC.SuppressFinalize(this);
 		}

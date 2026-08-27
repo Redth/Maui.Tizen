@@ -45,6 +45,76 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				return count;
 			}
 
+			/// <summary>
+			/// Pumps until <paramref name="expected"/> callbacks have run, or the timeout expires.
+			/// </summary>
+			/// <remarks>
+			/// Drain(TimeSpan) pumps for a fixed wall-clock window, which makes any test built on
+			/// it a race against the machine rather than a test of the dispatcher.
+			/// ConcurrentDelayedDispatchesEachFireExactlyOnce failed in CI with 7 of its 8 delayed
+			/// callbacks unfired - not because the dispatcher dropped them, but because a loaded
+			/// runner did not get round to them inside 600ms.
+			///
+			/// Waiting for the WORK instead of for the clock removes the flake without weakening
+			/// the assertion: callers still verify each callback fired exactly once, and a genuine
+			/// hang still fails on the timeout.
+			/// </remarks>
+			public int DrainUntil(int expected, TimeSpan timeout)
+			{
+				var count = 0;
+				var deadline = DateTime.UtcNow + timeout;
+
+				while (count < expected && DateTime.UtcNow < deadline)
+				{
+					if (!_queue.TryTake(out var item, TimeSpan.FromMilliseconds(10)))
+						continue;
+
+					var previous = Current;
+					SetSynchronizationContext(this);
+					try
+					{
+						item.Item1(item.Item2);
+					}
+					finally
+					{
+						SetSynchronizationContext(previous);
+					}
+
+					count++;
+				}
+
+				return count;
+			}
+
+			/// <summary>Runs every callback queued right now and returns how many there were.</summary>
+			/// <remarks>
+			/// No timeout, because with a ManualTimeProvider there is nothing to wait FOR: once
+			/// Advance returns, everything it triggered has already been posted. A test that waits
+			/// here is reintroducing the very flakiness the fake clock removes.
+			/// </remarks>
+			public int DrainAvailable()
+			{
+				var count = 0;
+
+				while (_queue.TryTake(out var item, TimeSpan.Zero))
+				{
+					var previous = Current;
+					SetSynchronizationContext(this);
+					try
+					{
+						item.Item1(item.Item2);
+					}
+					finally
+					{
+						SetSynchronizationContext(previous);
+					}
+
+					count++;
+				}
+
+				return count;
+			}
+
 			public bool DrainOne(TimeSpan timeout)
 			{
 				if (!_queue.TryTake(out var item, timeout))
@@ -197,11 +267,27 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var dispatcher = new TizenDispatcher(context);
 			var count = 0;
 
-			Assert.True(dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(10), () => Interlocked.Increment(ref count)));
+			var time = new ManualTimeProvider();
+			var dispatcher2 = new TizenDispatcher(context, time);
 
-			context.Drain(TimeSpan.FromMilliseconds(600));
+			Assert.True(dispatcher2.DispatchDelayed(TimeSpan.FromMilliseconds(10), () => Interlocked.Increment(ref count)));
 
+			// Nothing is due yet, so nothing may have been queued.
+			time.Advance(TimeSpan.FromMilliseconds(9));
+			Assert.Equal(0, context.DrainAvailable());
+
+			time.Advance(TimeSpan.FromMilliseconds(1));
+			Assert.Equal(1, context.DrainAvailable());
 			Assert.Equal(1, Volatile.Read(ref count));
+
+			// Push the clock a long way past the delay. A repeating timer would become due again
+			// and post a second time; a one-shot must not, no matter how far time moves.
+			time.Advance(TimeSpan.FromMinutes(5));
+
+			Assert.Equal(0, context.DrainAvailable());
+			Assert.Equal(1, Volatile.Read(ref count));
+
+			_ = dispatcher;
 		}
 
 		[Fact]
@@ -225,7 +311,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		public void ConcurrentDelayedDispatchesEachFireExactlyOnce()
 		{
 			var context = new LoopContext();
-			var dispatcher = new TizenDispatcher(context);
+			var time = new ManualTimeProvider();
+			var dispatcher = new TizenDispatcher(context, time);
 			var counts = new int[8];
 
 			for (var i = 0; i < counts.Length; i++)
@@ -234,9 +321,259 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(5 + index), () => Interlocked.Increment(ref counts[index]));
 			}
 
-			context.Drain(TimeSpan.FromMilliseconds(600));
+			// Every timer becomes due in one advance, so they are delivered back to back - which is
+			// the interleaving most likely to expose a shared-state bug between concurrent delayed
+			// dispatches, and it happens on every run rather than occasionally.
+			time.Advance(TimeSpan.FromMilliseconds(100));
 
+			Assert.Equal(counts.Length, context.DrainAvailable());
+
+			time.Advance(TimeSpan.FromMinutes(5));
+
+			Assert.Equal(0, context.DrainAvailable());
 			Assert.All(counts, c => Assert.Equal(1, c));
+		}
+
+		[Fact]
+		public void DisposingTheTimerSuppressesATickAlreadyQueuedOnTheLoop()
+		{
+			// The dangerous ordering, and the reason Dispose sets its flag before tearing the timer
+			// down. Ticks are POSTED to the main loop, so one can already be sitting in the queue
+			// when the app disposes the timer; delivering it would raise Tick on a disposed object.
+			var context = new LoopContext();
+			var time = new ManualTimeProvider();
+			var timer = new TizenDispatcherTimer(context, time) { Interval = TimeSpan.FromMilliseconds(10) };
+
+			var ticks = 0;
+			timer.Tick += (_, _) => ticks++;
+			timer.Start();
+
+			// Queue the tick, but do not pump it yet.
+			time.Advance(TimeSpan.FromMilliseconds(10));
+
+			timer.Dispose();
+
+			// The callback is still in the queue and does get delivered - it must decline to run.
+			context.DrainAvailable();
+
+			Assert.Equal(0, ticks);
+			Assert.False(timer.IsRunning);
+		}
+
+		[Fact]
+		public void StoppingTheTimerSuppressesATickAlreadyQueuedOnTheLoop()
+		{
+			var context = new LoopContext();
+			var time = new ManualTimeProvider();
+			var timer = new TizenDispatcherTimer(context, time) { Interval = TimeSpan.FromMilliseconds(10), IsRepeating = true };
+
+			var ticks = 0;
+			timer.Tick += (_, _) => ticks++;
+			timer.Start();
+
+			time.Advance(TimeSpan.FromMilliseconds(10));
+			timer.Stop();
+			context.DrainAvailable();
+
+			Assert.Equal(0, ticks);
+		}
+
+		[Fact]
+		public void DisposingFromInsideTheTickHandlerStopsTheTimer()
+		{
+			// Self-disposal from the handler is ordinary usage - a timer that runs until some
+			// condition - and it is why OnTimerTick re-reads its state after invoking Tick instead
+			// of trusting what it read on entry.
+			var context = new LoopContext();
+			var time = new ManualTimeProvider();
+			var timer = new TizenDispatcherTimer(context, time) { Interval = TimeSpan.FromMilliseconds(10), IsRepeating = true };
+
+			var ticks = 0;
+			timer.Tick += (s, _) =>
+			{
+				ticks++;
+				((TizenDispatcherTimer)s!).Dispose();
+			};
+
+			timer.Start();
+
+			time.Advance(TimeSpan.FromMilliseconds(10));
+			context.DrainAvailable();
+
+			Assert.Equal(1, ticks);
+
+			// However far the clock moves afterwards, a disposed timer is finished.
+			time.Advance(TimeSpan.FromMinutes(5));
+			context.DrainAvailable();
+
+			Assert.Equal(1, ticks);
+			Assert.False(timer.IsRunning);
+		}
+
+		[Fact]
+		public void StoppingFromInsideTheTickHandlerStopsARepeatingTimer()
+		{
+			var context = new LoopContext();
+			var time = new ManualTimeProvider();
+			var timer = new TizenDispatcherTimer(context, time) { Interval = TimeSpan.FromMilliseconds(10), IsRepeating = true };
+
+			var ticks = 0;
+			timer.Tick += (s, _) =>
+			{
+				ticks++;
+				((TizenDispatcherTimer)s!).Stop();
+			};
+
+			timer.Start();
+			time.Advance(TimeSpan.FromMilliseconds(10));
+			context.DrainAvailable();
+
+			time.Advance(TimeSpan.FromMinutes(1));
+			context.DrainAvailable();
+
+			Assert.Equal(1, ticks);
+			Assert.False(timer.IsRunning);
+		}
+
+		[Fact]
+		public void RepeatingTimerTicksOncePerInterval()
+		{
+			var context = new LoopContext();
+			var time = new ManualTimeProvider();
+			var timer = new TizenDispatcherTimer(context, time) { Interval = TimeSpan.FromMilliseconds(10), IsRepeating = true };
+
+			var ticks = 0;
+			timer.Tick += (_, _) => ticks++;
+			timer.Start();
+
+			time.Advance(TimeSpan.FromMilliseconds(50));
+			context.DrainAvailable();
+
+			Assert.Equal(5, ticks);
+		}
+
+		[Fact]
+		public void NonRepeatingTimerTicksOnceHoweverFarTheClockMoves()
+		{
+			var context = new LoopContext();
+			var time = new ManualTimeProvider();
+			var timer = new TizenDispatcherTimer(context, time) { Interval = TimeSpan.FromMilliseconds(10) };
+
+			var ticks = 0;
+			timer.Tick += (_, _) => ticks++;
+			timer.Start();
+
+			time.Advance(TimeSpan.FromMinutes(5));
+			context.DrainAvailable();
+
+			Assert.Equal(1, ticks);
+			Assert.False(timer.IsRunning);
+		}
+
+		[Fact]
+		public void StartingADisposedTimerThrows()
+		{
+			var timer = new TizenDispatcherTimer(new LoopContext(), new ManualTimeProvider());
+			timer.Dispose();
+
+			Assert.Throws<ObjectDisposedException>(timer.Start);
+		}
+
+		[Fact]
+		public void DisposingTwiceIsHarmless()
+		{
+			var timer = new TizenDispatcherTimer(new LoopContext(), new ManualTimeProvider());
+
+			timer.Dispose();
+			timer.Dispose();
+		}
+
+		[Fact]
+		public void StoppingAfterDisposeDoesNotTouchTheDisposedTimer()
+		{
+			// Stop() on a disposed timer must not call Change() on it - a real System.Threading
+			// timer throws ObjectDisposedException, and app teardown order routinely produces this.
+			var timer = new TizenDispatcherTimer(new LoopContext(), new ManualTimeProvider())
+			{
+				Interval = TimeSpan.FromMilliseconds(10),
+			};
+
+			timer.Start();
+			timer.Dispose();
+
+			timer.Stop();
+		}
+
+		[Fact]
+		public void ConcurrentDelayedDispatchesFromManyThreadsEachFireExactlyOnce()
+		{
+			// The concurrency the ManualTimeProvider cannot express on its own: many threads
+			// arming delayed dispatches at once. The clock is still deterministic, so what varies
+			// is only the interleaving of the Start calls, which is the part worth stressing.
+			var context = new LoopContext();
+			var time = new ManualTimeProvider();
+			var dispatcher = new TizenDispatcher(context, time);
+			var counts = new int[64];
+
+			Parallel.For(0, counts.Length, i =>
+				dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(5), () => Interlocked.Increment(ref counts[i])));
+
+			time.Advance(TimeSpan.FromMilliseconds(5));
+
+			Assert.Equal(counts.Length, context.DrainAvailable());
+
+			time.Advance(TimeSpan.FromMinutes(5));
+
+			Assert.Equal(0, context.DrainAvailable());
+			Assert.All(counts, c => Assert.Equal(1, c));
+		}
+
+		[Fact]
+		public void RestartingFromInsideTheTickHandlerReArmsANonRepeatingTimer()
+		{
+			// A one-shot timer whose handler calls Start() again is the standard way to build a
+			// self-scheduling loop with variable delay, and MAUI's animation code does exactly this.
+			var context = new LoopContext();
+			var time = new ManualTimeProvider();
+			var timer = new TizenDispatcherTimer(context, time) { Interval = TimeSpan.FromMilliseconds(10) };
+
+			var ticks = 0;
+			timer.Tick += (s, _) =>
+			{
+				if (++ticks < 3)
+					((TizenDispatcherTimer)s!).Start();
+			};
+
+			timer.Start();
+
+			for (var i = 0; i < 3; i++)
+			{
+				time.Advance(TimeSpan.FromMilliseconds(10));
+				context.DrainAvailable();
+			}
+
+			Assert.Equal(3, ticks);
+		}
+
+		[Fact]
+		public void DelayedDispatchFiresOnceEvenIfTheUnderlyingTimerDoubleFires()
+		{
+			// The upstream race, reproduced deterministically. dotnet/maui's Tizen dispatcher armed
+			// a REPEATING timer and relied on disposing it from inside its own callback to stop it,
+			// so a second tick could be queued while Dispose was still in flight and the caller's
+			// action ran twice. Because the action is posted to the main loop, that is a visible
+			// double execution rather than a harmless extra tick.
+			var context = new LoopContext();
+			var time = new ManualTimeProvider { DoubleFireTimers = true };
+			var dispatcher = new TizenDispatcher(context, time);
+
+			var count = 0;
+			dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(10), () => Interlocked.Increment(ref count));
+
+			time.Advance(TimeSpan.FromMilliseconds(10));
+
+			Assert.Equal(1, context.DrainAvailable());
+			Assert.Equal(1, Volatile.Read(ref count));
 		}
 
 		[Fact]
