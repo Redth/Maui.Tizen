@@ -118,7 +118,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 #if TIZEN
 			handler.UpdateValue(nameof(IViewHandler.ContainerView));
-			Platform(handler)?.UpdateBackground(editor.Background);
+			Platform(handler)?.UpdateBackground(editor, clearWhenNull: false);
 #endif
 		}
 

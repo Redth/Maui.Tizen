@@ -128,6 +128,23 @@ namespace Microsoft.Maui.Platforms.Tizen
 		// ---------------------------------------------------------------------------------------
 
 		/// <summary>Applies a view's background paint to the platform view.</summary>
+		/// <remarks>
+		/// <para>
+		/// <b>This is the image-capable entry point, and callers should prefer it over the
+		/// <see cref="Paint"/> overloads.</b> Resolving an image-source background needs an
+		/// <c>IImageSourceServiceProvider</c>, which is reached through <c>view.Handler</c> - so a
+		/// caller that passes only <c>view.Background</c> has already discarded the one thing the
+		/// image path requires, and can never render an image background no matter what is fixed
+		/// downstream.
+		/// </para>
+		/// <para>
+		/// Today both overloads behave identically, because MAUI's <c>ImageSourcePaint</c> is
+		/// internal and an image background cannot be detected at all (see the ADOPTION SEAM in the
+		/// <see cref="Paint"/> overload and <c>UpstreamGapExpiryTests</c>). Keeping the view flowing
+		/// to here is what makes that a one-place fix when dotnet/maui#37864 ships, instead of an
+		/// audit of every call site.
+		/// </para>
+		/// </remarks>
 		/// <param name="platformView">The platform view.</param>
 		/// <param name="view">The cross-platform view.</param>
 		public static void UpdateBackground(this TizenNativeView platformView, IView view)
@@ -207,20 +224,32 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			// ADOPTION SEAM for dotnet/maui#37864 (public read-only IImageSourcePaint).
 			//
-			// The image case must be matched HERE, before the solid/ToColor branches below, or an
-			// image paint keeps flattening to a colour exactly as it does today:
+			// Consumption only: never implement IImageSourcePaint on a custom Paint. Upstream
+			// states external implementation is unsupported and that members may be added, so an
+			// implementation here would break on a servicing update. Only pattern match MAUI's
+			// built-in paint, and never by name, reflection or string check - guarded by
+			// UpstreamGapExpiryTests.
+			//
+			// The image case must be matched HERE, before the gradient and solid branches below, or
+			// an image paint keeps flattening to a colour exactly as it does today:
 			//
 			//     if (paint is IImageSourcePaint image)
 			//     {
-			//         platformView.UpdateBackgroundImageSourceAsync(image.ImageSource, provider)
-			//             .FireAndForgetOnUiThread();
+			//         if (image.ImageSource is null)
+			//         {
+			//             platformView.ClearBackgroundImage();   // drop any previously applied image
+			//             return;
+			//         }
+			//         // ...resolve via UpdateBackgroundImageSourceAsync; async resolution may ALSO
+			//         // yield no image, which must clear rather than leave the previous one.
 			//         return;
 			//     }
 			//
-			// UpdateBackgroundImageSourceAsync already exists and works (ViewExtensions.cs); the
-			// only missing piece is a public way to detect that the paint is an image at all.
-			// Deliberately NOT done by reflecting over MAUI's internal ImageSourcePaint - see
-			// UpstreamGapExpiryTests, which fails when the contract ships so this cannot be missed.
+			// Note this overload cannot actually complete that work: resolving an image source needs
+			// an IImageSourceServiceProvider, which is reached through view.Handler, and by here the
+			// view is gone. The adoption therefore belongs in the IView overload above, and call
+			// sites should pass the view rather than view.Background. TizenImageLoader already
+			// implements the cancellation/supersession/disposal semantics the load needs.
 
 			if (paint is SolidPaint solid && solid.Color is Color color)
 			{

@@ -121,15 +121,25 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		/// <remarks>
+		/// <para>
 		/// An entry paints its own background, so the container has to be re-evaluated before
 		/// the paint is applied or a gradient would be written to a wrapper that does not exist
 		/// yet.
+		/// </para>
+		/// <para>
+		/// The <see cref="IView"/> overload is used rather than passing <c>entry.Background</c>:
+		/// resolving an image-source background needs an <c>IImageSourceServiceProvider</c> reached
+		/// through <c>view.Handler</c>, so handing the extension only the paint discards the one
+		/// thing that path requires. Behaviour is unchanged today - <c>clearWhenNull: false</c>
+		/// preserves the previous semantics exactly - but the view now reaches the seam where
+		/// dotnet/maui#37864 will be adopted.
+		/// </para>
 		/// </remarks>
 		public static void MapBackground(IEntryHandler handler, IEntry entry)
 		{
 #if TIZEN
 			handler.UpdateValue(nameof(IViewHandler.ContainerView));
-			Platform(handler)?.UpdateBackground(entry.Background);
+			Platform(handler)?.UpdateBackground(entry, clearWhenNull: false);
 #endif
 		}
 

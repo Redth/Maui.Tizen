@@ -31,24 +31,31 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		const string EnvUpdate = "MAUI_TIZEN_UPDATE_PARITY_MATRIX";
 
 		/// <summary>
-		/// Keys that resolve through MAUI's chain here, but which the <b>Controls</b> layer
-		/// implements - exactly as upstream does.
+		/// Keys that resolve through MAUI's chain here, are inert today, and whose implementation
+		/// belongs to the <b>Controls</b> layer rather than to this backend.
 		/// </summary>
 		/// <remarks>
 		/// <para>
 		/// These properties live on Controls types (<c>Button.ContentLayout</c>,
-		/// <c>InputView.TextTransform</c>), not on the <c>Microsoft.Maui.*</c> interfaces this
-		/// package consumes, and upstream applies them from
-		/// <c>Microsoft.Maui.Controls.Platform.TextExtensions</c> / <c>ButtonExtensions</c> rather
-		/// than from a Core handler. Reporting them as plain <c>inherited</c> would read as a Wave A
-		/// defect; reporting them as <c>tizen</c> would be a lie.
+		/// <c>InputView.TextTransform</c>, <c>Button.LineBreakMode</c>), not on the
+		/// <c>Microsoft.Maui.*</c> interfaces this package consumes, and upstream applies them from
+		/// <c>Microsoft.Maui.Controls.Platform</c> rather than from a Core handler. Implementing
+		/// them here would mean referencing Controls from the product package, which this repository
+		/// deliberately does not do.
 		/// </para>
 		/// <para>
-		/// <see cref="EveryControlsLayerKeyIsImplementedThere"/> checks each entry against the actual
-		/// Controls sources, so this list cannot become an excuse.
+		/// <b>They are still reported as <c>inherited</c>, not as a separate "covered" state.</b>
+		/// Matching sources do exist under <c>src/Maui.Tizen.Controls</c>, but that project is in no
+		/// compiled lane - it is raw imported source that only
+		/// <c>eng/import/normalize-layout.sh</c> refers to. Source present on disk but never
+		/// compiled, never executed and never tested is not coverage, and a distinct state would
+		/// have read as though these properties work on Tizen today. They do not.
+		/// <see cref="ControlsLayerFollowUpIsNotMistakenForCoverage"/> keeps that honest by failing
+		/// if the project ever does enter a lane, at which point the state can be revisited on
+		/// evidence.
 		/// </para>
 		/// </remarks>
-		public static readonly IReadOnlyDictionary<string, string> ControlsLayerImplementations =
+		public static readonly IReadOnlyDictionary<string, string> ControlsLayerFollowUp =
 			new Dictionary<string, string>(StringComparer.Ordinal)
 			{
 				["TextTransform"] = "Core/Platform/Tizen/Extensions/TextExtensions.cs",
@@ -56,27 +63,63 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				["LineBreakMode"] = "Core/Button/Button.Tizen.cs",
 			};
 
-		static readonly HashSet<string> ControlsLayerKeys =
-			ControlsLayerImplementations.Keys.ToHashSet(StringComparer.Ordinal);
-
 		/// <summary>
-		/// Every key excused as `controls` really is implemented in the Controls layer.
+		/// The Controls-layer follow-up must not be presented as coverage while that project is not
+		/// compiled anywhere.
 		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// This encodes a review correction. An earlier revision gave these keys their own
+		/// <c>controls</c> state in the matrix on the strength of the sources existing, which
+		/// overstated reality: unbuilt source cannot be known to work, so the honest state is
+		/// <c>inherited</c> - reachable, inert.
+		/// </para>
+		/// <para>
+		/// The test fails in both directions. If the referenced files vanish, the follow-up note is
+		/// stale. If <c>src/Maui.Tizen.Controls</c> gains a build lane, the demotion is no longer
+		/// justified and the matrix should be revisited.
+		/// </para>
+		/// </remarks>
 		[Fact]
-		public void EveryControlsLayerKeyIsImplementedThere()
+		public void ControlsLayerFollowUpIsNotMistakenForCoverage()
 		{
 			var controlsRoot = FindRepositoryDirectory(Path.Combine("src", "Maui.Tizen.Controls"));
 
-			foreach (var (key, relativePath) in ControlsLayerImplementations)
+			foreach (var (key, relativePath) in ControlsLayerFollowUp)
 			{
 				var file = Path.Combine(controlsRoot, relativePath);
 
-				Assert.True(File.Exists(file), $"'{key}' is documented as implemented by {relativePath}, which does not exist.");
+				Assert.True(
+					File.Exists(file),
+					$"'{key}' is documented as Controls-layer follow-up in {relativePath}, which does not exist.");
 
 				Assert.True(
 					File.ReadAllText(file).Contains(key, StringComparison.Ordinal),
-					$"'{key}' is documented as implemented by {relativePath}, but that file never mentions it. " +
-					"Either the key moved, or the matrix is excusing a gap that is not actually covered anywhere.");
+					$"'{key}' is documented as Controls-layer follow-up in {relativePath}, but that " +
+					"file never mentions it - the note is stale.");
+			}
+
+			// The demotion to `inherited` is only correct while the project really is uncompiled.
+			var lanes = new[]
+			{
+				Path.Combine("eng", "build-workload-free.sh"),
+				Path.Combine("tests", "Maui.Tizen.Core.RefPackCompile", "Maui.Tizen.Core.RefPackCompile.csproj"),
+				Path.Combine("tests", "Maui.Tizen.Core.UnitTests", "Maui.Tizen.Core.UnitTests.csproj"),
+				Path.Combine("eng", "Maui.Tizen.Core.Sources.props"),
+			};
+
+			foreach (var lane in lanes)
+			{
+				var path = Path.Combine(TestRepositoryPaths.Root, lane);
+				if (!File.Exists(path))
+					continue;
+
+				Assert.False(
+					File.ReadAllText(path).Contains("Maui.Tizen.Controls", StringComparison.Ordinal),
+					$"{lane} now builds src/Maui.Tizen.Controls. These keys were reported as " +
+					"`inherited` precisely because that project was never compiled, so the evidence " +
+					"has changed - re-measure them and update the matrix rather than leaving a " +
+					"stale demotion in place.");
 			}
 		}
 
@@ -167,8 +210,6 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			sb.AppendLine("| Legend | Meaning |");
 			sb.AppendLine("|---|---|");
 			sb.AppendLine("| tizen | The backend supplies a Tizen implementation. |");
-			sb.AppendLine("| controls | Implemented by the Controls layer (`src/Maui.Tizen.Controls`), which is");
-			sb.AppendLine("| | where upstream implements it too - not by the Core backend. |");
 			sb.AppendLine("| inherited | The key resolves through MAUI's chained mapper, but its body is the");
 			sb.AppendLine("| | off-platform no-op - so nothing happens on Tizen. Reachable, not implemented. |");
 			sb.AppendLine("| excluded | Deliberately not implemented, for a documented reason. |");
@@ -188,14 +229,18 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			sb.AppendLine("  and states it will be removed; border rendering is driven by the stroke and shape");
 			sb.AppendLine("  properties that replaced it.");
 			sb.AppendLine();
-			sb.AppendLine("The `controls` keys are not backend gaps. `TextTransform` and `ContentLayout` are");
-			sb.AppendLine("carried on Controls types, not on the `Microsoft.Maui.*` interfaces this package");
-			sb.AppendLine("consumes, and upstream applies them from `Microsoft.Maui.Controls.Platform` rather than");
-			sb.AppendLine("from a Core handler. Implementing them here would mean referencing Controls from the");
-			sb.AppendLine("product package, which this repository deliberately does not do. The sources that");
-			sb.AppendLine("implement them already exist under `src/Maui.Tizen.Controls`, awaiting the wave that");
-			sb.AppendLine("owns that project; `MapperParityMatrixTests` verifies each one is really implemented");
-			sb.AppendLine("there, so this state cannot be used to wave a key away.");
+			sb.AppendLine("`TextTransform`, `ContentLayout` and `Button.LineBreakMode` are `inherited`, and that is");
+			sb.AppendLine("a deliberate answer to a review question rather than an oversight. They are properties");
+			sb.AppendLine("of **Controls** types, not of the `Microsoft.Maui.*` interfaces this package consumes,");
+			sb.AppendLine("and upstream applies them from `Microsoft.Maui.Controls.Platform` rather than from a Core");
+			sb.AppendLine("handler - implementing them here would mean referencing Controls from the product");
+			sb.AppendLine("package, which this repository does not do. Matching sources do exist under");
+			sb.AppendLine("`src/Maui.Tizen.Controls`, but **that project is in no compiled lane**, so they are");
+			sb.AppendLine("unbuilt, unexecuted and untested. An earlier revision gave them a distinct `controls`");
+			sb.AppendLine("state on the strength of existing on disk; that overstated reality, because source");
+			sb.AppendLine("nobody compiles cannot be known to work. They are therefore reported exactly as what");
+			sb.AppendLine("they are today - reachable and inert - and `MapperParityMatrixTests` fails if the");
+			sb.AppendLine("project ever gains a lane, so the question gets revisited on evidence.");
 			sb.AppendLine();
 
 			var viewKeys = TizenViewMappers.ViewMapper.GetKeys().ToHashSet(StringComparer.Ordinal);
@@ -243,9 +288,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 					var tizenCell =
 						ControlMapperParityTests.IsIntentionallyUnmapped(key) ? "excluded"
 						: !inTizen ? "**MISSING**"
-						: !inheritedOnly.Contains(key) ? "tizen"
-						: ControlsLayerKeys.Contains(key) ? "controls"
-						: "inherited";
+						: inheritedOnly.Contains(key) ? "inherited"
+						: "tizen";
 
 					sb.AppendLine($"| `{key}` | {(inMaui ? "mapped" : "n/a")} | {tizenCell} |");
 				}

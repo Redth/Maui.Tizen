@@ -27,8 +27,6 @@ Core-only subset instead of what an application sees.
 | Legend | Meaning |
 |---|---|
 | tizen | The backend supplies a Tizen implementation. |
-| controls | Implemented by the Controls layer (`src/Maui.Tizen.Controls`), which is
-| | where upstream implements it too - not by the Core backend. |
 | inherited | The key resolves through MAUI's chained mapper, but its body is the
 | | off-platform no-op - so nothing happens on Tizen. Reachable, not implemented. |
 | excluded | Deliberately not implemented, for a documented reason. |
@@ -48,14 +46,18 @@ Two keys are `excluded` throughout, both inherited from the core slice's base ma
   and states it will be removed; border rendering is driven by the stroke and shape
   properties that replaced it.
 
-The `controls` keys are not backend gaps. `TextTransform` and `ContentLayout` are
-carried on Controls types, not on the `Microsoft.Maui.*` interfaces this package
-consumes, and upstream applies them from `Microsoft.Maui.Controls.Platform` rather than
-from a Core handler. Implementing them here would mean referencing Controls from the
-product package, which this repository deliberately does not do. The sources that
-implement them already exist under `src/Maui.Tizen.Controls`, awaiting the wave that
-owns that project; `MapperParityMatrixTests` verifies each one is really implemented
-there, so this state cannot be used to wave a key away.
+`TextTransform`, `ContentLayout` and `Button.LineBreakMode` are `inherited`, and that is
+a deliberate answer to a review question rather than an oversight. They are properties
+of **Controls** types, not of the `Microsoft.Maui.*` interfaces this package consumes,
+and upstream applies them from `Microsoft.Maui.Controls.Platform` rather than from a Core
+handler - implementing them here would mean referencing Controls from the product
+package, which this repository does not do. Matching sources do exist under
+`src/Maui.Tizen.Controls`, but **that project is in no compiled lane**, so they are
+unbuilt, unexecuted and untested. An earlier revision gave them a distinct `controls`
+state on the strength of existing on disk; that overstated reality, because source
+nobody compiles cannot be known to work. They are therefore reported exactly as what
+they are today - reachable and inert - and `MapperParityMatrixTests` fails if the
+project ever gains a lane, so the question gets revisited on evidence.
 
 ## Common view properties
 
@@ -119,17 +121,17 @@ Serves `IButton`; compared against MAUI's `ButtonHandler`.
 | Key | MAUI | Tizen |
 |---|---|---|
 | `CharacterSpacing` | mapped | tizen |
-| `ContentLayout` | mapped | controls |
+| `ContentLayout` | mapped | inherited |
 | `CornerRadius` | mapped | tizen |
 | `Font` | mapped | tizen |
-| `LineBreakMode` | mapped | controls |
+| `LineBreakMode` | mapped | inherited |
 | `Padding` | mapped | tizen |
 | `Source` | mapped | tizen |
 | `StrokeColor` | mapped | tizen |
 | `StrokeThickness` | mapped | tizen |
 | `Text` | mapped | tizen |
 | `TextColor` | mapped | tizen |
-| `TextTransform` | mapped | controls |
+| `TextTransform` | mapped | inherited |
 
 ## TizenCheckBoxHandler
 
@@ -176,7 +178,7 @@ Serves `IEditor`; compared against MAUI's `EditorHandler`.
 | `SelectionLength` | mapped | tizen |
 | `Text` | mapped | tizen |
 | `TextColor` | mapped | tizen |
-| `TextTransform` | mapped | controls |
+| `TextTransform` | mapped | inherited |
 | `VerticalTextAlignment` | mapped | tizen |
 
 ## TizenEntryHandler
@@ -202,7 +204,7 @@ Serves `IEntry`; compared against MAUI's `EntryHandler`.
 | `SelectionLength` | mapped | tizen |
 | `Text` | mapped | tizen |
 | `TextColor` | mapped | tizen |
-| `TextTransform` | mapped | controls |
+| `TextTransform` | mapped | inherited |
 | `VerticalTextAlignment` | mapped | tizen |
 
 ## TizenPickerHandler
@@ -270,7 +272,7 @@ Serves `ISearchBar`; compared against MAUI's `SearchBarHandler`.
 | `SelectionLength` | mapped | tizen |
 | `Text` | mapped | tizen |
 | `TextColor` | mapped | tizen |
-| `TextTransform` | mapped | controls |
+| `TextTransform` | mapped | inherited |
 | `VerticalTextAlignment` | mapped | tizen |
 
 ## TizenSliderHandler

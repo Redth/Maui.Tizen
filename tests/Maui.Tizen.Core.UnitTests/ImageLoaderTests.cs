@@ -86,6 +86,50 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		/// <summary>
+		/// A load that resolves successfully but yields no image clears rather than leaving the
+		/// previous one.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// Distinct from both <see cref="NullSourceClearsTheImage"/> and
+		/// <see cref="AFailedLoadClearsTheImage"/>: here the source is non-null and the service does
+		/// not throw, it simply returns no result - which an image-source service is allowed to do
+		/// for a source it cannot resolve. Nothing about "the call succeeded" implies an image
+		/// exists.
+		/// </para>
+		/// <para>
+		/// Without this the previous image stays on screen under a new, unresolvable source, which
+		/// reads as the background silently failing to change.
+		/// </para>
+		/// </remarks>
+		[Fact]
+		public async Task ALoadResolvingToNoImageClearsThePrevious()
+		{
+			using var loader = new TizenImageLoader<FakeImage>();
+			FakeImage? applied = null;
+
+			await loader.LoadAsync(
+				new FakeSource(),
+				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(new FakeResult(new FakeImage { Name = "a" })),
+				image => applied = image,
+				static () => true);
+
+			Assert.NotNull(applied);
+
+			// Non-null source, no exception, no result.
+			await loader.LoadAsync(
+				new FakeSource(),
+				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(null),
+				image => applied = image,
+				static () => true);
+
+			Assert.True(
+				applied is null,
+				"A load that resolved to no image left the previous image applied. A successful " +
+				"call that yields nothing must clear, exactly as a failed one does.");
+		}
+
+		/// <summary>
 		/// A slower earlier load must not overwrite a newer one.
 		/// </summary>
 		/// <remarks>

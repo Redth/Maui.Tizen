@@ -219,11 +219,34 @@ Two gaps in MAUI's public surface shaped this wave. Both are additions to the li
    MAUI implementation detail and break silently on any servicing update.
 
    Tracked upstream by [dotnet/maui#37864](https://github.com/dotnet/maui/pull/37864), which adds
-   a public read-only `IImageSourcePaint`. Once a package contains it the adoption is an
-   image-first pattern match on `IImageSourcePaint.ImageSource`, matched *before* the solid/
-   `ToColor` fallback, with no reflection and no internal types.
-   `UpstreamGapExpiryTests.ImageSourcePaintIsStillInternal` asserts the gap still exists and
-   **fails when the contract ships**, so the workaround cannot outlive its justification.
+   a public read-only `IImageSourcePaint`. Upstream's guidance is **consumption only**: external
+   implementation is unsupported and the interface may gain members, so this backend must only
+   pattern match MAUI's own built-in paint and must never declare `Paint : IImageSourcePaint`.
+
+   The adoption, once a package contains the contract:
+
+   - match `IImageSourcePaint` **first**, ahead of the gradient *and* solid branches, or an image
+     paint keeps flattening to a colour exactly as it does today;
+   - treat `ImageSource == null` as *clear any previously applied image and return* - not as
+     "leave things alone", which would strand the old image under a new source;
+   - clear on a null async result too: a resolution can succeed and still yield no image;
+   - do it in the `IView` overload of `UpdateBackground`, since resolving an image source needs an
+     `IImageSourceServiceProvider` reached through `view.Handler`.
+
+   That last point is why Wave A's background mappings pass the **view** rather than
+   `view.Background`. The two overloads behave identically today, so the distinction is invisible -
+   and a mapping that discards the view would silently keep failing after the upstream fix landed.
+   `UpstreamGapExpiryTests.BackgroundMappingsKeepTheViewInScope` pins it.
+
+   Three tests hold this together: `ImageSourcePaintIsStillInternal` asserts the gap still exists
+   and **fails when the contract ships** (reporting the shipped member shape, so the adopter learns
+   in one run whether the plan still applies); `BackendDoesNotReachImageSourcePaintByName` forbids
+   reflecting over the internal type; and `BackendDoesNotImplementImageSourcePaint` forbids
+   implementing the contract - the one guard that must outlive the others.
+
+   `TizenImageLoader` already provides the cancellation, supersession, failure-clearing and
+   disposal semantics the eventual load needs, including the "resolved successfully but yielded no
+   image" case (`ALoadResolvingToNoImageClearsThePrevious`).
 
 Note that blocker 1 was re-examined against MAUI 26426.4 and still holds, while the old CS9333
 objection to implementing MAUI's handler interfaces does **not** - see "Handler identity" above.
@@ -259,23 +282,50 @@ depended on whether some unrelated test had built a Controls app first. `Force()
 Controls host, and `ControlsRemapTests` asserts on keys that only a built host can produce
 (`Picker.ItemsSource`, `Stepper.Increment`) so the regression cannot come back quietly.
 
-`docs/mapper-parity-matrix.md` distinguishes four states rather than two: `tizen` (the backend
-supplies an implementation), `controls` (implemented by the Controls layer, exactly as upstream
-does), `inherited` (the key resolves through MAUI's chain but its body is the off-platform no-op,
-so nothing happens on Tizen) and `excluded`. That distinction is the whole point of generating it -
-chaining makes every key *resolve*, so a table reporting mere presence would show total parity
-while most properties did nothing.
+`docs/mapper-parity-matrix.md` distinguishes three states rather than two: `tizen` (the backend
+supplies an implementation), `inherited` (the key resolves through MAUI's chain but its body is the
+off-platform no-op, so nothing happens on Tizen) and `excluded`. That distinction is the whole
+point of generating it - chaining makes every key *resolve*, so a table reporting mere presence
+would show total parity while most properties did nothing.
 
-The `controls` state covers `TextTransform`, `ContentLayout` and `Button.LineBreakMode`. These are
-properties of Controls types, not of the `Microsoft.Maui.*` interfaces this package consumes, and
-upstream applies them from `Microsoft.Maui.Controls.Platform` rather than from a Core handler -
-implementing them here would mean referencing Controls from the product package, which this
-repository deliberately does not do. The sources already exist under `src/Maui.Tizen.Controls`,
-awaiting the wave that owns that project, and `MapperParityMatrixTests` verifies each excused key
-is genuinely implemented there so the state cannot be used to wave a gap away.
+`TextTransform`, `ContentLayout` and `Button.LineBreakMode` are reported as `inherited`. They are
+properties of **Controls** types that upstream applies from `Microsoft.Maui.Controls.Platform`
+rather than from a Core handler, so implementing them here would mean referencing Controls from the
+product package. Matching sources do exist under `src/Maui.Tizen.Controls` - but **that project is
+in no compiled lane**, so they are unbuilt, unexecuted and untested. An earlier revision gave these
+keys a distinct `controls` state on the strength of the files existing; that overstated reality,
+because source nobody compiles cannot be known to work. `MapperParityMatrixTests` fails if the
+project ever gains a lane, so the question gets revisited on evidence rather than left as a stale
+demotion.
 
 `RadioButton.TextTransform` is deliberately absent rather than excused: upstream guards that remap
 with `#if ANDROID || WINDOWS`, so the key does not exist on this package at all.
+
+### Resolution is not implementation
+
+The review found Label's `FormattedText`, `LineBreakMode`, `MaxLines` and accessibility keys
+*reachable* - key present, no cast failure - yet behaviourally inert, because the body they resolved
+to was MAUI's off-platform no-op. Every test written at the time passed. `ControlsRemapBehaviorTests`
+therefore asserts the Controls remaps by **observable effect**:
+
+- `Picker.ItemsSource` really does raise `IPicker.Items` (verified by removing the override and
+  watching the test fail);
+- `Stepper.Increment` really does raise `IStepper.Interval`;
+- `SemanticProperties.Description`/`Hint`/`HeadingLevel` really do reach the backend's `Semantics`
+  mapping.
+
+Measuring this also turned up two keys that are **reachable but genuinely inert**:
+`IsInAccessibleTree` and `ExcludedWithChildren` resolve through the chain and do nothing observable.
+That is recorded by `KnownInertAccessibilityKeysAreStillInert` rather than quietly tolerated - the
+mapping is core-owned and is reported there, and the test fails (with instructions) if someone
+implements them.
+
+What a host lane can prove has a real limit, and the docs should not overstate it either: a
+control-specific body such as `TizenEntryHandler.MapBackground` is entirely inside `#if TIZEN`, so
+off-device it genuinely does nothing and no host test can claim otherwise. What *is* verifiable
+here is dispatch logic - whether a Controls key forwards to the backend key that implements it -
+which is exactly where the remaps live. Everything past that needs the device lane the unpublished
+workload still blocks.
 
 Several pieces of logic were deliberately extracted out of the NUI-typed classes
 (`TizenStepperRange`, `TizenImageLoader<T>`, `TizenTextSelection`, `TizenDispatchExtensions`)

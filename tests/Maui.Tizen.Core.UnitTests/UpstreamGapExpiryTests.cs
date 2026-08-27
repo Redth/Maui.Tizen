@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Maui;
 using Microsoft.Maui.Graphics;
@@ -137,20 +138,115 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		/// <summary>
+		/// The backend must never implement <c>IImageSourcePaint</c> itself.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// Upstream states the contract is <b>consumption only</b>: external implementation is
+		/// unsupported and members may be added to it, so a custom <c>Paint : IImageSourcePaint</c>
+		/// here would compile today and break on a servicing update that adds a member.
+		/// </para>
+		/// <para>
+		/// This is a source-level check because it has to keep working <em>after</em> the contract
+		/// ships - at which point the type resolves and the temptation to implement it becomes
+		/// real. The other tests in this class expire; this one does not.
+		/// </para>
+		/// </remarks>
+		[Fact]
+		public void BackendDoesNotImplementImageSourcePaint()
+		{
+			var root = System.IO.Path.Combine(TestRepositoryPaths.Root, "src", "Maui.Tizen.Core");
+
+			var offenders = System.IO.Directory
+				.EnumerateFiles(root, "*.cs", System.IO.SearchOption.AllDirectories)
+				.Where(IsCompiled)
+				.Where(file =>
+				{
+					var text = System.IO.File.ReadAllText(file);
+
+					// A declaration, not a pattern match: `: IImageSourcePaint` in a type header.
+					return System.Text.RegularExpressions.Regex.IsMatch(
+						text,
+						@"(class|struct|record)\s+\w+\s*(<[^>]*>)?\s*:[^\{\r\n]*\bIImageSourcePaint\b");
+				})
+				.Select(System.IO.Path.GetFileName)
+				.ToList();
+
+			Assert.True(
+				offenders.Count == 0,
+				$"These files implement IImageSourcePaint: {string.Join(", ", offenders)}. Upstream " +
+				"supports the contract for consumption only - it may gain members, which would break " +
+				"an external implementation. Pattern match MAUI's built-in paint instead.");
+		}
+
+		/// <summary>
+		/// Wave A background mappings must pass the view, not just its paint.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// Resolving an image-source background needs an <c>IImageSourceServiceProvider</c>, which is
+		/// reached through <c>view.Handler</c>. A mapping that calls
+		/// <c>UpdateBackground(view.Background)</c> has already thrown that away, so it can never
+		/// render an image background however the extension is later fixed - and the failure is
+		/// silent, because the paint still flattens to a colour.
+		/// </para>
+		/// <para>
+		/// The distinction is invisible today (both overloads behave identically while
+		/// <c>ImageSourcePaint</c> is internal), which is exactly why it needs a test rather than a
+		/// comment: nothing else would notice the regression until dotnet/maui#37864 landed and the
+		/// fix mysteriously failed to work for these controls.
+		/// </para>
+		/// </remarks>
+		[Fact]
+		public void BackgroundMappingsKeepTheViewInScope()
+		{
+			var handlers = System.IO.Path.Combine(TestRepositoryPaths.Root, "src", "Maui.Tizen.Core", "Handlers");
+
+			var offenders = new List<string>();
+
+			foreach (var file in System.IO.Directory.EnumerateFiles(handlers, "Tizen*Handler.cs"))
+			{
+				if (!IsCompiled(file))
+					continue;
+
+				foreach (var line in System.IO.File.ReadAllLines(file))
+				{
+					// UpdateBackground(<something>.Background) - the paint-only overload.
+					if (System.Text.RegularExpressions.Regex.IsMatch(line, @"UpdateBackground\(\s*\w+\.Background\s*[,)]"))
+						offenders.Add($"{System.IO.Path.GetFileName(file)}: {line.Trim()}");
+				}
+			}
+
+			Assert.True(
+				offenders.Count == 0,
+				"These background mappings pass only the paint, discarding the view that an " +
+				"image-source background needs to resolve its service provider:\n  " +
+				string.Join("\n  ", offenders) +
+				"\n\nPass the view instead - UpdateBackground(view, clearWhenNull: <same as before>) - " +
+				"so the image-first pattern match has what it needs when dotnet/maui#37864 is adopted.");
+		}
+
+		/// <summary>
 		/// Only files that are actually compiled count.
 		/// </summary>
 		/// <remarks>
+		/// <para>
 		/// Most of <c>src/Maui.Tizen.Core</c> is still the raw dotnet/maui import, which is not in
 		/// the compile list. Those files legitimately reference the internal type - they were
 		/// compiled inside MAUI - and flagging them would make this test permanently red for a
 		/// reason nobody can act on.
+		/// </para>
+		/// <para>
+		/// The manifest is read once and cached. It used to be re-read per file, which is
+		/// quadratic against an imported tree of several thousand sources and took this suite from
+		/// three seconds to over five minutes - slow enough that people stop running it locally,
+		/// which costs more than the tests are worth.
+		/// </para>
 		/// </remarks>
-		static bool IsCompiled(string file)
-		{
-			var sources = System.IO.File.ReadAllText(System.IO.Path.Combine(
-				TestRepositoryPaths.Root, "eng", "Maui.Tizen.Core.Sources.props"));
+		static readonly Lazy<string> CompiledSources = new(() => System.IO.File.ReadAllText(
+			System.IO.Path.Combine(TestRepositoryPaths.Root, "eng", "Maui.Tizen.Core.Sources.props")));
 
-			return sources.Contains(System.IO.Path.GetFileName(file), StringComparison.Ordinal);
-		}
+		static bool IsCompiled(string file) =>
+			CompiledSources.Value.Contains(System.IO.Path.GetFileName(file), StringComparison.Ordinal);
 	}
 }
