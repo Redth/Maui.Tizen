@@ -93,6 +93,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 				var sensor = Sensor;
 				var subscribed = false;
+				var started = false;
 
 				try
 				{
@@ -102,31 +103,52 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					subscribed = true;
 
 					sensor.Start();
+					started = true;
+
+					OnStarted();
+
+					UseSyncContext = sensorSpeed is SensorSpeed.Default or SensorSpeed.UI;
+					IsMonitoring = true;
 				}
 				catch
 				{
-					// Roll the whole attempt back. Leaving the handler attached would double-raise
-					// every reading after a later successful Start.
-					if (subscribed)
-					{
-						try
-						{
-							Unsubscribe(sensor);
-						}
-						catch
-						{
-							// Nothing further can be done; surface the original failure.
-						}
-					}
-
+					RollbackFailedStart(
+						started,
+						subscribed,
+						() => sensor.Stop(),
+						() => Unsubscribe(sensor),
+						() => TizenSensors.ResetDefaultSensor(sensor));
 					throw;
 				}
-
-				UseSyncContext = sensorSpeed is SensorSpeed.Default or SensorSpeed.UI;
-				IsMonitoring = true;
 			}
+		}
 
-			OnStarted();
+		internal static void RollbackFailedStart(
+			bool started,
+			bool subscribed,
+			Action stop,
+			Action unsubscribe,
+			Action reset)
+		{
+			if (subscribed)
+				TryRollback(unsubscribe);
+
+			if (started)
+				TryRollback(stop);
+
+			TryRollback(reset);
+		}
+
+		static void TryRollback(Action action)
+		{
+			try
+			{
+				action();
+			}
+			catch (Exception)
+			{
+				// Preserve the failure that caused the rollback.
+			}
 		}
 
 		/// <summary>

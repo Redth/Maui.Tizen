@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using Microsoft.Maui.Storage;
@@ -17,6 +18,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	public sealed class TizenPreferences : IPreferences
 	{
 		static readonly object Locker = new();
+		readonly ITizenPreferencesStore _store;
+
+		/// <summary>
+		/// Creates a preferences service backed by Tizen's application preference store.
+		/// </summary>
+		public TizenPreferences()
+			: this(TizenPreferencesStore.Instance)
+		{
+		}
+
+		internal TizenPreferences(ITizenPreferencesStore store)
+		{
+			_store = store;
+		}
 
 		/// <inheritdoc/>
 		public bool ContainsKey(string key, string? sharedName = null)
@@ -24,7 +39,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			ArgumentNullException.ThrowIfNull(key);
 
 			lock (Locker)
-				return TizenPreference.Contains(GetFullKey(key, sharedName));
+			{
+				if (_store.Contains(GetFullKey(key, sharedName)))
+					return true;
+
+				return TizenStorageKeyEncoding.GetLegacyKeys(key, sharedName).Any(_store.Contains);
+			}
 		}
 
 		/// <inheritdoc/>
@@ -35,8 +55,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			lock (Locker)
 			{
 				var fullKey = GetFullKey(key, sharedName);
-				if (TizenPreference.Contains(fullKey))
-					TizenPreference.Remove(fullKey);
+				if (_store.Contains(fullKey))
+					_store.Remove(fullKey);
+
+				foreach (var legacyKey in TizenStorageKeyEncoding.GetLegacyKeys(key, sharedName))
+				{
+					if (_store.Contains(legacyKey))
+						_store.Remove(legacyKey);
+				}
 			}
 		}
 
@@ -50,16 +76,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			lock (Locker)
 			{
-				if (string.IsNullOrEmpty(sharedName))
-				{
-					TizenPreference.RemoveAll();
-					return;
-				}
+				var prefix = TizenStorageKeyEncoding.GetSharedNamePrefix(sharedName ?? string.Empty);
 
-				var prefix = TizenStorageKeyEncoding.GetSharedNamePrefix(sharedName);
-
-				foreach (var key in TizenPreference.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList())
-					TizenPreference.Remove(key);
+				foreach (var key in _store.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList())
+					_store.Remove(key);
 			}
 		}
 
@@ -70,24 +90,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			lock (Locker)
 			{
-				var fullKey = GetFullKey(key, sharedName);
-
-				switch (value)
-				{
-					case null:
-						if (TizenPreference.Contains(fullKey))
-							TizenPreference.Remove(fullKey);
-						break;
-					case DateTime dateTime:
-						TizenPreference.Set(fullKey, dateTime.ToBinary());
-						break;
-					case DateTimeOffset dateTimeOffset:
-						TizenPreference.Set(fullKey, dateTimeOffset.ToString("O", CultureInfo.InvariantCulture));
-						break;
-					default:
-						TizenPreference.Set(fullKey, value);
-						break;
-				}
+				SetCore(GetFullKey(key, sharedName), value);
+				if (value is null)
+					RemoveLegacyKeys(key, sharedName);
 			}
 		}
 
@@ -100,29 +105,109 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			{
 				var fullKey = GetFullKey(key, sharedName);
 
-				if (!TizenPreference.Contains(fullKey))
-					return defaultValue;
+				if (_store.Contains(fullKey))
+					return GetCore(fullKey, defaultValue);
 
-				if (typeof(T) == typeof(DateTime))
-					return (T)(object)DateTime.FromBinary(TizenPreference.Get<long>(fullKey));
-
-				if (typeof(T) == typeof(DateTimeOffset))
+				foreach (var legacyKey in TizenStorageKeyEncoding.GetLegacyKeys(key, sharedName))
 				{
-					var saved = TizenPreference.Get<string>(fullKey);
-					return DateTimeOffset.TryParse(
-						saved,
-						CultureInfo.InvariantCulture,
-						DateTimeStyles.RoundtripKind,
-						out var parsed)
-						? (T)(object)parsed
-						: defaultValue;
+					if (!_store.Contains(legacyKey))
+						continue;
+
+					var value = GetCore(legacyKey, defaultValue);
+					SetCore(fullKey, value);
+					return value;
 				}
 
-				return TizenPreference.Get<T>(fullKey);
+				return defaultValue;
+			}
+		}
+
+		void SetCore<T>(string fullKey, T value)
+		{
+			switch (value)
+			{
+				case null:
+					if (_store.Contains(fullKey))
+						_store.Remove(fullKey);
+					break;
+				case DateTime dateTime:
+					_store.Set(fullKey, dateTime.ToBinary());
+					break;
+				case DateTimeOffset dateTimeOffset:
+					_store.Set(fullKey, dateTimeOffset.ToString("O", CultureInfo.InvariantCulture));
+					break;
+				default:
+					_store.Set(fullKey, value);
+					break;
+			}
+		}
+
+		T GetCore<T>(string fullKey, T defaultValue)
+		{
+			if (typeof(T) == typeof(DateTime))
+				return (T)(object)DateTime.FromBinary(_store.Get<long>(fullKey));
+
+			if (typeof(T) == typeof(DateTimeOffset))
+			{
+				var saved = _store.Get<string>(fullKey);
+				return DateTimeOffset.TryParse(
+					saved,
+					CultureInfo.InvariantCulture,
+					DateTimeStyles.RoundtripKind,
+					out var parsed)
+					? (T)(object)parsed
+					: defaultValue;
+			}
+
+			return _store.Get<T>(fullKey);
+		}
+
+		void RemoveLegacyKeys(string key, string? sharedName)
+		{
+			foreach (var legacyKey in TizenStorageKeyEncoding.GetLegacyKeys(key, sharedName))
+			{
+				if (_store.Contains(legacyKey))
+					_store.Remove(legacyKey);
 			}
 		}
 
 		internal static string GetFullKey(string key, string? sharedName) =>
 			TizenStorageKeyEncoding.GetFullKey(key, sharedName);
+	}
+
+	internal interface ITizenPreferencesStore
+	{
+		IEnumerable<string> Keys { get; }
+
+		bool Contains(string key);
+
+		void Remove(string key);
+
+		void Set<T>(string key, T value);
+
+		T Get<T>(string key);
+	}
+
+	sealed class TizenPreferencesStore : ITizenPreferencesStore
+	{
+		public static TizenPreferencesStore Instance { get; } = new();
+
+		TizenPreferencesStore()
+		{
+		}
+
+		public IEnumerable<string> Keys => TizenPreference.Keys;
+
+		public bool Contains(string key) =>
+			TizenPreference.Contains(key);
+
+		public void Remove(string key) =>
+			TizenPreference.Remove(key);
+
+		public void Set<T>(string key, T value) =>
+			TizenPreference.Set(key, value);
+
+		public T Get<T>(string key) =>
+			TizenPreference.Get<T>(key);
 	}
 }

@@ -10,6 +10,7 @@ using Xunit;
 using TizenConnectionType = Tizen.Network.Connection.ConnectionType;
 using TizenDeviceOrientation = Tizen.Applications.DeviceOrientation;
 using TizenPixelFormat = Tizen.NUI.PixelFormat;
+using TizenAppControlOperations = Tizen.Applications.AppControlOperations;
 
 namespace Maui.Tizen.Essentials.Tests;
 
@@ -73,9 +74,9 @@ public class TizenTranslationTests
 		Assert.Equal(expected, TizenHapticFeedback.ConvertType(type));
 
 	[Theory]
-	[InlineData(null, "key", "key")]
-	[InlineData("", "key", "key")]
-	[InlineData("shared", "key", "shared~key")]
+	[InlineData(null, "key", "maui.tizen.preferences:v2:d:key")]
+	[InlineData("", "key", "maui.tizen.preferences:v2:d:key")]
+	[InlineData("shared", "key", "maui.tizen.preferences:v2:n:shared~key")]
 	public void PrefixesSharedPreferenceKeys(string? sharedName, string key, string expected) =>
 		Assert.Equal(expected, TizenPreferences.GetFullKey(key, sharedName));
 
@@ -89,9 +90,20 @@ public class TizenTranslationTests
 
 	[Theory]
 	[InlineData(TizenConnectionType.Disconnected)]
-	[InlineData(TizenConnectionType.NetProxy)]
 	public void MapsUnknownConnectionTypesToNoProfile(TizenConnectionType type) =>
 		Assert.Null(TizenConnectivity.MapProfileType(type));
+
+	[Fact]
+	public void MapsNetProxyToInternetAccess() =>
+		Assert.Equal(
+			NetworkAccess.Internet,
+			TizenConnectivity.GetNetworkAccess(static () => TizenConnectionType.NetProxy));
+
+	[Theory]
+	[InlineData("custom://resource")]
+	[InlineData("unknown:value")]
+	public void UsesViewOperationForCustomUriSchemes(string uri) =>
+		Assert.Equal(TizenAppControlOperations.View, TizenLauncher.GetOperation(new Uri(uri)));
 
 	[Theory]
 	[InlineData(TizenDeviceOrientation.Orientation_0, DisplayRotation.Rotation0, DisplayOrientation.Portrait)]

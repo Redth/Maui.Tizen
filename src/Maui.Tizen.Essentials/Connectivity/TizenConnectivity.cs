@@ -27,14 +27,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			{
 				TizenPermissions.EnsureDeclared<Permissions.NetworkState>();
 
-				return TizenConnectionManager.CurrentConnection.Type switch
-				{
-					TizenConnectionType.WiFi or
-					TizenConnectionType.Cellular or
-					TizenConnectionType.Ethernet or
-					TizenConnectionType.Bluetooth => NetworkAccess.Internet,
-					_ => NetworkAccess.None,
-				};
+				return GetNetworkAccess(static () => TizenConnectionManager.CurrentConnection.Type);
 			}
 		}
 
@@ -60,22 +53,59 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		}
 
 		internal static List<ConnectionProfile> GetConnectionProfiles()
+			=> GetConnectionProfiles(
+				static () => IsConnected(TizenConnectionManager.WiFiState),
+				static () => TizenConnectionManager.CellularState == TizenCellularState.Connected,
+				static () => IsConnected(TizenConnectionManager.EthernetState),
+				static () => IsConnected(TizenConnectionManager.BluetoothState));
+
+		internal static List<ConnectionProfile> GetConnectionProfiles(
+			Func<bool> isWiFiConnected,
+			Func<bool> isCellularConnected,
+			Func<bool> isEthernetConnected,
+			Func<bool> isBluetoothConnected)
 		{
 			var profiles = new List<ConnectionProfile>(4);
 
-			if (IsConnected(TizenConnectionManager.WiFiState))
-				profiles.Add(ConnectionProfile.WiFi);
-
-			if (TizenConnectionManager.CellularState == TizenCellularState.Connected)
-				profiles.Add(ConnectionProfile.Cellular);
-
-			if (IsConnected(TizenConnectionManager.EthernetState))
-				profiles.Add(ConnectionProfile.Ethernet);
-
-			if (IsConnected(TizenConnectionManager.BluetoothState))
-				profiles.Add(ConnectionProfile.Bluetooth);
+			TryAddProfile(profiles, ConnectionProfile.WiFi, isWiFiConnected);
+			TryAddProfile(profiles, ConnectionProfile.Cellular, isCellularConnected);
+			TryAddProfile(profiles, ConnectionProfile.Ethernet, isEthernetConnected);
+			TryAddProfile(profiles, ConnectionProfile.Bluetooth, isBluetoothConnected);
 
 			return profiles;
+		}
+
+		internal static NetworkAccess GetNetworkAccess(Func<TizenConnectionType> getConnectionType)
+		{
+			try
+			{
+				return getConnectionType() switch
+				{
+					TizenConnectionType.WiFi or
+					TizenConnectionType.Cellular or
+					TizenConnectionType.Ethernet or
+					TizenConnectionType.Bluetooth or
+					TizenConnectionType.NetProxy => NetworkAccess.Internet,
+					_ => NetworkAccess.None,
+				};
+			}
+			catch (Exception)
+			{
+				return NetworkAccess.None;
+			}
+		}
+
+		static void TryAddProfile(List<ConnectionProfile> profiles, ConnectionProfile profile, Func<bool> isConnected)
+		{
+			try
+			{
+				if (isConnected())
+					profiles.Add(profile);
+			}
+			catch (Exception)
+			{
+				// A transport can be unsupported on a device profile; probe the others independently.
+			}
 		}
 
 		internal static bool IsConnected(TizenConnectionState state) =>
@@ -138,7 +168,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		void OnConnectionTypeChanged(object? sender, TizenConnectionTypeEventArgs e)
 		{
 			// Snapshot on the native callback thread, then raise on the main thread.
-			var args = new ConnectivityChangedEventArgs(NetworkAccess, GetConnectionProfiles());
+			var args = new ConnectivityChangedEventArgs(
+				GetNetworkAccess(static () => TizenConnectionManager.CurrentConnection.Type),
+				GetConnectionProfiles());
 
 			MainThread.BeginInvokeOnMainThread(() =>
 			{

@@ -44,12 +44,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// </remarks>
 	public static class TizenSensors
 	{
-		static readonly Lazy<TizenAccelerometerSensor> AccelerometerSensor = new(static () => new TizenAccelerometerSensor());
-		static readonly Lazy<TizenPressureSensor> BarometerSensor = new(static () => new TizenPressureSensor());
-		static readonly Lazy<TizenNativeOrientationSensor> CompassSensor = new(static () => new TizenNativeOrientationSensor());
-		static readonly Lazy<TizenGyroscopeSensor> GyroscopeSensor = new(static () => new TizenGyroscopeSensor());
-		static readonly Lazy<TizenMagnetometerSensor> MagnetometerSensor = new(static () => new TizenMagnetometerSensor());
-		static readonly Lazy<TizenRotationVectorSensor> RotationVectorSensor = new(static () => new TizenRotationVectorSensor());
+		static readonly ResettableSensor<TizenAccelerometerSensor> AccelerometerSensor = new(static () => new TizenAccelerometerSensor());
+		static readonly ResettableSensor<TizenPressureSensor> BarometerSensor = new(static () => new TizenPressureSensor());
+		static readonly ResettableSensor<TizenNativeOrientationSensor> CompassSensor = new(static () => new TizenNativeOrientationSensor());
+		static readonly ResettableSensor<TizenGyroscopeSensor> GyroscopeSensor = new(static () => new TizenGyroscopeSensor());
+		static readonly ResettableSensor<TizenMagnetometerSensor> MagnetometerSensor = new(static () => new TizenMagnetometerSensor());
+		static readonly ResettableSensor<TizenRotationVectorSensor> RotationVectorSensor = new(static () => new TizenRotationVectorSensor());
 
 		/// <summary>
 		/// Gets the shared native sensor instance for the requested type.
@@ -67,6 +67,53 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				TizenSensorType.OrientationSensor => RotationVectorSensor.Value,
 				_ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown Tizen sensor type."),
 			};
+
+		internal static void ResetDefaultSensor(TizenSensor sensor)
+		{
+			if (AccelerometerSensor.Reset(sensor) ||
+				BarometerSensor.Reset(sensor) ||
+				CompassSensor.Reset(sensor) ||
+				GyroscopeSensor.Reset(sensor) ||
+				MagnetometerSensor.Reset(sensor) ||
+				RotationVectorSensor.Reset(sensor))
+			{
+				sensor.Dispose();
+			}
+		}
+
+		sealed class ResettableSensor<TSensor>
+			where TSensor : TizenSensor
+		{
+			readonly object _locker = new();
+			readonly Func<TSensor> _factory;
+			TSensor? _value;
+
+			public ResettableSensor(Func<TSensor> factory)
+			{
+				_factory = factory;
+			}
+
+			public TSensor Value
+			{
+				get
+				{
+					lock (_locker)
+						return _value ??= _factory();
+				}
+			}
+
+			public bool Reset(TizenSensor sensor)
+			{
+				lock (_locker)
+				{
+					if (!ReferenceEquals(_value, sensor))
+						return false;
+
+					_value = null;
+					return true;
+				}
+			}
+		}
 	}
 
 	/// <summary>

@@ -26,6 +26,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		TtsClient? _client;
 		Task<TtsClient>? _initialization;
+		TaskCompletionSource<bool>? _readiness;
 		TaskCompletionSource<bool>? _utterance;
 		bool _disposed;
 
@@ -130,17 +131,25 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				_utterance = utterance;
 
 				using var registration = cancelToken.Register(() =>
-					CancelUtterance(utterance, cancelToken, () => StopQuietly(client)));
+					CancelUtterance(utterance, cancelToken, () => InvalidateClient(client)));
 
-				var (resolvedLanguage, voiceType) = ResolveVoice(client, language);
+				try
+				{
+					cancelToken.ThrowIfCancellationRequested();
 
-				client.AddText(text, resolvedLanguage, (int)voiceType, ResolveRate(client, rate));
+					var (resolvedLanguage, voiceType) = ResolveVoice(client, language);
+					client.AddText(text, resolvedLanguage, (int)voiceType, ResolveRate(client, rate));
 
-				// One last check: the registration above only fires for cancellation that happens
-				// after it is created, so a token cancelled in between would otherwise still play.
-				cancelToken.ThrowIfCancellationRequested();
+					// Clear any text queued by a cancellation racing AddText before playback starts.
+					cancelToken.ThrowIfCancellationRequested();
 
-				client.Play();
+					client.Play();
+				}
+				catch (Exception) when (cancelToken.IsCancellationRequested)
+				{
+					cancelToken.ThrowIfCancellationRequested();
+					throw;
+				}
 
 				await utterance.Task.ConfigureAwait(false);
 			}
@@ -157,7 +166,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			Action stop)
 		{
 			utterance.TrySetCanceled(cancelToken);
-			stop();
+			try
+			{
+				stop();
+			}
+			catch (Exception)
+			{
+				// Cancellation has already won the task contract.
+			}
 		}
 
 		static void StopQuietly(TtsClient client)
@@ -261,9 +277,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			var client = new TtsClient();
 			var ready = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+			var cleanedUp = 0;
+			_readiness = ready;
 
 			client.StateChanged += OnStateChanged;
 			client.UtteranceCompleted += OnUtteranceCompleted;
+			client.ErrorOccurred += OnErrorOccurred;
 
 			try
 			{
@@ -271,9 +290,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			}
 			catch (Exception)
 			{
-				client.StateChanged -= OnStateChanged;
-				client.UtteranceCompleted -= OnUtteranceCompleted;
-				client.Dispose();
+				CleanupClient();
 				throw;
 			}
 
@@ -293,6 +310,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				_utterance?.TrySetResult(true);
 			}
 
+			void OnErrorOccurred(object? sender, ErrorOccurredEventArgs e)
+			{
+				var exception = new InvalidOperationException(
+					$"Tizen text-to-speech failed ({e.ErrorValue}): {e.ErrorMessage}");
+
+				FailPendingTasks(ready, _utterance, exception);
+				CleanupClient();
+			}
+
 			async Task<TtsClient> AwaitReadyAsync()
 			{
 				try
@@ -302,16 +328,50 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				}
 				catch (Exception)
 				{
-					client.StateChanged -= OnStateChanged;
-					client.UtteranceCompleted -= OnUtteranceCompleted;
-					client.Dispose();
-
-					if (ReferenceEquals(_client, client))
-						_client = null;
-
+					CleanupClient();
 					throw;
 				}
 			}
+
+			void CleanupClient()
+			{
+				if (Interlocked.Exchange(ref cleanedUp, 1) != 0)
+					return;
+
+				client.StateChanged -= OnStateChanged;
+				client.UtteranceCompleted -= OnUtteranceCompleted;
+				client.ErrorOccurred -= OnErrorOccurred;
+
+				if (ReferenceEquals(_client, client))
+				{
+					_client = null;
+					_initialization = null;
+				}
+				if (ReferenceEquals(_readiness, ready))
+					_readiness = null;
+
+				client.Dispose();
+			}
+		}
+
+		void InvalidateClient(TtsClient client)
+		{
+			if (ReferenceEquals(_client, client))
+			{
+				_client = null;
+				_initialization = null;
+			}
+
+			client.Dispose();
+		}
+
+		internal static void FailPendingTasks(
+			TaskCompletionSource<bool>? readiness,
+			TaskCompletionSource<bool>? utterance,
+			Exception exception)
+		{
+			readiness?.TrySetException(exception);
+			utterance?.TrySetException(exception);
 		}
 
 		/// <inheritdoc/>
@@ -321,11 +381,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				return;
 
 			_disposed = true;
+			FailPendingTasks(
+				_readiness,
+				_utterance,
+				new ObjectDisposedException(nameof(TizenTextToSpeech)));
+
 			_client?.Dispose();
 			_client = null;
 			_initialization = null;
-			_speakLock.Dispose();
-			_initializeLock.Dispose();
+			_readiness = null;
 		}
 	}
 }

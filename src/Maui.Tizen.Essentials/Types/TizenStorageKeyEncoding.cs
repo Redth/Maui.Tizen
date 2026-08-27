@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 
 namespace Microsoft.Maui.Platforms.Tizen.Essentials
@@ -20,14 +21,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// prefix.
 	/// </para>
 	/// <para>
-	/// The separator is therefore escaped inside each component before joining, which makes the
-	/// encoding injective: distinct (shared name, key) pairs always produce distinct strings.
+	/// Each store kind has a versioned prefix, and the separator is escaped inside named-store
+	/// components before joining. The result is injective across default and named stores as well as
+	/// within each named store.
 	/// </para>
 	/// </remarks>
 	public static class TizenStorageKeyEncoding
 	{
 		const char Separator = '~';
 		const char Escape = '\\';
+		const string VersionPrefix = "maui.tizen.preferences:v2:";
+		const string DefaultStorePrefix = VersionPrefix + "d:";
+		const string NamedStorePrefix = VersionPrefix + "n:";
 
 		/// <summary>
 		/// Encodes a single component so it can be joined with <see cref="Separator"/> unambiguously.
@@ -65,13 +70,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			ArgumentNullException.ThrowIfNull(key);
 
-			// No shared name means the key is used verbatim, which preserves compatibility with
-			// entries written by the in-box dotnet/maui Tizen backend for the default store - the
-			// overwhelmingly common case.
 			if (string.IsNullOrEmpty(sharedName))
-				return key;
+				return DefaultStorePrefix + Encode(key);
 
-			return string.Concat(Encode(sharedName), Separator.ToString(), Encode(key));
+			return string.Concat(NamedStorePrefix, Encode(sharedName), Separator.ToString(), Encode(key));
 		}
 
 		/// <summary>
@@ -87,7 +89,25 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			ArgumentNullException.ThrowIfNull(sharedName);
 
-			return Encode(sharedName) + Separator;
+			return string.IsNullOrEmpty(sharedName)
+				? DefaultStorePrefix
+				: NamedStorePrefix + Encode(sharedName) + Separator;
+		}
+
+		internal static IEnumerable<string> GetLegacyKeys(string key, string? sharedName)
+		{
+			if (string.IsNullOrEmpty(sharedName))
+			{
+				yield return key;
+				yield break;
+			}
+
+			var escaped = string.Concat(Encode(sharedName), Separator.ToString(), Encode(key));
+			yield return escaped;
+
+			var raw = string.Concat(sharedName, Separator.ToString(), key);
+			if (!string.Equals(raw, escaped, StringComparison.Ordinal))
+				yield return raw;
 		}
 	}
 }

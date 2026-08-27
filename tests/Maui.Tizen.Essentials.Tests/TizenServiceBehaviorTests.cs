@@ -5,7 +5,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Maui.ApplicationModel;
+using Microsoft.Maui.ApplicationModel.Communication;
 using Microsoft.Maui.Devices;
+using Microsoft.Maui.Networking;
 using Microsoft.Maui.Platforms.Tizen.Essentials;
 using Xunit;
 using TizenBatteryPowerSource = Tizen.System.BatteryPowerSource;
@@ -102,13 +104,14 @@ public class TizenServiceBehaviorTests
 	}
 
 	[Fact]
-	public void DefaultStoreKeysAreUnprefixedForCompatibility()
+	public void DefaultAndNamedStoreKeysCannotCollide()
 	{
-		// Entries written by the in-box dotnet/maui Tizen backend for the default store used the
-		// raw key, so changing that would strand existing data.
-		Assert.Equal("key", TizenStorageKeyEncoding.GetFullKey("key", null));
-		Assert.Equal("key", TizenStorageKeyEncoding.GetFullKey("key", string.Empty));
-		Assert.Equal("key", TizenPreferences.GetFullKey("key", null));
+		var defaultKey = TizenStorageKeyEncoding.GetFullKey("a~b", null);
+		var namedKey = TizenStorageKeyEncoding.GetFullKey("b", "a");
+
+		Assert.NotEqual(defaultKey, namedKey);
+		Assert.StartsWith("maui.tizen.preferences:v2:d:", defaultKey, StringComparison.Ordinal);
+		Assert.StartsWith("maui.tizen.preferences:v2:n:", namedKey, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -123,6 +126,58 @@ public class TizenServiceBehaviorTests
 
 		// ...while keys genuinely in "a" do match.
 		Assert.StartsWith(prefix, TizenStorageKeyEncoding.GetFullKey("c", "a"), StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void ClearingDefaultPreferencesLeavesNamedAndLegacyEntriesAlone()
+	{
+		var store = new FakePreferencesStore
+		{
+			[TizenPreferences.GetFullKey("default", null)] = "delete-me",
+			[TizenPreferences.GetFullKey("named", "shared")] = "keep-me",
+			["legacy-default"] = "keep-conservatively",
+			["shared~legacy"] = "keep-conservatively",
+		};
+		var preferences = new TizenPreferences(store);
+
+		preferences.Clear();
+
+		Assert.False(store.Contains(TizenPreferences.GetFullKey("default", null)));
+		Assert.Equal("keep-me", store[TizenPreferences.GetFullKey("named", "shared")]);
+		Assert.Equal("keep-conservatively", store["legacy-default"]);
+		Assert.Equal("keep-conservatively", store["shared~legacy"]);
+	}
+
+	[Fact]
+	public void PreferencesReadAndMigrateLegacyDefaultAndNamedEntries()
+	{
+		var store = new FakePreferencesStore
+		{
+			["legacy-default"] = "default-value",
+			["shared~legacy-named"] = "named-value",
+		};
+		var preferences = new TizenPreferences(store);
+
+		Assert.Equal("default-value", preferences.Get("legacy-default", "missing"));
+		Assert.Equal("named-value", preferences.Get("legacy-named", "missing", "shared"));
+		Assert.Equal("default-value", store["legacy-default"]);
+		Assert.Equal("named-value", store["shared~legacy-named"]);
+		Assert.Equal("default-value", store[TizenPreferences.GetFullKey("legacy-default", null)]);
+		Assert.Equal("named-value", store[TizenPreferences.GetFullKey("legacy-named", "shared")]);
+	}
+
+	[Fact]
+	public void PreferencesPreferVersionedEntriesOverLegacyAliases()
+	{
+		var store = new FakePreferencesStore
+		{
+			["token"] = "legacy-value",
+			[TizenPreferences.GetFullKey("token", null)] = "new-value",
+		};
+		var preferences = new TizenPreferences(store);
+
+		Assert.Equal("new-value", preferences.Get("token", "missing"));
+		Assert.Equal("legacy-value", store["token"]);
 	}
 
 	// -------------------------------------------------------------------------------------------
@@ -273,6 +328,37 @@ public class TizenServiceBehaviorTests
 		Assert.Equal(source.Token, exception.CancellationToken);
 	}
 
+	[Fact]
+	public async Task TextToSpeechAsyncErrorsFaultReadinessAndPlayback()
+	{
+		var readiness = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var utterance = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var failure = new InvalidOperationException("native failure");
+
+		TizenTextToSpeech.FailPendingTasks(readiness, utterance, failure);
+
+		Assert.Same(failure, await Assert.ThrowsAsync<InvalidOperationException>(() => readiness.Task));
+		Assert.Same(failure, await Assert.ThrowsAsync<InvalidOperationException>(() => utterance.Task));
+	}
+
+	[Fact]
+	public async Task TextToSpeechDisposalSettlesAllPendingTasks()
+	{
+		var readiness = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var utterance = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		using var textToSpeech = new TizenTextToSpeech();
+
+		typeof(TizenTextToSpeech).GetField("_readiness", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+			.SetValue(textToSpeech, readiness);
+		typeof(TizenTextToSpeech).GetField("_utterance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+			.SetValue(textToSpeech, utterance);
+
+		textToSpeech.Dispose();
+
+		await Assert.ThrowsAsync<ObjectDisposedException>(() => readiness.Task);
+		await Assert.ThrowsAsync<ObjectDisposedException>(() => utterance.Task);
+	}
+
 	// -------------------------------------------------------------------------------------------
 	// Screenshot pixel-format handling.
 	// -------------------------------------------------------------------------------------------
@@ -392,6 +478,70 @@ public class TizenServiceBehaviorTests
 		Assert.False(TizenConnectivity.IsConnected(TizenConnectionState.Deactivated));
 	}
 
+	[Fact]
+	public void ConnectivityProbesUnsupportedTransportsIndependently()
+	{
+		var profiles = TizenConnectivity.GetConnectionProfiles(
+			static () => throw new PlatformNotSupportedException("No Wi-Fi"),
+			static () => true,
+			static () => throw new InvalidOperationException("No Ethernet"),
+			static () => true);
+
+		Assert.Equal([ConnectionProfile.Cellular, ConnectionProfile.Bluetooth], profiles);
+	}
+
+	[Fact]
+	public void ConnectivityReturnsNoneWhenCurrentTransportCannotBeQueried() =>
+		Assert.Equal(
+			NetworkAccess.None,
+			TizenConnectivity.GetNetworkAccess(
+				static () => throw new PlatformNotSupportedException("Unsupported device profile")));
+
+	[Fact]
+	public async Task ContactLookupDisposesTheOwningRecord()
+	{
+		var record = new FakeContactRecord();
+		var completion = new TaskCompletionSource<Contact?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		TizenContacts.CompleteLookup(completion, () => record, static _ => new Contact());
+
+		Assert.NotNull(await completion.Task);
+		Assert.True(record.Disposed);
+	}
+
+	[Fact]
+	public async Task ContactProjectionFailureDisposesTheRecordAndFaultsTheTask()
+	{
+		var record = new FakeContactRecord();
+		var completion = new TaskCompletionSource<Contact?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var failure = new InvalidOperationException("projection failed");
+
+		TizenContacts.CompleteLookup<FakeContactRecord>(
+			completion,
+			() => record,
+			_ => throw failure);
+
+		Assert.Same(failure, await Assert.ThrowsAsync<InvalidOperationException>(() => completion.Task));
+		Assert.True(record.Disposed);
+	}
+
+	[Fact]
+	public void SensorStartRollbackResetsEvenWhenCleanupFails()
+	{
+		var stopped = false;
+		var reset = false;
+
+		TizenSensorBase<global::Tizen.Sensor.Sensor>.RollbackFailedStart(
+			started: true,
+			subscribed: true,
+			stop: () => stopped = true,
+			unsubscribe: static () => throw new InvalidOperationException("unsubscribe failed"),
+			reset: () => reset = true);
+
+		Assert.True(stopped);
+		Assert.True(reset);
+	}
+
 	sealed class FakeSecureRepository : ITizenSecureRepository
 	{
 		readonly Dictionary<string, byte[]> _values = new(StringComparer.Ordinal);
@@ -434,5 +584,38 @@ public class TizenServiceBehaviorTests
 
 		public IEnumerable<string> GetAliases() =>
 			_values.Keys.ToArray();
+	}
+
+	sealed class FakePreferencesStore : ITizenPreferencesStore
+	{
+		readonly Dictionary<string, object?> _values = new(StringComparer.Ordinal);
+
+		public IEnumerable<string> Keys => _values.Keys.ToArray();
+
+		public object? this[string key]
+		{
+			get => _values[key];
+			set => _values[key] = value;
+		}
+
+		public bool Contains(string key) =>
+			_values.ContainsKey(key);
+
+		public void Remove(string key) =>
+			_values.Remove(key);
+
+		public void Set<T>(string key, T value) =>
+			_values[key] = value;
+
+		public T Get<T>(string key) =>
+			(T)_values[key]!;
+	}
+
+	sealed class FakeContactRecord : IDisposable
+	{
+		public bool Disposed { get; private set; }
+
+		public void Dispose() =>
+			Disposed = true;
 	}
 }

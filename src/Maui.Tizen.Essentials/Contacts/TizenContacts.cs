@@ -53,9 +53,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 					if (int.TryParse(contactId, out var id))
 					{
-						var record = Manager.Value.Database.Get(TizenContact.Uri, id);
-						if (record is not null)
-							contact = ToContact(record);
+						CompleteLookup(
+							tcs,
+							() => Manager.Value.Database.Get(TizenContact.Uri, id),
+							ToContact);
+						return;
 					}
 				}
 
@@ -109,13 +111,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		static Contact ToContact(ContactsRecord contactsRecord)
 		{
-			var nameRecord = contactsRecord.GetChildRecord(TizenContact.Name, 0);
+			using var nameRecord = contactsRecord.GetChildRecord(TizenContact.Name, 0);
 
 			var phones = new List<ContactPhone>();
 			var phoneCount = contactsRecord.GetChildRecordCount(TizenContact.Number);
 			for (var i = 0; i < phoneCount; i++)
 			{
-				var numberRecord = contactsRecord.GetChildRecord(TizenContact.Number, i);
+				using var numberRecord = contactsRecord.GetChildRecord(TizenContact.Number, i);
 				phones.Add(new ContactPhone(numberRecord.Get<string>(TizenNumberView.NumberData)));
 			}
 
@@ -123,7 +125,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			var emailCount = contactsRecord.GetChildRecordCount(TizenContact.Email);
 			for (var i = 0; i < emailCount; i++)
 			{
-				var emailRecord = contactsRecord.GetChildRecord(TizenContact.Email, i);
+				using var emailRecord = contactsRecord.GetChildRecord(TizenContact.Email, i);
 				emails.Add(new ContactEmail(emailRecord.Get<string>(TizenEmailView.Address)));
 			}
 
@@ -136,6 +138,23 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				nameRecord?.Get<string>(TizenNameView.Suffix),
 				phones,
 				emails);
+		}
+
+		internal static void CompleteLookup<TRecord>(
+			TaskCompletionSource<Contact?> completion,
+			Func<TRecord?> lookup,
+			Func<TRecord, Contact> project)
+			where TRecord : class, IDisposable
+		{
+			try
+			{
+				using var record = lookup();
+				completion.TrySetResult(record is null ? null : project(record));
+			}
+			catch (Exception ex)
+			{
+				completion.TrySetException(ex);
+			}
 		}
 	}
 }

@@ -110,7 +110,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			}
 		}
 
-		static string GetOperation(Uri uri)
+		internal static string GetOperation(Uri uri)
 		{
 			var absoluteUri = uri.AbsoluteUri;
 
@@ -125,7 +125,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			if (absoluteUri.StartsWith("tel:", StringComparison.OrdinalIgnoreCase))
 				return TizenAppControlOperations.Dial;
 
-			return TizenAppControlOperations.ShareText;
+			return TizenAppControlOperations.View;
 		}
 	}
 }

@@ -78,6 +78,20 @@ old SecureStorage raw alias from certificates, keys, or another component's data
 repository. Applications that need eager migration must enumerate their own known SecureStorage
 keys and call `GetAsync` for each one before calling `RemoveAll`.
 
+### Preferences data migration
+
+Preferences now use a versioned `maui.tizen.preferences:v2:` physical namespace with distinct
+default-store and named-store prefixes. This fixes two collisions in the old flat layout: a default
+key such as `a~b` could alias named store `a`, key `b`, and clearing the default store called Tizen's
+application-wide `RemoveAll`, deleting every named store too.
+
+Reads prefer the v2 key and fall back to the exact legacy alias used by the in-box backend and the
+first standalone package revision. A successful legacy read copies the value into v2. The old alias
+is intentionally retained because the legacy layout is ambiguous: deleting `a~b` cannot prove
+whether it belonged to the default store or a named store. Explicit per-key `Remove`/null `Set`
+removes the requested legacy candidates; `Clear` removes only the selected store's unambiguous v2
+entries and never performs a native global clear.
+
 ### Target contract provenance
 
 The `tizen11.0` / API15 contract is **verified from Samsung workload PR #310**, not
