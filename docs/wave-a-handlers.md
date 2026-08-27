@@ -30,16 +30,50 @@ Plus the supporting pieces those handlers need: a Tizen font manager
 (`TizenSearchBarView`, `TizenStepperView`, `TizenPickerView`, `TizenDateTimePicker`) and the
 per-control property mappings under `Platform/Tizen/Tizen*Extensions.cs`.
 
-Registration is explicit:
+Registration happens in the composition root. `ConfigureTizen()` wires all of it:
 
 ```csharp
-builder.ConfigureMauiHandlers(handlers => handlers.AddTizenControlHandlers());
+builder.ConfigureTizen();   // handlers + control services + image sources
+```
+
+which internally performs:
+
+```csharp
+builder.ConfigureMauiHandlers(handlers =>
+{
+    handlers.AddTizenHandlers();          // core slice: application, window, layout, label
+    handlers.AddTizenControlHandlers();   // Wave A: the fourteen simple controls
+});
 builder.Services.AddTizenControlServices();
 builder.ConfigureImageSources(sources => sources.AddTizenImageSources());
 ```
 
-`AddTizenControlHandlers` is separate from the core slice's `AddTizenHandlers` so a host can
-adopt either half independently while the migration is in flight.
+The three `AddTizen*` methods stay public and separate so a host can adopt either half
+independently while the migration is in flight - but **the composition root calls them**, and that
+is not a detail. An earlier revision declared them and left the calls to the host, with the snippet
+above presented as something an app would write. The result was that all fourteen control handlers,
+their font manager and modal host, and both image source services were **never registered in a real
+app**. Every registration test passed, because each one invoked the `AddTizen*` method itself and so
+verified the method rather than the wiring.
+
+Two tests now close that gap, both of which fail if the calls are removed:
+`EveryControlHandlerResolvesFromTheCompositionRoot` resolves each control through an app built with
+`ConfigureTizen()` alone, and `EveryTizenRegistrationExtensionHasACaller` fails on any public
+`AddTizen*` registration extension that no compiled source calls - which is how the second and third
+instances were found rather than reviewed for.
+
+The image source case deserves its own note, because it fails *silently*: MAUI's neutral package
+already registers `FileImageSourceService`, `StreamImageSourceService`, `FontImageSourceService` and
+`UriImageSourceService`, so every source type resolves whether or not `AddTizenImageSources` ever
+runs. Nothing throws and no service is reported missing - images are simply blank. A test asserting
+"an image source service is registered" passes on an app that can never display an image, so
+`ImageSourceRegistrationTests` asserts *which* implementation wins.
+
+`AddTizenImageSources` is deliberately in the portable compile group, separated from the
+NUI-dependent services it registers, so the call in `ConfigureTizen` compiles on both lanes and the
+image workstream has a seam to extend. Font and URI sources are still MAUI's neutral defaults;
+`FontAndUriSourcesAreNotYetTizenOwned` records that and fails, with instructions, when that wave
+lands.
 
 ## Handler identity and mapper composition
 

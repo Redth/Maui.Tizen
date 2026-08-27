@@ -34,6 +34,12 @@
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)LifecycleEvents/TizenWindowLifecycleBridge.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Hosting/TizenHandlerCollectionExtensions.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Hosting/TizenMauiAppBuilderExtensions.cs" />
+    <!--
+      Portable on purpose: the registration extension is separated from the NUI-dependent service
+      implementations so ConfigureTizen's call to it compiles on both lanes, and so the image
+      workstream has a seam it can extend without touching Tizen-only files.
+    -->
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)ImageSources/TizenImageSourceServiceCollectionExtensions.cs" />
 
     <!-- Wave A: registration, fonts and image-source contracts (no NUI dependency). -->
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Hosting/TizenControlHandlerCollectionExtensions.cs" />

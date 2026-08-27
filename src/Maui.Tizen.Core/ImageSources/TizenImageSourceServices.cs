@@ -141,30 +141,4 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 		}
 	}
-
-	/// <summary>
-	/// Registers the Tizen image source services.
-	/// </summary>
-	public static class TizenImageSourceServiceCollectionExtensions
-	{
-		/// <summary>
-		/// Adds the file and stream image source services.
-		/// </summary>
-		/// <remarks>
-		/// Font and URI image sources belong to the image workstream and are deliberately absent.
-		/// Registering non-functional stubs for them would turn a clear "no service registered"
-		/// failure into a silently blank image.
-		/// </remarks>
-		/// <param name="services">The image source service collection.</param>
-		/// <returns>The collection, for chaining.</returns>
-		public static IImageSourceServiceCollection AddTizenImageSources(this IImageSourceServiceCollection services)
-		{
-			ArgumentNullException.ThrowIfNull(services);
-
-			services.AddService<IFileImageSource>(static _ => new TizenFileImageSourceService());
-			services.AddService<IStreamImageSource>(static _ => new TizenStreamImageSourceService());
-
-			return services;
-		}
-	}
 }
