@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.Maui;
 using Microsoft.Maui.Primitives;
 using Xunit;
@@ -75,52 +76,104 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Fact]
-		public void ExclusionWinsOverIsInAccessibleTree()
+		public void ExcludingOnlyTheParentLeavesDescendantsAccessible()
 		{
-			// The overwrite hazard, resolved in one place. Both annotations write to BOTH NUI flags,
-			// so applying them through separate helpers let whichever mapper key ran last undo the
-			// other - an element excluded with its children became reachable again purely because
-			// IsInAccessibleTree happened to be mapped afterwards.
+			// The distinction that matters. NUI has two flags and they are not interchangeable:
+			//
+			//   AccessibilityHighlightable - can THIS element be reached
+			//   AccessibilityHidden        - removes this element AND its whole subtree
+			//
+			// IsInAccessibleTree is a statement about one element, so mapping it onto Hidden took
+			// every descendant with it - a container marked not-in-tree silently removed children
+			// that carry no annotation and are individually accessible everywhere else.
 			var (hidden, highlightable) = TizenPropertyResolvers.ResolveAccessibility(
-				isInAccessibleTree: true, excludedWithChildren: true);
+				isInAccessibleTree: false, excludedWithChildren: null);
 
-			Assert.True(hidden);
 			Assert.False(highlightable);
-		}
 
-		[Theory]
-		[InlineData(true, false, true)]
-		[InlineData(false, true, false)]
-		public void IsInAccessibleTreeDrivesBothFlagsWhenNotExcluded(
-			bool inTree, bool expectedHidden, bool expectedHighlightable)
-		{
-			var (hidden, highlightable) = TizenPropertyResolvers.ResolveAccessibility(inTree, null);
-
-			Assert.Equal(expectedHidden, hidden);
-			Assert.Equal(expectedHighlightable, highlightable);
+			// Crucially NOT true: the subtree stays reachable.
+			Assert.NotEqual(true, hidden);
 		}
 
 		[Fact]
-		public void UnannotatedViewsStayReachable()
+		public void ExcludedWithChildrenHidesTheWholeSubtree()
 		{
-			// Neither annotation set must not hide anything; that is NUI's own default and the
-			// overwhelmingly common case.
+			// The annotation that genuinely means "and children" is the only one that may set
+			// Hidden.
+			var (hidden, highlightable) = TizenPropertyResolvers.ResolveAccessibility(
+				isInAccessibleTree: null, excludedWithChildren: true);
+
+			Assert.Equal(true, hidden);
+
+			// An excluded subtree cannot have a reachable root.
+			Assert.Equal(false, highlightable);
+		}
+
+		[Fact]
+		public void UnsetAnnotationsLeaveNativeDefaultsAlone()
+		{
+			// Null means "do not write". Writing false unconditionally stamped over whatever the
+			// control or the platform had already configured for an element nobody annotated.
 			var (hidden, highlightable) = TizenPropertyResolvers.ResolveAccessibility(null, null);
 
-			Assert.False(hidden);
-			Assert.True(highlightable);
+			Assert.Null(hidden);
+			Assert.Null(highlightable);
+		}
+
+		[Fact]
+		public void AnElementMayBeExplicitlyPlacedInTheAccessibleTree()
+		{
+			var (hidden, highlightable) = TizenPropertyResolvers.ResolveAccessibility(
+				isInAccessibleTree: true, excludedWithChildren: null);
+
+			Assert.Equal(true, highlightable);
+			Assert.Null(hidden);
 		}
 
 		[Fact]
 		public void ExplicitlyNotExcludedDoesNotForceReachability()
 		{
-			// ExcludedWithChildren=false is not a statement about reachability, so it must not
-			// override an explicit IsInAccessibleTree=false.
+			// ExcludedWithChildren=false says nothing about this element's own reachability, so it
+			// must not override an explicit IsInAccessibleTree=false.
 			var (hidden, highlightable) = TizenPropertyResolvers.ResolveAccessibility(
 				isInAccessibleTree: false, excludedWithChildren: false);
 
-			Assert.True(hidden);
-			Assert.False(highlightable);
+			Assert.Equal(false, hidden);
+			Assert.Equal(false, highlightable);
+		}
+
+		[Theory]
+		[InlineData(LineBreakMode.HeadTruncation, TizenPropertyResolvers.EllipsisAtStart)]
+		[InlineData(LineBreakMode.MiddleTruncation, TizenPropertyResolvers.EllipsisAtMiddle)]
+		[InlineData(LineBreakMode.TailTruncation, TizenPropertyResolvers.EllipsisAtEnd)]
+		public void TruncationModesPlaceTheEllipsisCorrectly(LineBreakMode mode, int expected)
+		{
+			// UIExtensions collapses all three into `MultiLine = false; Ellipsis = true;` and never
+			// touches EllipsisPosition, which defaults to End - so head and middle truncation both
+			// rendered as tail truncation. Asking for a leading ellipsis produced a trailing one.
+			Assert.Equal(expected, TizenPropertyResolvers.ResolveEllipsisPosition(mode));
+		}
+
+		[Theory]
+		[InlineData(LineBreakMode.NoWrap)]
+		[InlineData(LineBreakMode.WordWrap)]
+		[InlineData(LineBreakMode.CharacterWrap)]
+		public void NonTruncatingModesLeaveTheEllipsisPositionAlone(LineBreakMode mode) =>
+			Assert.Null(TizenPropertyResolvers.ResolveEllipsisPosition(mode));
+
+		[Fact]
+		public void TheThreeTruncationPositionsAreDistinct()
+		{
+			// Guards against a table that compiles and looks right while mapping everything to the
+			// same value - which is precisely the upstream behaviour being corrected.
+			var positions = new[]
+			{
+				TizenPropertyResolvers.ResolveEllipsisPosition(LineBreakMode.HeadTruncation),
+				TizenPropertyResolvers.ResolveEllipsisPosition(LineBreakMode.MiddleTruncation),
+				TizenPropertyResolvers.ResolveEllipsisPosition(LineBreakMode.TailTruncation),
+			};
+
+			Assert.Equal(3, positions.Distinct().Count());
 		}
 
 		[Fact]
@@ -153,6 +206,32 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(0, cleared);
 
 			Assert.NotEqual(applied, cleared);
+		}
+
+		[Fact]
+		public void AMeasurePendingAfterTheOutermostPassMustBeRescheduled()
+		{
+			// The regression. A measure invalidated DURING a layout pass suppresses RequestLayout
+			// to avoid re-entering the pass already running - so unless it is replayed as the
+			// outermost pass exits, the invalidation is silently dropped and the content keeps a
+			// stale measurement until some unrelated pass comes along.
+			Assert.True(TizenPropertyResolvers.ShouldScheduleLayout(layoutDepth: 0, needMeasureUpdate: true));
+		}
+
+		[Fact]
+		public void NoRescheduleWhileAPassIsStillRunning()
+		{
+			// Nested groups: only the outermost exit may schedule, or each level would queue its
+			// own pass.
+			Assert.False(TizenPropertyResolvers.ShouldScheduleLayout(layoutDepth: 1, needMeasureUpdate: true));
+			Assert.False(TizenPropertyResolvers.ShouldScheduleLayout(layoutDepth: 3, needMeasureUpdate: true));
+		}
+
+		[Fact]
+		public void NoRescheduleWhenNothingIsPending()
+		{
+			// A pass that invalidated nothing must not schedule another, or layout never settles.
+			Assert.False(TizenPropertyResolvers.ShouldScheduleLayout(layoutDepth: 0, needMeasureUpdate: false));
 		}
 	}
 }

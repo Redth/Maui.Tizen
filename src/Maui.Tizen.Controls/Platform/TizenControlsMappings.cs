@@ -51,6 +51,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Controls
 
 			_registered = true;
 
+			// Force Controls' own static remapping to run FIRST.
+			//
+			// RemapForControls is triggered lazily by a Controls type's static constructor, so
+			// registering before that happens is not merely useless - Controls' remap can replace
+			// the very entries installed here, and the failure is silent and order-dependent.
+			// Constructing the types makes the ordering explicit instead of hoping the app got
+			// there first.
+			ForceControlsRemap();
+
 			LabelHandler.Mapper.AppendToMapping(nameof(Label.LineBreakMode), MapLineBreakMode);
 
 			// Both accessibility keys route to the SAME handler, which reads both properties.
@@ -61,6 +70,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Controls
 
 			ViewHandler.ViewMapper.AppendToMapping(
 				AutomationProperties.ExcludedWithChildrenProperty.PropertyName, MapAccessibility);
+		}
+
+		/// <summary>
+		/// Runs Controls' lazy static remapping so this type's registrations land on top of it
+		/// rather than underneath.
+		/// </summary>
+		static void ForceControlsRemap()
+		{
+			// Touching the type runs its static constructor, which is what calls RemapForControls.
+			// Nothing is done with the instances.
+			_ = new Label();
+			_ = new ContentPage();
+			_ = new VerticalStackLayout();
 		}
 
 		/// <summary>Applies <c>Label.LineBreakMode</c> to the Tizen label.</summary>

@@ -229,10 +229,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 			// is honest: the image is unrendered either way, and the view ends up in a defined
 			// state rather than an arbitrary one.
 			//
-			// Rendering it properly needs IImageSourcePaint, which is INTERNAL in
-			// Microsoft.Maui 11.0.0-preview.7 - verified by reflection - and a container view to
-			// draw into, whose setter is private protected. Both are recorded as gaps; the raw
-			// imported ViewExtensions.cs that uses them stays uncompiled for exactly that reason.
+			// Rendering it properly needs the public consumption-only IImageSourcePaint contract,
+			// which is ABSENT from Microsoft.Maui 11.0.0-preview.7 - verified by reflection - plus
+			// a container view to draw into, whose setter is private protected. The concrete
+			// ImageSourcePaint is present but intentionally internal and is expected to stay so, so
+			// this waits on a new contract rather than on a type being opened up. Both are recorded
+			// as gaps; the raw imported ViewExtensions.cs that uses them stays uncompiled.
 			if (clearWhenNull)
 				platformView.UpdateBackgroundColor(NColor.Transparent);
 		}
@@ -641,8 +643,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 			var (hidden, highlightable) = TizenPropertyResolvers.ResolveAccessibility(
 				isInAccessibleTree, excludedWithChildren);
 
-			platformView.AccessibilityHidden = hidden;
-			platformView.AccessibilityHighlightable = highlightable;
+			// Only written when the corresponding annotation is set, so an unannotated element
+			// keeps whatever the control or the platform configured.
+			if (hidden is bool hide)
+				platformView.AccessibilityHidden = hide;
+
+			if (highlightable is bool highlight)
+				platformView.AccessibilityHighlightable = highlight;
 		}
 
 
@@ -775,6 +782,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			platformLabel.LineBreakMode =
 				(NLineBreakMode)TizenPropertyResolvers.ResolveLineBreakMode(lineBreakMode);
+
+			// UIExtensions maps all three truncation modes to the same native state and leaves
+			// EllipsisPosition at its End default, so head and middle truncation both rendered as
+			// tail truncation. Setting it explicitly is the only way to get what was asked for.
+			if (TizenPropertyResolvers.ResolveEllipsisPosition(lineBreakMode) is int position)
+				platformLabel.EllipsisPosition = (global::Tizen.NUI.EllipsisPosition)position;
 		}
 
 		/// <summary>Applies <see cref="ITextStyle.CharacterSpacing"/>.</summary>

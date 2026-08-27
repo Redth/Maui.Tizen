@@ -135,19 +135,84 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <param name="isInAccessibleTree">AutomationProperties.IsInAccessibleTree, if set.</param>
 		/// <param name="excludedWithChildren">AutomationProperties.ExcludedWithChildren, if set.</param>
 		/// <returns>The hidden and highlightable flags to apply.</returns>
-		public static (bool Hidden, bool Highlightable) ResolveAccessibility(
+		public static (bool? Hidden, bool? Highlightable) ResolveAccessibility(
 			bool? isInAccessibleTree,
 			bool? excludedWithChildren)
 		{
+			// The two flags mean different things and must not be used interchangeably.
+			//
+			//   AccessibilityHighlightable - can THIS element be reached by AT.
+			//   AccessibilityHidden        - removes this element AND its subtree.
+			//
+			// IsInAccessibleTree is a statement about the element alone, so mapping it onto Hidden
+			// silently removed every descendant too: a container marked not-in-tree took its
+			// children with it, even though they carry no annotation and are individually
+			// accessible on every other platform. Hidden is now reserved for
+			// ExcludedWithChildren, which is the annotation that genuinely means "and children".
+			//
+			// Null means "leave the native default alone". Writing false unconditionally would
+			// stamp over whatever a control or the platform had already configured for an element
+			// nobody annotated.
+			bool? hidden = excludedWithChildren;
+			bool? highlightable = isInAccessibleTree;
+
+			// Excluding a subtree implies this element is not reachable either. Only forced when
+			// the exclusion is actually set, so an unannotated element keeps its default.
 			if (excludedWithChildren == true)
-				return (Hidden: true, Highlightable: false);
+				highlightable = false;
 
-			if (isInAccessibleTree is bool inTree)
-				return (Hidden: !inTree, Highlightable: inTree);
-
-			// Neither annotation set: leave the element reachable, which is NUI's own default.
-			return (Hidden: false, Highlightable: true);
+			return (hidden, highlightable);
 		}
+
+		/// <summary>
+		/// Whether a layout pass must be scheduled, given the current reentrancy depth and whether
+		/// a measure is pending.
+		/// </summary>
+		/// <remarks>
+		/// The view groups suppress RequestLayout while a layout pass is running, so a measure
+		/// invalidated during that pass - which happens constantly, since arranging children
+		/// invalidates them - schedules nothing. Without replaying it as the outermost pass exits,
+		/// the invalidation is dropped: the dirty flag stays set with nothing to consume it, and
+		/// the content keeps a stale measurement until some unrelated pass happens along.
+		///
+		/// Extracted here because the view groups derive from NUI types and can only ever be
+		/// compile-checked; this predicate is the part that was actually wrong.
+		/// </remarks>
+		/// <param name="layoutDepth">Reentrancy counter; 0 means no pass is running.</param>
+		/// <param name="needMeasureUpdate">Whether a measure is pending.</param>
+		public static bool ShouldScheduleLayout(int layoutDepth, bool needMeasureUpdate) =>
+			layoutDepth == 0 && needMeasureUpdate;
+
+		/// <summary>Native <c>Tizen.NUI.EllipsisPosition</c> values, read from API15 metadata.</summary>
+		public const int EllipsisAtEnd = 0;
+
+		/// <summary>Native <c>EllipsisPosition.Start</c>.</summary>
+		public const int EllipsisAtStart = 1;
+
+		/// <summary>Native <c>EllipsisPosition.Middle</c>.</summary>
+		public const int EllipsisAtMiddle = 2;
+
+		/// <summary>
+		/// Where the ellipsis belongs for a truncating line break mode, or <see langword="null"/>
+		/// when the mode does not truncate.
+		/// </summary>
+		/// <remarks>
+		/// Tizen.UIExtensions collapses HeadTruncation, MiddleTruncation and TailTruncation into
+		/// the same arm - <c>MultiLine = false; Ellipsis = true;</c> - and never touches
+		/// <c>EllipsisPosition</c>, which defaults to <c>End</c>. So all three rendered as tail
+		/// truncation: asking for a leading ellipsis silently produced a trailing one.
+		///
+		/// Note the native names describe where the ELLIPSIS goes, and match the MAUI mode names:
+		/// HeadTruncation cuts the head, so the ellipsis is at the start.
+		/// </remarks>
+		/// <param name="lineBreakMode">The cross-platform line break mode.</param>
+		public static int? ResolveEllipsisPosition(LineBreakMode lineBreakMode) => lineBreakMode switch
+		{
+			LineBreakMode.HeadTruncation => EllipsisAtStart,
+			LineBreakMode.MiddleTruncation => EllipsisAtMiddle,
+			LineBreakMode.TailTruncation => EllipsisAtEnd,
+			_ => null,
+		};
 
 		// MaxLines is deliberately absent.
 		//

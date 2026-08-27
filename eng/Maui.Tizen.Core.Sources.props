@@ -109,6 +109,7 @@
   -->
   <ItemGroup Label="Controls bridge sources">
     <MauiTizenControlsCompile Include="$(MSBuildThisFileDirectory)../src/Maui.Tizen.Controls/Platform/TizenControlsMappings.cs" />
+    <MauiTizenControlsCompile Include="$(MSBuildThisFileDirectory)../src/Maui.Tizen.Controls/Platform/TizenControlsHostingExtensions.cs" />
   </ItemGroup>
 
   <!--

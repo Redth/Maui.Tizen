@@ -315,26 +315,32 @@ namespace Microsoft.Maui.Platforms.Tizen
 				// Pops are ordered top-most first, so only the first is the visible transition.
 				var animatedTopPop = i == 0 && animatePop;
 
-				// The two overloads have DIFFERENT ownership, which is not obvious from their
-				// names: NavigationStack.Pop(bool) ends with `tobeRemoved.Dispose()`, while
-				// Pop(View) only unparents. Treating them the same disposed the wrapper twice on
-				// an animated pop, and detached content from an already-disposed object.
+				// The two overloads have DIFFERENT ownership, which their names do not suggest:
+				// NavigationStack.Pop(bool) ends with `tobeRemoved.Dispose()`, while Pop(View) only
+				// unparents.
 				var wrapper = GetNavigationItem(page);
-
-				// Either way the handler's platform view must come out first, because it belongs
-				// to the handler and the wrapper's own disposal would take it along.
-				wrapper.DetachContent();
 
 				if (animatedTopPop)
 				{
-					// Hand ownership over before awaiting: Pop(true) disposes the wrapper, so it
-					// must no longer be reachable from the map or OnPageRemoved would dispose it
-					// again.
-					_pageMap.Remove(page);
+					// The content stays attached for the whole animation. Detaching first made the
+					// fade play on an empty wrapper - the page appeared to vanish instantly and
+					// then a blank rectangle animated out, which is worse than not animating.
+					//
+					// Pop(true) unparents and disposes the wrapper once the animation finishes, so
+					// the content must be rescued in between. It is taken out first, THEN the
+					// wrapper is disposed, so the handler's platform view never goes down with it.
 					await PlatformNavigation.Pop(true).ConfigureAwait(true);
+
+					// Ownership was transferred to Pop(true); drop it from the map so the cleanup
+					// below does not dispose it a second time.
+					wrapper.DetachContent();
+					_pageMap.Remove(page);
 				}
 				else
 				{
+					// No animation, so nothing is on screen to preserve: detach up front and let
+					// the ordinary cleanup dispose the wrapper.
+					wrapper.DetachContent();
 					PlatformNavigation.Pop(wrapper);
 				}
 

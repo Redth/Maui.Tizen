@@ -60,27 +60,31 @@ exists so `#if TIZEN` code is checked by a compiler rather than by inspection.
 
 ---
 
-### G11. `IImageSourcePaint` is internal, so image backgrounds cannot be rendered
+### G11. The public `IImageSourcePaint` contract has not shipped yet
 
 Verified by reflection over `Microsoft.Maui` 11.0.0-preview.7.26426.4:
 
-| Type | Assembly | Public |
+| Type | Assembly | State |
 | --- | --- | --- |
-| `Microsoft.Maui.ImageSourcePaint` | Microsoft.Maui | **no** |
-| `Microsoft.Maui.Graphics.ImagePaint` | Microsoft.Maui.Graphics | yes |
+| `Microsoft.Maui.IImageSourcePaint` | Microsoft.Maui | **absent from this package** |
+| `Microsoft.Maui.ImageSourcePaint` | Microsoft.Maui | present, internal **by design** |
+| `Microsoft.Maui.Graphics.ImagePaint` | Microsoft.Maui.Graphics | public |
 
-An out-of-repo backend therefore cannot detect an image background at all: the paint type it would
-have to match on is not visible to it. `ImagePaint` is public but carries no image source - and
-`ImagePaint.ToColor()` returns `null`, so an image background produced no colour and the previous
-one silently stayed on screen. The background mapper now clears instead, which at least leaves the
-view in a defined state.
+The concrete `ImageSourcePaint` is intentionally internal and is expected to stay that way, so this
+is not a class waiting to be made public. What is missing is the public **consumption-only**
+interface `IImageSourcePaint` (upstream PR #37864), which a backend would match on to recognise an
+image background. Until that ships in a package this repository pins, an out-of-repo backend cannot
+detect an image background at all.
 
-Rendering it properly needs both this type and a container view to draw into (G1). The raw imported
-`Platform/Tizen/ViewExtensions.cs`, which uses `ImageSourcePaint` and
-`UpdateBackgroundImageSourceAsync`, stays uncompiled for that reason.
+`ImagePaint` is public but carries no image source, and `ImagePaint.ToColor()` returns `null` - so
+an image background produced no colour, the mapper did nothing, and the previously painted colour
+silently stayed on screen. The background mapper now clears instead, which at least leaves the view
+in a defined state.
 
-Note this contradicts guidance that `ImageSourcePaint` is "now public/constructible" - that may be
-true on a later build than the one this package pins.
+Rendering it properly needs that interface **and** a container view to draw into (G1). The raw
+imported `Platform/Tizen/ViewExtensions.cs`, which uses `ImageSourcePaint` and
+`UpdateBackgroundImageSourceAsync`, stays uncompiled for that reason, and the adoption guard stays
+in place.
 
 ### G10. Controls owns several Tizen bindings, and upstream never implemented them
 

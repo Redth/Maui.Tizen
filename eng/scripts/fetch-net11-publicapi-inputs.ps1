@@ -12,6 +12,10 @@
     surface record available without a Tizen build, so this script copies them verbatim (source
     text, not a compiled assembly) into eng/api-baselines/net11.0-publicapi.
 
+    The generated manifest's SHA-256 values are also the offline trust anchor for the normalized
+    imported copies under src/**/PublicAPI/net-tizen. They are never learned or updated by CI, and
+    standalone Maui.Tizen assembly baselines must be generated under PublicAPI/slice instead.
+
 .PARAMETER PrimaryRoot
     Path to an existing net11 source checkout, produced by Get-MauiSourceSnapshot.ps1. Its
     .mt-snapshot.json provenance marker is validated against eng/baselines.json's pinned commit by
