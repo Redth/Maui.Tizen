@@ -231,4 +231,214 @@ public class WaveCToolbarDrawerToggleTests
 
 		Assert.False(ToolbarDrawerToggle.GetDrawerToggleVisible(new Toolbar(page), owner: null));
 	}
+
+	// -----------------------------------------------------------------
+	// Icon-press routing (blocker: back press toggled the drawer too)
+	// -----------------------------------------------------------------
+
+	/// <summary>
+	/// A back press must not also toggle the drawer.
+	/// </summary>
+	/// <remarks>
+	/// The shell view and the toolbar handler both subscribe to the same <c>IconPressed</c> event.
+	/// Gating the drawer side on <c>FlyoutBehavior == Flyout</c> alone meant a back press toggled the
+	/// drawer open <em>and</em> popped the stack, because the drawer stays available in flyout mode
+	/// while a pushed page shows a back button. Availability is not ownership.
+	/// </remarks>
+	[Fact]
+	public void ABackPressDoesNotToggleTheDrawer()
+	{
+		var shell = new Shell { FlyoutBehavior = FlyoutBehavior.Flyout };
+		var page = new ContentPage();
+		shell.Items.Add(new ShellContent { Content = page });
+
+		var toolbar = new Toolbar(page) { BackButtonVisible = true, IsVisible = true };
+
+		// The drawer is still available - that is exactly the trap.
+		Assert.True(ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, owner: null));
+		Assert.False(ToolbarDrawerToggle.ShouldToggleDrawer(toolbar));
+	}
+
+	[Fact]
+	public void ADrawerPressTogglesTheDrawer()
+	{
+		var shell = new Shell { FlyoutBehavior = FlyoutBehavior.Flyout };
+		var page = new ContentPage();
+		shell.Items.Add(new ShellContent { Content = page });
+
+		Assert.True(ToolbarDrawerToggle.ShouldToggleDrawer(new Toolbar(page) { IsVisible = true }));
+	}
+
+	/// <summary>
+	/// Popping back to the root hands the press back to the drawer.
+	/// </summary>
+	[Fact]
+	public void PoppingBackRestoresDrawerPressRouting()
+	{
+		var shell = new Shell { FlyoutBehavior = FlyoutBehavior.Flyout };
+		var page = new ContentPage();
+		shell.Items.Add(new ShellContent { Content = page });
+
+		var toolbar = new Toolbar(page) { IsVisible = true };
+		Assert.True(ToolbarDrawerToggle.ShouldToggleDrawer(toolbar));
+
+		toolbar.BackButtonVisible = true;
+		Assert.False(ToolbarDrawerToggle.ShouldToggleDrawer(toolbar));
+
+		toolbar.BackButtonVisible = false;
+		Assert.True(ToolbarDrawerToggle.ShouldToggleDrawer(toolbar));
+	}
+
+	/// <summary>
+	/// An invisible toolbar routes no press at all.
+	/// </summary>
+	[Fact]
+	public void AnInvisibleToolbarRoutesNoPress()
+	{
+		var shell = new Shell { FlyoutBehavior = FlyoutBehavior.Flyout };
+		var page = new ContentPage();
+		shell.Items.Add(new ShellContent { Content = page });
+
+		Assert.False(ToolbarDrawerToggle.ShouldToggleDrawer(new Toolbar(page) { IsVisible = false }));
+	}
+
+	// -----------------------------------------------------------------
+	// FlyoutLayoutBehavior changes the drawer capability
+	// -----------------------------------------------------------------
+
+	/// <summary>
+	/// Switching a FlyoutPage between Popover and Split changes whether a drawer toggle exists,
+	/// without touching back-button visibility.
+	/// </summary>
+	/// <remarks>
+	/// This is why re-dispatching <c>FlyoutBehavior</c> is not sufficient on its own: the drawer is
+	/// updated but the toolbar's leading slot also has to be redrawn, or the hamburger survives a
+	/// switch to Split and a switch back to Popover leaves the slot empty.
+	/// </remarks>
+	[Fact]
+	public void PopoverAndSplitChangeTheDrawerCapabilityWithoutTouchingBack()
+	{
+		var page = new ContentPage();
+		var flyoutPage = new FlyoutPage
+		{
+			Flyout = new ContentPage { Title = "flyout" },
+			Detail = page,
+			FlyoutLayoutBehavior = FlyoutLayoutBehavior.Popover,
+		};
+
+		var toolbar = new Toolbar(page);
+		Assert.False(toolbar.BackButtonVisible);
+
+		var owner = (IFlyoutView)flyoutPage;
+
+		Assert.Equal(FlyoutBehavior.Flyout, owner.FlyoutBehavior);
+		Assert.True(ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, owner));
+		Assert.Equal(
+			TizenNavigationIconKind.DrawerToggle,
+			TizenToolbarNavigationSlot.GetNavigationIconKind(
+				toolbar,
+				ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, owner)));
+
+		flyoutPage.FlyoutLayoutBehavior = FlyoutLayoutBehavior.Split;
+
+		Assert.Equal(FlyoutBehavior.Locked, owner.FlyoutBehavior);
+		Assert.False(ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, owner));
+		Assert.Equal(
+			TizenNavigationIconKind.None,
+			TizenToolbarNavigationSlot.GetNavigationIconKind(
+				toolbar,
+				ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, owner)));
+
+		// Back visibility never changed - only the drawer capability did.
+		Assert.False(toolbar.BackButtonVisible);
+
+		flyoutPage.FlyoutLayoutBehavior = FlyoutLayoutBehavior.Popover;
+
+		Assert.Equal(FlyoutBehavior.Flyout, owner.FlyoutBehavior);
+		Assert.True(ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, owner));
+		Assert.False(toolbar.BackButtonVisible);
+	}
+
+	/// <summary>
+	/// A Split flyout offers no toggle, so an icon press must not open the drawer.
+	/// </summary>
+	[Fact]
+	public void ASplitFlyoutRoutesNoDrawerPress()
+	{
+		var page = new ContentPage();
+		var flyoutPage = new FlyoutPage
+		{
+			Flyout = new ContentPage { Title = "flyout" },
+			Detail = page,
+			FlyoutLayoutBehavior = FlyoutLayoutBehavior.Split,
+		};
+
+		Assert.False(ToolbarDrawerToggle.ShouldToggleDrawer(new Toolbar(page) { IsVisible = true }, (IFlyoutView)flyoutPage));
+	}
+}
+
+/// <summary>
+/// Source invariants for icon-press routing.
+/// </summary>
+/// <remarks>
+/// The executable tests above cover the routing predicate, but the defect was in the two call sites
+/// that decided a press for themselves. Neither can be instantiated in a host test - one is an NUI
+/// view, the other needs a platform handler - so these pin the call sites at source level instead of
+/// leaving them unguarded.
+/// </remarks>
+public class WaveCToolbarIconPressRoutingSourceTests
+{
+	static string ReadWaveCSource(string fileName)
+		=> File.ReadAllText(WaveCSource.Files.Single(f => Path.GetFileName(f) == fileName));
+
+	/// <summary>
+	/// The shell view must route through the shared predicate.
+	/// </summary>
+	/// <remarks>
+	/// The original body was <c>if (Shell?.FlyoutBehavior == FlyoutBehavior.Flyout)</c>, which reads
+	/// availability rather than ownership and so also fired on a back press.
+	/// </remarks>
+	[Fact]
+	public void TheShellViewRoutesIconPressesThroughTheSharedPredicate()
+	{
+		var source = ReadWaveCSource("TizenShellView.cs");
+		var body = source[source.IndexOf("void OnToolbarIconPressed", StringComparison.Ordinal)..];
+		body = body[..body.IndexOf("\n\t\t}", StringComparison.Ordinal)];
+
+		Assert.Contains("ShouldToggleDrawer", body, StringComparison.Ordinal);
+		Assert.DoesNotContain("FlyoutBehavior == FlyoutBehavior.Flyout", body, StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// The flyout handler must route through the same predicate.
+	/// </summary>
+	/// <remarks>
+	/// Its original guard was <c>!toolbar.BackButtonVisible &amp;&amp; toolbar.IsVisible</c>. That
+	/// honoured back precedence but not the drawer capability, so a Split (Locked) flyout - which
+	/// offers no toggle at all - still opened its drawer on an icon press.
+	/// </remarks>
+	[Fact]
+	public void TheFlyoutHandlerRoutesIconPressesThroughTheSharedPredicate()
+	{
+		var source = ReadWaveCSource("TizenFlyoutViewHandler.cs");
+		var body = source[source.IndexOf("_toolbarIconPressed = (", StringComparison.Ordinal)..];
+		body = body[..body.IndexOf("};", StringComparison.Ordinal)];
+
+		Assert.Contains("ShouldToggleDrawer", body, StringComparison.Ordinal);
+		Assert.DoesNotContain("!toolbar.BackButtonVisible", body, StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// A FlyoutLayoutBehavior change must redraw the toolbar's leading slot, not only the drawer.
+	/// </summary>
+	[Fact]
+	public void FlyoutLayoutBehaviorAlsoRefreshesTheToolbarLeadingSlot()
+	{
+		var source = ReadWaveCSource("TizenFlyoutViewHandler.cs");
+		var body = source[source.IndexOf("public static void MapFlyoutLayoutBehavior", StringComparison.Ordinal)..];
+		body = body[..body.IndexOf("\n\t\t}", StringComparison.Ordinal)];
+
+		Assert.Contains("UpdateValue(nameof(IFlyoutView.FlyoutBehavior))", body, StringComparison.Ordinal);
+		Assert.Contains("RefreshToolbarLeadingIcon", body, StringComparison.Ordinal);
+	}
 }

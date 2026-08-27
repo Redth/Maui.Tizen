@@ -1,4 +1,5 @@
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Platforms.Tizen.Platform;
 
 namespace Microsoft.Maui.Platforms.Tizen.Adapters
 {
@@ -88,6 +89,33 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 			}
 
 			return (owner ?? FindFlyoutOwner(toolbar))?.FlyoutBehavior == FlyoutBehavior.Flyout;
+		}
+
+		/// <summary>
+		/// Gets whether a press on the toolbar's navigation icon belongs to the drawer toggle.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// Two subscribers listen to the same <c>IconPressed</c> event: the flyout/shell side, which
+		/// opens or toggles the drawer, and the toolbar handler, which pops the navigation stack.
+		/// Only one of them owns any given press, and the owner is whichever icon is actually drawn -
+		/// so routing the press has to ask the same question the rendering does.
+		/// </para>
+		/// <para>
+		/// Gating the drawer side on <c>FlyoutBehavior == Flyout</c> alone is what made a back press
+		/// toggle the drawer open <em>and</em> navigate back: the drawer stays available in flyout
+		/// mode while a pushed page shows a back button, so availability is not ownership.
+		/// </para>
+		/// </remarks>
+		public static bool ShouldToggleDrawer(IToolbar? toolbar, IFlyoutView? owner = null)
+		{
+			if (toolbar is null || !toolbar.IsVisible)
+			{
+				return false;
+			}
+
+			return TizenToolbarNavigationSlot.GetNavigationIconKind(toolbar, GetDrawerToggleVisible(toolbar, owner))
+				== TizenNavigationIconKind.DrawerToggle;
 		}
 
 		/// <summary>

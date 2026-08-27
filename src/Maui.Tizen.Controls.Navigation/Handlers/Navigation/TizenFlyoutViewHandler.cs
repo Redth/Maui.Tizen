@@ -1,5 +1,8 @@
 using System;
 using Microsoft.Maui.Handlers;
+using Microsoft.Maui.Controls;
+using Microsoft.Maui.Platforms.Tizen.Adapters;
+using Microsoft.Maui.Platforms.Tizen.Platform;
 using Microsoft.Maui.Platform;
 using Tizen.UIExtensions.Common;
 using Tizen.UIExtensions.NUI;
@@ -109,9 +112,38 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// Without this key a runtime switch between Popover and Split leaves the Tizen drawer in
 		/// its previous mode, because nothing tells the handler the projected value changed.
 		/// </para>
+		/// <para>
+		/// Re-dispatching <c>FlyoutBehavior</c> updates the drawer but is not sufficient on its own.
+		/// The drawer-toggle capability is derived from the projected behaviour, so Popover (Flyout)
+		/// offers a hamburger and Split (Locked) does not. The toolbar's leading slot therefore has
+		/// to be redrawn as well, or the hamburger survives a switch to Split and a switch back to
+		/// Popover leaves the slot empty.
+		/// </para>
 		/// </remarks>
 		public static void MapFlyoutLayoutBehavior(TizenFlyoutViewHandler handler, IFlyoutView flyoutView)
-			=> handler.UpdateValue(nameof(IFlyoutView.FlyoutBehavior));
+		{
+			handler.UpdateValue(nameof(IFlyoutView.FlyoutBehavior));
+			handler.RefreshToolbarLeadingIcon();
+		}
+
+		/// <summary>
+		/// Re-renders the toolbar's leading icon after a change that can affect the drawer toggle.
+		/// </summary>
+		/// <remarks>
+		/// Nothing is latched: the capability is read-only upstream (dotnet/maui#37863), so this only
+		/// asks the toolbar to recompute and redraw.
+		/// </remarks>
+		internal void RefreshToolbarLeadingIcon()
+		{
+			if (MauiContext is null
+				|| VirtualView is not IToolbarElement { Toolbar: Toolbar toolbar }
+				|| _observedToolbar is not { } platformToolbar)
+			{
+				return;
+			}
+
+			platformToolbar.UpdateBackButton(toolbar, ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, VirtualView));
+		}
 
 		public static void MapIsGestureEnabled(TizenFlyoutViewHandler handler, IFlyoutView flyoutView)
 			=> handler.PlatformView.UpdateIsGestureEnabled(flyoutView);
@@ -138,7 +170,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			handler._observedToolbar = platformToolbar;
 			handler._toolbarIconPressed = (_, _) =>
 			{
-				if (!toolbar.BackButtonVisible && toolbar.IsVisible)
+				// Same ownership rule as the shell view, through the same predicate: the drawer only
+				// claims the press when the drawer toggle actually owns the slot. Back precedence is
+				// not enough on its own, because a Split (Locked) flyout offers no toggle at all.
+				if (ToolbarDrawerToggle.ShouldToggleDrawer(toolbar, handler.VirtualView))
 				{
 					_ = handler.PlatformView.OpenAsync(true);
 				}

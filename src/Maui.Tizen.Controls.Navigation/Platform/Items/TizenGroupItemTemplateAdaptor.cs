@@ -85,8 +85,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 						ItemSelectionState.SetItemFocused(formsView, true);
 						break;
 					case ViewHolderState.Normal:
-						ItemSelectionState.SetItemSelected(formsView, false);
-						ItemSelectionState.SetItemFocused(formsView, false);
+						// Reset clears selection, pointer-over and focus together and recomputes once,
+						// so a recycled row cannot come back still carrying a previous item's state.
+						ItemSelectionState.Reset(formsView);
 						break;
 					case ViewHolderState.Selected:
 						if (IsSelectable)

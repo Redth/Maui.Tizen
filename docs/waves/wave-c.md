@@ -139,6 +139,35 @@ is the acceptance gate for Wave C. Every Wave C source and catalog page is liste
 
 ### What the acceptance gate can and cannot prove
 
+#### The Core dependency surface is wider than the two gated type names
+
+Because the gate hides everything after the declaration phase, the *number* of missing Core symbols
+was never visible - only the two type names that fail to resolve. A throwaway probe settled it: the
+real upstream `MauiToolbar`, `StackNavigationManager` and `NaviPage` sources were compiled alongside
+Wave C so the declaration phase could complete and method bodies would finally bind.
+
+The probe was deleted rather than committed - it vendors upstream source into this tree, which is not
+something to keep - but its result is worth recording. **No error landed on Wave C's own logic.**
+Every diagnostic was a Core-owned symbol that has not landed yet:
+
+| Missing symbol | Owner |
+| --- | --- |
+| `DrawerView.Update{Flyout,Detail,IsPresented,FlyoutBehavior,FlyoutWidth,IsGestureEnabled}` | Core (the six drawer extensions) |
+| `MauiFlyoutView`, `MauiTVFlyoutView` | Core (flyout primitives) |
+| `ViewHandler.MapToolbar` | absent from net11; Wave C inlines it (`inline-maptoolbar`) |
+| `IPlatformViewHandler` | core's `ITizenPlatformViewHandler` |
+| `WrapperView.{WidthSpecification,HeightSpecification,BackgroundColor,UpdateBackground}` | Core |
+| `Color.ToNUIColor`, `Color.ToPlatform`, `FlyoutBehavior.ToPlatform` | Core conversions |
+| `double.ToScaledPixel`, `double.ToScaledPoint` | Core conversions |
+| `MauiToolbar.UpdateTitle` | Core toolbar |
+| `object.{WidthSpecification,HeightSpecification,ResourceUrl}` | net11 types `PlatformView` as `object`; needs the typed handler contract |
+
+So "50 known CS0246s" understated the gap. The two type names are simply the only ones the compiler
+reaches before it stops. This does not change the plan - all of it is Core-owned or already tracked -
+but the acceptance gate should be expected to surface a second wave of diagnostics the moment those
+two types resolve, and that is not a regression.
+
+
 **With `MauiTizenWaveCAcceptance=true` the lane validates syntax and declarations only - it does not
 bind method bodies.** This was established empirically, not assumed:
 
@@ -367,17 +396,64 @@ so the gap is closed deliberately rather than forgotten.
 Runtime behaviour. There is no Tizen emulator or device here, so item recycling, virtualization
 performance, navigation animation and Shell lazy content are **compile-verified only**.
 
+## Icon-press routing
+
+The shell view and the toolbar handler both subscribe to the same `IconPressed` event, so exactly one
+of them owns any given press. Gating the drawer side on `FlyoutBehavior == Flyout` alone read
+*availability* rather than *ownership*: the drawer stays available in flyout mode while a pushed page
+shows a back button, so a back press toggled the drawer open **and** popped the stack.
+
+Both call sites now route through one predicate, `ToolbarDrawerToggle.ShouldToggleDrawer`, which asks
+the same question the rendering does - is the slot owner the drawer toggle? The `FlyoutPage` handler
+had the mirror-image bug: its guard honoured back precedence (`!toolbar.BackButtonVisible`) but not
+the drawer capability, so a Split (Locked) flyout - which offers no toggle at all - still opened its
+drawer.
+
+`FlyoutLayoutBehavior` compounded that. It is projected into `IFlyoutView.FlyoutBehavior` (Popover ->
+Flyout, Split -> Locked), so it changes whether a drawer toggle exists at all. Re-dispatching
+`FlyoutBehavior` updates the drawer but not the toolbar, so the hamburger survived a switch to Split
+and a switch back to Popover left the slot empty. `MapFlyoutLayoutBehavior` now also refreshes the
+toolbar's leading slot.
+
+Neither call site can be instantiated in a host test - one is an NUI view, the other needs a platform
+handler - so the predicate is executed directly and the call sites are pinned by source invariants in
+`WaveCToolbarIconPressRoutingSourceTests`. Negative controls fire for both the predicate and each call
+site.
+
+> One trap worth recording: `Toolbar.IsVisible` defaults to **false**. A first draft of the back-press
+> test passed for that reason rather than the intended one. The routing tests now set `IsVisible`
+> explicitly.
+
 ## Item selection visuals
 
-The in-tree backend set the internal `View.IsItemSelected`. Wave C drives `VisualStateManager`
-directly instead, on the claim that entering the `Selected` state was that property's only observable
-effect - which is the entire justification for dropping the internal dependency, and was unverified
-until now.
+The in-tree backend set the internal `View.IsItemSelected`. An earlier revision of this adapter
+replaced it with a single `VisualStateManager.GoToState` call per event, which is **not** equivalent:
+the internal property was durable state that took part in every later recomputation, while a one-shot
+transition stores nothing.
 
-`WaveCItemSelectionStateTests` executes the adapter: select enters `Selected`, deselect returns to
-`Normal`, repeated selection is idempotent (recycled rows must be re-driven, not toggled), focus
-enters `Focused` and sets `IsFocused`, and both a null view and an item whose template declares no
-visual states are safe to drive. Negative control: stubbing the state transition out fails 4 of the 7.
+Three defects followed. Selection was lost whenever anything else recomputed the state - focusing a
+selected row dropped it out of `Selected`, and unfocusing stranded it wherever the focus transition
+landed. Selection could paint over `Disabled`, because nothing consulted `IsEnabled`. And a recycled
+row could not be reasoned about, since the adapter could not answer whether a row was selected.
+
+Selection and pointer-over are now stored in attached `BindableProperty` values - the same shape
+upstream's own Tizen `ShellFlyoutItemView` uses, and public API, so no reflection is involved - and
+every change recomputes the whole state by precedence: **Disabled > Selected > PointerOver > Normal**,
+then focus applied independently, mirroring `VisualElement.ChangeVisualState`.
+
+That ordering is what makes selection durable. `Focused`/`Unfocused` share a group with `Selected`, so
+an authored `Focused` state wins while focused; when focus is lost the base state is re-applied first,
+so a template authoring no `Unfocused` state - the common case - lands back on `Selected` instead of
+being stranded. `Reset` clears everything the adapter owns and is called on the recycle path, so a
+reused row cannot come back carrying the previous item's state.
+
+`IsPointerOver` on `VisualElement` is internal and deliberately not read; the adapter owns its own
+flag. `Unfocused` is spelled as a literal because `VisualStateManager.CommonStates.Unfocused` is
+internal - the state *name* is part of the public XAML contract templates are authored against.
+
+`WaveCItemSelectionStateTests` executes all of it (14 tests). Negative controls: reverting to a
+one-shot transition fails 3, and reproducing the original focus path - where focus does not re-apply
+the base state - fails `SelectionSurvivesFocusAndUnfocus`.
 
 ## The toolbar navigation slot
 

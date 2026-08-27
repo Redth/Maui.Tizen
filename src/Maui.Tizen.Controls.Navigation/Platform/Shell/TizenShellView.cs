@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Platform;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
+using Microsoft.Maui.Platforms.Tizen.Platform;
 using Tizen.NUI;
 using Tizen.NUI.BaseComponents;
 using Tizen.UIExtensions.Common;
@@ -407,12 +408,30 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			_mainContentView.TitleView = platformToolbar;
 		}
 
+		/// <summary>
+		/// Toggles the flyout when the press belongs to the drawer toggle.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// <see cref="TizenToolbarHandler"/> subscribes to the same <c>IconPressed</c> event and pops
+		/// the navigation stack when the back button owns the slot. Both subscriptions run on every
+		/// press, so gating this one on <c>FlyoutBehavior == Flyout</c> alone made a back press
+		/// toggle the drawer open <em>and</em> navigate back - the drawer is available in flyout mode
+		/// whether or not it currently owns the slot.
+		/// </para>
+		/// <para>
+		/// The two subscriptions are therefore split by slot ownership, which is the same
+		/// back-precedence rule the icon itself is drawn from, so the press cannot be claimed twice.
+		/// </para>
+		/// </remarks>
 		void OnToolbarIconPressed(object? sender, EventArgs e)
 		{
-			if (Shell?.FlyoutBehavior == FlyoutBehavior.Flyout)
+			if (Shell is null || !ToolbarDrawerToggle.ShouldToggleDrawer(ShellElementTree.GetToolbar(Shell), Shell))
 			{
-				Shell.FlyoutIsPresented = !Shell.FlyoutIsPresented;
+				return;
 			}
+
+			Shell.FlyoutIsPresented = !Shell.FlyoutIsPresented;
 		}
 
 		/// <summary>
