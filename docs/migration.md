@@ -29,7 +29,10 @@ around. It is handled as follows:
 - **Never faked.** There is no neutral `net11.0` fallback. A neutral build would be green
   and useless — assemblies that compile but cannot run on Tizen.
 - **Never silently skipped.** The `tizen-workload-gate` CI job runs on every build and
-  reports its status in the job summary. It does not disappear from the checks list.
+  reports its status in the job summary. When both expected manifest IDs return 404 it is
+  an informational success. When either exists, the same unconditional step installs the
+  workload and runs the real Tizen lane; there is no `continue-on-error` or skipped
+  follow-up step that can hide a failure.
 - **Explicit at build time.** Building a Tizen project without the workload fails with
   `MAUITIZEN0001`, which explains the situation rather than surfacing a raw
   `NETSDK1139` about an unknown target platform.
@@ -50,13 +53,20 @@ working.
 
 ### When the gate lifts
 
-1. The `tizen-workload-gate` job's feed probe starts finding an `11.0.100`-band manifest.
-2. Install through Samsung's supported installer / local manifest path — **not** public
-   workload search. The Samsung manifest is third-party and side-loaded, so
-   `dotnet workload install tizen` cannot discover it on a clean runner.
-3. Promote that job to a required check and build the Tizen projects for real.
-4. Regenerate API baselines against a real Tizen build.
-5. Begin Phase 2.
+The transition is automatic and fail-closed:
+
+1. `eng/ci/tizen-workload-gate.sh` probes the preview and stable feature-band manifest IDs,
+   both derived from `eng/baselines.json`.
+2. A 404 for both remains an informational external-gate success. Network errors,
+   malformed responses, and unexpected status codes fail because availability is unknown.
+3. When either package exists, CI runs Samsung's commit-pinned supported installer with the
+   exact published manifest version, then verifies the installed manifest through the
+   repository's `_DetectTizenWorkload` target.
+4. `eng/build-tizen.sh` restores, builds, and invokes Pack for every actual
+   `net11.0-tizen11.0` product project. Any install, restore, build, or pack failure fails
+   the workflow.
+5. After that lane is green, regenerate API baselines against the real Tizen build and
+   begin Phase 2.
 
 ### Target contract provenance
 
