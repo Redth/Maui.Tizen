@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -259,7 +260,7 @@ public class TizenServiceBehaviorTests
 		var alias = TizenSecureStorage.ToAlias("token");
 
 		Assert.StartsWith(TizenSecureStorage.AliasPrefix, alias, StringComparison.Ordinal);
-		Assert.StartsWith(TizenSecureStorage.AliasPrefix + "v2:", alias, StringComparison.Ordinal);
+		Assert.StartsWith(TizenSecureStorage.AliasPrefix + "~v2~", alias, StringComparison.Ordinal);
 		Assert.DoesNotContain(alias, char.IsWhiteSpace);
 	}
 
@@ -278,11 +279,90 @@ public class TizenServiceBehaviorTests
 	[InlineData("a:b~c\\d")]
 	public void SecureStorageAliasesAreWhitespaceFreeBase64Url(string key)
 	{
-		var encoded = TizenSecureStorage.ToAlias(key)[(TizenSecureStorage.AliasPrefix.Length + 3)..];
+		var encoded = TizenSecureStorage.ToAlias(key)[(TizenSecureStorage.AliasPrefix.Length + 4)..];
 
 		Assert.NotEmpty(encoded);
 		Assert.All(encoded, character => Assert.True(
 			char.IsAsciiLetterOrDigit(character) || character is '-' or '_'));
+	}
+
+	[Fact]
+	public void SecureStorageAliasVersionsCannotCollideInEitherDirection()
+	{
+		string[] keys =
+		[
+			"",
+			"token",
+			"~v2~dG9rZW4",
+			"v2:dG9rZW4",
+			"a~b",
+			"a\\~b",
+			"api token",
+			"秘密",
+		];
+
+		foreach (var v2Key in keys)
+		{
+			foreach (var v1Key in keys)
+			{
+				Assert.NotEqual(
+					TizenSecureStorage.ToAlias(v2Key),
+					TizenSecureStorage.ToLegacyNamespacedAlias(v1Key));
+			}
+		}
+	}
+
+	[Fact]
+	public void SecureStorageAliasVersionNamespacesAreDisjointForGeneratedKeys()
+	{
+		var keys = Enumerable.Range(0, 4096)
+			.Select(value => (value % 4) switch
+			{
+				0 => value.ToString(),
+				1 => "~v2~" + value,
+				2 => "key~" + (char)('a' + value % 26) + value,
+				_ => "ключ-" + value,
+			})
+			.ToArray();
+		var v2Aliases = keys.Select(TizenSecureStorage.ToAlias).ToHashSet(StringComparer.Ordinal);
+		var v1Aliases = keys.Select(TizenSecureStorage.ToLegacyNamespacedAlias).ToHashSet(StringComparer.Ordinal);
+
+		Assert.Empty(v2Aliases.Intersect(v1Aliases));
+	}
+
+	[Fact]
+	public void SecureStorageAliasEncodingIsInjectiveAcrossUtf16CodeUnits()
+	{
+		var keys = Enumerable.Range(0, 0x10000)
+			.Where(value => value is < 0xD800 or > 0xDFFF)
+			.Select(value => new string((char)value, 1))
+			.ToArray();
+
+		Assert.Equal(keys.Length, keys.Select(TizenSecureStorage.ToAlias).Distinct().Count());
+	}
+
+	[Fact]
+	public async Task SecureStorageRejectsIllFormedUtf16BeforeMutation()
+	{
+		string[] keys =
+		[
+			new string((char)0xD800, 1),
+			new string((char)0xDC00, 1),
+			"prefix" + (char)0xD800 + "suffix",
+		];
+
+		foreach (var key in keys)
+		{
+			var repository = new FakeSecureRepository();
+			var tombstones = new FakeSecureStorageTombstones();
+			var storage = new TizenSecureStorage(repository, tombstones);
+
+			await Assert.ThrowsAsync<EncoderFallbackException>(() => storage.SetAsync(key, "value"));
+			Assert.Throws<EncoderFallbackException>(() => storage.Remove(key));
+			await Assert.ThrowsAsync<EncoderFallbackException>(() => storage.GetAsync(key));
+			Assert.Empty(repository.GetAliases());
+			Assert.False(tombstones.Contains(key));
+		}
 	}
 
 	[Theory]
@@ -382,6 +462,20 @@ public class TizenServiceBehaviorTests
 
 		Assert.Equal("value", await storage.GetAsync("api token"));
 		Assert.False(TizenSecureStorage.CanUseLegacyNamespacedAlias("api token"));
+	}
+
+	[Fact]
+	public async Task SecureStorageInvalidRawLegacyAliasIsAbsentBeforeAnyWrite()
+	{
+		var repository = new FakeSecureRepository
+		{
+			RejectWhitespaceAliases = true,
+		};
+		var storage = new TizenSecureStorage(repository);
+
+		Assert.Null(await storage.GetAsync("api token"));
+		Assert.Empty(repository.GetAliases());
+		Assert.Equal(0, repository.SuccessfulSaves);
 	}
 
 	[Fact]
@@ -564,115 +658,153 @@ public class TizenServiceBehaviorTests
 	}
 
 	[Fact]
-	public async Task TextToSpeechInFlightCancellationUsesTheCallerToken()
+	public async Task TextToSpeechRunsEveryNativeOperationOnTheDispatcherThread()
 	{
-		using var source = new CancellationTokenSource();
-		var utterance = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-		var stopped = false;
-		var retiredBeforeCancellationSettled = false;
+		using var dispatcher = new FakeTextToSpeechDispatcher();
+		var factory = new FakeTextToSpeechClientFactory(dispatcher);
+		using var textToSpeech = new TizenTextToSpeech(dispatcher, factory);
 
-		TizenTextToSpeech.CancelUtterance(utterance, source.Token, () =>
+		var speak = textToSpeech.SpeakAsync(
+			"hello",
+			cancelToken: TestContext.Current.CancellationToken);
+		var client = await factory.WaitForClientAsync();
+		await client.Played.Task;
+		await client.CompleteAsync(client.LastUtteranceId);
+		await speak;
+
+		var languages = await textToSpeech.GetSupportedVoiceLanguagesAsync();
+		Assert.Equal(["en_US"], languages);
+
+		textToSpeech.Dispose();
+		await client.Disposed.Task;
+		Assert.Empty(client.WrongThreadOperations);
+	}
+
+	[Fact]
+	public async Task TextToSpeechCancellationRetiresBeforeSettlingAndTeardownRunsOnDispatcher()
+	{
+		using var dispatcher = new FakeTextToSpeechDispatcher();
+		var factory = new FakeTextToSpeechClientFactory(dispatcher);
+		using var textToSpeech = new TizenTextToSpeech(dispatcher, factory);
+		using var cancellation = new CancellationTokenSource();
+
+		var speak = textToSpeech.SpeakAsync("cancel me", cancelToken: cancellation.Token);
+		var client = await factory.WaitForClientAsync();
+		await client.Played.Task;
+		var queued = textToSpeech.SpeakAsync(
+			"fresh",
+			cancelToken: TestContext.Current.CancellationToken);
+		cancellation.Cancel();
+
+		var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => speak);
+		await client.Disposed.Task;
+		Assert.Equal(cancellation.Token, exception.CancellationToken);
+		Assert.True(client.StoppedBeforeDisposed);
+		Assert.Empty(client.WrongThreadOperations);
+
+		var freshClient = await factory.WaitForClientAsync(2);
+		Assert.NotSame(client, freshClient);
+		await freshClient.Played.Task;
+		await freshClient.CompleteAsync(freshClient.LastUtteranceId);
+		await queued;
+	}
+
+	[Fact]
+	public async Task TextToSpeechNativeErrorDefersTeardownAndQueuedRequestUsesFreshClient()
+	{
+		using var dispatcher = new FakeTextToSpeechDispatcher();
+		var factory = new FakeTextToSpeechClientFactory(dispatcher);
+		using var textToSpeech = new TizenTextToSpeech(dispatcher, factory);
+
+		var active = textToSpeech.SpeakAsync(
+			"active",
+			cancelToken: TestContext.Current.CancellationToken);
+		var firstClient = await factory.WaitForClientAsync();
+		await firstClient.Played.Task;
+		var queued = textToSpeech.SpeakAsync(
+			"queued",
+			cancelToken: TestContext.Current.CancellationToken);
+
+		await firstClient.FailAsync(firstClient.LastUtteranceId);
+		await Assert.ThrowsAsync<InvalidOperationException>(() => active);
+		await firstClient.Disposed.Task;
+
+		var secondClient = await factory.WaitForClientAsync(2);
+		Assert.NotSame(firstClient, secondClient);
+		await secondClient.Played.Task;
+		await secondClient.CompleteAsync(secondClient.LastUtteranceId);
+		await queued;
+		Assert.False(firstClient.DisposedInsideCallback);
+		Assert.Empty(firstClient.WrongThreadOperations);
+		Assert.Empty(secondClient.WrongThreadOperations);
+	}
+
+	[Fact]
+	public async Task TextToSpeechPlayFailureRetiresClientBeforeRetry()
+	{
+		using var dispatcher = new FakeTextToSpeechDispatcher();
+		var factory = new FakeTextToSpeechClientFactory(dispatcher)
 		{
-			retiredBeforeCancellationSettled = !utterance.Task.IsCompleted;
-			stopped = true;
-		});
+			FailFirstPlay = true,
+		};
+		using var textToSpeech = new TizenTextToSpeech(dispatcher, factory);
 
-		var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => utterance.Task);
+		await Assert.ThrowsAsync<InvalidOperationException>(() =>
+			textToSpeech.SpeakAsync(
+				"fails",
+				cancelToken: TestContext.Current.CancellationToken));
+		var failedClient = await factory.WaitForClientAsync();
+		await failedClient.Disposed.Task;
+		Assert.True(failedClient.StoppedBeforeDisposed);
 
-		Assert.True(stopped);
-		Assert.True(retiredBeforeCancellationSettled);
-		Assert.Equal(source.Token, exception.CancellationToken);
+		var retry = textToSpeech.SpeakAsync(
+			"retry",
+			cancelToken: TestContext.Current.CancellationToken);
+		var retryClient = await factory.WaitForClientAsync(2);
+		await retryClient.Played.Task;
+		await retryClient.CompleteAsync(retryClient.LastUtteranceId);
+		await retry;
+		Assert.NotSame(failedClient, retryClient);
 	}
 
 	[Fact]
-	public void TextToSpeechPlayFailureRetiresBeforeRethrowing()
+	public async Task TextToSpeechIgnoresOldUtteranceCompletion()
 	{
-		var retired = false;
+		using var dispatcher = new FakeTextToSpeechDispatcher();
+		var factory = new FakeTextToSpeechClientFactory(dispatcher);
+		using var textToSpeech = new TizenTextToSpeech(dispatcher, factory);
 
-		Assert.Throws<InvalidOperationException>(() =>
-			TizenTextToSpeech.PlayOrRetire(
-				() => throw new InvalidOperationException("play failed"),
-				() => retired = true));
-
-		Assert.True(retired);
+		var speak = textToSpeech.SpeakAsync(
+			"current",
+			cancelToken: TestContext.Current.CancellationToken);
+		var client = await factory.WaitForClientAsync();
+		await client.Played.Task;
+		await client.CompleteAsync(client.LastUtteranceId - 1);
+		Assert.False(speak.IsCompleted);
+		await client.CompleteAsync(client.LastUtteranceId);
+		await speak;
 	}
 
 	[Fact]
-	public void TextToSpeechIgnoresStaleUtteranceCallbacks()
+	public async Task TextToSpeechVoiceQueryWaitsBehindActiveSpeech()
 	{
-		Assert.True(TizenTextToSpeech.MatchesUtterance(42, 42));
-		Assert.False(TizenTextToSpeech.MatchesUtterance(42, 41));
-	}
+		using var dispatcher = new FakeTextToSpeechDispatcher();
+		var factory = new FakeTextToSpeechClientFactory(dispatcher);
+		using var textToSpeech = new TizenTextToSpeech(dispatcher, factory);
 
-	[Fact]
-	public void TextToSpeechNativeErrorRetiresBeforeTaskSettlement()
-	{
-		var retired = false;
-		var settledAfterRetirement = false;
+		var speak = textToSpeech.SpeakAsync(
+			"active",
+			cancelToken: TestContext.Current.CancellationToken);
+		var client = await factory.WaitForClientAsync();
+		await client.Played.Task;
+		var languages = textToSpeech.GetSupportedVoiceLanguagesAsync();
 
-		Assert.True(TizenTextToSpeech.RetireBeforeSettle(
-			() =>
-			{
-				retired = true;
-				return true;
-			},
-			() => settledAfterRetirement = retired));
-
-		Assert.True(settledAfterRetirement);
-	}
-
-	[Fact]
-	public async Task TextToSpeechNativeTeardownIsDeferred()
-	{
-		using var allowDispatch = new ManualResetEventSlim();
-		var tornDown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		TizenTextToSpeech.DeferNativeTeardown(
-			action =>
-			{
-				allowDispatch.Wait(TestContext.Current.CancellationToken);
-				action();
-			},
-			() => tornDown.SetResult());
-
-		Assert.False(tornDown.Task.IsCompleted);
-		allowDispatch.Set();
-		await tornDown.Task.WaitAsync(TestContext.Current.CancellationToken);
-	}
-
-	[Fact]
-	public async Task TextToSpeechClientGuardSerializesVoiceQueriesAndSpeech()
-	{
-		using var clientLock = new SemaphoreSlim(1, 1);
-		var firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-		var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-		var secondStarted = false;
-
-		var first = TizenTextToSpeech.RunWithCurrentClientAsync(
-			clientLock,
-			CancellationToken.None,
-			_ => Task.FromResult("client"),
-			async _ =>
-			{
-				firstStarted.SetResult();
-				await releaseFirst.Task;
-			});
-
-		await firstStarted.Task;
-		var second = TizenTextToSpeech.RunWithCurrentClientAsync(
-			clientLock,
-			CancellationToken.None,
-			_ => Task.FromResult("client"),
-			_ =>
-			{
-				secondStarted = true;
-				return Task.CompletedTask;
-			});
-
-		Assert.False(secondStarted);
-		releaseFirst.SetResult();
-		await Task.WhenAll(first, second);
-		Assert.True(secondStarted);
+		await Task.Delay(25, TestContext.Current.CancellationToken);
+		Assert.Equal(0, client.GetSupportedVoicesCalls);
+		await client.CompleteAsync(client.LastUtteranceId);
+		await speak;
+		Assert.Equal(["en_US"], await languages);
+		Assert.Equal(1, client.GetSupportedVoicesCalls);
 	}
 
 	[Fact]
@@ -965,6 +1097,236 @@ public class TizenServiceBehaviorTests
 
 		Assert.True(stopped);
 		Assert.True(reset);
+	}
+
+	sealed class FakeTextToSpeechDispatcher : ITizenTextToSpeechDispatcher, IDisposable
+	{
+		readonly BlockingCollection<Action> _work = [];
+		readonly Thread _thread;
+		readonly ManualResetEventSlim _started = new();
+
+		public FakeTextToSpeechDispatcher()
+		{
+			_thread = new Thread(Run)
+			{
+				IsBackground = true,
+				Name = "Fake Tizen Ecore thread",
+			};
+			_thread.Start();
+			_started.Wait();
+		}
+
+		public int ThreadId { get; private set; }
+
+		public Task InvokeAsync(Action action)
+		{
+			if (Thread.CurrentThread.ManagedThreadId == ThreadId)
+			{
+				action();
+				return Task.CompletedTask;
+			}
+
+			var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+			_work.Add(() =>
+			{
+				try
+				{
+					action();
+					completion.SetResult();
+				}
+				catch (Exception exception)
+				{
+					completion.SetException(exception);
+				}
+			});
+			return completion.Task;
+		}
+
+		public Task<T> InvokeAsync<T>(Func<T> action)
+		{
+			if (Thread.CurrentThread.ManagedThreadId == ThreadId)
+				return Task.FromResult(action());
+
+			var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+			_work.Add(() =>
+			{
+				try
+				{
+					completion.SetResult(action());
+				}
+				catch (Exception exception)
+				{
+					completion.SetException(exception);
+				}
+			});
+			return completion.Task;
+		}
+
+		public void Dispatch(Action action) => _work.Add(action);
+
+		public void Dispose()
+		{
+			_work.CompleteAdding();
+			_thread.Join();
+			_started.Dispose();
+			_work.Dispose();
+		}
+
+		void Run()
+		{
+			ThreadId = Thread.CurrentThread.ManagedThreadId;
+			_started.Set();
+			foreach (var action in _work.GetConsumingEnumerable())
+				action();
+		}
+	}
+
+	sealed class FakeTextToSpeechClientFactory : ITizenTextToSpeechClientFactory
+	{
+		readonly FakeTextToSpeechDispatcher _dispatcher;
+		readonly List<FakeTextToSpeechClient> _clients = [];
+
+		public FakeTextToSpeechClientFactory(FakeTextToSpeechDispatcher dispatcher)
+		{
+			_dispatcher = dispatcher;
+		}
+
+		public bool FailFirstPlay { get; init; }
+
+		public ITizenTextToSpeechClient Create()
+		{
+			Assert.Equal(_dispatcher.ThreadId, Thread.CurrentThread.ManagedThreadId);
+			var client = new FakeTextToSpeechClient(
+				_dispatcher,
+				throwOnPlay: FailFirstPlay && _clients.Count == 0);
+			lock (_clients)
+				_clients.Add(client);
+			return client;
+		}
+
+		public async Task<FakeTextToSpeechClient> WaitForClientAsync(int count = 1)
+		{
+			while (true)
+			{
+				lock (_clients)
+				{
+					if (_clients.Count >= count)
+						return _clients[count - 1];
+				}
+
+				await Task.Delay(1, TestContext.Current.CancellationToken);
+			}
+		}
+	}
+
+	sealed class FakeTextToSpeechClient : ITizenTextToSpeechClient
+	{
+		readonly FakeTextToSpeechDispatcher _dispatcher;
+		readonly bool _throwOnPlay;
+		bool _insideErrorCallback;
+		bool _stopped;
+		int _nextUtteranceId;
+
+		public FakeTextToSpeechClient(
+			FakeTextToSpeechDispatcher dispatcher,
+			bool throwOnPlay)
+		{
+			_dispatcher = dispatcher;
+			_throwOnPlay = throwOnPlay;
+		}
+
+		public event Action<TizenTextToSpeechState>? StateChanged;
+
+		public event Action<int>? UtteranceCompleted;
+
+		public event Action<TizenTextToSpeechError>? ErrorOccurred;
+
+		public ConcurrentQueue<string> WrongThreadOperations { get; } = [];
+
+		public TaskCompletionSource Played { get; } =
+			new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		public TaskCompletionSource Disposed { get; } =
+			new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		public int LastUtteranceId { get; private set; }
+
+		public int GetSupportedVoicesCalls { get; private set; }
+
+		public bool StoppedBeforeDisposed { get; private set; }
+
+		public bool DisposedInsideCallback { get; private set; }
+
+		public void Prepare()
+		{
+			AssertThread(nameof(Prepare));
+			StateChanged?.Invoke(TizenTextToSpeechState.Ready);
+		}
+
+		public IReadOnlyList<TizenTextToSpeechVoice> GetSupportedVoices()
+		{
+			AssertThread(nameof(GetSupportedVoices));
+			GetSupportedVoicesCalls++;
+			return [new("en_US", 0)];
+		}
+
+		public int GetMaximumSpeed()
+		{
+			AssertThread(nameof(GetMaximumSpeed));
+			return 10;
+		}
+
+		public int AddText(string text, string language, int voiceType, int speed)
+		{
+			AssertThread(nameof(AddText));
+			LastUtteranceId = ++_nextUtteranceId;
+			return LastUtteranceId;
+		}
+
+		public void Play()
+		{
+			AssertThread(nameof(Play));
+			if (_throwOnPlay)
+				throw new InvalidOperationException("play failed");
+			Played.TrySetResult();
+		}
+
+		public void Stop()
+		{
+			AssertThread(nameof(Stop));
+			_stopped = true;
+		}
+
+		public void Dispose()
+		{
+			AssertThread(nameof(Dispose));
+			DisposedInsideCallback = _insideErrorCallback;
+			StoppedBeforeDisposed = _stopped;
+			Disposed.TrySetResult();
+		}
+
+		public Task CompleteAsync(int utteranceId) =>
+			_dispatcher.InvokeAsync(() => UtteranceCompleted?.Invoke(utteranceId));
+
+		public Task FailAsync(int utteranceId) =>
+			_dispatcher.InvokeAsync(() =>
+			{
+				_insideErrorCallback = true;
+				try
+				{
+					ErrorOccurred?.Invoke(new(utteranceId, 1, "native failure"));
+				}
+				finally
+				{
+					_insideErrorCallback = false;
+				}
+			});
+
+		void AssertThread(string operation)
+		{
+			if (Thread.CurrentThread.ManagedThreadId != _dispatcher.ThreadId)
+				WrongThreadOperations.Enqueue(operation);
+		}
 	}
 
 	sealed class FakeSecureRepository : ITizenSecureRepository

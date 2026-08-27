@@ -13,16 +13,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// Tizen implementation of <see cref="ITextToSpeech"/>, backed by <c>Tizen.Uix.Tts</c>.
 	/// </summary>
 	/// <remarks>
-	/// Tizen's TTS client exposes a speed range but no pitch or volume control, so
-	/// <see cref="SpeechOptions.Pitch"/> and <see cref="SpeechOptions.Volume"/> are rejected rather
-	/// than silently ignored.
+	/// Tizen's TTS client is bound to the Ecore main loop. Construction, queries, playback and
+	/// teardown are therefore all marshalled through the MAUI main-thread dispatcher.
 	/// </remarks>
 	public sealed class TizenTextToSpeech : ITextToSpeech, IDisposable
 	{
 		const float RateMax = 2.0f;
 
 		readonly SemaphoreSlim _speakLock = new(1, 1);
-		readonly SemaphoreSlim _initializeLock = new(1, 1);
+		readonly object _stateLock = new();
+		readonly ITizenTextToSpeechDispatcher _dispatcher;
+		readonly ITizenTextToSpeechClientFactory _clientFactory;
 
 		ClientState? _clientState;
 		ClientState? _initializingState;
@@ -32,20 +33,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		TaskCompletionSource<bool>? _utterance;
 		bool _disposed;
 
+		/// <summary>Creates a Tizen text-to-speech service.</summary>
+		public TizenTextToSpeech()
+			: this(TizenTextToSpeechDispatcher.Instance, TizenTextToSpeechClientFactory.Instance)
+		{
+		}
+
+		internal TizenTextToSpeech(
+			ITizenTextToSpeechDispatcher dispatcher,
+			ITizenTextToSpeechClientFactory clientFactory)
+		{
+			_dispatcher = dispatcher;
+			_clientFactory = clientFactory;
+		}
+
 		/// <inheritdoc/>
 		/// <exception cref="FeatureNotSupportedException">Always thrown; see remarks.</exception>
 		/// <remarks>
-		/// <para>
-		/// Blocked by a public API gap in <c>Microsoft.Maui.Essentials</c>:
-		/// <c>Microsoft.Maui.Media.Locale</c> has only an <c>internal</c> constructor, so a platform
-		/// backend outside the dotnet/maui assembly cannot construct the values this contract must
-		/// return. Returning an empty sequence instead would be indistinguishable from "this device
-		/// supports no voices", so this throws rather than reporting a success-shaped result.
-		/// </para>
-		/// <para>
-		/// Use <see cref="GetSupportedVoiceLanguagesAsync"/> to enumerate the languages Tizen
-		/// reports, and pass one of them to <see cref="SpeakWithVoiceAsync"/>.
-		/// </para>
+		/// <c>Microsoft.Maui.Media.Locale</c> has no public constructor in the currently published
+		/// Essentials package. Use <see cref="GetSupportedVoiceLanguagesAsync"/> and
+		/// <see cref="SpeakWithVoiceAsync"/> until the public Locale API is packaged.
 		/// </remarks>
 		public Task<IEnumerable<Locale>> GetLocalesAsync() =>
 			throw TizenEssentialsSupport.NotSupported(
@@ -54,10 +61,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				"backend cannot create the Locale values this contract returns. " +
 				$"Use {nameof(TizenTextToSpeech)}.{nameof(GetSupportedVoiceLanguagesAsync)} instead.");
 
-		/// <summary>
-		/// Enumerates the voice languages Tizen reports for the current device, for example <c>en_US</c>.
-		/// </summary>
-		/// <returns>The distinct supported voice languages.</returns>
+		/// <summary>Enumerates the voice languages Tizen reports for the current device.</summary>
 		public async Task<IReadOnlyList<string>> GetSupportedVoiceLanguagesAsync()
 		{
 			var languages = new List<string>();
@@ -66,39 +70,35 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				_speakLock,
 				CancellationToken.None,
 				InitializeAsync,
-				state =>
+				async state =>
 				{
-					foreach (var voice in state.Client.GetSupportedVoices())
+					var voices = await _dispatcher.InvokeAsync(state.Client.GetSupportedVoices).ConfigureAwait(false);
+					foreach (var voice in voices)
 					{
-						if (!languages.Any(l => string.Equals(l, voice.Language, StringComparison.OrdinalIgnoreCase)))
+						if (!languages.Any(value =>
+							string.Equals(value, voice.Language, StringComparison.OrdinalIgnoreCase)))
+						{
 							languages.Add(voice.Language);
+						}
 					}
-
-					return Task.CompletedTask;
 				}).ConfigureAwait(false);
 
 			return languages;
 		}
 
-		/// <summary>
-		/// Speaks the supplied text using an explicit Tizen voice language.
-		/// </summary>
-		/// <param name="text">The text to speak.</param>
-		/// <param name="language">A language returned by <see cref="GetSupportedVoiceLanguagesAsync"/>.</param>
-		/// <param name="rate">The optional speech rate, in the same 0..2 range as <see cref="SpeechOptions.Rate"/>.</param>
-		/// <param name="cancelToken">A token used to stop playback.</param>
-		/// <returns>A task that completes when the utterance finishes or is cancelled.</returns>
-		/// <remarks>
-		/// Deliberately not named <c>SpeakAsync</c>. An overload taking a language string alongside
-		/// <see cref="ITextToSpeech.SpeakAsync(string, SpeechOptions?, CancellationToken)"/> would make
-		/// <c>SpeakAsync(text, null)</c> ambiguous between a null <see cref="SpeechOptions"/> and a null
-		/// language, and adds a second optional-parameter overload to the same name (RS0026).
-		/// </remarks>
-		public Task SpeakWithVoiceAsync(string text, string language, float? rate = null, CancellationToken cancelToken = default) =>
+		/// <summary>Speaks text using an explicit Tizen voice language.</summary>
+		public Task SpeakWithVoiceAsync(
+			string text,
+			string language,
+			float? rate = null,
+			CancellationToken cancelToken = default) =>
 			SpeakCoreAsync(text, language, rate, cancelToken);
 
 		/// <inheritdoc/>
-		public async Task SpeakAsync(string text, SpeechOptions? options = default, CancellationToken cancelToken = default)
+		public async Task SpeakAsync(
+			string text,
+			SpeechOptions? options = default,
+			CancellationToken cancelToken = default)
 		{
 			ArgumentNullException.ThrowIfNull(text);
 
@@ -116,13 +116,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					"Tizen's TTS client exposes no per-utterance volume control.");
 			}
 
-			await SpeakCoreAsync(text, options?.Locale?.Language, options?.Rate, cancelToken).ConfigureAwait(false);
+			await SpeakCoreAsync(text, options?.Locale?.Language, options?.Rate, cancelToken)
+				.ConfigureAwait(false);
 		}
 
-		async Task SpeakCoreAsync(string text, string? language, float? rate, CancellationToken cancelToken)
+		async Task SpeakCoreAsync(
+			string text,
+			string? language,
+			float? rate,
+			CancellationToken cancelToken)
 		{
 			ArgumentNullException.ThrowIfNull(text);
-
 			cancelToken.ThrowIfCancellationRequested();
 
 			await RunWithCurrentClientAsync(
@@ -131,36 +135,41 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				InitializeAsync,
 				async state =>
 				{
-					var utterance = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-					SetPendingUtterance(state, utterance);
+					var completion = new TaskCompletionSource<bool>(
+						TaskCreationOptions.RunContinuationsAsynchronously);
+					SetPendingUtterance(state, completion);
 
 					try
 					{
-						using var registration = cancelToken.Register(() =>
-							CancelClientState(state, utterance, cancelToken));
+						using var registration = cancelToken.Register(
+							() => CancelClientState(state, completion, cancelToken));
 						cancelToken.ThrowIfCancellationRequested();
 
-						var (resolvedLanguage, voiceType) = ResolveVoice(state.Client, language);
-						var utteranceId = state.Client.AddText(
-							text,
-							resolvedLanguage,
-							(int)voiceType,
-							ResolveRate(state.Client, rate));
+						var utteranceId = await _dispatcher.InvokeAsync(() =>
+						{
+							var (resolvedLanguage, voiceType) = ResolveVoice(state.Client, language);
+							return state.Client.AddText(
+								text,
+								resolvedLanguage,
+								voiceType,
+								ResolveRate(state.Client, rate));
+						}).ConfigureAwait(false);
 
-						SetActiveUtterance(state, utteranceId, utterance);
-
-						// A cancellation racing AddText retires this generation before playback.
+						SetActiveUtterance(state, utteranceId, completion);
 						cancelToken.ThrowIfCancellationRequested();
 
-						PlayOrRetire(
-							state.Client.Play,
-							() =>
-							{
-								if (RetireClientState(state))
-									TeardownClient(state, stop: true);
-							});
+						try
+						{
+							await _dispatcher.InvokeAsync(state.Client.Play).ConfigureAwait(false);
+						}
+						catch
+						{
+							if (RetireClientState(state))
+								DispatchTeardown(state, stop: true);
+							throw;
+						}
 
-						await utterance.Task.ConfigureAwait(false);
+						await completion.Task.ConfigureAwait(false);
 					}
 					catch (Exception) when (cancelToken.IsCancellationRequested)
 					{
@@ -169,7 +178,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					}
 					finally
 					{
-						ClearActiveUtterance(state, utterance);
+						ClearActiveUtterance(state, completion);
 					}
 				}).ConfigureAwait(false);
 		}
@@ -194,49 +203,221 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			}
 		}
 
-		internal static void CancelUtterance(
-			TaskCompletionSource<bool> utterance,
-			CancellationToken cancelToken,
-			Action stop)
+		async Task<ClientState> InitializeAsync(CancellationToken cancelToken)
 		{
-			try
+			ClientState state;
+			var initialize = false;
+
+			lock (_stateLock)
 			{
-				stop();
-			}
-			catch (Exception)
-			{
-				// Cancellation has already won the task contract.
+				ObjectDisposedException.ThrowIf(_disposed, this);
+
+				if (_clientState is { Retired: false } current)
+					return current;
+
+				if (_initialization is null)
+				{
+					state = new ClientState();
+					_initializingState = state;
+					_initialization = state.Initialization.Task;
+					_readiness = state.Readiness;
+					initialize = true;
+				}
+				else
+				{
+					state = _initializingState!;
+				}
 			}
 
-			utterance.TrySetCanceled(cancelToken);
+			if (initialize)
+			{
+				try
+				{
+					await _dispatcher.InvokeAsync(() => PrepareOnMainThread(state)).ConfigureAwait(false);
+				}
+				catch (Exception exception)
+				{
+					RetireClientState(state);
+					state.Readiness.TrySetException(exception);
+					state.Initialization.TrySetException(exception);
+					DispatchTeardown(state, stop: false);
+				}
+			}
+
+			return await state.Initialization.Task.WaitAsync(cancelToken).ConfigureAwait(false);
 		}
 
-		internal static void PlayOrRetire(Action play, Action retire)
+		void PrepareOnMainThread(ClientState state)
 		{
-			try
+			state.Client = _clientFactory.Create();
+			state.Client.StateChanged += OnStateChanged;
+			state.Client.UtteranceCompleted += OnUtteranceCompleted;
+			state.Client.ErrorOccurred += OnErrorOccurred;
+			state.Client.Prepare();
+
+			void OnStateChanged(TizenTextToSpeechState current)
 			{
-				play();
+				if (current != TizenTextToSpeechState.Ready)
+					return;
+
+				lock (_stateLock)
+				{
+					if (state.Retired || _disposed || !ReferenceEquals(_initializingState, state))
+						return;
+
+					_clientState = state;
+					_initializingState = null;
+					_readiness = null;
+				}
+
+				state.Readiness.TrySetResult(true);
+				state.Initialization.TrySetResult(state);
 			}
-			catch
+
+			void OnUtteranceCompleted(int utteranceId)
 			{
-				retire();
-				throw;
+				_dispatcher.Dispatch(() =>
+				{
+					ActiveUtterance? utterance;
+					lock (_stateLock)
+					{
+						utterance = _activeUtterance is { } active &&
+							ReferenceEquals(active.Client, state) &&
+							active.UtteranceId == utteranceId
+								? active
+								: null;
+					}
+
+					if (utterance is null)
+						return;
+
+					StopQuietly(state.Client);
+					utterance.Completion.TrySetResult(true);
+				});
+			}
+
+			void OnErrorOccurred(TizenTextToSpeechError error)
+			{
+				ActiveUtterance? utterance;
+				lock (_stateLock)
+				{
+					utterance = _activeUtterance;
+					if (utterance is not null &&
+						(!ReferenceEquals(utterance.Client, state) ||
+							utterance.UtteranceId != error.UtteranceId))
+					{
+						return;
+					}
+
+					if (!RetireClientStateLocked(state))
+						return;
+				}
+
+				var exception = new InvalidOperationException(
+					$"Tizen text-to-speech failed ({error.ErrorValue}): {error.ErrorMessage}");
+				state.Readiness.TrySetException(exception);
+				state.Initialization.TrySetException(exception);
+				utterance?.Completion.TrySetException(exception);
+
+				// Never destroy the native handle from inside the ErrorOccurred callback.
+				DispatchTeardown(state, stop: false);
 			}
 		}
 
-		internal static bool MatchesUtterance(int expectedUtteranceId, int callbackUtteranceId) =>
-			expectedUtteranceId == callbackUtteranceId;
-
-		internal static bool RetireBeforeSettle(Func<bool> retire, Action settle)
+		void SetPendingUtterance(ClientState state, TaskCompletionSource<bool> completion)
 		{
-			if (!retire())
+			lock (_stateLock)
+			{
+				ObjectDisposedException.ThrowIf(_disposed, this);
+				if (state.Retired || !ReferenceEquals(_clientState, state))
+					throw new InvalidOperationException("The Tizen text-to-speech client was retired.");
+
+				_utterance = completion;
+			}
+		}
+
+		void SetActiveUtterance(
+			ClientState state,
+			int utteranceId,
+			TaskCompletionSource<bool> completion)
+		{
+			lock (_stateLock)
+			{
+				if (state.Retired || !ReferenceEquals(_clientState, state))
+					throw new InvalidOperationException("The Tizen text-to-speech client was retired.");
+
+				_activeUtterance = new ActiveUtterance(state, utteranceId, completion);
+			}
+		}
+
+		void ClearActiveUtterance(ClientState state, TaskCompletionSource<bool> completion)
+		{
+			lock (_stateLock)
+			{
+				if (_activeUtterance is { } active &&
+					ReferenceEquals(active.Client, state) &&
+					ReferenceEquals(active.Completion, completion))
+				{
+					_activeUtterance = null;
+				}
+
+				if (ReferenceEquals(_utterance, completion))
+					_utterance = null;
+			}
+		}
+
+		void CancelClientState(
+			ClientState state,
+			TaskCompletionSource<bool> completion,
+			CancellationToken cancelToken)
+		{
+			if (RetireClientState(state))
+				DispatchTeardown(state, stop: true);
+
+			completion.TrySetCanceled(cancelToken);
+		}
+
+		bool RetireClientState(ClientState state)
+		{
+			lock (_stateLock)
+				return RetireClientStateLocked(state);
+		}
+
+		bool RetireClientStateLocked(ClientState state)
+		{
+			if (state.Retired)
 				return false;
 
-			settle();
+			state.Retired = true;
+			if (ReferenceEquals(_clientState, state))
+				_clientState = null;
+			if (ReferenceEquals(_initializingState, state))
+				_initializingState = null;
+			if (ReferenceEquals(_initialization, state.Initialization.Task))
+				_initialization = null;
+			if (ReferenceEquals(_readiness, state.Readiness))
+				_readiness = null;
 			return true;
 		}
 
-		static void StopQuietly(TtsClient client)
+		void DispatchTeardown(ClientState state, bool stop)
+		{
+			if (Interlocked.Exchange(ref state.TeardownScheduled, 1) != 0)
+				return;
+
+			_dispatcher.Dispatch(() =>
+			{
+				if (state.Client is null)
+					return;
+
+				if (stop)
+					StopQuietly(state.Client);
+
+				state.Client.Dispose();
+			});
+		}
+
+		static void StopQuietly(ITizenTextToSpeechClient client)
 		{
 			try
 			{
@@ -244,14 +425,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			}
 			catch (Exception)
 			{
-				// The client may already be idle; nothing actionable.
+				// Stop is best effort after cancellation, failure, or completion.
 			}
 		}
 
-		static (string Language, Voice VoiceType) ResolveVoice(TtsClient client, string? requestedLanguage)
+		static (string Language, int VoiceType) ResolveVoice(
+			ITizenTextToSpeechClient client,
+			string? requestedLanguage)
 		{
 			var language = "en_US";
-			var voiceType = Voice.Auto;
+			var voiceType = (int)Voice.Auto;
 
 			if (requestedLanguage is { } requested)
 			{
@@ -269,307 +452,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			return (language, voiceType);
 		}
 
-		static int ResolveRate(TtsClient client, float? rate)
+		static int ResolveRate(ITizenTextToSpeechClient client, float? rate)
 		{
 			if (rate is not { } value)
 				return 0;
 
-			return (int)Math.Round(value / RateMax * client.GetSpeedRange().Max, MidpointRounding.AwayFromZero);
-		}
-
-		/// <summary>
-		/// Prepares the native TTS client, at most once.
-		/// </summary>
-		/// <remarks>
-		/// <para>
-		/// Serialized behind a semaphore and cached as a single task. The previous implementation
-		/// checked two fields without a lock, so concurrent callers could each construct a
-		/// <see cref="TtsClient"/>; the loser's client was overwritten and leaked, still holding a
-		/// native handle and an unremovable <c>StateChanged</c> subscription.
-		/// </para>
-		/// <para>
-		/// A failed <c>Prepare</c> disposes the client and clears the cached task, so a later call
-		/// retries cleanly instead of awaiting a task that will never complete.
-		/// </para>
-		/// </remarks>
-		async Task<ClientState> InitializeAsync(CancellationToken cancelToken)
-		{
-			ClientState? stateToPrepare = null;
-			Task<ClientState> initialization;
-			await _initializeLock.WaitAsync(cancelToken).ConfigureAwait(false);
-			try
-			{
-				ObjectDisposedException.ThrowIf(_disposed, this);
-
-				if (_clientState is { Retired: false } current)
-					return current;
-
-				if (_initialization is null)
-				{
-					stateToPrepare = new ClientState(new TtsClient());
-					_initializingState = stateToPrepare;
-					_initialization = stateToPrepare.Initialization.Task;
-					_readiness = stateToPrepare.Readiness;
-				}
-
-				initialization = _initialization;
-			}
-			finally
-			{
-				_initializeLock.Release();
-			}
-
-			if (stateToPrepare is not null)
-				Prepare(stateToPrepare);
-
-			return await initialization.WaitAsync(cancelToken).ConfigureAwait(false);
-		}
-
-		void Prepare(ClientState state)
-		{
-			state.Client.StateChanged += OnStateChanged;
-			state.Client.UtteranceCompleted += OnUtteranceCompleted;
-			state.Client.ErrorOccurred += OnErrorOccurred;
-			state.Teardown = () =>
-			{
-				state.Client.StateChanged -= OnStateChanged;
-				state.Client.UtteranceCompleted -= OnUtteranceCompleted;
-				state.Client.ErrorOccurred -= OnErrorOccurred;
-				state.Client.Dispose();
-			};
-
-			try
-			{
-				state.Client.Prepare();
-			}
-			catch (Exception exception)
-			{
-				RetireClientState(state);
-				state.Readiness.TrySetException(exception);
-				state.Initialization.TrySetException(exception);
-				TeardownClient(state, stop: false);
-				throw;
-			}
-
-			void OnStateChanged(object? sender, StateChangedEventArgs e)
-			{
-				if (e.Current == State.Ready)
-					PublishReadyClient(state);
-			}
-
-			void OnUtteranceCompleted(object? sender, UtteranceEventArgs e)
-			{
-				var utterance = GetMatchingActiveUtterance(state, e.UtteranceId);
-				if (utterance is null)
-					return;
-
-				StopQuietly(state.Client);
-				utterance.Completion.TrySetResult(true);
-			}
-
-			void OnErrorOccurred(object? sender, ErrorOccurredEventArgs e)
-			{
-				var exception = new InvalidOperationException(
-					$"Tizen text-to-speech failed ({e.ErrorValue}): {e.ErrorMessage}");
-				ActiveUtterance? utterance = null;
-
-				if (!RetireBeforeSettle(
-					() => TryRetireForNativeError(state, e.UtteranceId, out utterance),
-					() =>
-					{
-						state.Readiness.TrySetException(exception);
-						state.Initialization.TrySetException(exception);
-						utterance?.Completion.TrySetException(exception);
-					}))
-					return;
-
-				DeferNativeTeardown(
-					action => MainThread.BeginInvokeOnMainThread(action),
-					() => TeardownClient(state, stop: false));
-			}
-		}
-
-		void PublishReadyClient(ClientState state)
-		{
-			_initializeLock.Wait();
-			try
-			{
-				if (state.Retired || !ReferenceEquals(_initializingState, state) || _disposed)
-					return;
-
-				_clientState = state;
-				_initializingState = null;
-				_readiness = null;
-			}
-			finally
-			{
-				_initializeLock.Release();
-			}
-
-			state.Readiness.TrySetResult(true);
-			state.Initialization.TrySetResult(state);
-		}
-
-		void SetActiveUtterance(
-			ClientState state,
-			int utteranceId,
-			TaskCompletionSource<bool> completion)
-		{
-			_initializeLock.Wait();
-			try
-			{
-				if (state.Retired || !ReferenceEquals(_clientState, state))
-					throw new InvalidOperationException("The Tizen text-to-speech client was retired before playback.");
-
-				_activeUtterance = new ActiveUtterance(state, utteranceId, completion);
-			}
-			finally
-			{
-				_initializeLock.Release();
-			}
-		}
-
-		void SetPendingUtterance(ClientState state, TaskCompletionSource<bool> completion)
-		{
-			_initializeLock.Wait();
-			try
-			{
-				ObjectDisposedException.ThrowIf(_disposed, this);
-				if (state.Retired || !ReferenceEquals(_clientState, state))
-					throw new InvalidOperationException("The Tizen text-to-speech client was retired before playback.");
-
-				_utterance = completion;
-			}
-			finally
-			{
-				_initializeLock.Release();
-			}
-		}
-
-		ActiveUtterance? GetMatchingActiveUtterance(ClientState state, int utteranceId)
-		{
-			_initializeLock.Wait();
-			try
-			{
-				return _activeUtterance is { } active &&
-					ReferenceEquals(active.Client, state) &&
-					MatchesUtterance(active.UtteranceId, utteranceId)
-						? active
-						: null;
-			}
-			finally
-			{
-				_initializeLock.Release();
-			}
-		}
-
-		bool TryRetireForNativeError(
-			ClientState state,
-			int utteranceId,
-			out ActiveUtterance? utterance)
-		{
-			_initializeLock.Wait();
-			try
-			{
-				utterance = _activeUtterance;
-				if (utterance is not null &&
-					(!ReferenceEquals(utterance.Client, state) ||
-						!MatchesUtterance(utterance.UtteranceId, utteranceId)))
-				{
-					utterance = null;
-					return false;
-				}
-
-				return RetireClientStateLocked(state);
-			}
-			finally
-			{
-				_initializeLock.Release();
-			}
-		}
-
-		void ClearActiveUtterance(ClientState state, TaskCompletionSource<bool> completion)
-		{
-			_initializeLock.Wait();
-			try
-			{
-				if (_activeUtterance is { } active &&
-					ReferenceEquals(active.Client, state) &&
-					ReferenceEquals(active.Completion, completion))
-				{
-					_activeUtterance = null;
-				}
-
-				if (ReferenceEquals(_utterance, completion))
-					_utterance = null;
-			}
-			finally
-			{
-				_initializeLock.Release();
-			}
-		}
-
-		void CancelClientState(
-			ClientState state,
-			TaskCompletionSource<bool> utterance,
-			CancellationToken cancelToken)
-		{
-			CancelUtterance(
-				utterance,
-				cancelToken,
-				() =>
-				{
-					if (RetireClientState(state))
-						TeardownClient(state, stop: true);
-				});
-		}
-
-		bool RetireClientState(ClientState state)
-		{
-			_initializeLock.Wait();
-			try
-			{
-				return RetireClientStateLocked(state);
-			}
-			finally
-			{
-				_initializeLock.Release();
-			}
-		}
-
-		bool RetireClientStateLocked(ClientState state)
-		{
-			if (state.Retired)
-				return false;
-
-			state.Retired = true;
-
-			if (ReferenceEquals(_clientState, state))
-				_clientState = null;
-			if (ReferenceEquals(_initializingState, state))
-				_initializingState = null;
-			if (ReferenceEquals(_initialization, state.Initialization.Task))
-				_initialization = null;
-			if (ReferenceEquals(_readiness, state.Readiness))
-				_readiness = null;
-
-			return true;
-		}
-
-		static void TeardownClient(ClientState state, bool stop)
-		{
-			if (Interlocked.Exchange(ref state.TeardownStarted, 1) != 0)
-				return;
-
-			if (stop)
-				StopQuietly(state.Client);
-
-			state.Teardown?.Invoke();
-		}
-
-		internal static void DeferNativeTeardown(Action<Action> dispatch, Action teardown)
-		{
-			ThreadPool.QueueUserWorkItem(_ => dispatch(teardown));
+			return (int)Math.Round(
+				value / RateMax * client.GetMaximumSpeed(),
+				MidpointRounding.AwayFromZero);
 		}
 
 		internal static void FailPendingTasks(
@@ -589,8 +479,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			TaskCompletionSource<bool>? readiness;
 			TaskCompletionSource<bool>? utterance;
 
-			_initializeLock.Wait();
-			try
+			lock (_stateLock)
 			{
 				if (_disposed)
 					return;
@@ -609,42 +498,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				_activeUtterance = null;
 				_utterance = null;
 			}
-			finally
-			{
-				_initializeLock.Release();
-			}
 
-			FailPendingTasks(
-				readiness,
-				utterance,
-				new ObjectDisposedException(nameof(TizenTextToSpeech)));
+			var exception = new ObjectDisposedException(nameof(TizenTextToSpeech));
+			FailPendingTasks(readiness, utterance, exception);
+			current?.Initialization.TrySetException(exception);
+			initializing?.Initialization.TrySetException(exception);
 
-			var disposedException = new ObjectDisposedException(nameof(TizenTextToSpeech));
-			current?.Initialization.TrySetException(disposedException);
-			initializing?.Initialization.TrySetException(disposedException);
-
-			_speakLock.Wait();
-			try
-			{
-				if (current is not null)
-					TeardownClient(current, stop: true);
-				if (initializing is not null && !ReferenceEquals(initializing, current))
-					TeardownClient(initializing, stop: true);
-			}
-			finally
-			{
-				_speakLock.Release();
-			}
+			if (current is not null)
+				DispatchTeardown(current, stop: true);
+			if (initializing is not null && !ReferenceEquals(initializing, current))
+				DispatchTeardown(initializing, stop: true);
 		}
 
 		sealed class ClientState
 		{
-			public ClientState(TtsClient client)
-			{
-				Client = client;
-			}
-
-			public TtsClient Client { get; }
+			public ITizenTextToSpeechClient Client { get; set; } = null!;
 
 			public TaskCompletionSource<bool> Readiness { get; } =
 				new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -652,16 +520,122 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			public TaskCompletionSource<ClientState> Initialization { get; } =
 				new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-			public Action? Teardown { get; set; }
-
 			public bool Retired { get; set; }
 
-			public int TeardownStarted;
+			public int TeardownScheduled;
 		}
 
 		sealed record ActiveUtterance(
 			ClientState Client,
 			int UtteranceId,
 			TaskCompletionSource<bool> Completion);
+	}
+
+	internal enum TizenTextToSpeechState
+	{
+		Ready,
+		Other,
+	}
+
+	internal sealed record TizenTextToSpeechVoice(string Language, int VoiceType);
+
+	internal sealed record TizenTextToSpeechError(
+		int UtteranceId,
+		int ErrorValue,
+		string ErrorMessage);
+
+	internal interface ITizenTextToSpeechDispatcher
+	{
+		Task InvokeAsync(Action action);
+
+		Task<T> InvokeAsync<T>(Func<T> action);
+
+		void Dispatch(Action action);
+	}
+
+	internal interface ITizenTextToSpeechClientFactory
+	{
+		ITizenTextToSpeechClient Create();
+	}
+
+	internal interface ITizenTextToSpeechClient : IDisposable
+	{
+		event Action<TizenTextToSpeechState>? StateChanged;
+
+		event Action<int>? UtteranceCompleted;
+
+		event Action<TizenTextToSpeechError>? ErrorOccurred;
+
+		void Prepare();
+
+		IReadOnlyList<TizenTextToSpeechVoice> GetSupportedVoices();
+
+		int GetMaximumSpeed();
+
+		int AddText(string text, string language, int voiceType, int speed);
+
+		void Play();
+
+		void Stop();
+	}
+
+	sealed class TizenTextToSpeechDispatcher : ITizenTextToSpeechDispatcher
+	{
+		public static TizenTextToSpeechDispatcher Instance { get; } = new();
+
+		public Task InvokeAsync(Action action) => MainThread.InvokeOnMainThreadAsync(action);
+
+		public Task<T> InvokeAsync<T>(Func<T> action) => MainThread.InvokeOnMainThreadAsync(action);
+
+		public void Dispatch(Action action) => MainThread.BeginInvokeOnMainThread(action);
+	}
+
+	sealed class TizenTextToSpeechClientFactory : ITizenTextToSpeechClientFactory
+	{
+		public static TizenTextToSpeechClientFactory Instance { get; } = new();
+
+		public ITizenTextToSpeechClient Create() => new TizenTextToSpeechClient(new TtsClient());
+	}
+
+	sealed class TizenTextToSpeechClient : ITizenTextToSpeechClient
+	{
+		readonly TtsClient _client;
+
+		public TizenTextToSpeechClient(TtsClient client)
+		{
+			_client = client;
+			_client.StateChanged += (_, args) =>
+				StateChanged?.Invoke(
+					args.Current == State.Ready
+						? TizenTextToSpeechState.Ready
+						: TizenTextToSpeechState.Other);
+			_client.UtteranceCompleted += (_, args) => UtteranceCompleted?.Invoke(args.UtteranceId);
+			_client.ErrorOccurred += (_, args) =>
+				ErrorOccurred?.Invoke(new(args.UtteranceId, (int)args.ErrorValue, args.ErrorMessage));
+		}
+
+		public event Action<TizenTextToSpeechState>? StateChanged;
+
+		public event Action<int>? UtteranceCompleted;
+
+		public event Action<TizenTextToSpeechError>? ErrorOccurred;
+
+		public void Prepare() => _client.Prepare();
+
+		public IReadOnlyList<TizenTextToSpeechVoice> GetSupportedVoices() =>
+			_client.GetSupportedVoices()
+				.Select(voice => new TizenTextToSpeechVoice(voice.Language, (int)voice.VoiceType))
+				.ToArray();
+
+		public int GetMaximumSpeed() => _client.GetSpeedRange().Max;
+
+		public int AddText(string text, string language, int voiceType, int speed) =>
+			_client.AddText(text, language, voiceType, speed);
+
+		public void Play() => _client.Play();
+
+		public void Stop() => _client.Stop();
+
+		public void Dispose() => _client.Dispose();
 	}
 }

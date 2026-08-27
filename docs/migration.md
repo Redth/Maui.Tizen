@@ -64,15 +64,18 @@ working.
 ### SecureStorage data migration
 
 The standalone Essentials package stores secure values under
-`maui.tizen.securestorage:v2:<base64url-utf8-key>`. The v2 encoding is injective and contains no
-whitespace, padding, or separator characters rejected by Tizen's secure repository. Aliases are
-never truncated or hashed to fit a native limit; Tizen's argument error is surfaced instead.
+`maui.tizen.securestorage:~v2~<base64url-utf8-key>`. The escaped-version delimiter cannot collide
+with the first standalone package's alias encoder. Strict UTF-8 makes the encoding injective and
+rejects unpaired UTF-16 surrogates before any store mutation. The result contains no whitespace or
+padding rejected by Tizen's secure repository. Aliases are never truncated or hashed to fit a
+native limit; Tizen's argument error is surfaced instead.
 
 `GetAsync` performs a one-way, per-key compatibility migration in this order: v2 alias, the first
 standalone package's escaped namespaced alias, then the in-box backend's exact raw alias. A legacy
-value is copied to v2. Raw aliases are never deleted because the application-wide secure repository
-cannot prove that alias is owned by SecureStorage. A migration save failure is surfaced and leaves
-the legacy value intact.
+value is copied to v2. Invalid-format legacy probes, including whitespace raw aliases Tizen cannot
+read, are treated as absent rather than as storage failures. Raw aliases are never deleted because
+the application-wide secure repository cannot prove that alias is owned by SecureStorage. A
+migration save failure is surfaced and leaves the legacy value intact.
 
 `Remove` deletes both generations of owned namespaced alias, and `RemoveAll` deletes every alias
 under the private ownership prefix. Both write tombstones in the application preference store.

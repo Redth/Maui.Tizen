@@ -27,7 +27,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	public sealed class TizenSecureStorage : ISecureStorage
 	{
 		static readonly object Locker = new();
-		const string AliasVersion = "v2:";
+		static readonly UTF8Encoding StrictUtf8 = new(false, true);
+		const string AliasVersion = "~v2~";
 		readonly ITizenSecureRepository _repository;
 		readonly ITizenSecureStorageTombstones _tombstones;
 
@@ -95,6 +96,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					{
 						return Task.FromResult<string?>(null);
 					}
+					catch (ArgumentException)
+					{
+						return Task.FromResult<string?>(null);
+					}
 				}
 				catch (ArgumentException)
 				{
@@ -103,6 +108,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 						legacyValue = _repository.Get(key);
 					}
 					catch (InvalidOperationException)
+					{
+						return Task.FromResult<string?>(null);
+					}
+					catch (ArgumentException)
 					{
 						return Task.FromResult<string?>(null);
 					}
@@ -223,15 +232,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// <param name="key">The caller's key.</param>
 		/// <returns>The namespaced alias.</returns>
 		/// <remarks>
-		/// Version 2 encodes the UTF-8 key as unpadded Base64url, producing an injective alias with
-		/// no whitespace or delimiters rejected by Tizen's secure repository. Aliases are never
-		/// truncated; native alias-length or format failures are surfaced to the caller.
+		/// Version 2 uses a <c>~v2~</c> discriminator that version 1's encoder can only emit escaped,
+		/// followed by strict UTF-8 encoded as unpadded Base64url. This makes aliases injective both
+		/// within and across versions. Ill-formed UTF-16 is rejected before repository mutation.
+		/// Aliases are never truncated; native alias-length or format failures are surfaced.
 		/// </remarks>
 		internal static string ToAlias(string key)
 		{
 			ArgumentNullException.ThrowIfNull(key);
 
-			var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(key))
+			var encoded = Convert.ToBase64String(StrictUtf8.GetBytes(key))
 				.TrimEnd('=')
 				.Replace('+', '-')
 				.Replace('/', '_');

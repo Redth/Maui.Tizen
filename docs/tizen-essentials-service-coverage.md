@@ -63,7 +63,7 @@ Profile column values are the Tizen device profiles on which the service is usab
 | `ISemanticScreenReader` | `TizenSemanticScreenReader` | Implemented | All | `Tizen.NUI.Accessibility`. |
 | `IShare` | `TizenShare` | Implemented | All | `share` / `share_text` AppControls. |
 | `ISms` | `TizenSms` | Implemented | Mobile | `sms:` compose AppControl, gated on `network.telephony.sms`. |
-| `ITextToSpeech` | `TizenTextToSpeech` | Partial | All | Speech works; initialization is serialized and cancellation re-checked before playback starts. `GetLocalesAsync` throws (see API gaps below); use `GetSupportedVoiceLanguagesAsync` with `SpeakWithVoiceAsync`. `SpeechOptions.Pitch` / `Volume` are rejected. |
+| `ITextToSpeech` | `TizenTextToSpeech` | Partial | All | Speech works; every native client operation is serialized and dispatched to Tizen's Ecore/main loop, with generation-safe cancellation/error teardown. `GetLocalesAsync` throws (see API gaps below); use `GetSupportedVoiceLanguagesAsync` with `SpeakWithVoiceAsync`. `SpeechOptions.Pitch` / `Volume` are rejected. |
 | `IVibration` | `TizenVibration` | Implemented | Mobile, Wearable | `Tizen.System.Vibrator`; requires the `haptic` privilege. |
 | `IWebAuthenticator` | `TizenWebAuthenticator` | Unsupported | – | Tizen has no callback URI registration that returns an external browser response to the app. |
 
@@ -76,7 +76,7 @@ Profile column values are the Tizen device profiles on which the service is usab
 | Sources type-check against the **API15 reference pack** the product targets | Verified, by `tests/Maui.Tizen.Essentials.RefPackCompile` |
 | The declared public API surface matches `PublicAPI/slice/PublicAPI.Unshipped.txt` | Verified, by the PublicAPI analyzer in that same lane |
 | Sources compile against loadable Tizen implementation assemblies | Verified, by `src/Maui.Tizen.Essentials.HostVerification` |
-| DI registration, facade/`MainThread` ownership, permission privilege mapping, unsupported classification, ported translation logic | Verified, by `tests/Maui.Tizen.Essentials.Tests` (327 tests) |
+| DI registration, facade/`MainThread` ownership, permission privilege mapping, unsupported classification, ported translation logic | Verified, by `tests/Maui.Tizen.Essentials.Tests` (332 tests) |
 | `src/Maui.Tizen.Essentials` builds for `net11.0-tizen11.0` | **Blocked.** Fails with `MAUITIZEN0001`: the Samsung workload manifest `samsung.net.sdk.tizen.manifest-11.0.100` is unpublished. Nobody can build this TFM anywhere yet. |
 | Any behaviour that P/Invokes into Tizen (sensors, AppControl, key manager, NUI capture, TTS, geocoding, ...) | **Blocked.** Requires a Tizen device or emulator, which in turn requires the workload. |
 
