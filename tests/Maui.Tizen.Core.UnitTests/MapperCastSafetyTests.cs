@@ -7,6 +7,7 @@ using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Hosting;
 using Microsoft.Maui.Platforms.Tizen.Handlers;
+using Microsoft.Maui.Platforms.Tizen.Controls;
 using Microsoft.Maui.Platforms.Tizen.Hosting;
 using Xunit;
 
@@ -163,6 +164,64 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Contains(nameof(IView.Background), keys);
 			Assert.Contains("BackgroundColor", keys);
 			Assert.Contains("IsInAccessibleTree", keys);
+		}
+
+		[Fact]
+		public void ControlsMappingsAreInstalledByAppStartup()
+		{
+			// Register() previously had NO production caller: the bridge compiled, shipped, and did
+			// nothing, while the unit tests that call it directly passed. This drives the real
+			// hosting path instead - ConfigureTizenControls registers an IMauiInitializeService, so
+			// MauiApp.Build() installs the mappings the way an app does.
+			var builder = MauiApp.CreateBuilder();
+			builder.UseMauiApp<ControlsApp>();
+			builder.ConfigureTizen();
+			builder.ConfigureTizenControls();
+
+			using var app = builder.Build();
+
+			// LineBreakMode is Controls-only: it reaches the backend solely through this bridge.
+			Assert.Contains(nameof(Microsoft.Maui.Controls.Label.LineBreakMode), KeysOf(LabelHandler.Mapper));
+		}
+
+		[Fact]
+		public void ControlsMappingsSurviveControlsOwnStaticRemap()
+		{
+			// The ordering hazard. RemapForControls runs lazily from a Controls type's static
+			// constructor and can REPLACE entries installed before it, so registering too early is
+			// silently undone. Register() forces that remap first; this checks the keys are still
+			// present afterwards.
+			var builder = MauiApp.CreateBuilder();
+			builder.UseMauiApp<ControlsApp>();
+			builder.ConfigureTizen();
+			builder.ConfigureTizenControls();
+
+            using var app = builder.Build();
+
+			// Touch more Controls types, provoking any further lazy remapping.
+			_ = new Microsoft.Maui.Controls.Button();
+			_ = new Microsoft.Maui.Controls.Entry();
+
+			var labelKeys = KeysOf(LabelHandler.Mapper);
+			var viewKeys = KeysOf(ViewHandler.ViewMapper);
+
+			Assert.Contains(nameof(Microsoft.Maui.Controls.Label.LineBreakMode), labelKeys);
+			Assert.Contains(
+				Microsoft.Maui.Controls.AutomationProperties.IsInAccessibleTreeProperty.PropertyName,
+				viewKeys);
+			Assert.Contains(
+				Microsoft.Maui.Controls.AutomationProperties.ExcludedWithChildrenProperty.PropertyName,
+				viewKeys);
+		}
+
+		[Fact]
+		public void RegisteringTwiceIsHarmless()
+		{
+			// Startup can run more than once across a test session, and an app may call it itself.
+			TizenControlsMappings.Register();
+			TizenControlsMappings.Register();
+
+			Assert.Contains(nameof(Microsoft.Maui.Controls.Label.LineBreakMode), KeysOf(LabelHandler.Mapper));
 		}
 	}
 }

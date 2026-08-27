@@ -49,6 +49,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			_needMeasureUpdate = true;
 			MarkChanged();
+
+			// Suppressed while a layout pass is running; the outermost pass replays it on the way
+			// out - see OnLayoutUpdated - so the invalidation is not lost.
 			if (IsLayoutUpdating == 0)
 			{
 				Layout.RequestLayout();
@@ -103,6 +106,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 
 			IsLayoutUpdating--;
+
+			// Replay a request suppressed during the pass; see ContentViewGroup for why.
+			if (TizenPropertyResolvers.ShouldScheduleLayout(IsLayoutUpdating, _needMeasureUpdate))
+				Layout?.RequestLayout();
 		}
 	}
 }

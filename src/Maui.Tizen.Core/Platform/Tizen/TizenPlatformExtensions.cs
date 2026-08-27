@@ -643,8 +643,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 			var (hidden, highlightable) = TizenPropertyResolvers.ResolveAccessibility(
 				isInAccessibleTree, excludedWithChildren);
 
-			platformView.AccessibilityHidden = hidden;
-			platformView.AccessibilityHighlightable = highlightable;
+			// Only written when the corresponding annotation is set, so an unannotated element
+			// keeps whatever the control or the platform configured.
+			if (hidden is bool hide)
+				platformView.AccessibilityHidden = hide;
+
+			if (highlightable is bool highlight)
+				platformView.AccessibilityHighlightable = highlight;
 		}
 
 
@@ -777,6 +782,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			platformLabel.LineBreakMode =
 				(NLineBreakMode)TizenPropertyResolvers.ResolveLineBreakMode(lineBreakMode);
+
+			// UIExtensions maps all three truncation modes to the same native state and leaves
+			// EllipsisPosition at its End default, so head and middle truncation both rendered as
+			// tail truncation. Setting it explicitly is the only way to get what was asked for.
+			if (TizenPropertyResolvers.ResolveEllipsisPosition(lineBreakMode) is int position)
+				platformLabel.EllipsisPosition = (global::Tizen.NUI.EllipsisPosition)position;
 		}
 
 		/// <summary>Applies <see cref="ITextStyle.CharacterSpacing"/>.</summary>

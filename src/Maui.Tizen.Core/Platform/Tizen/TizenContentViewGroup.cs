@@ -58,7 +58,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 			MarkChanged();
 
 			// Guarded, so a measure triggered from inside the layout pass does not schedule
-			// another one on top of the pass already running.
+			// another one on top of the pass already running. The outermost pass replays the
+			// request on the way out - see OnLayoutUpdated - or the invalidation is simply lost.
 			if (IsLayoutUpdating == 0)
 			{
 				Layout?.RequestLayout();
@@ -117,6 +118,28 @@ namespace Microsoft.Maui.Platforms.Tizen
 			{
 				IsLayoutUpdating--;
 			}
+
+			ReschedulePendingLayout();
+		}
+
+		/// <summary>
+		/// Replays a layout request that was suppressed because it arrived during a layout pass.
+		/// </summary>
+		/// <remarks>
+		/// Arranging children very often invalidates them, and any SetNeedMeasureUpdate raised
+		/// while IsLayoutUpdating was non-zero deliberately skipped RequestLayout to avoid
+		/// re-entering the pass already running. Without replaying it here that invalidation is
+		/// simply dropped: _needMeasureUpdate stays set with nothing scheduled to consume it, and
+		/// the content keeps its stale measurement until some unrelated pass happens along.
+		///
+		/// Checked after the counter is decremented, so only the OUTERMOST pass reschedules.
+		/// </remarks>
+		void ReschedulePendingLayout()
+		{
+			if (!TizenPropertyResolvers.ShouldScheduleLayout(IsLayoutUpdating, _needMeasureUpdate))
+				return;
+
+			Layout?.RequestLayout();
 		}
 	}
 }
