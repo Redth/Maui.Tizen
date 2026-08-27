@@ -39,6 +39,14 @@ function Get-SnapshotMarkerPath {
     just done as one continuous stream instead of thousands of separate cmdlet calls. The marker
     file itself (.mt-snapshot.json) is excluded from the hash, since it does not exist yet on first
     write and its own content depends on the hash being computed -- including it would be circular.
+
+    Each entry's relative path length and content length are appended as fixed-width prefixes
+    before the path/content bytes themselves (rather than just delimiting the path with a
+    separator like a newline). A plain "path\n<content>path2\n<content2>..." concatenation is not
+    strictly injective for filenames that legally contain an embedded newline byte (POSIX allows
+    this): a different (path, content) partition of the exact same byte stream could in principle
+    hash identically. Length-prefixing makes the encoding of the full file list unambiguous
+    regardless of what bytes appear in a path or a file's content.
 #>
 function Get-SnapshotTreeHash {
     param([Parameter(Mandatory = $true)][string]$Dir)
@@ -52,7 +60,10 @@ function Get-SnapshotTreeHash {
     $fileCount = 0
     foreach ($f in $files) {
         $rel = [System.IO.Path]::GetRelativePath($Dir, $f).Replace('\', '/')
-        $incremental.AppendData([System.Text.Encoding]::UTF8.GetBytes("$rel`n"))
+        $relBytes = [System.Text.Encoding]::UTF8.GetBytes($rel)
+        $incremental.AppendData([System.BitConverter]::GetBytes([int64]$relBytes.Length))
+        $incremental.AppendData($relBytes)
+        $incremental.AppendData([System.BitConverter]::GetBytes([int64](Get-Item $f).Length))
         $stream = [System.IO.File]::OpenRead($f)
         try {
             $buffer = New-Object byte[] 1048576

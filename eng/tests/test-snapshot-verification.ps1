@@ -159,6 +159,41 @@ Test-Case 'Two independent snapshots of identical content produce the same tree 
     }
 }
 
+Test-Case 'Repartitioning content across a filename containing an embedded newline does not collide (length-prefixed encoding)' {
+    # A plain "path\n<content>" concatenation is not strictly injective for a filename that
+    # legally contains an embedded newline byte (POSIX allows this): two different (path,
+    # content) splits of the exact same underlying bytes could in principle hash identically.
+    # Get-SnapshotTreeHash length-prefixes each path and content instead of relying on a
+    # delimiter, so this constructs the adversarial case directly: one tree with a single file
+    # whose name contains a literal newline, and a differently-partitioned tree with two files,
+    # such that a delimiter-based (non-length-prefixed) scheme would concatenate to the same
+    # byte stream. The hashes must differ.
+    $dirA = Join-Path ([System.IO.Path]::GetTempPath()) "mt-snap-test-$([System.Guid]::NewGuid().ToString('N'))"
+    $dirB = Join-Path ([System.IO.Path]::GetTempPath()) "mt-snap-test-$([System.Guid]::NewGuid().ToString('N'))"
+    try {
+        New-Item -ItemType Directory -Path $dirA -Force | Out-Null
+        # Single file whose name is "a`nb" (contains a literal newline) and whose content is "c".
+        $nameWithNewline = "a`nb"
+        Set-Content -Path (Join-Path $dirA $nameWithNewline) -Value 'c' -NoNewline
+
+        New-Item -ItemType Directory -Path $dirB -Force | Out-Null
+        # Two files, "a" (content "b") and "b" (content "c") -- chosen so that a delimiter-based
+        # "path\ncontent" scheme would produce the identical byte stream "a\nb" + "b\nc" split
+        # differently than dirA's "a\nb\nc", i.e. exactly the ambiguity a length-prefixed scheme
+        # must NOT be fooled by.
+        Set-Content -Path (Join-Path $dirB 'a') -Value 'b' -NoNewline
+        Set-Content -Path (Join-Path $dirB 'b') -Value 'c' -NoNewline
+
+        $hashA = Get-SnapshotTreeHash -Dir $dirA
+        $hashB = Get-SnapshotTreeHash -Dir $dirB
+        Assert-True ($hashA.treeHash -ne $hashB.treeHash) "expected different (path, content) partitions to produce different tree hashes even when their naive concatenation would coincide"
+    }
+    finally {
+        Remove-Item $dirA -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item $dirB -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 Write-Host ""
 if ($FAILURES -gt 0) {
     Write-Host "$FAILURES check(s) failed" -ForegroundColor Red
