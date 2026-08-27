@@ -69,6 +69,7 @@ WORKFLOW=".github/workflows/ci.yml"
 GATE_JOB="$TEMP_ROOT/tizen-workload-gate.yml"
 GATE_SCRIPT="$REPO_ROOT/eng/ci/tizen-workload-gate.sh"
 REAL_LANE="$REPO_ROOT/eng/build-tizen.sh"
+INSTALLER_FIXTURE="$REPO_ROOT/eng/tests/fixtures/workloads/samsung-installer-writable-helper.sh"
 
 awk '
   /^  tizen-workload-gate:/ {
@@ -120,6 +121,12 @@ expect_contains \
   "$GATE_SCRIPT" \
   "-t:ReportTizenWorkload"
 
+if grep -Fq -- "bash -e \"\$INSTALLER\"" "$GATE_SCRIPT"; then
+  fail "transition gate does not force errexit on Samsung's installer"
+else
+  pass "transition gate does not force errexit on Samsung's installer"
+fi
+
 if grep -Eq 'workload[[:space:]]+list|maui-tizen' "$GATE_SCRIPT"; then
   fail "transition gate does not use substring workload detection"
 else
@@ -138,6 +145,8 @@ FAKE_DOTNET_ROOT="$TEMP_ROOT/dotnet-root"
 INSTALL_MARKER="$TEMP_ROOT/workload-installed"
 BUILD_MARKER="$TEMP_ROOT/tizen-built"
 INSTALL_ARGS_LOG="$TEMP_ROOT/install-args.log"
+HELPER_STATUS_LOG="$TEMP_ROOT/helper-status.log"
+INSTALL_DIRECTORY="$TEMP_ROOT/installer-target"
 CURL_LOG="$TEMP_ROOT/curl.log"
 mkdir -p "$FAKE_DOTNET_ROOT"
 
@@ -173,20 +182,7 @@ printf '%s\n' "$url" >> "$FAKE_CURL_LOG"
 
 case "$url" in
   */workload-install.sh)
-    cat > "$output" <<'INSTALLER'
-#!/usr/bin/env bash
-set -euo pipefail
-
-printf '%s\n' "$*" > "$FAKE_INSTALL_ARGS_LOG"
-
-if [[ "${FAKE_INSTALL_FAIL:-0}" == "1" ]]; then
-  exit 91
-fi
-
-if [[ "${FAKE_INSTALL_NOOP:-0}" != "1" ]]; then
-  : > "$FAKE_WORKLOAD_MARKER"
-fi
-INSTALLER
+    cp "$FAKE_INSTALLER_FIXTURE" "$output"
     exit 0
     ;;
   *"/${FAKE_FULL_ID}/index.json")
@@ -255,7 +251,8 @@ LAST_OUTPUT=""
 run_gate() {
   local name="$1"
 
-  rm -f "$INSTALL_MARKER" "$BUILD_MARKER" "$INSTALL_ARGS_LOG" "$CURL_LOG"
+  rm -rf "$INSTALL_DIRECTORY"
+  rm -f "$INSTALL_MARKER" "$BUILD_MARKER" "$INSTALL_ARGS_LOG" "$HELPER_STATUS_LOG" "$CURL_LOG"
   LAST_SUMMARY="$TEMP_ROOT/${name}.summary"
   LAST_OUTPUT="$TEMP_ROOT/${name}.out"
   : > "$LAST_SUMMARY"
@@ -274,9 +271,12 @@ run_gate() {
     FAKE_FULL_STATUS="$CASE_FULL_STATUS" \
     FAKE_FEATURE_STATUS="$CASE_FEATURE_STATUS" \
     FAKE_CURL_LOG="$CURL_LOG" \
+    FAKE_INSTALLER_FIXTURE="$INSTALLER_FIXTURE" \
+    FAKE_INSTALL_DIRECTORY="$INSTALL_DIRECTORY" \
     FAKE_WORKLOAD_MARKER="$INSTALL_MARKER" \
     FAKE_BUILD_MARKER="$BUILD_MARKER" \
     FAKE_INSTALL_ARGS_LOG="$INSTALL_ARGS_LOG" \
+    FAKE_HELPER_STATUS_LOG="$HELPER_STATUS_LOG" \
     FAKE_INSTALL_FAIL="$CASE_INSTALL_FAIL" \
     FAKE_INSTALL_NOOP="$CASE_INSTALL_NOOP" \
     FAKE_BUILD_FAIL="$CASE_BUILD_FAIL" \
@@ -303,6 +303,10 @@ run_gate available-preview
 expect_status "available preview manifest completes the real lane" 0 "$LAST_STATUS"
 expect_file "available preview manifest invokes Samsung installer" "$INSTALL_MARKER"
 expect_file "available preview manifest requires the real lane" "$BUILD_MARKER"
+expect_contains \
+  "available path survives Samsung's successful helper status" \
+  "$HELPER_STATUS_LOG" \
+  "1"
 expect_contains "preview install pins the discovered version" "$INSTALL_ARGS_LOG" "--version 11.0.0-transition-test.1"
 if grep -Fq -- "--dotnet-target-version-band" "$INSTALL_ARGS_LOG"; then
   fail "preview install lets Samsung derive the preview target band"

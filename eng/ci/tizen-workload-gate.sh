@@ -186,10 +186,18 @@ if [[ "$PUBLISHED_BAND" == "$FEATURE_BAND" && "$PUBLISHED_BAND" != "$BAND" ]]; t
   INSTALLER_ARGS+=(--dotnet-target-version-band "$PUBLISHED_BAND")
 fi
 
-(
-  cd "$INSTALL_WORK_DIR"
-  DOTNET_ROOT="$DOTNET_INSTALL_DIR" bash -e "$INSTALLER" "${INSTALLER_ARGS[@]}"
-)
+# Do not add `-e` here. Samsung's installer has an ensure_directory helper whose final
+# writable-path test returns 1 when the directory is usable; the script relies on normal
+# Bash semantics and continues. Externally forcing errexit aborts a successful install
+# before the manifest download. A real nonzero script exit still fails here, while the
+# exact manifest detection below remains authoritative even if the installer returns a
+# misleading zero status.
+if ! (
+  cd "$INSTALL_WORK_DIR" || exit 1
+  DOTNET_ROOT="$DOTNET_INSTALL_DIR" bash "$INSTALLER" "${INSTALLER_ARGS[@]}"
+); then
+  fail "Samsung's supported Tizen workload installer exited unsuccessfully."
+fi
 
 if ! DETECTION_OUTPUT="$("$DOTNET" msbuild src/Maui.Tizen.Core/Maui.Tizen.Core.csproj \
     -t:ReportTizenWorkload -nologo -v:m 2>&1)"; then
