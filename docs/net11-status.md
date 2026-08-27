@@ -12,8 +12,17 @@ centrally configurable in [`eng/Maui.props`](../eng/Maui.props).
 
 The product assembly targets `net11.0-tizen11.0` only. It **cannot be restored or built anywhere**
 until Samsung publishes the 11.0.100 workload manifest (see blocker B1). Rather than weaken that
-contract with a neutral fallback, verification is done by two projects that compile the *same*
-sources.
+contract with a neutral fallback, verification is split across two **complementary** lanes. They do
+not compile identical sets - that would be impossible, since the platform sources need real TizenFX:
+
+| Lane | Compiles | `TIZEN` defined |
+| --- | --- | --- |
+| `Maui.Tizen.Core.UnitTests` | portable + handler | no |
+| `Maui.Tizen.Core.RefPackCompile` | portable + handler + platform + sample | yes |
+| `Maui.Tizen.Core` (product) | portable + handler + platform | yes |
+
+Between them every owned source is compiled by at least one lane, and everything the product
+compiles is also compiled by the ref-pack lane. `SourceLaneCoverageTests` pins that invariant.
 
 | Lane | Command | What it proves |
 | --- | --- | --- |

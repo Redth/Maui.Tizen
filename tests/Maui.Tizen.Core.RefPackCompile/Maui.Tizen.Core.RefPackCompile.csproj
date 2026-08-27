@@ -34,7 +34,13 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
 
     <!-- The whole point of this lane: exercise the `#if TIZEN` branches. -->
-    <DefineConstants>$(DefineConstants);TIZEN;PLATFORM</DefineConstants>
+    <!--
+      TIZEN only. PLATFORM was also defined here but NOT by the product, which meant a future
+      `#if PLATFORM` block would compile in this lane and vanish from the shipping assembly - the
+      exact class of drift this lane exists to prevent. No source uses it today; removed before one
+      does. A test pins the two define sets together.
+    -->
+    <DefineConstants>$(DefineConstants);TIZEN</DefineConstants>
   </PropertyGroup>
 
   <!--

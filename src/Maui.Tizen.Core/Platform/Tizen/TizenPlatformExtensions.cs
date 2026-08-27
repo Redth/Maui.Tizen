@@ -550,6 +550,16 @@ namespace Microsoft.Maui.Platforms.Tizen
 				contentViewGroup.SetNeedMeasureUpdate();
 			else if (platformView is ViewGroup viewGroup)
 				viewGroup.MarkChanged();
+			else if (platformView.GetParent() is ViewGroup parentViewGroup)
+			{
+				// The branch every LEAF view takes, and the one whose absence is invisible.
+				// TizenLabelView is a NUI TextLabel, not a ViewGroup, so it falls through all three
+				// checks above. Its Layout is null unless something assigns one - nothing here does
+				// - which makes RequestLayout() a silent no-op. Without marking the PARENT changed,
+				// setting Text or Font after first layout repaints at the stale measured size and
+				// the containing stack never reflows.
+				parentViewGroup.MarkChanged();
+			}
 			else
 				platformView.Layout?.RequestLayout();
 		}

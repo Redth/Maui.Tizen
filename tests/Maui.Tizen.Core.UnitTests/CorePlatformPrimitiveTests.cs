@@ -62,9 +62,17 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[InlineData("TizenFlyoutViewExtensions.cs")]
 		public void PrimitiveIsCompiledByTheProductAndRefPackLanes(string fileName)
 		{
-			// Sources are listed explicitly rather than globbed, so a new file that is never added
-			// here compiles nowhere and fails only when Wave C tries to use it.
-			Assert.Contains(fileName, SourcesProps, StringComparison.Ordinal);
+			// Must match COMPILE ITEMS, not raw file text. The earlier version searched the whole
+			// props file, which also contains a supersession comment block naming every one of
+			// these files - so every case passed on the comment alone and deleting the actual
+			// <MauiTizenPlatformCompile Include="..."/> item would not have failed it. That is
+			// precisely the regression the test claims to guard. Verified by mutation.
+			var compiled = SourcesProps
+				.Split('\n')
+				.Where(l => l.Contains("Include=", StringComparison.Ordinal))
+				.ToArray();
+
+			Assert.Contains(compiled, l => l.Contains(fileName, StringComparison.Ordinal));
 		}
 
 		[Theory]
