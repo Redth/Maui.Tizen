@@ -3,6 +3,10 @@
 This is the second migration wave. The [core vertical slice](architecture.md) established the
 application, window, layout and label path; Wave A adds the controls that sit inside it.
 
+The checklist for merging this wave onto a stable Core head — image-service composition with
+Wave B, the Core-owned test delta, the upstream adoption guards and the mapper behaviour bar — is
+in [`wave-a-integration-plan.md`](wave-a-integration-plan.md).
+
 ## What landed
 
 Fourteen handlers, in `Microsoft.Maui.Platforms.Tizen.Handlers`:
@@ -67,7 +71,7 @@ already registers `FileImageSourceService`, `StreamImageSourceService`, `FontIma
 `UriImageSourceService`, so every source type resolves whether or not `AddTizenImageSources` ever
 runs. Nothing throws and no service is reported missing - images are simply blank. A test asserting
 "an image source service is registered" passes on an app that can never display an image, so
-`ImageSourceRegistrationTests` asserts *which* implementation wins.
+`CompositionRootTests` asserts *which* implementation wins.
 
 `AddTizenImageSources` is deliberately in the portable compile group, separated from the
 NUI-dependent services it registers, so the call in `ConfigureTizen` compiles on both lanes and the

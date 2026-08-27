@@ -19,7 +19,8 @@ using Xunit;
 namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 {
 	/// <summary>
-	/// Host integration coverage for image source registration.
+	/// Host integration coverage for the composition root: what <c>ConfigureTizen()</c> actually
+	/// wires into a real app.
 	/// </summary>
 	/// <remarks>
 	/// <para>
@@ -35,8 +36,16 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	/// is registered" passes on an app that can never display an image. These therefore assert
 	/// which implementation wins, never mere resolvability.
 	/// </para>
+	/// <para>
+	/// Generalising that check found two more, and worse: nothing called
+	/// <c>AddTizenControlHandlers</c> or <c>AddTizenControlServices</c> either, so all fourteen
+	/// Wave A control handlers and the services they resolve were absent from a real app. Every
+	/// registration test passed because each one invoked the <c>AddTizen*</c> method itself, which
+	/// verifies the method rather than the wiring. Hence this suite: it only ever builds an app
+	/// through <c>ConfigureTizen()</c> and asks what came out.
+	/// </para>
 	/// </remarks>
-	public class ImageSourceRegistrationTests
+	public class CompositionRootTests
 	{
 		sealed class HostApp : Controls.Application
 		{

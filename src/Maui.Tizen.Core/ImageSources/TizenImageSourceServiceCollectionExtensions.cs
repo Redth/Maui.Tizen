@@ -26,7 +26,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// why the missing composition-root call was silent: nothing threw, no service was reported
 	/// missing, and images simply never appeared. A later <c>AddService</c> for the same source type
 	/// replaces the earlier registration - verified by
-	/// <c>ImageSourceRegistrationTests.ATizenRegistrationReplacesMauisNeutralDefault</c> - which is
+	/// <c>CompositionRootTests.ATizenRegistrationReplacesMauisNeutralDefault</c> - which is
 	/// what lets these win.
 	/// </para>
 	/// </remarks>
