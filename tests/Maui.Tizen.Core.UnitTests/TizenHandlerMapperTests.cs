@@ -113,18 +113,16 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		/// Asserted by observing a key that only exists once Controls has remapped, rather than
 		/// by inspecting the chain structure - it is the reachability that matters.
 		/// </remarks>
-		/// <remarks>
-		/// <c>TizenLabelHandler</c> is deliberately absent: it belongs to the core slice, still
-		/// chains <c>TizenViewMappers.ViewMapper</c> rather than <c>LabelHandler.Mapper</c>, and
-		/// therefore does not yet receive <c>FormattedText</c>, <c>TextType</c>,
-		/// <c>LineBreakMode</c>, <c>MaxLines</c> or <c>TextTransform</c>. Asserting it here would
-		/// fail on someone else's in-flight file; it is reported to the core slice instead.
-		/// </remarks>
 		[Theory]
 		[InlineData(typeof(TizenCheckBoxHandler), "Color")]
 		[InlineData(typeof(TizenButtonHandler), "IsInAccessibleTree")]
 		[InlineData(typeof(TizenEntryHandler), "Description")]
 		[InlineData(typeof(TizenPickerHandler), "Hint")]
+		[InlineData(typeof(TizenPickerHandler), "ItemsSource")]
+		[InlineData(typeof(TizenStepperHandler), "Increment")]
+		[InlineData(typeof(TizenLabelHandler), "FormattedText")]
+		[InlineData(typeof(TizenLabelHandler), "TextType")]
+		[InlineData(typeof(TizenLabelHandler), "MaxLines")]
 		public void ControlsRemappedKeysReachTheBackend(Type handlerType, string key)
 		{
 			ControlsRemap.Force();
@@ -216,6 +214,105 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 					$"The Tizen base command mapper implements '{key}' but " +
 					"TizenHandlerMappers.ViewCommandKeys omits it, so it would never be layered " +
 					"over MAUI's no-op.");
+			}
+		}
+
+		/// <summary>
+		/// The Controls-remapped keys and the focus commands actually <em>execute</em> against a
+		/// Tizen handler, not merely resolve.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// Key presence and command presence are cheap to satisfy and prove little - a chained
+		/// mapper makes every key resolve. This dispatches through the real composed mappers on a
+		/// real handler bound to a real Controls virtual view, so a mapping that resolves to
+		/// something uncallable fails here.
+		/// </para>
+		/// <para>
+		/// <see cref="InvalidCastException"/> is the failure that matters: MAUI's static mappers are
+		/// closed over its concrete handler type, so a key this backend has not overridden throws
+		/// rather than no-ops. Off-platform no-op side effects are ignored, since the host lane has
+		/// no NUI.
+		/// </para>
+		/// </remarks>
+		[Fact]
+		public void ControlsRemappedPropertiesAndFocusCommandsExecute()
+		{
+			ControlsRemap.Force();
+
+			var label = new Controls.Label();
+			var labelHandler = new TizenLabelHandler();
+			labelHandler.SetVirtualView(label);
+
+			// FormattedText is contributed exclusively by Label.RemapForControls.
+			DispatchProperty(labelHandler, label, "FormattedText");
+			DispatchProperty(labelHandler, label, "TextType");
+
+			var entry = new Controls.Entry();
+			var entryHandler = new TizenEntryHandler();
+			entryHandler.SetVirtualView(entry);
+
+			foreach (var command in new[] { nameof(IView.Focus), nameof(IView.Unfocus) })
+				DispatchCommand(entryHandler, entry, command, new FocusRequest());
+
+			// The two keys that were genuinely throwing before they were given Tizen bodies.
+			var picker = new Controls.Picker();
+			var pickerHandler = new TizenPickerHandler();
+			pickerHandler.SetVirtualView(picker);
+			DispatchProperty(pickerHandler, picker, "ItemsSource");
+
+			var stepper = new Controls.Stepper();
+			var stepperHandler = new TizenStepperHandler();
+			stepperHandler.SetVirtualView(stepper);
+			DispatchProperty(stepperHandler, stepper, "Increment");
+		}
+
+		static void DispatchProperty(IElementHandler handler, IElement view, string key)
+		{
+			// Without this the test would be vacuous: UpdateValue on a key no mapper defines does
+			// nothing at all and passes silently.
+			Assert.True(
+				TizenControlHandlers.GetMapperKeys(handler.GetType()).Contains(key),
+				$"{handler.GetType().Name}.Mapper does not define '{key}', so dispatching it is a " +
+				"no-op and this test would prove nothing.");
+
+			try
+			{
+				handler.UpdateValue(key);
+			}
+			catch (InvalidCastException ex)
+			{
+				Assert.Fail(
+					$"Dispatching '{key}' to {handler.GetType().Name} threw InvalidCastException: " +
+					$"{ex.Message}. The key resolves through MAUI's chained mapper, which is closed " +
+					"over MAUI's concrete handler, so this backend must override it.");
+			}
+			catch (Exception)
+			{
+				// An off-platform no-op stand-in has no NUI to touch; only a cast failure means the
+				// composition itself is wrong.
+			}
+		}
+
+		static void DispatchCommand(IElementHandler handler, IElement view, string key, object? args)
+		{
+			Assert.True(
+				TizenControlHandlers.GetCommandMapperCommand(handler.GetType(), key) is not null,
+				$"{handler.GetType().Name}.CommandMapper does not resolve '{key}', so invoking it " +
+				"is a no-op and this test would prove nothing.");
+
+			try
+			{
+				handler.Invoke(key, args);
+			}
+			catch (InvalidCastException ex)
+			{
+				Assert.Fail(
+					$"Invoking command '{key}' on {handler.GetType().Name} threw " +
+					$"InvalidCastException: {ex.Message}.");
+			}
+			catch (Exception)
+			{
 			}
 		}
 

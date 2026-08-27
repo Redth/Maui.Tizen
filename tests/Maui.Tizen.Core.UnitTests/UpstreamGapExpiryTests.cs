@@ -60,13 +60,26 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				assembly.GetType("Microsoft.Maui.IImageSourcePaint")
 				?? assembly.GetType("Microsoft.Maui.Graphics.IImageSourcePaint");
 
+			// Reported in the failure message so the adopter learns in one run whether the shipped
+			// shape still matches the planned pattern match, rather than discovering it mid-edit.
+			var imageSourceProperty = publicContract?.GetProperty("ImageSource");
+			var shape = publicContract is null
+				? string.Empty
+				: imageSourceProperty is null
+					? "\n\nNOTE: the shipped interface has NO 'ImageSource' property, so the planned " +
+					  "adoption below does not apply as written - re-read the final upstream shape first."
+					: $"\n\nShipped shape: {imageSourceProperty.PropertyType.Name} ImageSource " +
+					  $"{{ {(imageSourceProperty.CanRead ? "get; " : "")}{(imageSourceProperty.CanWrite ? "set; " : "")}}} " +
+					  "- matches the planned consumption-only adoption.";
+
 			Assert.True(
 				publicContract is null,
 				$"""
 				MAUI now exposes '{publicContract?.FullName}'. This is the upstream fix from
 				dotnet/maui#37864 landing, and the image-background workaround should now be removed.
 
-				Adopt it by pattern matching image-first in the background mapping:
+				Adopt it at the ADOPTION SEAM comment in TizenPlatformExtensions.UpdateBackground, by
+				pattern matching image-first:
 
 				    if (paint is IImageSourcePaint imagePaint)
 				        // route imagePaint.ImageSource through UpdateBackgroundImageSourceAsync
@@ -75,7 +88,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				Match the image case BEFORE the solid/ToColor fallback, or an image paint keeps
 				flattening to a colour exactly as it does today. Use the interface directly - no
 				reflection and no internal types. Then delete this test and update the
-				"MAUI extensibility blockers" section of docs/wave-a-handlers.md.
+				"MAUI extensibility blockers" section of docs/wave-a-handlers.md.{shape}
 				""");
 
 			// The gap is only real while the concrete type is genuinely inaccessible. If this

@@ -82,6 +82,29 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			return GetMapperKeys(handlerType);
 		}
 
+		/// <summary>
+		/// Resolves a command from a handler's public static <c>CommandMapper</c>.
+		/// </summary>
+		/// <remarks>
+		/// <c>CommandMapper</c> exposes no key enumeration, only <c>GetCommand</c>, so a command's
+		/// presence can only be established by resolving it.
+		/// </remarks>
+		public static Delegate? GetCommandMapperCommand(Type handlerType, string key)
+		{
+			ControlsRemap.Force();
+
+			var field = handlerType.GetField("CommandMapper", BindingFlags.Public | BindingFlags.Static)
+				?? throw new InvalidOperationException($"{handlerType.Name} has no public static 'CommandMapper' field.");
+
+			var mapper = field.GetValue(null)
+				?? throw new InvalidOperationException($"{handlerType.Name}.CommandMapper is null.");
+
+			var getCommand = mapper.GetType().GetMethod("GetCommand", [typeof(string)])
+				?? throw new InvalidOperationException($"{handlerType.Name}.CommandMapper has no GetCommand(string).");
+
+			return (Delegate?)getCommand.Invoke(mapper, [key]);
+		}
+
 		/// <summary>A control handler and the MAUI types it must stay in step with.</summary>
 		/// <param name="HandlerType">The Tizen handler.</param>
 		/// <param name="VirtualViewType">The MAUI interface it serves.</param>

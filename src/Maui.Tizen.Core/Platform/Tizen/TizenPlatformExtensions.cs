@@ -205,6 +205,23 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
+			// ADOPTION SEAM for dotnet/maui#37864 (public read-only IImageSourcePaint).
+			//
+			// The image case must be matched HERE, before the solid/ToColor branches below, or an
+			// image paint keeps flattening to a colour exactly as it does today:
+			//
+			//     if (paint is IImageSourcePaint image)
+			//     {
+			//         platformView.UpdateBackgroundImageSourceAsync(image.ImageSource, provider)
+			//             .FireAndForgetOnUiThread();
+			//         return;
+			//     }
+			//
+			// UpdateBackgroundImageSourceAsync already exists and works (ViewExtensions.cs); the
+			// only missing piece is a public way to detect that the paint is an image at all.
+			// Deliberately NOT done by reflecting over MAUI's internal ImageSourcePaint - see
+			// UpstreamGapExpiryTests, which fails when the contract ships so this cannot be missed.
+
 			if (paint is SolidPaint solid && solid.Color is Color color)
 			{
 				platformView.UpdateBackgroundColor(color.ToTizen());
