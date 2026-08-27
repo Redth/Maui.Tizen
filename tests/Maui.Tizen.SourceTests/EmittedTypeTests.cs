@@ -21,27 +21,12 @@ namespace Maui.Tizen.SourceTests;
 /// </remarks>
 public class EmittedTypeTests
 {
-	const string RefPackAssemblyName = "Maui.Tizen.Core.RefPackCompile";
 
 	static (IReadOnlyList<string> Defined, IReadOnlyList<string> Referenced) Metadata { get; } = ReadMetadata();
 
-	static string FindRefPackAssembly()
-	{
-		var candidates = new[] { "Release", "Debug" }
-			.Select(c => RepoPaths.Combine("artifacts", "bin", RefPackAssemblyName, c, "net11.0", RefPackAssemblyName + ".dll"))
-			.Where(File.Exists)
-			.ToList();
-
-		Assert.True(
-			candidates.Count > 0,
-			$"{RefPackAssemblyName} has not been built. Run: dotnet build tests/{RefPackAssemblyName}");
-
-		return candidates[0];
-	}
-
 	static (IReadOnlyList<string>, IReadOnlyList<string>) ReadMetadata()
 	{
-		using var stream = File.OpenRead(FindRefPackAssembly());
+		using var stream = File.OpenRead(RefPackAssembly.Path);
 		using var pe = new PEReader(stream);
 
 		var reader = pe.GetMetadataReader();
@@ -167,7 +152,7 @@ public class EmittedTypeTests
 
 	static IReadOnlyList<string> ReadMethodNames(string declaringTypeFullName)
 	{
-		using var stream = File.OpenRead(FindRefPackAssembly());
+		using var stream = File.OpenRead(RefPackAssembly.Path);
 		using var pe = new PEReader(stream);
 		var reader = pe.GetMetadataReader();
 

@@ -1,0 +1,82 @@
+namespace Maui.Tizen.SourceTests;
+
+/// <summary>
+/// Locates the ref-pack assembly that the metadata-based tests read.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This exists because getting it wrong is silent. The tests that assert on emitted metadata do not
+/// build the ref-pack project — nothing references it, so <c>dotnet test</c> will not rebuild it —
+/// and an earlier version of this helper simply preferred <c>Release</c> over <c>Debug</c>. A local
+/// <c>dotnet build</c> writes <c>Debug</c>, so those tests happily read a <c>Release</c> assembly
+/// built hours earlier and passed against metadata that no longer described the source.
+/// </para>
+/// <para>
+/// That is the worst possible failure for this class of test: it does not report a false failure,
+/// it reports a false <em>success</em>, which is exactly what a metadata guard is supposed to make
+/// impossible. So this picks the most recently built configuration and then refuses to run at all
+/// if that assembly is older than the sources it claims to describe.
+/// </para>
+/// </remarks>
+public static class RefPackAssembly
+{
+	const string AssemblyName = "Maui.Tizen.Core.RefPackCompile";
+
+	/// <summary>The freshest built ref-pack assembly.</summary>
+	public static string Path { get; } = Locate();
+
+	static string Locate()
+	{
+		var candidates = new[] { "Release", "Debug" }
+			.Select(configuration => RepoPaths.Combine(
+				"artifacts", "bin", AssemblyName, configuration, "net11.0", AssemblyName + ".dll"))
+			.Where(File.Exists)
+			.OrderByDescending(File.GetLastWriteTimeUtc)
+			.ToList();
+
+		Assert.True(
+			candidates.Count > 0,
+			$"{AssemblyName} has not been built. Run: dotnet build tests/{AssemblyName}");
+
+		var assembly = candidates[0];
+		var built = File.GetLastWriteTimeUtc(assembly);
+
+		var stale = SourceFiles()
+			.Where(source => File.GetLastWriteTimeUtc(source) > built)
+			.Select(source => System.IO.Path.GetFileName(source))
+			.Take(5)
+			.ToList();
+
+		Assert.True(
+			stale.Count == 0,
+			$"{AssemblyName} was built at {built:u} but these sources changed afterwards: "
+			+ $"{string.Join(", ", stale)}. Metadata assertions would be checking a stale assembly "
+			+ $"and could pass for code that no longer exists. Rebuild: dotnet build tests/{AssemblyName}");
+
+		return assembly;
+	}
+
+	/// <summary>The product sources the ref-pack lane compiles.</summary>
+	static IEnumerable<string> SourceFiles()
+	{
+		foreach (var directory in new[] { "src/Maui.Tizen.Core", "src/Maui.Tizen.Controls" })
+		{
+			var root = RepoPaths.Combine(directory.Split('/'));
+
+			if (!Directory.Exists(root))
+				continue;
+
+			foreach (var file in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+			{
+				// The raw dotnet/maui import shares these directories and is never compiled.
+				if (file.Contains($"{System.IO.Path.DirectorySeparatorChar}obj{System.IO.Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+					|| file.Contains($"{System.IO.Path.DirectorySeparatorChar}bin{System.IO.Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+				{
+					continue;
+				}
+
+				yield return file;
+			}
+		}
+	}
+}

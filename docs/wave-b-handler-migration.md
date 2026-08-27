@@ -302,9 +302,17 @@ sit behind `ITizenFontDirectoryProvider`) so this is provable rather than assert
 and resolves it to a loaded family name. Switching `AddTizenFontServices` to `TryAdd` turns three of
 those tests red, which was verified.
 
-Wave A's file and stream services call `Tizen.Applications.ResourceManager` and so cannot be
-constructed on a host; that half of the four-service composition is covered by the ref-pack compile
-lane and at integration.
+Two things stop the host-side test from covering all four. Wave A's file and stream services call
+`Tizen.Applications.ResourceManager`, so they cannot be constructed off-device — and, more
+fundamentally, Wave A guards its registrations with `#if TIZEN`, so on a host TFM
+`AddTizenImageSources` registers nothing at all and both sources resolve to MAUI's neutral services.
+
+`ImageSourceSeamTests` closes that gap without a device by reading the ref-pack lane's emitted IL,
+which is the one workload-free place the `TIZEN` branches actually exist, and asserting that the
+seam constructs `TizenFileImageSourceService`, `TizenStreamImageSourceService`,
+`TizenUriImageSourceService` and `TizenFontImageSourceService`. Dropping any one of them is
+otherwise silent: MAUI's neutral package still registers a service for that image source type, so
+nothing fails to resolve — the image just renders blank.
 
 ### Density conversions
 
@@ -367,11 +375,25 @@ discoverable from the diff, so they are recorded here.
    mappings only after confirming behavioural equivalence, and add base behavioural tests
    (visibility, background, enabled, opacity).
 
-3. **Fold `AddTizenUriAndFontImageSources` into Wave A's `AddTizenImageSources` seam** and delete the
-   now-duplicate entry point. Wave A's hosting hook states the intent directly: *"the image
-   workstream should extend `AddTizenImageSources` with the font and URI services rather than adding a
-   second entry point a host has to remember to call."* Wave B's `ConfigurePlatformContent` currently
-   calls both; after the fold it calls one.
+3. **Fold `AddTizenUriAndFontImageSources` into Wave A's `AddTizenImageSources` seam.** Approved as a
+   stacked-layer edit to that Wave A-owned file. Move the URI and font registrations in beside the
+   file and stream ones, **delete the second public entry point**, and leave
+   `ConfigurePlatformContent` calling `AddTizenImageSources` alone. Wave A's own source asks for
+   exactly this: *"Extending this is the supported path for the image workstream. Add the font and
+   URI registrations here so they are picked up by the single call in `ConfigureTizen`, rather than
+   introducing a second entry point that a host has to remember to call."*
+
+   Note that Wave A guards its registrations with `#if TIZEN`, so the folded registrations must sit
+   **inside** that guard to match, and a host-side container test can never prove this: without
+   `TIZEN`, `AddTizenImageSources` registers nothing and all four sources resolve to MAUI's neutral
+   services. `ImageSourceSeamTests` therefore reads the ref-pack lane's emitted IL — the one
+   workload-free place the `TIZEN` branches exist — and asserts the seam constructs all four Tizen
+   services. It is written against the union of the registration methods, so it stays green across
+   the fold and fails if a registration is dropped along the way.
+
+   The device-side integration test must assert the resolved **implementation types** are the Tizen
+   ones for file, stream, URI and font — not merely that a service resolves. Every one of them
+   resolves regardless; MAUI's neutral package guarantees it.
 
 4. **Take Wave A's image-source implementations.** Do not carry stale `ConfigureAwait(false)` copies
    of `TizenImageSource` or the stream service across the rebase: Wave A's `GenerateUrl` has
@@ -389,3 +411,24 @@ gate greps `dotnet workload list` for `tizen`, which matches MAUI's own `maui-ti
 Samsung SDK (`samsung.net.sdk.tizen`) is absent. The correct check greps for
 `samsung.net.sdk.tizen`. The gate is foundation-owned, so it is reported rather than changed here —
 but it means the "Tizen lane can now be made required" line must not be believed.
+
+
+## A note on the metadata tests, and a bug they had
+
+`EmittedTypeTests` and `ImageSourceSeamTests` assert on the ref-pack lane's compiled output rather
+than on source text, because a source-level check can be satisfied by a file that is never compiled.
+That is the right instinct, but it introduced a subtle trap.
+
+Nothing references the ref-pack project, so `dotnet test` does not rebuild it — and the original
+helper picked `Release` in preference to `Debug`. A local `dotnet build` writes `Debug`, so the
+tests were reading a `Release` assembly built earlier and asserting against metadata that no longer
+described the source. This was caught by mutation testing: deleting the font image source
+registration left the suite green, which is the giveaway.
+
+That is the worst failure mode available to a guard like this. It does not produce a false failure,
+which someone would investigate; it produces a false **success**, which is precisely what the guard
+exists to make impossible.
+
+`RefPackAssembly` now picks the most recently built configuration and then refuses to run at all if
+that assembly is older than any source it claims to describe, reporting which files changed. With
+that fixed, the same mutation correctly fails, and so does touching a source without rebuilding.
