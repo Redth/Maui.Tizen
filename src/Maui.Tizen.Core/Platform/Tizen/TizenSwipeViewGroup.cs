@@ -542,36 +542,29 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		void ProgrammaticallyOpenSwipeItem(OpenSwipeItem openSwipeItem, bool animated)
 		{
-			if (_isOpen)
+			switch (TizenSwipeMetrics.GetProgrammaticOpenAction(_isOpen, _previousOpenSwipeItem, openSwipeItem))
 			{
-				if (_previousOpenSwipeItem == openSwipeItem)
+				case TizenSwipeOpenAction.AlreadyOpen:
 					return;
-
-				ResetSwipe(false);
+				case TizenSwipeOpenAction.ResetThenOpen:
+					ResetSwipe(false);
+					break;
 			}
 
 			_previousOpenSwipeItem = openSwipeItem;
-
-			switch (openSwipeItem)
-			{
-				case OpenSwipeItem.BottomItems:
-					_swipeDirection = SwipeDirection.Up;
-					break;
-				case OpenSwipeItem.LeftItems:
-					_swipeDirection = SwipeDirection.Right;
-					break;
-				case OpenSwipeItem.RightItems:
-					_swipeDirection = SwipeDirection.Left;
-					break;
-				case OpenSwipeItem.TopItems:
-					_swipeDirection = SwipeDirection.Down;
-					break;
-			}
+			_swipeDirection = TizenSwipeMetrics.GetOpenSwipeDirection(openSwipeItem);
 
 			var swipeItems = GetSwipeItemsByDirection();
 
 			if (swipeItems == null || swipeItems.Count == 0)
 				return;
+
+			// Commit the open state before laying the items out. Upstream Tizen never does this, so
+			// _isOpen stayed false after a programmatic open: ISwipeView.IsOpen never became true,
+			// UpdateIsVisibleSwipeItem short-circuited, and - because the reset above is guarded on
+			// _isOpen - opening a second side left the first one still swiped out. iOS, which has
+			// the most complete SwipeView, sets it here for the same reason.
+			UpdateIsOpen(true);
 
 			UpdateSwipeItems();
 			SwipeToThreshold(animated);

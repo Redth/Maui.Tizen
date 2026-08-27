@@ -148,6 +148,8 @@
     <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenSwipeMetrics.cs" />
     <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenPortableExtensions.cs" />
     <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenImageSourceLoader.cs" />
+    <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Fonts/TizenEmbeddedFontLoader.cs" />
+    <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Hosting/TizenFontServiceCollectionExtensions.cs" />
   </ItemGroup>
 
   <ItemGroup Label="Wave B platform sources">
@@ -188,6 +190,11 @@
     <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Handlers/SwipeItemView/TizenSwipeItemViewHandler.cs" />
     <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Handlers/SwipeItemMenuItem/TizenSwipeItemMenuItemHandler.cs" />
     <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Handlers/IndicatorView/TizenIndicatorViewHandler.cs" />
+
+    <!-- The platform half of the composition root, plus the handler registrations it calls. -->
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Fonts/TizenPlatformFontDirectoryProvider.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Hosting/TizenContentHandlerCollectionExtensions.cs" />
+    <MauiTizenWaveBCompile Include="$(MauiTizenCoreDir)Hosting/TizenMauiAppBuilderExtensions.Content.cs" />
   </ItemGroup>
 
   <ItemGroup Label="Wave B Controls shape handlers">
@@ -198,6 +205,7 @@
     <MauiTizenWaveBControlsCompile Include="$(MauiTizenControlsDir)Core/Handlers/Shapes/Polyline/TizenPolylineHandler.cs" />
     <MauiTizenWaveBControlsCompile Include="$(MauiTizenControlsDir)Core/Handlers/Shapes/Rectangle/TizenRectangleHandler.cs" />
     <MauiTizenWaveBControlsCompile Include="$(MauiTizenControlsDir)Core/Handlers/Shapes/RoundRectangle/TizenRoundRectangleHandler.cs" />
+    <MauiTizenWaveBControlsCompile Include="$(MauiTizenControlsDir)Hosting/TizenShapeHandlerCollectionExtensions.cs" />
   </ItemGroup>
 
 </Project>

@@ -73,5 +73,59 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		/// <summary>Half-open range check: inclusive of <paramref name="init"/>, exclusive of <paramref name="end"/>.</summary>
 		internal static bool IsAngleInRange(double angle, float init, float end) => angle >= init && angle < end;
+
+		/// <summary>
+		/// Maps a programmatic open request onto the swipe direction that exposes those items.
+		/// </summary>
+		/// <remarks>
+		/// The direction is the direction the CONTENT travels, so it is the opposite of the side
+		/// being revealed: revealing the right-hand items means swiping left.
+		/// </remarks>
+		public static SwipeDirection GetOpenSwipeDirection(OpenSwipeItem openSwipeItem) =>
+			openSwipeItem switch
+			{
+				OpenSwipeItem.BottomItems => SwipeDirection.Up,
+				OpenSwipeItem.LeftItems => SwipeDirection.Right,
+				OpenSwipeItem.RightItems => SwipeDirection.Left,
+				_ => SwipeDirection.Down,
+			};
+
+		/// <summary>
+		/// Decides what a programmatic open must do given the swipe view's current state.
+		/// </summary>
+		/// <param name="isOpen">Whether a side is currently swiped out.</param>
+		/// <param name="previousOpenSwipeItem">The side opened last.</param>
+		/// <param name="requested">The side being requested now.</param>
+		/// <remarks>
+		/// Extracted so the decision can be executed in a host test. It is the part that was
+		/// actually broken: because the platform view never committed <c>IsOpen</c> on a
+		/// programmatic open, <paramref name="isOpen"/> was always false, so a request to open a
+		/// second side never reset the first and both ended up swiped out at once.
+		/// </remarks>
+		public static TizenSwipeOpenAction GetProgrammaticOpenAction(
+			bool isOpen,
+			OpenSwipeItem previousOpenSwipeItem,
+			OpenSwipeItem requested)
+		{
+			if (!isOpen)
+				return TizenSwipeOpenAction.Open;
+
+			return previousOpenSwipeItem == requested
+				? TizenSwipeOpenAction.AlreadyOpen
+				: TizenSwipeOpenAction.ResetThenOpen;
+		}
+	}
+
+	/// <summary>What a programmatic open request must do, given the current swipe state.</summary>
+	public enum TizenSwipeOpenAction
+	{
+		/// <summary>Nothing is open; open the requested side.</summary>
+		Open,
+
+		/// <summary>The requested side is already open; the request is a no-op.</summary>
+		AlreadyOpen,
+
+		/// <summary>A different side is open; close it before opening the requested one.</summary>
+		ResetThenOpen,
 	}
 }

@@ -66,6 +66,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 			{
 				CreateTemplatedView();
 			}
+
+			// Rebuilding only restores APPEARANCE. Count, HideSingle visibility and the windowed
+			// selection are state, and were lost every time an appearance mapper ran - so changing
+			// the indicator colour or shape silently dropped the cap and the highlight until the
+			// next unrelated position change happened to restore them. UpdateCount is a no-op for a
+			// templated view, which owns its own layout.
+			UpdateCount();
+
 			this.InvalidateMeasure(_indicatorView);
 		}
 
@@ -177,16 +185,24 @@ namespace Microsoft.Maui.Platforms.Tizen
 			};
 			Children.Add(_contentView);
 
-			_currentPoistion = _indicatorView.Position;
+			// Visibility is deliberately NOT decided here. Upstream returned early when HideSingle
+			// applied, which duplicated - and then diverged from - the policy in UpdateCount: this
+			// built a different number of dots than UpdateCount believed existed. ResetIndicators
+			// runs UpdateCount straight after, so HideSingle and the cap are applied in exactly one
+			// place.
+			var count = Math.Max(0, Math.Min(_indicatorView.Count, _indicatorView.MaximumVisible));
 
-			if (_indicatorView.Count == 1 && _indicatorView.HideSingle)
-				return;
-
-			var count = Math.Min(_indicatorView.Count, _indicatorView.MaximumVisible);
+			// The highlight must use the WINDOWED position, not the raw one. With 20 items, a
+			// maximum of 5 and position 10, `i == Position` is never true, so a rebuild triggered by
+			// an appearance change (colour, size, shape) left no dot highlighted at all.
+			_currentPoistion = TizenPortableExtensions.GetVisibleIndicatorPosition(
+				_indicatorView.Position,
+				_indicatorView.Count,
+				count);
 
 			for (int i = 0; i < count; i++)
 			{
-				var indicator = CreateIndicator((i == _indicatorView.Position) ? _indicatorView.SelectedIndicatorColor : _indicatorView.IndicatorColor);
+				var indicator = CreateIndicator((i == _currentPoistion) ? _indicatorView.SelectedIndicatorColor : _indicatorView.IndicatorColor);
 				_contentView.Add(indicator);
 				_indicators.Add(indicator);
 			}

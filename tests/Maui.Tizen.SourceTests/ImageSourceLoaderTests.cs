@@ -561,4 +561,107 @@ public class ImageSourceLoaderTests
 		Assert.True(afterLoad > before);
 		Assert.True(loader.Generation > afterLoad);
 	}
+
+	/// <summary>
+	/// A stale load that fails must not clear the image a newer load already put on screen.
+	/// </summary>
+	/// <remarks>
+	/// The service deliberately ignores its cancellation token and throws a plain
+	/// <see cref="InvalidOperationException"/> rather than <see cref="OperationCanceledException"/>,
+	/// so the load reaches the general exception handler instead of unwinding through the
+	/// cancellation path. Without the ownership guard there, the superseded load clears the platform
+	/// view and raises LoadingFailed for a source the control is no longer displaying: the image
+	/// goes blank and an error surfaces for the wrong source.
+	/// </remarks>
+	[Fact]
+	public async Task AStaleFailureDoesNotClearANewerImage()
+	{
+		var first = new StubImageSource("first");
+		var second = new StubImageSource("second");
+		var part = new StubPart { Source = first };
+
+		var firstGate = new TaskCompletionSource();
+
+		var provider = new StubProvider(async (source, token) =>
+		{
+			var stub = (StubImageSource)source;
+
+			if (stub.Name == "first")
+			{
+				// Note: no WaitAsync(token) - this service ignores cancellation, which is what
+				// forces the failure through the general handler.
+				await firstGate.Task;
+				throw new InvalidOperationException("stale decode failure");
+			}
+
+			return new TizenImageSource { ResourceUrl = stub.Name + ".png" };
+		});
+
+		using var loader = new TizenImageSourceLoader();
+
+		var cleared = 0;
+		void Clear() => Interlocked.Increment(ref cleared);
+
+		var slow = loader.LoadAsync(part, provider, NoopApply, Clear);
+
+		part.Source = second;
+		await loader.LoadAsync(part, provider, NoopApply, Clear);
+
+		// The newer load has succeeded. Only now does the stale one blow up.
+		firstGate.SetResult();
+		await slow;
+
+		Assert.Equal(0, Volatile.Read(ref cleared));
+		Assert.Empty(part.Failures);
+		Assert.Equal(new[] { true, false }, part.Completions);
+	}
+
+	/// <summary>
+	/// The same guard, on the apply path: a stale load whose apply reports failure must not clear
+	/// a newer image either.
+	/// </summary>
+	/// <remarks>
+	/// Applying awaits the platform, so a load can lose ownership between resolving and hearing
+	/// back. The failure branch runs before the old ownership re-check did, so a superseded load
+	/// whose decode failed would clear the newer image.
+	/// </remarks>
+	[Fact]
+	public async Task AStaleApplyFailureDoesNotClearANewerImage()
+	{
+		var first = new StubImageSource("first");
+		var second = new StubImageSource("second");
+		var part = new StubPart { Source = first };
+
+		var applyGate = new TaskCompletionSource();
+
+		var provider = new StubProvider((source, token) =>
+			Task.FromResult<TizenImageSource?>(new TizenImageSource { ResourceUrl = ((StubImageSource)source).Name + ".png" }));
+
+		using var loader = new TizenImageSourceLoader();
+
+		var cleared = 0;
+		void Clear() => Interlocked.Increment(ref cleared);
+
+		async Task<TizenImageApplyResult> Apply(TizenImageSource? image, CancellationToken token)
+		{
+			if (image?.ResourceUrl == "first.png")
+			{
+				await applyGate.Task;
+				return TizenImageApplyResult.Failed;
+			}
+
+			return TizenImageApplyResult.Success;
+		}
+
+		var slow = loader.LoadAsync(part, provider, Apply, Clear);
+
+		part.Source = second;
+		await loader.LoadAsync(part, provider, Apply, Clear);
+
+		applyGate.SetResult();
+		await slow;
+
+		Assert.Equal(0, Volatile.Read(ref cleared));
+		Assert.Equal(new[] { true, false }, part.Completions);
+	}
 }

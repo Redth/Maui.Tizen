@@ -95,4 +95,48 @@ public class SwipeMetricsTests
 	[InlineData(0, 0, 0, 1, 270)]   // due down
 	public void AngleFromPointsMatchesUpstream(double x1, double y1, double x2, double y2, double expected) =>
 		Assert.Equal(expected, TizenSwipeMetrics.GetAngleFromPoints(x1, y1, x2, y2), 3);
+
+	/// <summary>
+	/// A programmatic open of a different side must close the one already open.
+	/// </summary>
+	/// <remarks>
+	/// This is the decision that the platform view got wrong. It never committed IsOpen on a
+	/// programmatic open, so <c>isOpen</c> was permanently false, this branch was never taken, and
+	/// opening a second side left the first still swiped out.
+	/// </remarks>
+	[Fact]
+	public void OpeningADifferentSideResetsTheOpenOne()
+	{
+		Assert.Equal(
+			TizenSwipeOpenAction.ResetThenOpen,
+			TizenSwipeMetrics.GetProgrammaticOpenAction(true, OpenSwipeItem.LeftItems, OpenSwipeItem.RightItems));
+	}
+
+	[Fact]
+	public void ReopeningTheSameSideIsANoOp()
+	{
+		Assert.Equal(
+			TizenSwipeOpenAction.AlreadyOpen,
+			TizenSwipeMetrics.GetProgrammaticOpenAction(true, OpenSwipeItem.RightItems, OpenSwipeItem.RightItems));
+	}
+
+	[Fact]
+	public void OpeningWhileClosedNeverResets()
+	{
+		// Closed: the previous side is stale bookkeeping and must not suppress the open.
+		Assert.Equal(
+			TizenSwipeOpenAction.Open,
+			TizenSwipeMetrics.GetProgrammaticOpenAction(false, OpenSwipeItem.RightItems, OpenSwipeItem.RightItems));
+	}
+
+	/// <summary>
+	/// The content travels opposite to the side being revealed.
+	/// </summary>
+	[Theory]
+	[InlineData(OpenSwipeItem.LeftItems, SwipeDirection.Right)]
+	[InlineData(OpenSwipeItem.RightItems, SwipeDirection.Left)]
+	[InlineData(OpenSwipeItem.TopItems, SwipeDirection.Down)]
+	[InlineData(OpenSwipeItem.BottomItems, SwipeDirection.Up)]
+	public void OpenRequestsMapOntoTheOppositeDirection(OpenSwipeItem item, SwipeDirection expected) =>
+		Assert.Equal(expected, TizenSwipeMetrics.GetOpenSwipeDirection(item));
 }

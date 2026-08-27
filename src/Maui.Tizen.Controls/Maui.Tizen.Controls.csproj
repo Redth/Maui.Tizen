@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <Import Project="$(MSBuildThisFileDirectory)../../eng/targets/TizenPackage.props" />
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
 
   <PropertyGroup>
     <RootNamespace>Microsoft.Maui.Controls</RootNamespace>
@@ -15,6 +16,16 @@
 
   <ItemGroup>
     <ProjectReference Include="../Maui.Tizen.Core/Maui.Tizen.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    The Controls-level shape handlers. Listed explicitly for the same reason as Maui.Tizen.Core:
+    the raw dotnet/maui import shares these directories, so a glob would sweep in sources that
+    cannot compile from here. See eng/Maui.Tizen.Core.Sources.props.
+  -->
+  <ItemGroup>
+    <Compile Include="@(MauiTizenWaveBControlsCompile)" />
+    <None Remove="@(Compile)" />
   </ItemGroup>
 
 </Project>

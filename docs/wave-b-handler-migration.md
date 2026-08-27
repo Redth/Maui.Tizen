@@ -262,11 +262,49 @@ parameter was dead and every diagnostic these services emit went nowhere.
 they implement `ITizenImageSourceService` — without which `GetTizenImageAsync` silently returns null
 and every image renders blank — and that a logger really is supplied.
 
-**Outstanding, and owned by integration:** the final hosting root must call *both*
-`AddTizenImageSources` (core/Wave A: file and stream) and `AddTizenUriAndFontImageSources`
-(Wave B: URI and font). Neither may be left unregistered. Wave A's services call
-`Tizen.Applications.ResourceManager` and so cannot be constructed on a host, which is why the
-four-service composition is verified at integration rather than here.
+Wave B is now **shipped, not merely verified**. Its sources are compiled into the real
+`Maui.Tizen.Core` and `Maui.Tizen.Controls` product projects — not only into the ref-pack lane — and
+the composition root registers everything:
+
+- `AddTizenContentHandlers` — scroll, border, image, image button, graphics view, shape view,
+  refresh view, swipe view and its items, indicator view.
+- `AddTizenShapeHandlers` — the Controls-level shapes, registered from `Maui.Tizen.Controls`
+  because they map `Microsoft.Maui.Controls` types that Core does not reference.
+- `AddTizenImageSources` + `AddTizenUriAndFontImageSources` — all four image source services.
+- `AddTizenFontServices` — the embedded font loader, and the Tizen font manager.
+
+#### Why the composition root is a partial method
+
+`TizenMauiAppBuilderExtensions` is compiled into the host-side lane as well as the product, and
+there NUI is replaced by stubs — so it cannot name a handler whose platform view derives from a real
+NUI type. The registration therefore hangs off `static partial void ConfigurePlatformContent`, whose
+implementing half (`TizenMauiAppBuilderExtensions.Content.cs`) is compiled only where TizenFX is
+real.
+
+That has a sharp edge worth stating plainly: if the implementing half were ever dropped from
+`eng/Maui.Tizen.Core.Sources.props`, C# would **erase the method and its call site silently**, with
+no diagnostic anywhere, and the entire backend would compose to nothing — MAUI's neutral handlers
+and image sources still resolve, so the app would run and simply render nothing Tizen.
+`EmittedTypeTests.CompositionRootImplementsThePlatformContentHook` exists for exactly that: a
+partial method with no implementation leaves no metadata, so finding it in the emitted assembly is
+proof the half was compiled in.
+
+#### Fonts: `Replace`, not `TryAdd`
+
+`MauiApp.CreateBuilder` registers `IEmbeddedFontLoader` and `IFontManager` *before* any of this
+backend's configuration runs. Registering with `TryAdd` is therefore a no-op, and MAUI's neutral
+`EmbeddedFontLoader` — which has no Tizen implementation — stays in place. Nothing throws and
+nothing is logged; every `ConfigureFonts` alias just quietly resolves to the system typeface.
+
+`TizenEmbeddedFontLoader` is kept free of NUI (the app directories and the font-client registration
+sit behind `ITizenFontDirectoryProvider`) so this is provable rather than asserted:
+`EmbeddedFontLoaderTests` drives a real `ConfigureFonts` alias through MAUI's own `IFontRegistrar`
+and resolves it to a loaded family name. Switching `AddTizenFontServices` to `TryAdd` turns three of
+those tests red, which was verified.
+
+Wave A's file and stream services call `Tizen.Applications.ResourceManager` and so cannot be
+constructed on a host; that half of the four-service composition is covered by the ref-pack compile
+lane and at integration.
 
 ### Density conversions
 
@@ -301,3 +339,53 @@ for whoever restores it once a Tizen-targeting lane exists.
 - Simple controls (Wave A) and navigation/Shell/collection adapters (Wave C) are untouched.
 - `Platform/Tizen` helper *contents* are untouched apart from the one-line image-source resolution
   change, to keep the diff reviewable and avoid churn against other waves.
+
+## Mandatory steps at the final Wave A rebase
+
+Wave B is held pending a stable reviewed Wave A head. These steps are not optional and are not
+discoverable from the diff, so they are recorded here.
+
+1. **Delete Wave B's three Core-owned extension methods.** Core owns all common `IView` mappings and
+   extensions. Both trees currently define `UpdateVisibility(View, IView)`, `UpdateFlowDirection(View,
+   IView)` and `ToPlatformVisibility(Visibility)` in `Microsoft.Maui.Platforms.Tizen`, which is CS0121
+   once integrated.
+
+   | Delete from | Member |
+   |---|---|
+   | `Platform/Tizen/TizenWaveBInterop.cs` | `UpdateVisibility(NView, IView)` |
+   | `Platform/Tizen/TizenWaveBInterop.cs` | `UpdateFlowDirection(NView, IView)` |
+   | `Platform/Tizen/TizenPortableExtensions.cs` | `ToPlatformVisibility(Visibility)` |
+
+   **Delete, do not rename**, and do not keep a parallel implementation. The call sites need no
+   edits: Core's signatures are identical, because its `TizenNativeView` alias and Wave B's `NView`
+   alias both resolve to `Tizen.NUI.BaseComponents.View`. `DuplicateExtensionTests` fails until this
+   is done and names each collision; it resolves `using` aliases before comparing, because comparing
+   the written parameter type names catches only one of the three.
+
+2. **Chain from Core's `TizenViewMappers.ViewMapper`** and its command mapper rather than the neutral
+   `ViewHandler.ViewMapper`, whose `IView` bodies are inert. Remove duplicate per-handler base
+   mappings only after confirming behavioural equivalence, and add base behavioural tests
+   (visibility, background, enabled, opacity).
+
+3. **Fold `AddTizenUriAndFontImageSources` into Wave A's `AddTizenImageSources` seam** and delete the
+   now-duplicate entry point. Wave A's hosting hook states the intent directly: *"the image
+   workstream should extend `AddTizenImageSources` with the font and URI services rather than adding a
+   second entry point a host has to remember to call."* Wave B's `ConfigurePlatformContent` currently
+   calls both; after the fold it calls one.
+
+4. **Take Wave A's image-source implementations.** Do not carry stale `ConfigureAwait(false)` copies
+   of `TizenImageSource` or the stream service across the rebase: Wave A's `GenerateUrl` has
+   main-loop affinity that those copies would break.
+
+5. **Resolve only additive shared files.** Pre-flight against Wave A shows every other conflicting
+   path is byte-identical Wave A content (take theirs). The two genuinely shared files,
+   `Maui.Tizen.slnx` and `eng/Maui.Tizen.Core.Sources.props`, are additive on the Wave B side with
+   zero deleted lines, so both are keep-both.
+
+## Known issue outside Wave B's scope
+
+`eng/build-workload-free.sh` reports **"Samsung Tizen workload is installed"** when it is not. The
+gate greps `dotnet workload list` for `tizen`, which matches MAUI's own `maui-tizen` workload; the
+Samsung SDK (`samsung.net.sdk.tizen`) is absent. The correct check greps for
+`samsung.net.sdk.tizen`. The gate is foundation-owned, so it is reported rather than changed here —
+but it means the "Tizen lane can now be made required" line must not be believed.

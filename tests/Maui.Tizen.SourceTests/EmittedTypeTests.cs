@@ -164,4 +164,70 @@ public class EmittedTypeTests
 			Assert.Contains(name, Metadata.Defined);
 		}
 	}
+
+	static IReadOnlyList<string> ReadMethodNames(string declaringTypeFullName)
+	{
+		using var stream = File.OpenRead(FindRefPackAssembly());
+		using var pe = new PEReader(stream);
+		var reader = pe.GetMetadataReader();
+
+		foreach (var handle in reader.TypeDefinitions)
+		{
+			var type = reader.GetTypeDefinition(handle);
+			var ns = reader.GetString(type.Namespace);
+			var name = reader.GetString(type.Name);
+			var full = string.IsNullOrEmpty(ns) ? name : $"{ns}.{name}";
+
+			if (!string.Equals(full, declaringTypeFullName, StringComparison.Ordinal))
+				continue;
+
+			return type.GetMethods()
+				.Select(m => reader.GetString(reader.GetMethodDefinition(m).Name))
+				.ToList();
+		}
+
+		return Array.Empty<string>();
+	}
+
+	/// <summary>
+	/// The composition root must actually register Wave B's handlers, image sources and fonts.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <c>ConfigurePlatformContent</c> is a partial method. If its implementing half is ever dropped
+	/// from eng/Maui.Tizen.Core.Sources.props, the compiler ERASES both the method and the call -
+	/// silently, with no error anywhere - and the whole backend composes to nothing: MAUI's neutral
+	/// handlers and image sources still resolve, so the app runs and simply renders nothing Tizen.
+	/// </para>
+	/// <para>
+	/// A partial method with no implementation leaves no metadata, so its presence here is proof
+	/// that the implementing half was compiled in.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void CompositionRootImplementsThePlatformContentHook()
+	{
+		var methods = ReadMethodNames("Microsoft.Maui.Platforms.Tizen.Hosting.TizenMauiAppBuilderExtensions");
+
+		Assert.Contains("ConfigurePlatformContent", methods);
+	}
+
+	/// <summary>
+	/// The registration entry points the hook calls must be emitted too.
+	/// </summary>
+	[Fact]
+	public void EmitsTheWaveBRegistrationEntryPoints()
+	{
+		string[] expected =
+		{
+			"Microsoft.Maui.Platforms.Tizen.Hosting.TizenContentHandlerCollectionExtensions",
+			"Microsoft.Maui.Platforms.Tizen.Hosting.TizenShapeHandlerCollectionExtensions",
+			"Microsoft.Maui.Platforms.Tizen.Hosting.TizenFontServiceCollectionExtensions",
+			"Microsoft.Maui.Platforms.Tizen.TizenEmbeddedFontLoader",
+			"Microsoft.Maui.Platforms.Tizen.TizenPlatformFontDirectoryProvider",
+		};
+
+		foreach (var name in expected)
+			Assert.Contains(name, Metadata.Defined);
+	}
 }

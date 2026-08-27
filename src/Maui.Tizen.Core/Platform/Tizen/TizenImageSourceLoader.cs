@@ -197,10 +197,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 				var applied = await applyAsync(result.Value, token).ConfigureAwait(false);
 
+				// Applying awaits the platform, so ownership is re-checked before acting on the
+				// outcome. Hoisted above the failure branch because a superseded load must not
+				// clear the image a later load has already put on screen.
+				var stillOurs = IsCurrent(generation, token) && ReferenceEquals(imageSource, part.Source);
+
 				if (applied != TizenImageApplyResult.Success)
 				{
 					// An assigned URL is not success. The platform may still have failed to decode.
-					if (applied == TizenImageApplyResult.Failed)
+					if (stillOurs && applied == TizenImageApplyResult.Failed)
 						clearImage?.Invoke();
 
 					result.Dispose();
@@ -210,8 +215,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 					return;
 				}
 
-				// Applying can await, so ownership must be re-checked before taking the result.
-				if (!IsCurrent(generation, token) || !ReferenceEquals(imageSource, part.Source))
+				if (!stillOurs)
 				{
 					result.Dispose();
 					result = null;
@@ -233,8 +237,22 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 			catch (Exception ex)
 			{
-				clearImage?.Invoke();
-				events?.LoadingFailed(ex);
+				// A failure only counts if this load still owns the part. Without this guard a slow
+				// load A that throws after a later load B has already succeeded would clear B's
+				// image and report B as failed, so the control would end up blank with an error
+				// raised for a source it is no longer even displaying.
+				if (IsCurrent(generation, token) && ReferenceEquals(imageSource, part.Source))
+				{
+					clearImage?.Invoke();
+					events?.LoadingFailed(ex);
+				}
+				else
+				{
+					// Superseded: report the same non-applied outcome as the other stale paths and
+					// leave the platform view to the load that replaced this one.
+					events?.LoadingCompleted(false);
+				}
+
 				completed = true;
 			}
 			finally

@@ -11,7 +11,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 	/// <summary>
 	/// Host-builder entry points for the Tizen backend.
 	/// </summary>
-	public static class TizenMauiAppBuilderExtensions
+	public static partial class TizenMauiAppBuilderExtensions
 	{
 		/// <summary>
 		/// Configures the app class and wires up every Tizen service this backend provides.
@@ -73,6 +73,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 			ArgumentNullException.ThrowIfNull(builder);
 
 			builder.ConfigureMauiHandlers(handlers => handlers.AddTizenHandlers());
+
+			// Implemented in TizenMauiAppBuilderExtensions.Content.cs, which is compiled only into
+			// the lanes that have real TizenFX. The container, image, graphics and swipe handlers
+			// derive from NUI types, so they cannot be referenced from this file: it is also
+			// compiled into the host-side lane, where NUI is replaced by stubs.
+			//
+			// This is a hook rather than a separate public entry point on purpose. Wave A's image
+			// composition comment makes the same argument: a second method a host has to remember
+			// to call fails silently when it is forgotten, because MAUI's neutral handlers and image
+			// source services still resolve - they just do nothing on Tizen.
+			ConfigurePlatformContent(builder);
+
 			builder.Services.TryAddSingleton<IDispatcherProvider, TizenDispatcherProvider>();
 			builder.Services.TryAddScoped<IDispatcher>(static services =>
 				services.GetRequiredService<IDispatcherProvider>().GetForCurrentThread()
@@ -85,5 +97,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 
 			return builder;
 		}
+
+		/// <summary>
+		/// Registers the platform content handlers and image sources.
+		/// </summary>
+		/// <remarks>
+		/// Declared here and implemented in the platform-only half. When that half is not compiled
+		/// - the host-side verification lane - the call disappears, which is exactly what should
+		/// happen for handlers whose platform views cannot be loaded there.
+		/// </remarks>
+		static partial void ConfigurePlatformContent(MauiAppBuilder builder);
 	}
 }

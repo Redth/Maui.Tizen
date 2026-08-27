@@ -48,6 +48,13 @@
       the ref-pack lane and at integration.
     -->
     <Compile Include="$(MauiTizenCoreDir)ImageSources/TizenWaveBImageSourceServices.cs" LinkBase="WaveB" />
+
+    <!--
+      A stand-in font file, embedded so the loader can be driven through MAUI's real
+      ConfigureFonts/IFontRegistrar path. Its contents are irrelevant: the loader copies bytes and
+      returns a family name, it does not parse the file.
+    -->
+    <EmbeddedResource Include="TestAssets_TizenTestFont.ttf" LogicalName="Maui.Tizen.SourceTests.TizenTestFont.ttf" />
   </ItemGroup>
 
   <ItemGroup>
