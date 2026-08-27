@@ -161,14 +161,27 @@ public partial class CatalogAndBaselineConventionTests
         Assert.NotEmpty(variants);
         Assert.Distinct(variants.Select(v => v.ToString()), StringComparer.Ordinal);
 
-        // mobile: 2 themes x 3 densities, tv: 1 theme x 2 densities.
-        Assert.Equal(8, variants.Count);
+        // Tizen cannot override an individual application's theme, so each density is captured once
+        // under the target's effective system theme.
+        Assert.Equal(5, variants.Count);
+    }
+
+    [Fact]
+    public void BaselineMatrixDoesNotClaimUnsupportedApplicationThemeOverrides()
+    {
+        Assert.All(
+            TizenProfiles.Matrix.Profiles,
+            profile => Assert.Equal(["system"], profile.Themes));
+
+        var deviceLane = File.ReadAllText(
+            Path.Combine(RepoLayout.Root, "eng", "validation", "scripts", "tizen-device-lane.sh"));
+        Assert.DoesNotContain("device/app/theme", deviceLane, StringComparison.Ordinal);
     }
 
     [Fact]
     public void BaselinePaths_RoundTrip()
     {
-        var variant = new BaselineVariant("mobile", "dark", "hdpi");
+        var variant = new BaselineVariant("mobile", "system", "hdpi");
         var path = VisualBaselines.ImagePath(variant, "API15", "button-default");
 
         Assert.True(VisualBaselines.TryParsePath(path, out var address));

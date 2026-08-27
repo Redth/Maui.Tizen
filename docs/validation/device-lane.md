@@ -81,8 +81,12 @@ spread across YAML, folder names and assertions.
 
 | Profile | Input | Themes | Densities | Focus traversal |
 |---|---|---|---|---|
-| `mobile` | touch, key | light, dark | mdpi, hdpi, xhdpi | no |
-| `tv` | remote, key | dark | fhd, uhd | **yes** |
+| `mobile` | touch, key | system | mdpi, hdpi, xhdpi | no |
+| `tv` | remote, key | system | fhd, uhd | **yes** |
+
+Tizen does not expose a per-application light/dark override. The lane therefore records the
+effective system theme once per separately configured density instead of relabelling unchanged
+captures as light and dark variants.
 
 Only `net11.0-tizen11.0` gates a release. `alsoValidTargets` (`tizen10.1`, `10.0`, `9.0`, `8.0`) are
 marked `confirmed: false` and are exercised opportunistically, because they have not been verified

@@ -96,6 +96,7 @@ public class DevFlowContractTests
         RequireMethod(type, "GetNativeElementInfoById", typeof(string));
         RequireMethod(type, "EnsurePlatformStableId", typeof(object));
         RequireMethod(type, "TryNativeElementFocus", typeof(string), typeof(object));
+        RequireMethod(type, "TryNativeElementSetValue", typeof(string), typeof(object), typeof(string));
         RequireMethod(type, "TrySetValueRegisteredNativeElement", typeof(string), typeof(object), typeof(string));
         RequireMethod(type, "CanInvokeRegisteredNativeElement", typeof(object));
         RequireMethod(type, "CanFocusRegisteredNativeElement", typeof(object));
@@ -118,6 +119,10 @@ public class DevFlowContractTests
                 type.GetProperty(name) is not null,
                 $"ElementInfo.{name} no longer exists; the Tizen walker sets it.");
         }
+
+        Assert.NotNull(type.GetProperty(
+            "IdentityToken",
+            BindingFlags.Instance | BindingFlags.NonPublic));
     }
 
     [Fact]

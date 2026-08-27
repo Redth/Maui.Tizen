@@ -732,9 +732,6 @@ print(' '.join(c['id'] for c in m['cases'] if c.get('capturesBaseline') and '$TI
     find "$out" -maxdepth 1 -type f \( -name '*.png' -o -name '*.json' \) -delete
 
     info "Capturing baselines for $TIZEN_PROFILE/$api_level/$theme/$density"
-    devflow "device/app/theme" -X PUT \
-      -H 'Content-Type: application/json' \
-      -d "{\"theme\":\"$theme\"}" >/dev/null
 
     for id in $cases; do
       if ! devflow "ui/actions/navigate" \

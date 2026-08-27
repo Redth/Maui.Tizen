@@ -110,6 +110,22 @@ public sealed class NuPkg : IDisposable
         return XDocument.Load(stream);
     }
 
+    /// <summary>Reads the exact package id and version embedded in the root <c>.nuspec</c>.</summary>
+    public PackageIdentity ReadIdentity()
+    {
+        var nuspec = ReadNuspec();
+        var metadata = nuspec.Root?.Element(NuspecNamespace + "metadata")
+                       ?? nuspec.Root?.Elements().FirstOrDefault(e => e.Name.LocalName == "metadata")
+                       ?? throw new InvalidOperationException($"'{Path}' has no nuspec metadata element.");
+        var id = metadata.Elements().FirstOrDefault(e => e.Name.LocalName == "id")?.Value;
+        var version = metadata.Elements().FirstOrDefault(e => e.Name.LocalName == "version")?.Value;
+
+        if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(version))
+            throw new InvalidOperationException($"'{Path}' has no usable package id/version in its nuspec.");
+
+        return new PackageIdentity(id, version);
+    }
+
     /// <summary>Package dependencies as (targetFramework, id, versionRange) triples.</summary>
     public IReadOnlyList<PackageDependency> ReadDependencies()
     {
@@ -164,3 +180,6 @@ public sealed class NuPkg : IDisposable
 /// <param name="Id">Package id.</param>
 /// <param name="VersionRange">Raw version range string as written in the nuspec.</param>
 public sealed record PackageDependency(string TargetFramework, string Id, string VersionRange);
+
+/// <summary>The exact package id and version embedded in a nuspec.</summary>
+public sealed record PackageIdentity(string Id, string Version);

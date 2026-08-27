@@ -31,7 +31,7 @@
       "primaryInput": "touch",
       "inputMethods": ["touch", "key"],
       "requiresFocusNavigation": false,
-      "themes": ["light", "dark"],
+      "themes": ["system"],
       "densities": ["mdpi", "hdpi", "xhdpi"],
       "visualTargets": {
         "mdpi": { "width": 360, "height": 640, "displayDensity": 1.0 },
@@ -52,7 +52,7 @@
       "primaryInput": "remote",
       "inputMethods": ["remote", "key"],
       "requiresFocusNavigation": true,
-      "themes": ["dark"],
+      "themes": ["system"],
       "densities": ["fhd", "uhd"],
       "visualTargets": {
         "fhd": { "width": 1920, "height": 1080, "displayDensity": 1.0 },

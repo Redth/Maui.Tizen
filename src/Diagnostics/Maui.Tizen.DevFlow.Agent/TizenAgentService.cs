@@ -63,7 +63,7 @@ public class TizenAgentService : MauiDevFlowAgentService
     protected override string IdiomName => _identity.Idiom;
 
     protected override VisualTreeWalker CreateTreeWalker() =>
-        new TizenVisualTreeWalker(NativeElementDiagnosticsBridge.Current);
+        new TizenVisualTreeWalker(NativeElementDiagnosticsBridge.Current, _nativeInput);
 
     protected override void PopulateCapabilities(Dictionary<string, object> capabilities)
     {

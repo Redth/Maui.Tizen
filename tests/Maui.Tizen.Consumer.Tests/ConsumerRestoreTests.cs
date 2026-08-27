@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Security;
 
 namespace Maui.Tizen.Consumer.Tests;
 
@@ -92,6 +93,71 @@ public class ConsumerRestoreTests
                <disabledPackageSources>
                  <clear />
                </disabledPackageSources>
+             </configuration>
+             """);
+    }
+
+    static void WriteMappedFeedConfig(
+        TempWorkspace workspace,
+        string producedFeed,
+        IEnumerable<string> producedPackageIds,
+        string? externalFeed = null)
+    {
+        var producedMappings = string.Join(
+            Environment.NewLine,
+            producedPackageIds
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+                .Select(id => $"""      <package pattern="{SecurityElement.Escape(id)}" />"""));
+        var externalSource = externalFeed is null
+            ? """
+                  <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
+                  <add key="dotnet11" value="https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet11/nuget/v3/index.json" protocolVersion="3" />
+              """
+            : $"""      <add key="approved-external" value="{SecurityElement.Escape(externalFeed)}" />""";
+        var externalMappings = externalFeed is null
+            ? """
+                    <packageSource key="nuget.org">
+                      <package pattern="*" />
+                      <package pattern="Microsoft.AspNetCore.*" />
+                      <package pattern="Microsoft.Extensions.*" />
+                      <package pattern="Microsoft.JSInterop*" />
+                      <package pattern="Microsoft.Maui.*" />
+                      <package pattern="Microsoft.Maui.DevFlow.*" />
+                    </packageSource>
+                    <packageSource key="dotnet11">
+                      <package pattern="Microsoft.Maui.*" />
+                      <package pattern="Microsoft.AspNetCore.*" />
+                      <package pattern="Microsoft.Extensions.*" />
+                      <package pattern="Microsoft.JSInterop*" />
+                      <package pattern="Microsoft.Dotnet.*" />
+                    </packageSource>
+              """
+            : """
+                    <packageSource key="approved-external">
+                      <package pattern="*" />
+                    </packageSource>
+              """;
+
+        workspace.WriteFile(
+            "nuget.config",
+            $"""
+             <?xml version="1.0" encoding="utf-8"?>
+             <configuration>
+               <packageSources>
+                 <clear />
+                 <add key="maui-tizen-produced" value="{SecurityElement.Escape(producedFeed)}" />
+             {externalSource}
+               </packageSources>
+               <disabledPackageSources>
+                 <clear />
+               </disabledPackageSources>
+               <packageSourceMapping>
+                 <packageSource key="maui-tizen-produced">
+             {producedMappings}
+                 </packageSource>
+             {externalMappings}
+               </packageSourceMapping>
              </configuration>
              """);
     }
@@ -198,6 +264,98 @@ public class ConsumerRestoreTests
     }
 
     [Fact]
+    public async Task ConsumerHarness_RestoresExactPrereleaseIdentityWithExternalDependenciesFromAnEmptyCache()
+    {
+        using var workspace = TempWorkspace.Create("consumer-prerelease");
+        WriteIsolation(workspace);
+
+        var producedFeed = workspace.CreateSubdirectory("produced-feed");
+        var externalFeed = workspace.CreateSubdirectory("external-feed");
+        var environment = IsolatedNuGetEnvironment(workspace);
+
+        workspace.WriteFile(
+            "External/External.csproj",
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+             <PropertyGroup>
+               <TargetFramework>netstandard2.0</TargetFramework>
+               <PackageId>Approved.External.Dependency</PackageId>
+               <Version>2.3.4</Version>
+               <Authors>Maui.Tizen Contributors</Authors>
+               <Description>External dependency for the consumer restore regression.</Description>
+             </PropertyGroup>
+            </Project>
+            """);
+        workspace.WriteFile("External/Marker.cs", "namespace Approved.External { public sealed class Marker { } }");
+
+        (await DotNetCli.RunAsync(
+               ["pack", workspace.Combine("External", "External.csproj"), "--nologo", "--output", externalFeed],
+               workingDirectory: workspace.Path,
+               environment: environment,
+               cancellationToken: TestContext.Current.CancellationToken)
+            .ConfigureAwait(true))
+            .EnsureSucceeded();
+
+        workspace.WriteFile(
+            "Prerelease/Prerelease.csproj",
+            $"""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>netstandard2.0</TargetFramework>
+                <PackageId>Maui.Tizen.PrereleaseProbe</PackageId>
+                <Version>11.0.0-alpha.7</Version>
+                <Authors>Maui.Tizen Contributors</Authors>
+                <Description>Prerelease package used to verify exact consumer restore identities.</Description>
+                <RestoreSources>{externalFeed}</RestoreSources>
+              </PropertyGroup>
+              <ItemGroup>
+                <PackageReference Include="Approved.External.Dependency" Version="2.3.4" />
+              </ItemGroup>
+            </Project>
+            """);
+        workspace.WriteFile("Prerelease/Marker.cs", "namespace Maui.Tizen.Prerelease { public sealed class Marker { } }");
+
+        (await DotNetCli.RunAsync(
+               ["pack", workspace.Combine("Prerelease", "Prerelease.csproj"), "--nologo", "--output", producedFeed],
+               workingDirectory: workspace.Path,
+               environment: environment,
+               cancellationToken: TestContext.Current.CancellationToken)
+            .ConfigureAwait(true))
+            .EnsureSucceeded();
+
+        using var package = NuPkg.OpenFromDirectory(producedFeed, "Maui.Tizen.PrereleaseProbe");
+        var identity = package.ReadIdentity();
+        Assert.Equal(new PackageIdentity("Maui.Tizen.PrereleaseProbe", "11.0.0-alpha.7"), identity);
+
+        WriteMappedFeedConfig(workspace, producedFeed, [identity.Id], externalFeed);
+        workspace.WriteFile(
+            "Consumer/Consumer.csproj",
+            $"""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>netstandard2.0</TargetFramework>
+                <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+              </PropertyGroup>
+              <ItemGroup>
+                <PackageReference Include="{identity.Id}" Version="{identity.Version}" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        (await DotNetCli.RunAsync(
+               ["restore", workspace.Combine("Consumer", "Consumer.csproj"), "--no-http-cache"],
+               workingDirectory: workspace.Path,
+               environment: environment,
+               cancellationToken: TestContext.Current.CancellationToken)
+            .ConfigureAwait(true))
+            .EnsureSucceeded();
+
+        var graph = RestoreGraph.LoadFromProjectDirectory(workspace.Combine("Consumer"));
+        Assert.Contains(graph.AllPackages, p => p.Id == identity.Id && p.Version == identity.Version);
+        Assert.Contains(graph.AllPackages, p => p.Id == "Approved.External.Dependency" && p.Version == "2.3.4");
+    }
+
+    [Fact]
     public async Task ProducedPackages_RestoreIntoAConsumerProject()
     {
         var packagesDirectory = Path.Combine(RepoLayout.Root, "artifacts", "packages");
@@ -209,7 +367,14 @@ public class ConsumerRestoreTests
         var declared = PackageContentContract.EnumerateDeclaredPackageIds();
 
         var produced = declared
-            .Where(id => NuPkg.FindPackagePaths(packagesDirectory, id).Count > 0)
+            .Select(id => NuPkg.FindPackagePaths(packagesDirectory, id))
+            .Where(paths => paths.Count > 0)
+            .Select(paths =>
+            {
+                Assert.Single(paths);
+                using var package = NuPkg.Open(paths[0]);
+                return package.ReadIdentity();
+            })
             .ToList();
 
         var completePackageSet = produced.Count == declared.Count && declared.Count > 0;
@@ -226,11 +391,12 @@ public class ConsumerRestoreTests
 
         using var workspace = TempWorkspace.Create("consumer-real");
         WriteIsolation(workspace);
-        WriteLocalFeedConfig(workspace, packagesDirectory);
+        WriteMappedFeedConfig(workspace, packagesDirectory, produced.Select(package => package.Id));
 
         var references = string.Join(
             Environment.NewLine,
-            produced.Select(id => $"""    <PackageReference Include="{id}" Version="*" />"""));
+            produced.Select(package =>
+                $"""    <PackageReference Include="{package.Id}" Version="{package.Version}" />"""));
 
         workspace.WriteFile("Consumer/Consumer.csproj",
             $"""

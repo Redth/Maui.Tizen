@@ -49,6 +49,13 @@ public sealed class TizenNativeInput(TizenAgentEnvironment environment)
     public bool SupportsSyntheticInput =>
         _environment.HasPrivilege(TizenPrivileges.InputGenerator);
 
+    /// <summary>Runs a native UI mutation on NUI's main thread.</summary>
+    public Task<string?> TryMutateAsync(Func<string?> mutation)
+    {
+        ArgumentNullException.ThrowIfNull(mutation);
+        return MainThread.InvokeOnMainThreadAsync(mutation);
+    }
+
     /// <summary>
     /// Taps at a screen coordinate using synthesised touch input.
     /// </summary>

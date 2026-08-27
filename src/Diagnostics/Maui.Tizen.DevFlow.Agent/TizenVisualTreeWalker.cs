@@ -31,14 +31,18 @@ namespace Maui.Tizen.DevFlow.Agent;
 public class TizenVisualTreeWalker : VisualTreeWalker
 {
     readonly NativeElementDiagnosticsBridge _bridge;
+    readonly TizenNativeInput _nativeInput;
 
     public TizenVisualTreeWalker()
-        : this(NativeElementDiagnosticsBridge.Current)
+        : this(NativeElementDiagnosticsBridge.Current, new TizenNativeInput(TizenDeviceEnvironment.Detect()))
     {
     }
 
-    public TizenVisualTreeWalker(NativeElementDiagnosticsBridge bridge) =>
+    public TizenVisualTreeWalker(NativeElementDiagnosticsBridge bridge, TizenNativeInput nativeInput)
+    {
         _bridge = bridge ?? throw new ArgumentNullException(nameof(bridge));
+        _nativeInput = nativeInput ?? throw new ArgumentNullException(nameof(nativeInput));
+    }
 
     public override bool SupportsNativeElements => true;
 
@@ -51,7 +55,7 @@ public class TizenVisualTreeWalker : VisualTreeWalker
         string? automationId,
         string? text,
         string? selector) =>
-        [.. _bridge.Query(type, automationId, text).Select(ToElementInfo)];
+        NativeElementQuery.Apply(WalkNativeTree(knownWindowHandles, maxDepth: 0), type, automationId, text, selector);
 
     public override List<ElementInfo> HitTestNativeElements(IReadOnlyList<nint> knownWindowHandles, double x, double y) =>
         [.. _bridge.HitTest(x, y).Select(ToElementInfo)];
@@ -82,17 +86,18 @@ public class TizenVisualTreeWalker : VisualTreeWalker
             : base.EnsurePlatformStableId(platformObj)!;
 
     /// <summary>Moves keyboard/remote focus to a registered native element.</summary>
-    protected override string? TryNativeElementFocus(string elementId, object nativeElement)
+    protected override string TryNativeElementFocus(string elementId, object nativeElement)
     {
-        if (nativeElement is not NUIView view)
-            return $"Element '{elementId}' is not a NUI View.";
-
-        if (!view.Focusable)
-            return $"Element '{elementId}' is not focusable.";
-
-        view.KeyInputFocus = true;
-        return null;
+        return NativeTapResult.FromError(
+            _nativeInput.TryFocusAsync(nativeElement).GetAwaiter().GetResult());
     }
+
+    /// <summary>Sets a custom Tizen native element's value through the capture-bound action path.</summary>
+    protected override string TryNativeElementSetValue(string elementId, object nativeElement, string value) =>
+        NativeTapResult.FromError(
+            _nativeInput.TryMutateAsync(() => TrySetNativeValue(elementId, nativeElement, value))
+                .GetAwaiter()
+                .GetResult());
 
     /// <summary>
     /// Sets text on a native NUI text field.
@@ -104,6 +109,9 @@ public class TizenVisualTreeWalker : VisualTreeWalker
     /// change the visible text without ever notifying the view model.
     /// </remarks>
     protected override string? TrySetValueRegisteredNativeElement(string elementId, object nativeElement, string value) =>
+        TrySetNativeValue(elementId, nativeElement, value);
+
+    static string? TrySetNativeValue(string elementId, object nativeElement, string value) =>
         nativeElement switch
         {
             NUITextField field => Apply(() => field.Text = value),
@@ -151,6 +159,7 @@ public class TizenVisualTreeWalker : VisualTreeWalker
             IsFocused = view?.KeyInputFocus ?? false,
             Opacity = view?.Opacity ?? 1.0,
         };
+        NativeElementIdentity.Stamp(info, descriptor.Target);
 
         return info;
     }

@@ -98,7 +98,7 @@ public class ValidationInfrastructureRegressionTests
     }
 
     [Theory]
-    [InlineData("mobile", 6)]
+    [InlineData("mobile", 3)]
     [InlineData("tv", 2)]
     public void DeviceLaneExpandsEveryDeclaredVisualVariant(string profile, int expectedCount)
     {
@@ -123,7 +123,7 @@ public class ValidationInfrastructureRegressionTests
     }
 
     [Theory]
-    [InlineData("mobile", "hdpi", 2)]
+    [InlineData("mobile", "hdpi", 1)]
     [InlineData("tv", "uhd", 1)]
     public void DeviceLaneCapturesOnlyTheConfiguredDensityTarget(string profile, string density, int expectedCount)
     {
