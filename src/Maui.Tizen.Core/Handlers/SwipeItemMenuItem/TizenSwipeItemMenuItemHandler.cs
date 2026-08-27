@@ -8,6 +8,7 @@
 using System.Threading.Tasks;
 using Tizen.UIExtensions.NUI;
 using TColor = Tizen.UIExtensions.Common.Color;
+using NColor = global::Tizen.NUI.Color;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
@@ -85,20 +86,35 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			handler.PlatformView?.UpdateTextColor(view);
 
 		/// <summary>
-		/// Intentional no-op, carried over from dotnet/maui. The Tizen swipe menu button renders its
-		/// label through a fixed style with no per-character tracking control.
-		/// See docs/wave-b-mapper-parity.md.
+		/// Applies the label's character spacing.
 		/// </summary>
+		/// <remarks>
+		/// Upstream marks this <c>[MissingMapper]</c> on Tizen, and an earlier revision of this
+		/// handler recorded it as unsupported "fixed style with no per-character tracking control".
+		/// That was wrong: the platform view is a <c>Tizen.UIExtensions.NUI.Button</c>, whose
+		/// <c>TextLabel</c> exposes <c>CharacterSpacing</c> — the same route the core slice already
+		/// uses for <c>IButton</c>. Upstream's omission was a gap, not a platform limitation.
+		/// </remarks>
 		public static void MapCharacterSpacing(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view)
 		{
+			if (view is ITextStyle textStyle)
+				handler?.PlatformView?.UpdateCharacterSpacing(textStyle);
 		}
 
 		/// <summary>
-		/// Intentional no-op, carried over from dotnet/maui. The swipe menu button does not expose the
-		/// font family/size/slant of its embedded label. See docs/wave-b-mapper-parity.md.
+		/// Applies the label's font family, size and attributes.
 		/// </summary>
+		/// <remarks>
+		/// Upstream marks this <c>[MissingMapper]</c> on Tizen, and an earlier revision recorded it
+		/// as unsupported on the grounds that the button "does not expose the font family/size/slant
+		/// of its embedded label". That was wrong: <c>Tizen.UIExtensions.NUI.Button</c> exposes
+		/// <c>FontFamily</c>, <c>FontSize</c> and <c>FontAttributes</c>, and the core slice already
+		/// drives them through <c>UpdateTizenFont</c> for <c>IButton</c>.
+		/// </remarks>
 		public static void MapFont(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view)
 		{
+			if (view is ITextStyle textStyle)
+				handler?.PlatformView?.UpdateTizenFont(textStyle, handler.GetService<IFontManager>());
 		}
 
 		public static void MapBackground(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view)
@@ -140,14 +156,41 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public const string IconColorKey = "IconColor";
 
 		/// <summary>
-		/// Intentional no-op. The Tizen swipe menu button renders its icon through a plain image view
-		/// with no tint or colour-filter API, so the Controls-level <c>IconColor</c> cannot be applied
-		/// natively. Upstream's Tizen backend likewise supplies no implementation. Mapped explicitly
-		/// rather than left absent so the property is a documented gap instead of a silent one.
-		/// See docs/wave-b-mapper-parity.md.
+		/// Tints the menu button's icon with the Controls-level <c>IconColor</c>.
 		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// The value is not on <see cref="ISwipeItemMenuItem"/>. Microsoft.Maui.Controls' swipe item
+		/// carries it through the separate Core interface
+		/// <see cref="ISwipeItemMenuItemIconColor"/>, which is what neutral MAUI reads too, so this
+		/// needs no dependency on Microsoft.Maui.Controls.
+		/// </para>
+		/// <para>
+		/// Upstream's Tizen backend supplies no implementation, so an earlier revision of this
+		/// handler recorded the key as an unsupported no-op. That was wrong:
+		/// <c>Tizen.NUI.Components.Button.Icon</c> is an <c>ImageView</c>, and
+		/// <c>ImageView.ImageColor</c> multiplies the image by a colour, which is exactly the tint
+		/// this needs. Absence upstream was a gap, not a platform limitation.
+		/// </para>
+		/// <para>
+		/// A null or unset colour resets the tint to white. <c>ImageColor</c> multiplies, so white
+		/// is the identity — clearing it to transparent would erase the icon instead.
+		/// </para>
+		/// </remarks>
 		public static void MapIconColor(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view)
 		{
+			if (handler?.PlatformView?.Icon is not { } icon)
+				return;
+
+			var color = (view as ISwipeItemMenuItemIconColor)?.IconColor;
+
+			// Constructed directly rather than through a conversion helper: both
+			// Tizen.UIExtensions.NUI and Core's TizenPlatformExtensions expose a ToTizen that
+			// returns Tizen.UIExtensions.Common.Color, whereas ImageColor takes a Tizen.NUI.Color.
+			// (Core's file even aliases NColor to the UIExtensions type, so the names are no guide.)
+			icon.ImageColor = color is null
+				? NColor.White
+				: new NColor(color.Red, color.Green, color.Blue, color.Alpha);
 		}
 
 

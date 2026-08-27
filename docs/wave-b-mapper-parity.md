@@ -78,7 +78,7 @@ nothing:
 | Key | Declared on | Wave B |
 |---|---|---|
 | `StrokeDashArray` | `ShapeViewHandler.Mapper` | `TizenShapeViewHandler.MapStrokeDashArray` invalidates the shape, matching upstream `Shape.Tizen.cs`. Inherited by every shape handler through chaining. |
-| `IconColor` | `SwipeItemMenuItemHandler.Mapper` | Mapped to a documented no-op (see below). |
+| `IconColor` | `SwipeItemMenuItemHandler.Mapper` | `TizenSwipeItemMenuItemHandler.MapIconColor` tints `Button.Icon` through `ImageView.ImageColor`. |
 
 Neither can be written with `nameof`: there is no `IShapeView.StrokeDashArray` and no
 `ISwipeItemMenuItem.IconColor`. They are declared as named constants instead. An earlier revision
@@ -136,11 +136,7 @@ cannot silently grow.
 | Handler | Key | Why |
 |---|---|---|
 | `TizenBorderHandler` | `Shape`, `Stroke`, `StrokeThickness`, `StrokeLineCap`, `StrokeLineJoin`, `StrokeDashPattern`, `StrokeDashOffset`, `StrokeMiterLimit` | **Unsupported, not merely unimplemented.** Upstream drew border strokes on the container `WrapperView`. This backend cannot create a container — MAUI exposes no settable container hook to an out-of-repo assembly, so `TizenViewHandler` pins `NeedsContainer` to `false`. Border strokes do not render. See `docs/net11-status.md`. |
-| `TizenSwipeItemMenuItemHandler` | `IconColor` | The icon is a plain image view with no tint or colour-filter API. Upstream's Tizen backend supplies no implementation either. Mapped explicitly so the gap is documented rather than silent. |
-| `TizenImageButtonHandler` | `Padding` | The Tizen image button draws its image edge to edge and exposes no content-inset API. Carried over from dotnet/maui. |
-| `TizenRefreshViewHandler` | `IsRefreshEnabled` | Tizen's `RefreshLayout` cannot disable the pull gesture while leaving the control enabled. Disabling the whole view via `IsEnabled` still works. |
-| `TizenSwipeItemMenuItemHandler` | `CharacterSpacing` | The swipe menu button renders its label through a fixed style with no per-character tracking. |
-| `TizenSwipeItemMenuItemHandler` | `Font` | The swipe menu button does not expose the font family/size/slant of its embedded label. |
+| `TizenImageButtonHandler` | `Padding` | `View.Padding` does exist, so "no content-inset API" was imprecise — but it is the wrong tool: NUI padding insets a view's *children*, and an `ImageView` renders its image as a visual rather than a child, so writing it would move nothing while inflating the measured size. Insetting the image itself needs a container view, which this backend cannot create (`NeedsContainer` is pinned to `false`). Not verified on a device. |
 | `TizenSwipeViewHandler` | `LeftItems`, `TopItems`, `RightItems`, `BottomItems` | `MauiSwipeView` reads the item collections directly from the virtual view when a swipe begins, so there is no native state to push on change. |
 
 ## Other unsupported native behaviour
@@ -160,3 +156,57 @@ No layout algorithm is reimplemented. Handlers forward `CrossPlatformMeasure` an
 `CrossPlatformArrange` to the native container and only translate platform geometry
 (`ToDP`/`ToPixel`). `TizenScrollViewHandler` additionally syncs the native content container size
 after arrange, which is scroll-extent bookkeeping rather than layout.
+
+
+## Corrected no-op claims
+
+Three keys were previously recorded as unsupported no-ops on the strength of a platform limitation
+that does not exist. The claims were checked against the TizenFX API15 reference assemblies and
+found to be wrong; all three are now real mappings.
+
+| Key | Claim that was wrong | What the platform actually offers |
+|---|---|---|
+| `IconColor` | "the icon is a plain image view with no tint or colour-filter API" | `Tizen.NUI.Components.Button.Icon` is an `ImageView`, and `ImageView.ImageColor` (a `Tizen.NUI.Color`) multiplies the image — exactly a tint. |
+| `CharacterSpacing` | "a fixed style with no per-character tracking" | `Button.TextLabel.CharacterSpacing` exists, and the core slice already drives it for `IButton` via `UpdateCharacterSpacing`. |
+| `Font` | "does not expose the font family/size/slant of its embedded label" | `Tizen.UIExtensions.NUI.Button` exposes `FontFamily`, `FontSize` and `FontAttributes`; the core slice drives them via `UpdateTizenFont`. |
+
+In each case upstream's Tizen backend marked the mapper `[MissingMapper]` — that is, *not yet
+implemented*. Carrying those forward as "unsupported" restated an upstream gap as a platform
+limitation, which is the more damaging error: an unimplemented mapper invites a fix, whereas one
+documented as unsupported does not.
+
+`IconColor` deserves one note on null handling. `ImageColor` multiplies, so white is the identity:
+an unset colour resets the tint to white rather than to transparent, which would erase the icon.
+
+### Note on the colour-conversion helpers
+
+`ImageColor` takes a `Tizen.NUI.Color`, and neither available `ToTizen` helper returns one —
+`Tizen.UIExtensions.NUI`'s and the core slice's both return `Tizen.UIExtensions.Common.Color`. The
+names are actively misleading here: `TizenPlatformExtensions.cs` aliases `NColor` to the
+*UIExtensions* type, while Wave B files alias the same name to `Tizen.NUI.Color`. The conversion is
+therefore written out rather than routed through a helper.
+
+## Effective keys versus declared keys
+
+A handler answers far more keys than it declares, because mappers chain. All seven concrete shape
+handlers answer `StrokeDashArray` without one of them declaring it: six chain
+`TizenShapeViewHandler.Mapper` explicitly and `TizenBoxViewHandler` inherits it. A report that
+counts only directly-declared keys therefore shows seven gaps where there are none.
+
+`EffectiveMapperTests` resolves each key to the Tizen handler and method that will actually run,
+nearest declaration first, matching `PropertyMapper` lookup. It asserts that:
+
+- every concrete shape handler resolves `StrokeDashArray` to `TizenShapeViewHandler.MapStrokeDashArray`, and that it is not a no-op;
+- `IconColor` resolves to a real body;
+- **no Wave B mapper chains a neutral MAUI *concrete* handler's mapper.**
+
+That last one is the crash-safety invariant.
+`PropertyMapper<TVirtualView, TViewHandler>.Add` wraps every mapping in a closure that casts the
+handler to `TViewHandler`, guarded only by the virtual-view type. When `TViewHandler` is a concrete
+upstream class such as `LineHandler`, dispatching that key onto a Tizen handler throws
+`InvalidCastException` — and such keys are typically reachable only through chaining, so nothing in
+the source names them. Wave B chains only `ViewMapper`/`ElementMapper` (interface-typed, so
+`Action<IViewHandler, IView>`) and `TizenShapeViewHandler.Mapper`, which keeps the hard cast
+impossible. Each of these assertions was mutation-tested: removing the base `StrokeDashArray`
+mapping fails all seven shape tests, and pointing one handler at neutral `LineHandler.Mapper` fails
+the invariant.

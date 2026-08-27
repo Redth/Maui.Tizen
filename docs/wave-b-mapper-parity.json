@@ -165,7 +165,7 @@
           "Key": "Padding",
           "Method": "MapPadding",
           "Status": "NoOp",
-          "Reason": "Intentional no-op, carried over from dotnet/maui. The Tizen image button draws its image edge to edge and exposes no content-inset API, so \u003Csee cref=\u0022IImageButton.Padding\u0022/\u003E cannot be applied natively. See docs/wave-b-mapper-parity.md."
+          "Reason": "Intentional no-op, carried over from dotnet/maui. The platform view is a \u003Cc\u003ETizen.UIExtensions.NUI.Image\u003C/c\u003E, i.e. a NUI \u003Cc\u003EImageView\u003C/c\u003E. content-inset API\u0022 was imprecise. It is nonetheless the wrong tool: NUI padding insets a view\u0027s \u003Cem\u003Echildren\u003C/em\u003E during layout, and an \u003Cc\u003EImageView\u003C/c\u003E renders its image as a visual rather than as a child, so writing padding would move nothing while making the view report a larger measured size. Insetting the image itself would mean wrapping it in a container view, which this backend cannot do: MAUI exposes no settable container hook to an out-of-repo assembly, so \u003Cc\u003ETizenViewHandler\u003C/c\u003E pins \u003Cc\u003ENeedsContainer\u003C/c\u003E to false. Recorded as a gap rather than faked. Not verified on a device \u2014 see docs/net11-status.md."
         }
       ],
       "CommandMappers": [],
@@ -586,14 +586,12 @@
         {
           "Key": "CharacterSpacing",
           "Method": "MapCharacterSpacing",
-          "Status": "NoOp",
-          "Reason": "Intentional no-op, carried over from dotnet/maui. The Tizen swipe menu button renders its label through a fixed style with no per-character tracking control. See docs/wave-b-mapper-parity.md."
+          "Status": "Supported"
         },
         {
           "Key": "Font",
           "Method": "MapFont",
-          "Status": "NoOp",
-          "Reason": "Intentional no-op, carried over from dotnet/maui. The swipe menu button does not expose the font family/size/slant of its embedded label. See docs/wave-b-mapper-parity.md."
+          "Status": "Supported"
         },
         {
           "Key": "Background",
@@ -613,8 +611,7 @@
         {
           "Key": "IconColor",
           "Method": "MapIconColor",
-          "Status": "NoOp",
-          "Reason": "Intentional no-op. The Tizen swipe menu button renders its icon through a plain image view with no tint or colour-filter API, so the Controls-level \u003Cc\u003EIconColor\u003C/c\u003E cannot be applied natively. Upstream\u0027s Tizen backend likewise supplies no implementation. Mapped explicitly rather than left absent so the property is a documented gap instead of a silent one. See docs/wave-b-mapper-parity.md."
+          "Status": "Supported"
         }
       ],
       "CommandMappers": [],

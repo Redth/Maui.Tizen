@@ -158,10 +158,22 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		/// <summary>
-		/// Intentional no-op, carried over from dotnet/maui. The Tizen image button draws its image
-		/// edge to edge and exposes no content-inset API, so <see cref="IImageButton.Padding"/> cannot
-		/// be applied natively. See docs/wave-b-mapper-parity.md.
+		/// Intentional no-op, carried over from dotnet/maui.
 		/// </summary>
+		/// <remarks>
+		/// The platform view is a <c>Tizen.UIExtensions.NUI.Image</c>, i.e. a NUI <c>ImageView</c>.
+		/// <c>View.Padding</c> does exist and is settable, so the earlier claim that there is "no
+		/// content-inset API" was imprecise. It is nonetheless the wrong tool: NUI padding insets a
+		/// view's <em>children</em> during layout, and an <c>ImageView</c> renders its image as a
+		/// visual rather than as a child, so writing padding would move nothing while making the
+		/// view report a larger measured size.
+		/// <para>
+		/// Insetting the image itself would mean wrapping it in a container view, which this
+		/// backend cannot do: MAUI exposes no settable container hook to an out-of-repo assembly,
+		/// so <c>TizenViewHandler</c> pins <c>NeedsContainer</c> to false. Recorded as a gap rather
+		/// than faked. Not verified on a device — see docs/net11-status.md.
+		/// </para>
+		/// </remarks>
 		public static void MapPadding(TizenImageButtonHandler handler, IImageButton imageButton)
 		{
 		}
