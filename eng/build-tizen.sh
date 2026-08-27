@@ -27,6 +27,16 @@ TIZEN_PROJECTS=(
   "src/Maui.Tizen.BlazorWebView/Maui.Tizen.BlazorWebView.csproj"
   "src/Maui.Tizen.Maps/Maui.Tizen.Maps.csproj"
   "src/Maui.Tizen.Graphics/Maui.Tizen.Graphics.csproj"
+
+  # The sample application head. It became a real Tizen project when it started importing
+  # TizenPackage.props and compiling its own sources, so the transition regression test
+  # requires it here - correctly: an app head that no longer builds is exactly the kind of
+  # break this lane exists to catch, and it is the only project that exercises the
+  # SingleProject/manifest path end to end.
+  #
+  # It sets IsPackable=false, so the pack phase below is a no-op for it rather than a
+  # failure.
+  "samples/Maui.Tizen.Sample/Maui.Tizen.Sample.csproj"
 )
 
 echo "==> Restore net11.0-tizen11.0 projects"

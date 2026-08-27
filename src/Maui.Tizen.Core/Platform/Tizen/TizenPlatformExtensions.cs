@@ -229,10 +229,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 			// is honest: the image is unrendered either way, and the view ends up in a defined
 			// state rather than an arbitrary one.
 			//
-			// Rendering it properly needs IImageSourcePaint, which is INTERNAL in
-			// Microsoft.Maui 11.0.0-preview.7 - verified by reflection - and a container view to
-			// draw into, whose setter is private protected. Both are recorded as gaps; the raw
-			// imported ViewExtensions.cs that uses them stays uncompiled for exactly that reason.
+			// Rendering it properly needs the public consumption-only IImageSourcePaint contract,
+			// which is ABSENT from Microsoft.Maui 11.0.0-preview.7 - verified by reflection - plus
+			// a container view to draw into, whose setter is private protected. The concrete
+			// ImageSourcePaint is present but intentionally internal and is expected to stay so, so
+			// this waits on a new contract rather than on a type being opened up. Both are recorded
+			// as gaps; the raw imported ViewExtensions.cs that uses them stays uncompiled.
 			if (clearWhenNull)
 				platformView.UpdateBackgroundColor(NColor.Transparent);
 		}
