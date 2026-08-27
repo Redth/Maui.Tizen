@@ -335,7 +335,7 @@ bridge round trip. Those cross into native Tizen libraries.
 
 ## Public API baseline
 
-The package's baseline lives in `src/Maui.Tizen.BlazorWebView/PublicAPI/tizen/` and describes **the
+The package's baseline lives in `src/Maui.Tizen.BlazorWebView/PublicAPI/slice/` and describes **the
 assembly this package actually emits** — the handler, the web view manager and the registration
 extensions. The project opts in explicitly with `EnablePublicApiAnalyzer` and `AdditionalFiles`, per the
 contract documented in `eng/targets/TizenPackage.props`; baselines are deliberately never attached by a

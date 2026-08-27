@@ -230,12 +230,16 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 
 			Assert.NotNull(gate);
 
-			// The message must name the missing Samsung manifest so the failure is actionable rather
-			// than looking like a typo in the TFM. Matched case-insensitively and by the stable prefix,
-			// because the exact manifest id is a moving target while the band is being pinned down.
+			// The message must be actionable: it has to name the project that failed, say that this is an
+			// external workload gate rather than a repository defect, and point somewhere that explains
+			// what to do. It must NOT be pinned to a specific manifest id - the gate used to quote
+			// Samsung.NET.Sdk.Tizen.Manifest- literally, and now derives the ids from eng/baselines.json
+			// instead, which is precisely the kind of churn this assertion should tolerate.
 			var message = gate!.Descendants("Error").FirstOrDefault()?.Attribute("Text")?.Value ?? string.Empty;
-			Assert.Contains("Samsung.NET.Sdk.Tizen.Manifest-", message, StringComparison.OrdinalIgnoreCase);
 			Assert.Contains("MSBuildProjectName", message, StringComparison.Ordinal);
+			Assert.Contains("Samsung", message, StringComparison.OrdinalIgnoreCase);
+			Assert.Contains("workload", message, StringComparison.OrdinalIgnoreCase);
+			Assert.Contains("docs/migration.md", message, StringComparison.OrdinalIgnoreCase);
 
 			// The project defines no competing workload gate. It does carry the unrelated
 			// MAUITIZEN0101 pack guard, so filter by code rather than asserting there are no errors.

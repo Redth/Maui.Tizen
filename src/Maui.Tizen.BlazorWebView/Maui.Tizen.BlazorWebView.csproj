@@ -78,8 +78,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <AdditionalFiles Include="PublicAPI/tizen/PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI/tizen/PublicAPI.Unshipped.txt" />
+    <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Unshipped.txt" />
   </ItemGroup>
 
   <ItemGroup>
