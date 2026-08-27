@@ -213,8 +213,28 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
+			// Gradients collapse to their representative colour, which is the best a backend can do
+			// without a container view to render into (gap G1).
 			if (paint.ToColor() is Color fallback)
+			{
 				platformView.UpdateBackgroundColor(fallback.ToTizen());
+				return;
+			}
+
+			// No representative colour. In practice this is an image brush: ImagePaint.ToColor()
+			// returns null, verified against Microsoft.Maui.Graphics.
+			//
+			// Leaving the previous colour in place would be the worst outcome - setting an image
+			// background would appear to do nothing while a stale colour stayed on screen. Clearing
+			// is honest: the image is unrendered either way, and the view ends up in a defined
+			// state rather than an arbitrary one.
+			//
+			// Rendering it properly needs IImageSourcePaint, which is INTERNAL in
+			// Microsoft.Maui 11.0.0-preview.7 - verified by reflection - and a container view to
+			// draw into, whose setter is private protected. Both are recorded as gaps; the raw
+			// imported ViewExtensions.cs that uses them stays uncompiled for exactly that reason.
+			if (clearWhenNull)
+				platformView.UpdateBackgroundColor(NColor.Transparent);
 		}
 
 		/// <summary>Sets the platform view's background color.</summary>

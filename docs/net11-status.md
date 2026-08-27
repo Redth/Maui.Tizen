@@ -60,6 +60,28 @@ exists so `#if TIZEN` code is checked by a compiler rather than by inspection.
 
 ---
 
+### G11. `IImageSourcePaint` is internal, so image backgrounds cannot be rendered
+
+Verified by reflection over `Microsoft.Maui` 11.0.0-preview.7.26426.4:
+
+| Type | Assembly | Public |
+| --- | --- | --- |
+| `Microsoft.Maui.ImageSourcePaint` | Microsoft.Maui | **no** |
+| `Microsoft.Maui.Graphics.ImagePaint` | Microsoft.Maui.Graphics | yes |
+
+An out-of-repo backend therefore cannot detect an image background at all: the paint type it would
+have to match on is not visible to it. `ImagePaint` is public but carries no image source - and
+`ImagePaint.ToColor()` returns `null`, so an image background produced no colour and the previous
+one silently stayed on screen. The background mapper now clears instead, which at least leaves the
+view in a defined state.
+
+Rendering it properly needs both this type and a container view to draw into (G1). The raw imported
+`Platform/Tizen/ViewExtensions.cs`, which uses `ImageSourcePaint` and
+`UpdateBackgroundImageSourceAsync`, stays uncompiled for that reason.
+
+Note this contradicts guidance that `ImageSourcePaint` is "now public/constructible" - that may be
+true on a later build than the one this package pins.
+
 ### G10. Controls owns several Tizen bindings, and upstream never implemented them
 
 This affects accessibility **and** three Label properties. The shape is identical in every case:

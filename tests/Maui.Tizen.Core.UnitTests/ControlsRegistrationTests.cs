@@ -92,16 +92,56 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[Fact]
 		public void NoParallelTizenHandlerInterfacesRemain()
 		{
-			// ITizenApplicationHandler is the sole survivor, and only because MAUI Core ships no
-			// IApplicationHandler to implement instead.
-			var backendInterfaces = typeof(TizenLabelHandler).Assembly
+			// Scoped to actual HANDLER contracts - interfaces deriving from IElementHandler -
+			// rather than to every exported ITizen* type.
+			//
+			// The wider form asserted an exact list of all exported ITizen* interfaces, which made
+			// it fail for any downstream wave that added an unrelated ITizen* SERVICE interface.
+			// That is a real cost with no benefit: a service interface cannot be a parallel handler
+			// hierarchy, which is the only thing this test exists to prevent. The exported
+			// inventory is pinned separately by TizenPublicInterfaceInventoryTests, which is named
+			// for what it actually does.
+			var handlerInterfaces = typeof(TizenLabelHandler).Assembly
 				.GetExportedTypes()
-				.Where(t => t.IsInterface && t.Name.StartsWith("ITizen", StringComparison.Ordinal))
+				.Where(t => t.IsInterface)
+				.Where(t => typeof(IElementHandler).IsAssignableFrom(t))
+				.Where(t => t != typeof(IElementHandler))
 				.Select(t => t.Name)
 				.OrderBy(n => n, StringComparer.Ordinal)
 				.ToArray();
 
-			Assert.Equal(new[] { "ITizenApplicationHandler", "ITizenPlatformViewHandler" }, backendInterfaces);
+			// ITizenApplicationHandler survives only because MAUI Core ships no IApplicationHandler
+			// to implement instead; ITizenPlatformViewHandler because MAUI's IPlatformViewHandler
+			// exists only inside the net*-tizen build and re-declaring the name would be CS0433.
+			// Every other handler contract is MAUI's own.
+			Assert.Equal(new[] { "ITizenApplicationHandler", "ITizenPlatformViewHandler" }, handlerInterfaces);
+		}
+
+		[Fact]
+		public void NoTizenPrefixedInterfaceShadowsAMauiHandlerInterface()
+		{
+			// The substance behind the name. A parallel hierarchy would show up as a Tizen-prefixed
+			// interface whose name matches one MAUI already ships - ITizenLabelHandler alongside
+			// ILabelHandler - which is what forced handlers to choose between the two and blocked
+			// Controls mapper composition.
+			var mauiHandlerInterfaces = typeof(ILabelHandler).Assembly
+				.GetExportedTypes()
+				.Where(t => t.IsInterface && typeof(IElementHandler).IsAssignableFrom(t))
+				.Select(t => t.Name)
+				.ToHashSet(StringComparer.Ordinal);
+
+			Assert.NotEmpty(mauiHandlerInterfaces);
+
+			var shadowing = typeof(TizenLabelHandler).Assembly
+				.GetExportedTypes()
+				.Where(t => t.IsInterface && t.Name.StartsWith("ITizen", StringComparison.Ordinal))
+				// ITizenLabelHandler shadows ILabelHandler.
+				.Where(t => mauiHandlerInterfaces.Contains("I" + t.Name["ITizen".Length..]))
+				.Select(t => t.Name)
+				.OrderBy(n => n, StringComparer.Ordinal)
+				.ToArray();
+
+			Assert.Empty(shadowing);
 		}
 
 		[Fact]
