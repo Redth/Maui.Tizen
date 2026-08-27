@@ -245,18 +245,27 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			// times. Because the action runs on the main loop, that is a user-visible double
 			// execution, not a harmless extra tick.
 			//
-			// Post is made to block for well over the timer period, so a repeating timer queues
-			// multiple callbacks with certainty rather than by luck.
-			var context = new SlowPostContext(TimeSpan.FromMilliseconds(250));
-			var dispatcher = new TizenDispatcher(context);
+			// The clock is driven explicitly and the timer is made to double-fire, so the race is
+			// reproduced on every run instead of depending on how busy the machine is. The
+			// comment above used to claim this test was deterministic while it slept for 900ms and
+			// hoped - and it duly failed on a loaded CI runner with zero callbacks delivered,
+			// having asserted one.
+			//
+			// The slow Post is kept, because that interleaving is the point: the callback is still
+			// inside Post when the timer comes round again.
+			var context = new SlowPostContext(TimeSpan.FromMilliseconds(50));
+			var time = new ManualTimeProvider { DoubleFireTimers = true };
+			var dispatcher = new TizenDispatcher(context, time);
 			var count = 0;
 
 			Assert.True(dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(20), () => Interlocked.Increment(ref count)));
 
-			// Long enough that a 20 ms repeating timer would have fired many times.
-			Thread.Sleep(900);
-			context.DrainCount();
+			time.Advance(TimeSpan.FromMilliseconds(20));
 
+			// Far past the delay: a repeating timer would have come due many times over.
+			time.Advance(TimeSpan.FromMinutes(5));
+
+			Assert.Equal(1, context.DrainCount());
 			Assert.Equal(1, Volatile.Read(ref count));
 		}
 
