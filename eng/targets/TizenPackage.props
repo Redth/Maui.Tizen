@@ -140,9 +140,10 @@
        first three, 0/0/0 for the rest. Silent absence of enforcement is worse than no
        enforcement, because it looks enforced.
 
-    So the imported baselines under src/**/PublicAPI/** are PROVENANCE FIXTURES: they
-    record what upstream shipped for net-tizen and feed the API-baseline diffing in
-    eng/api-baselines/. They are not this repository's API contract.
+    So the imported baselines under src/**/PublicAPI/net-tizen/** are PROVENANCE
+    FIXTURES: they record what upstream shipped for net-tizen and are hash-pinned by
+    eng/api-baselines/net11.0-publicapi/manifest.json. They are not this repository's
+    API contract and must never be overwritten by analyzer-generated output.
 
     To opt a project in once it compiles and ships public API, declare its own baseline
     explicitly in the project file:
@@ -151,14 +152,15 @@
         <EnablePublicApiAnalyzer>true</EnablePublicApiAnalyzer>
       </PropertyGroup>
       <ItemGroup>
-        <AdditionalFiles Include="PublicAPI/tizen/PublicAPI.Shipped.txt" />
-        <AdditionalFiles Include="PublicAPI/tizen/PublicAPI.Unshipped.txt" />
+        <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Shipped.txt" />
+        <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Unshipped.txt" />
       </ItemGroup>
 
-    The baseline must describe THIS assembly, not the upstream one it was split from.
-    Do not point it at the imported provenance fixtures, and do not suppress RS0016/RS0017
-    to make a mismatched baseline quiet - that discards the enforcement entirely. An
-    invariant test asserts both rules.
+    PublicAPI/slice is reserved for generated baselines describing THIS standalone
+    assembly. The baseline must describe this assembly, not the upstream one it was split
+    from. Do not point it at the imported provenance fixtures, generate into net-tizen,
+    or suppress RS0016/RS0017 to make a mismatched baseline quiet - that discards the
+    enforcement entirely. Invariant tests assert these rules.
 
     See eng/tests/PublicApiOptIn for a worked example that the CI lane compiles.
   -->
