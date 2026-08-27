@@ -1,4 +1,6 @@
 #nullable enable
+const Microsoft.Maui.Platforms.Tizen.TizenScalingPolicy.BaselineDpi = 160 -> double
+const Microsoft.Maui.Platforms.Tizen.TizenScalingPolicy.TvAndIoTDpi = 213 -> int
 Microsoft.Maui.Platforms.Tizen.Handlers.ITizenApplicationHandler
 Microsoft.Maui.Platforms.Tizen.Handlers.ITizenApplicationHandler.PlatformView.get -> Tizen.Applications.CoreApplication!
 Microsoft.Maui.Platforms.Tizen.Handlers.ITizenApplicationHandler.VirtualView.get -> Microsoft.Maui.IApplication!
@@ -90,6 +92,25 @@ Microsoft.Maui.Platforms.Tizen.TizenDispatcherTimer.Stop() -> void
 Microsoft.Maui.Platforms.Tizen.TizenDispatcherTimer.Tick -> System.EventHandler?
 Microsoft.Maui.Platforms.Tizen.TizenDispatcherTimer.TizenDispatcherTimer(System.Threading.SynchronizationContext! context) -> void
 Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity
+Microsoft.Maui.Platforms.Tizen.TizenDisplayMetrics
+Microsoft.Maui.Platforms.Tizen.TizenDisplayMetrics.Dpi.get -> int
+Microsoft.Maui.Platforms.Tizen.TizenDisplayMetrics.Dpi.init -> void
+Microsoft.Maui.Platforms.Tizen.TizenDisplayMetrics.ScreenHeight.get -> int
+Microsoft.Maui.Platforms.Tizen.TizenDisplayMetrics.ScreenHeight.init -> void
+Microsoft.Maui.Platforms.Tizen.TizenDisplayMetrics.ScreenWidth.get -> int
+Microsoft.Maui.Platforms.Tizen.TizenDisplayMetrics.ScreenWidth.init -> void
+Microsoft.Maui.Platforms.Tizen.TizenDisplayMetrics.TizenDisplayMetrics() -> void
+Microsoft.Maui.Platforms.Tizen.TizenDisplayMetrics.TizenDisplayMetrics(int Dpi, int ScreenWidth, int ScreenHeight, Microsoft.Maui.Platforms.Tizen.TizenDisplayResolutionUnit Unit = Microsoft.Maui.Platforms.Tizen.TizenDisplayResolutionUnit.DP, double ViewPortWidth = 0) -> void
+Microsoft.Maui.Platforms.Tizen.TizenDisplayMetrics.Unit.get -> Microsoft.Maui.Platforms.Tizen.TizenDisplayResolutionUnit
+Microsoft.Maui.Platforms.Tizen.TizenDisplayMetrics.Unit.init -> void
+Microsoft.Maui.Platforms.Tizen.TizenDisplayMetrics.ViewPortWidth.get -> double
+Microsoft.Maui.Platforms.Tizen.TizenDisplayMetrics.ViewPortWidth.init -> void
+Microsoft.Maui.Platforms.Tizen.TizenDisplayResolutionUnit
+Microsoft.Maui.Platforms.Tizen.TizenDisplayResolutionUnit.DeviceScaledDP = 3 -> Microsoft.Maui.Platforms.Tizen.TizenDisplayResolutionUnit
+Microsoft.Maui.Platforms.Tizen.TizenDisplayResolutionUnit.DeviceScaledPixel = 1 -> Microsoft.Maui.Platforms.Tizen.TizenDisplayResolutionUnit
+Microsoft.Maui.Platforms.Tizen.TizenDisplayResolutionUnit.DP = 2 -> Microsoft.Maui.Platforms.Tizen.TizenDisplayResolutionUnit
+Microsoft.Maui.Platforms.Tizen.TizenDisplayResolutionUnit.Pixel = 0 -> Microsoft.Maui.Platforms.Tizen.TizenDisplayResolutionUnit
+Microsoft.Maui.Platforms.Tizen.TizenDisplayResolutionUnit.VP = 4 -> Microsoft.Maui.Platforms.Tizen.TizenDisplayResolutionUnit
 Microsoft.Maui.Platforms.Tizen.TizenFlyoutBehaviorExtensions
 Microsoft.Maui.Platforms.Tizen.TizenFlyoutView
 Microsoft.Maui.Platforms.Tizen.TizenFlyoutView.TizenFlyoutView() -> void
@@ -127,6 +148,7 @@ Microsoft.Maui.Platforms.Tizen.TizenNaviPage.TitleView.get -> Tizen.UIExtensions
 Microsoft.Maui.Platforms.Tizen.TizenNaviPage.TitleView.set -> void
 Microsoft.Maui.Platforms.Tizen.TizenNaviPage.TizenNaviPage() -> void
 Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions
+Microsoft.Maui.Platforms.Tizen.TizenScalingPolicy
 Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager
 Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.GetNavigationItem(Microsoft.Maui.IView! page) -> Microsoft.Maui.Platforms.Tizen.TizenNaviPage!
 Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.MauiContext.get -> Microsoft.Maui.IMauiContext?
@@ -285,10 +307,16 @@ static Microsoft.Maui.Platforms.Tizen.TizenCoreApplicationExtensions.SetBackButt
 static Microsoft.Maui.Platforms.Tizen.TizenCoreApplicationExtensions.SetMainContent(this Tizen.NUI.Window! platformWindow, Tizen.NUI.BaseComponents.View! content, Microsoft.Maui.IView? contentView = null) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenCoreApplicationExtensions.SetWindowCloseRequestHandler(this Tizen.NUI.Window! platformWindow, System.Action! handler) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity.Current.get -> double
+static Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity.DisplayResolutionUnit.get -> Microsoft.Maui.Platforms.Tizen.TizenDisplayResolutionUnit
+static Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity.DisplayResolutionUnit.set -> void
+static Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity.PhysicalScale.get -> double
 static Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity.SetDensityOverride(double? density) -> void
+static Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity.ToPixel(this double dp) -> int
 static Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity.ToScaledDP(this double pixel) -> double
 static Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity.ToScaledDP(this int pixel) -> double
 static Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity.ToScaledPixel(this double dp) -> int
+static Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity.ViewPortWidth.get -> double
+static Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity.ViewPortWidth.set -> void
 static Microsoft.Maui.Platforms.Tizen.TizenFlyoutBehaviorExtensions.ToTizenDrawerBehavior(this Microsoft.Maui.FlyoutBehavior behavior) -> Tizen.UIExtensions.Common.DrawerBehavior
 static Microsoft.Maui.Platforms.Tizen.TizenFlyoutBehaviorExtensions.ToTizenDrawerBehavior(this Microsoft.Maui.IFlyoutView! flyoutView) -> Tizen.UIExtensions.Common.DrawerBehavior
 static Microsoft.Maui.Platforms.Tizen.TizenFlyoutViewExtensions.UpdateDetail(this Tizen.UIExtensions.NUI.DrawerView! platformDrawerView, Microsoft.Maui.IFlyoutView! flyoutView, Microsoft.Maui.IMauiContext! context) -> void
@@ -362,6 +390,9 @@ static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateVisibility(t
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateWidth(this Tizen.NUI.Window! platformWindow, Microsoft.Maui.IWindow! window) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateX(this Tizen.NUI.Window! platformWindow, Microsoft.Maui.IWindow! window) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenPlatformExtensions.UpdateY(this Tizen.NUI.Window! platformWindow, Microsoft.Maui.IWindow! window) -> void
+static Microsoft.Maui.Platforms.Tizen.TizenScalingPolicy.ComputeScalingFactor(Microsoft.Maui.Platforms.Tizen.TizenDisplayMetrics metrics) -> double
+static Microsoft.Maui.Platforms.Tizen.TizenScalingPolicy.PhysicalScale(int dpi) -> double
+static Microsoft.Maui.Platforms.Tizen.TizenScalingPolicy.ResolveDpi(double reportedDpiY, bool isTv, bool isIoT) -> int
 static Microsoft.Maui.Platforms.Tizen.TizenToolbarView.ExpandedHeight.get -> float
 static Microsoft.Maui.Platforms.Tizen.TizenWindowLifecycleBridge.GetCurrentWindow() -> Microsoft.Maui.IWindow?
 static readonly Microsoft.Maui.Platforms.Tizen.Handlers.TizenApplicationHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.IApplication!, Microsoft.Maui.Platforms.Tizen.Handlers.ITizenApplicationHandler!>!

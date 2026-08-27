@@ -26,6 +26,7 @@
   <ItemGroup Label="Platform-independent slice sources">
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Dispatching/TizenDispatcher.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Animations/TizenTicker.cs" />
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenScalingPolicy.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenDisplayDensity.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenLayoutExtensions.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenPropertyResolvers.cs" />

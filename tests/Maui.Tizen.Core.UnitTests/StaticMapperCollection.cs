@@ -30,4 +30,23 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	{
 		public const string Name = "MAUI static mappers";
 	}
+
+	/// <summary>
+	/// Serialises every test class that mutates the process-wide display density override.
+	/// </summary>
+	/// <remarks>
+	/// <see cref="TizenDisplayDensity.SetDensityOverride"/> is global mutable state, so two classes
+	/// setting it in parallel see each other's values. That produced an intermittent failure in
+	/// DisplayDensityTests once ScalingPolicyTests started using the same override - the density
+	/// was correct when set and something else by the time it was read.
+	///
+	/// This is the second flake of exactly this shape in this suite. Process-wide state and xUnit's
+	/// parallel collections do not mix, and the fix is to say so explicitly rather than to make the
+	/// assertions looser.
+	/// </remarks>
+	[CollectionDefinition(DisplayDensityCollection.Name, DisableParallelization = true)]
+	public sealed class DisplayDensityCollection
+	{
+		public const string Name = "Tizen display density";
+	}
 }
