@@ -10,6 +10,13 @@ public class TizenAlertManagerSubscriptionTests
 {
 	static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
+	public enum DialogKind
+	{
+		Alert,
+		ActionSheet,
+		Prompt,
+	}
+
 	sealed class Fixture
 	{
 		public Fixture(object? window = null)
@@ -55,6 +62,13 @@ public class TizenAlertManagerSubscriptionTests
 		var finished = await Task.WhenAny(task, Task.Delay(Timeout));
 		Assert.Same(task, finished);
 		return await task;
+	}
+
+	static async Task Completed(Task task)
+	{
+		var finished = await Task.WhenAny(task, Task.Delay(Timeout));
+		Assert.Same(task, finished);
+		await task;
 	}
 
 	static async Task<bool> NeverCompletes<T>(Task<T> task)
@@ -267,6 +281,75 @@ public class TizenAlertManagerSubscriptionTests
 		Assert.True(dialog.Closed);
 		Assert.False(await Completed(args.Result.Task));
 		Assert.Equal(1, dialog.DisposeCount);
+	}
+
+	[Theory]
+	[InlineData(DialogKind.Alert)]
+	[InlineData(DialogKind.ActionSheet)]
+	[InlineData(DialogKind.Prompt)]
+	public async Task InlineCloseFollowedByDisposeFailureFaultsCaller(DialogKind dialogKind)
+	{
+		var fixture = new Fixture();
+		fixture.Dialogs.UseSynchronousDialogContinuations = true;
+
+		var expected = new InvalidOperationException("dispose failed");
+		Task result;
+		Action assertDialogTeardown;
+
+		switch (dialogKind)
+		{
+			case DialogKind.Alert:
+			{
+				var args = Alert();
+				fixture.Subscription.OnAlertRequested(fixture.Page, args);
+				var dialog = fixture.Dialogs.LastAlert!;
+				dialog.DisposeFailure = expected;
+				result = args.Result.Task;
+				assertDialogTeardown = () =>
+				{
+					Assert.True(dialog.Closed);
+					Assert.Equal(1, dialog.DisposeCount);
+				};
+				break;
+			}
+			case DialogKind.ActionSheet:
+			{
+				var args = ActionSheet();
+				fixture.Subscription.OnActionSheetRequested(fixture.Page, args);
+				var dialog = fixture.Dialogs.LastActionSheet!;
+				dialog.DisposeFailure = expected;
+				result = args.Result.Task;
+				assertDialogTeardown = () =>
+				{
+					Assert.True(dialog.Closed);
+					Assert.Equal(1, dialog.DisposeCount);
+				};
+				break;
+			}
+			case DialogKind.Prompt:
+			{
+				var args = Prompt();
+				fixture.Subscription.OnPromptRequested(fixture.Page, args);
+				var dialog = fixture.Dialogs.LastPrompt!;
+				dialog.DisposeFailure = expected;
+				result = args.Result.Task;
+				assertDialogTeardown = () =>
+				{
+					Assert.True(dialog.Closed);
+					Assert.Equal(1, dialog.DisposeCount);
+				};
+				break;
+			}
+			default:
+				throw new ArgumentOutOfRangeException(nameof(dialogKind));
+		}
+
+		var teardownFailure = Assert.Throws<AggregateException>(fixture.Subscription.Dispose);
+
+		Assert.Contains(expected, teardownFailure.InnerExceptions);
+		var callerFailure = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(result));
+		Assert.Same(expected, callerFailure);
+		assertDialogTeardown();
 	}
 
 	[Fact]

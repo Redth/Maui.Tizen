@@ -12,7 +12,14 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests;
 /// </summary>
 internal sealed class FakeAlertDialog<TResult> : ITizenAlertDialog<TResult>
 {
-	readonly TaskCompletionSource<TResult> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+	readonly TaskCompletionSource<TResult> _completion;
+
+	public FakeAlertDialog(bool runContinuationsSynchronously = false)
+	{
+		_completion = runContinuationsSynchronously
+			? new TaskCompletionSource<TResult>()
+			: new TaskCompletionSource<TResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+	}
 
 	public bool Opened { get; private set; }
 
@@ -69,6 +76,11 @@ internal sealed class FakeAlertDialogFactory : ITizenAlertDialogFactory
 
 	public Exception? AlertDialogDisposeFailure { get; set; }
 
+	/// <summary>
+	/// Runs dialog task continuations inline, matching NUI popup close ordering.
+	/// </summary>
+	public bool UseSynchronousDialogContinuations { get; set; }
+
 	public List<AlertArguments> AlertRequests { get; } = new();
 
 	public List<ActionSheetArguments> ActionSheetRequests { get; } = new();
@@ -89,7 +101,7 @@ internal sealed class FakeAlertDialogFactory : ITizenAlertDialogFactory
 	{
 		BeforeCreateAlertDialog?.Invoke();
 		AlertRequests.Add(arguments);
-		return LastAlert = new FakeAlertDialog<bool>
+		return LastAlert = new FakeAlertDialog<bool>(UseSynchronousDialogContinuations)
 		{
 			DisposeFailure = AlertDialogDisposeFailure,
 		};
@@ -98,13 +110,13 @@ internal sealed class FakeAlertDialogFactory : ITizenAlertDialogFactory
 	public ITizenAlertDialog<string?> CreateActionSheetDialog(ActionSheetArguments arguments)
 	{
 		ActionSheetRequests.Add(arguments);
-		return LastActionSheet = new FakeAlertDialog<string?>();
+		return LastActionSheet = new FakeAlertDialog<string?>(UseSynchronousDialogContinuations);
 	}
 
 	public ITizenAlertDialog<string?> CreatePromptDialog(PromptArguments arguments)
 	{
 		PromptRequests.Add(arguments);
-		return LastPrompt = new FakeAlertDialog<string?>();
+		return LastPrompt = new FakeAlertDialog<string?>(UseSynchronousDialogContinuations);
 	}
 
 	public ITizenBusyIndicator CreateBusyIndicator()

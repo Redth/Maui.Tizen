@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Internals;
@@ -27,11 +26,21 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// </remarks>
 	public sealed class TizenAlertManagerSubscription : IAlertManagerSubscription, IDisposable
 	{
+		sealed class DialogTeardown
+		{
+			readonly TaskCompletionSource<Exception?> _completion = new(
+				TaskCreationOptions.RunContinuationsAsynchronously);
+
+			public Task<Exception?> Completion => _completion.Task;
+
+			public void Complete(Exception? failure) => _completion.TrySetResult(failure);
+		}
+
 		readonly ITizenAlertDialogFactory _dialogs;
 		readonly ITizenModalHost _modalHost;
 		readonly ITizenPlatformWindowProvider _windowProvider;
 		readonly Func<object?> _resolveWindow;
-		readonly Dictionary<ITizenAlertDialog, Action<Exception?>> _openDialogs = new();
+		readonly Dictionary<ITizenAlertDialog, DialogTeardown> _openDialogs = new();
 		readonly object _sync = new();
 
 		int _busyCount;
@@ -190,7 +199,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </remarks>
 		public void Dispose()
 		{
-			KeyValuePair<ITizenAlertDialog, Action<Exception?>>[] open;
+			KeyValuePair<ITizenAlertDialog, DialogTeardown>[] open;
 			List<Exception>? failures = null;
 
 			lock (_sync)
@@ -202,15 +211,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 				_disposed = true;
 				open = _openDialogs.ToArray();
+
+				// Clearing while holding the tracking lock transfers close and disposal ownership
+				// before either operation can synchronously resume ShowAsync.
 				_openDialogs.Clear();
 			}
 
-			foreach (var (dialog, notifyTeardown) in open)
+			foreach (var (dialog, teardown) in open)
 			{
 				List<Exception>? dialogFailures = null;
-
-				// Transfer disposal ownership before Close can resume ShowAsync.
-				notifyTeardown(null);
 
 				try
 				{
@@ -238,15 +247,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 					}
 				}
 
-				if (dialogFailures is not null)
-				{
-					notifyTeardown(
-						dialogFailures.Count == 1
+				teardown.Complete(
+					dialogFailures is null
+						? null
+						: dialogFailures.Count == 1
 							? dialogFailures[0]
 							: new AggregateException(
 								"The Tizen dialog failed during window teardown.",
 								dialogFailures));
-				}
 			}
 
 			_busyCount = 0;
@@ -305,32 +313,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 			Func<TResult> canceledResult,
 			TaskCompletionSource<TResult> completion)
 		{
-			var teardownFailure = new TaskCompletionSource<Exception>(
-				TaskCreationOptions.RunContinuationsAsynchronously);
-			var disposedByTeardown = 0;
+			var teardown = new DialogTeardown();
 
-			if (!TrackDialog(
-				dialog,
-				ex =>
-				{
-					Volatile.Write(ref disposedByTeardown, 1);
-
-					if (ex is null)
-					{
-						return;
-					}
-
-					teardownFailure.TrySetResult(ex);
-					completion.TrySetException(ex);
-				}))
+			if (!TrackDialog(dialog, teardown))
 			{
 				// Disposed between the affinity check and here.
 				try
 				{
-					if (Volatile.Read(ref disposedByTeardown) == 0)
-					{
-						dialog.Dispose();
-					}
+					dialog.Dispose();
 				}
 				catch (Exception ex)
 				{
@@ -344,6 +334,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			TResult outcome;
 			Exception? failure = null;
+			bool disposeDialog;
 
 			try
 			{
@@ -362,11 +353,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 					try
 					{
 						var openTask = dialog.OpenAsync();
-						var completed = await Task.WhenAny(openTask, teardownFailure.Task).ConfigureAwait(true);
+						var completed = await Task.WhenAny(openTask, teardown.Completion).ConfigureAwait(true);
 
-						if (ReferenceEquals(completed, teardownFailure.Task))
+						if (ReferenceEquals(completed, teardown.Completion))
 						{
-							throw await teardownFailure.Task.ConfigureAwait(true);
+							captured = canceledResult();
+							return;
 						}
 
 						captured = await openTask.ConfigureAwait(true);
@@ -391,11 +383,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 			finally
 			{
-				UntrackDialog(dialog);
+				disposeDialog = UntrackDialog(dialog);
 
 				try
 				{
-					if (Volatile.Read(ref disposedByTeardown) == 0)
+					if (disposeDialog)
 					{
 						dialog.Dispose();
 					}
@@ -411,6 +403,25 @@ namespace Microsoft.Maui.Platforms.Tizen
 				}
 			}
 
+			if (!disposeDialog)
+			{
+				// Teardown owns the dialog. Even when Close completes OpenAsync inline, defer
+				// publication until both Close and Dispose have finished and their failures are known.
+				outcome = canceledResult();
+
+				var teardownFailure = await teardown.Completion.ConfigureAwait(true);
+
+				if (teardownFailure is not null)
+				{
+					failure = failure is null
+						? teardownFailure
+						: new AggregateException(
+							"The dialog operation and window teardown both failed.",
+							failure,
+							teardownFailure);
+				}
+			}
+
 			if (failure is not null)
 			{
 				// Never leave the awaiting DisplayXyzAsync caller hanging on an unexpected failure.
@@ -421,7 +432,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			setResult(outcome);
 		}
 
-		bool TrackDialog(ITizenAlertDialog dialog, Action<Exception?> notifyTeardown)
+		bool TrackDialog(ITizenAlertDialog dialog, DialogTeardown teardown)
 		{
 			lock (_sync)
 			{
@@ -430,16 +441,16 @@ namespace Microsoft.Maui.Platforms.Tizen
 					return false;
 				}
 
-				_openDialogs.Add(dialog, notifyTeardown);
+				_openDialogs.Add(dialog, teardown);
 				return true;
 			}
 		}
 
-		void UntrackDialog(ITizenAlertDialog dialog)
+		bool UntrackDialog(ITizenAlertDialog dialog)
 		{
 			lock (_sync)
 			{
-				_openDialogs.Remove(dialog);
+				return _openDialogs.Remove(dialog);
 			}
 		}
 
