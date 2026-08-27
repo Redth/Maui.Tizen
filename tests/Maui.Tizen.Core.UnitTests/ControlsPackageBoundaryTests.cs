@@ -92,12 +92,17 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[InlineData(ControlsLane)]
 		public void TheAnalyzerIsReferenced(string project)
 		{
-			// Baselines without the analyzer are inert files. Read from the csproj because the
-			// analyzer arrives as a PackageReference whose evaluated form is not an item type this
-			// helper fetches.
-			var text = File.ReadAllText(Path.Combine(RepositoryRoot, project));
+			// Baselines without the analyzer are inert files.
+			//
+			// This read the csproj TEXT until the duplicate-reference blocker showed why that is
+			// the wrong question: the analyzer reaches the product through TizenPackage.props, so
+			// text matching both missed a project that correctly inherits it and stayed happy when
+			// a second declaration was added on top. Evaluated items see the import.
+			var analyzerReferences = MSBuildEvaluation
+				.GetItems(project, "PackageReference")
+				.Count(id => id.EndsWith("Microsoft.CodeAnalysis.PublicApiAnalyzers", StringComparison.Ordinal));
 
-			Assert.Contains("Microsoft.CodeAnalysis.PublicApiAnalyzers", text, StringComparison.Ordinal);
+			Assert.Equal(1, analyzerReferences);
 		}
 
 		[Fact]
@@ -134,6 +139,61 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			Assert.Contains("Microsoft.Maui.Controls.Core", lane);
 			Assert.DoesNotContain("Microsoft.Maui.Controls", lane);
+		}
+
+		[Theory]
+		[InlineData("src/Maui.Tizen.Core/Maui.Tizen.Core.csproj")]
+		[InlineData(ControlsProduct)]
+		public void ExactlyOneAnalyzerPackageReferenceIsEvaluated(string project)
+		{
+			// TizenPackage.props already adds Microsoft.CodeAnalysis.PublicApiAnalyzers to every
+			// project that imports it. Declaring it again in the project produced TWO
+			// PackageReference items for the same package, which fails CI product restore with
+			// NU1504 - and is invisible in the csproj, because each declaration looks perfectly
+			// reasonable on its own.
+			//
+			// Asserted on the EVALUATED items, since that is the only view that sees the import
+			// and the project together.
+			var analyzerReferences = MSBuildEvaluation
+				.GetItems(project, "PackageReference")
+				.Count(id => id.EndsWith("Microsoft.CodeAnalysis.PublicApiAnalyzers", StringComparison.Ordinal));
+
+			Assert.Equal(1, analyzerReferences);
+		}
+
+		[Theory]
+		[InlineData("src/Maui.Tizen.Core/Maui.Tizen.Core.csproj")]
+		[InlineData(ControlsProduct)]
+		public void NoPackageIsReferencedTwice(string project)
+		{
+			// The general form. Any duplicate PackageReference is an NU1504; the analyzer was only
+			// the one that happened to be caught.
+			var duplicates = MSBuildEvaluation
+				.GetItems(project, "PackageReference")
+				.GroupBy(id => id, StringComparer.Ordinal)
+				.Where(g => g.Count() > 1)
+				.Select(g => g.Key)
+				.OrderBy(k => k, StringComparer.Ordinal)
+				.ToArray();
+
+			Assert.Empty(duplicates);
+		}
+
+		[Fact]
+		public void TheSampleLaneDoesNotReferenceControls()
+		{
+			// The real sample references only Maui.Tizen.Core - it is a Core-only app head using no
+			// Controls types. Its lane referenced Microsoft.Maui.Controls anyway, which stayed
+			// invisible until Controls' LayoutAlignment began colliding with
+			// Microsoft.Maui.Primitives.LayoutAlignment in the sample's own stubs: a CS0104 the
+			// product could never produce, caused entirely by the lane's extra reference.
+			//
+			// Over-broad lane references fail in both directions - green here and broken in the
+			// product, or red here and fine in the product. Both waste the lane's credibility.
+			var lane = PackageReferences("tests/Maui.Tizen.Sample.RefPackCompile/Maui.Tizen.Sample.RefPackCompile.csproj");
+
+			Assert.DoesNotContain("Microsoft.Maui.Controls", lane);
+			Assert.DoesNotContain("Microsoft.Maui.Controls.Core", lane);
 		}
 
 		static HashSet<string> PackageReferences(string project) => Regex
