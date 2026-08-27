@@ -63,9 +63,17 @@ public class WaveCUpstreamExpiryTests
 	/// adapter sat here: first as the internal <c>GetBindableObjectWithFlyoutItemTemplate</c>, then
 	/// as a three-method contract (<c>IsFlyoutItemTemplateSet</c>,
 	/// <c>GetFlyoutItemTemplateSource</c>, <c>GetFlyoutItemTemplateProperty</c>), and it is now
-	/// being redesigned again toward a single resolve-style call. Each time this test named the
-	/// members explicitly it silently stopped detecting anything, which is worse than having no
-	/// test at all - a green build implies the adapter is still needed when it may not be.
+	/// being redesigned again toward a single nullable result-oriented resolver (null meaning "use
+	/// the platform default"), with the template owner and property kept internal and the flyout
+	/// item itself retained as the binding context. Independent review rejected the decomposed
+	/// three-member shape, so NONE of the names seen so far should be treated as final.
+	/// <para>
+	/// Each time this test named members explicitly it silently stopped detecting anything, which is
+	/// worse than having no test at all - a green build then implies the adapter is still needed
+	/// when it may not be. It therefore stays deliberately broad and covers BOTH the rejected
+	/// three-member proposal and the expected single-resolver replacement, so no merged shape can
+	/// slip past while the design settles.
+	/// </para>
 	/// </para>
 	/// <para>
 	/// So it matches on the <em>concept</em> instead: any new public member on <see cref="Shell"/>
