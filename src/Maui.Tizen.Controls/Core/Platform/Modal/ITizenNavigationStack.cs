@@ -30,6 +30,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <param name="platformView">The native view to find.</param>
 		bool Contains(object platformView);
 
+		/// <summary>Returns whether <paramref name="platformView"/> has been disposed.</summary>
+		/// <param name="platformView">The native view to inspect.</param>
+		bool IsDisposed(object platformView);
+
 		/// <summary>
 		/// Gets or sets a value indicating whether the entry below the top one stays visible.
 		/// </summary>

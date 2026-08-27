@@ -30,6 +30,7 @@
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenLayoutExtensions.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenMauiContext.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenMauiContextExtensions.cs" />
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenBackButtonRouter.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)LifecycleEvents/TizenLifecycleEventExtensions.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)LifecycleEvents/TizenWindowLifecycleBridge.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Hosting/TizenHandlerCollectionExtensions.cs" />

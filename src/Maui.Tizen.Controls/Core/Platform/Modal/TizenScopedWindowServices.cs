@@ -47,6 +47,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public bool Contains(object platformView) => _target?.Contains(platformView) ?? false;
 
 		/// <inheritdoc/>
+		public bool IsDisposed(object platformView) => _target?.IsDisposed(platformView) ?? false;
+
+		/// <inheritdoc/>
 		public bool ShownBehindPage
 		{
 			get => _target?.ShownBehindPage ?? false;

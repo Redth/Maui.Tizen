@@ -37,6 +37,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 			_stack.Stack.Contains(AsView(platformView, nameof(platformView)));
 
 		/// <inheritdoc/>
+		public bool IsDisposed(object platformView) =>
+			!AsView(platformView, nameof(platformView)).HasBody();
+
+		/// <inheritdoc/>
 		public bool ShownBehindPage
 		{
 			get => _stack.ShownBehindPage;

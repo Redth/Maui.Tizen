@@ -26,6 +26,14 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 
 	public bool Contains(object platformView) => _entries.Contains(platformView);
 
+	public bool IsDisposed(object platformView) =>
+		platformView switch
+		{
+			FakePlaceholder placeholder => placeholder.Disposed,
+			FakeModalPageRealizer.FakePlatformView view => view.Disposed,
+			_ => false,
+		};
+
 	public bool ShownBehindPage { get; set; }
 
 	public List<bool> ShownBehindPageWrites { get; } = new();
@@ -37,6 +45,8 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 	public bool MutateBeforePushFailure { get; set; }
 
 	public bool MutateBeforePopFailure { get; set; }
+
+	public bool RemoveBeforePopFailureWithoutDisposal { get; set; }
 
 	public List<FakePlaceholder> Placeholders { get; } = new();
 
@@ -94,8 +104,13 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 
 		if (_entries.Count > 0)
 		{
-			(_entries[^1] as IDisposable)?.Dispose();
+			var top = _entries[^1];
 			_entries.RemoveAt(_entries.Count - 1);
+
+			if (!RemoveBeforePopFailureWithoutDisposal)
+			{
+				(top as IDisposable)?.Dispose();
+			}
 		}
 
 		return PopFailure is null ? Task.CompletedTask : Task.FromException(PopFailure);
@@ -200,8 +215,9 @@ internal sealed class FakeModalPageRealizer : ITizenModalPageRealizer
 
 	public int DisposeCountFor(Page page) => _platformViews[page].DisposeCount;
 
-	sealed class FakePlatformView : IDisposable
+	internal sealed class FakePlatformView : IDisposable
 	{
+		public bool Disposed => DisposeCount > 0;
 		public int DisposeCount { get; private set; }
 
 		public void Dispose() => DisposeCount++;

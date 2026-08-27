@@ -119,12 +119,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 		readonly IModalNavigationHost _host;
 		readonly ITizenNavigationStack _stack;
 		readonly ITizenModalPageRealizer _realizer;
-		readonly ITizenWindowBackButton? _backButton;
-		readonly ILogger<TizenModalNavigationPlatform>? _logger;
 		readonly Dictionary<Page, object> _platformViews = new();
 		readonly List<Page> _presentationOrder = new();
 
-		IDisposable? _backButtonRegistration;
 		bool _disposed;
 
 		/// <summary>
@@ -145,8 +142,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_host = host ?? throw new ArgumentNullException(nameof(host));
 			_stack = stack ?? throw new ArgumentNullException(nameof(stack));
 			_realizer = realizer ?? throw new ArgumentNullException(nameof(realizer));
-			_backButton = backButton;
-			_logger = logger;
+			_ = backButton;
+			_ = logger;
 		}
 
 		/// <inheritdoc/>
@@ -179,9 +176,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 				try
 				{
-					platformViewDisposed = await RemovePlatformViewAsync(
-						platformView,
-						missingMeansDisposed: false).ConfigureAwait(true);
+					platformViewDisposed = await RemovePlatformViewAsync(platformView).ConfigureAwait(true);
 				}
 				catch (Exception ex)
 				{
@@ -225,7 +220,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_platformViews.TryGetValue(modal, out var platformView);
 
 			Exception? popFailure = null;
-			var platformViewDisposed = platformView is not null && !_stack.Contains(platformView);
+			var platformViewDisposed = platformView is not null && _stack.IsDisposed(platformView);
 
 			try
 			{
@@ -250,9 +245,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				{
 					try
 					{
-						platformViewDisposed = await RemovePlatformViewAsync(
-							platformView,
-							missingMeansDisposed: true).ConfigureAwait(true);
+						platformViewDisposed = await RemovePlatformViewAsync(platformView).ConfigureAwait(true);
 					}
 					catch (Exception cleanupFailure)
 					{
@@ -294,24 +287,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		/// <inheritdoc/>
 		/// <remarks>
-		/// Installs the Tizen back-button handler. The handler is resolved through the host on every
-		/// press rather than captured, because the current page changes as modals come and go.
+		/// Back routing belongs to Core's window fallback. Registering another page handler here
+		/// would dispatch an unhandled press to the same top modal twice.
 		/// </remarks>
 		public void PageAttached()
 		{
-			if (_disposed)
-			{
-				return;
-			}
-
-			if (_backButton is null)
-			{
-				_logger?.LogDebug(
-					"No ITizenWindowBackButton is registered for this window, so the hardware back button will not be routed to the current page.");
-				return;
-			}
-
-			_backButtonRegistration ??= _backButton.RegisterBackButtonPressedHandler(OnBackButtonPressed);
 		}
 
 		/// <inheritdoc/>
@@ -326,16 +306,6 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			_disposed = true;
 
-			try
-			{
-				_backButtonRegistration?.Dispose();
-				_backButtonRegistration = null;
-			}
-			catch (Exception ex)
-			{
-				(failures ??= new()).Add(ex);
-			}
-
 			foreach (var page in _presentationOrder.AsEnumerable().Reverse())
 			{
 				var platformView = _platformViews[page];
@@ -344,7 +314,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				try
 				{
 					var containsPlatformView = _stack.Contains(platformView);
-					platformViewDisposed = !containsPlatformView;
+					platformViewDisposed = _stack.IsDisposed(platformView);
 
 					if (containsPlatformView)
 					{
@@ -375,13 +345,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 		}
 
-		bool OnBackButtonPressed() => _host.CurrentPage?.SendBackButtonPressed() ?? false;
-
-		async Task<bool> RemovePlatformViewAsync(object platformView, bool missingMeansDisposed)
+		async Task<bool> RemovePlatformViewAsync(object platformView)
 		{
 			if (!_stack.Contains(platformView))
 			{
-				return missingMeansDisposed;
+				return _stack.IsDisposed(platformView);
 			}
 
 			if (ReferenceEquals(_stack.Top, platformView))
@@ -389,7 +357,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				try
 				{
 					await _stack.PopAsync(false).ConfigureAwait(true);
-					return true;
+					return _stack.IsDisposed(platformView);
 				}
 				catch (Exception retryFailure)
 				{
@@ -462,7 +430,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				host,
 				stack,
 				_realizer,
-				services?.GetService(typeof(ITizenWindowBackButton)) as ITizenWindowBackButton,
+				backButton: null,
 				_loggerFactory?.CreateLogger<TizenModalNavigationPlatform>());
 		}
 	}

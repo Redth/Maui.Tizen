@@ -88,6 +88,27 @@ public class TizenModalNavigationPlatformTests
 	}
 
 	[Fact]
+	public async Task APopThatRemovesThenFaultsBeforeDisposalStillDisposesExactlyOnce()
+	{
+		var (platform, host, stack, realizer, _) = Build();
+		using var _p = platform;
+		var modal = new ContentPage();
+		host.RecordPush(modal);
+		await platform.PushModalAsync(modal, false);
+
+		stack.PopFailure = new InvalidOperationException("native failure");
+		stack.MutateBeforePopFailure = true;
+		stack.RemoveBeforePopFailureWithoutDisposal = true;
+		host.RecordPop(modal);
+
+		await Assert.ThrowsAsync<InvalidOperationException>(() => platform.PopModalAsync(modal, false));
+
+		Assert.Equal(0, stack.Count);
+		Assert.False(Assert.Single(realizer.Releases).PlatformViewDisposed);
+		Assert.Equal(1, realizer.DisposeCountFor(modal));
+	}
+
+	[Fact]
 	public async Task BatchPopSuppressesAnimationSoIntermediateModalsDoNotFlash()
 	{
 		var (platform, host, stack, _, _) = Build();
@@ -242,14 +263,15 @@ public class TizenModalNavigationPlatformTests
 	}
 
 	[Fact]
-	public void PageAttachedInstallsTheBackButtonHandler()
+	public void PageAttachedDoesNotInstallADuplicatePageBackHandler()
 	{
 		var (platform, _, _, _, backButton) = Build();
 		using var _p = platform;
 
 		platform.PageAttached();
 
-		Assert.NotNull(backButton.Handler);
+		Assert.Null(backButton.Handler);
+		Assert.Equal(0, backButton.SetCount);
 	}
 
 	[Fact]
@@ -261,38 +283,8 @@ public class TizenModalNavigationPlatformTests
 		platform.PageAttached();
 		platform.PageAttached();
 
-		Assert.Equal(1, backButton.SetCount);
-		Assert.NotNull(backButton.Handler);
-	}
-
-	[Fact]
-	public void TheBackButtonHandlerResolvesTheCurrentPageOnEveryPress()
-	{
-		var (platform, host, _, _, backButton) = Build();
-		using var _p = platform;
-
-		platform.PageAttached();
-
-		var first = new ContentPage();
-		host.CurrentPage = first;
-		Assert.False(backButton.Handler!());
-
-		// The current page changes as modals come and go, so the handler must not capture it.
-		var second = new BackHandlingPage();
-		host.CurrentPage = second;
-		Assert.True(backButton.Handler!());
-	}
-
-	[Fact]
-	public void TheBackButtonHandlerIsSafeWhenThereIsNoCurrentPage()
-	{
-		var (platform, host, _, _, backButton) = Build();
-		using var _p = platform;
-
-		platform.PageAttached();
-		host.CurrentPage = null;
-
-		Assert.False(backButton.Handler!());
+		Assert.Equal(0, backButton.SetCount);
+		Assert.Null(backButton.Handler);
 	}
 
 	[Fact]
@@ -309,36 +301,15 @@ public class TizenModalNavigationPlatformTests
 	}
 
 	[Fact]
-	public void DisposeClearsTheBackButtonHandler()
+	public void DisposeLeavesCoreBackRoutingUntouched()
 	{
 		var (platform, _, _, _, backButton) = Build();
 
 		platform.PageAttached();
 		platform.Dispose();
 
-		Assert.Null(backButton.Handler);
+		Assert.Equal(0, backButton.SetCount);
 		Assert.False(platform.IsReady);
-	}
-
-	[Fact]
-	public void UnhandledModalBackFallsThroughAndDisposeRestoresTheExistingRoute()
-	{
-		var (platform, host, _, _, backButton) = Build();
-		var fallbackCalls = 0;
-		backButton.FallbackHandler = () =>
-		{
-			fallbackCalls++;
-			return true;
-		};
-		host.CurrentPage = new ContentPage();
-
-		platform.PageAttached();
-		Assert.True(backButton.Invoke());
-		Assert.Equal(1, fallbackCalls);
-
-		platform.Dispose();
-		Assert.True(backButton.Invoke());
-		Assert.Equal(2, fallbackCalls);
 	}
 
 	[Fact]
@@ -486,10 +457,6 @@ public class TizenModalNavigationPlatformTests
 		Assert.Same(page, ((Element)page).Handler!.VirtualView);
 	}
 
-	sealed class BackHandlingPage : ContentPage
-	{
-		protected override bool OnBackButtonPressed() => true;
-	}
 }
 
 /// <summary>
@@ -545,7 +512,7 @@ public class TizenModalNavigationPlatformFactoryTests
 	}
 
 	[Fact]
-	public void PicksUpTheWindowsBackButtonWhenOneIsRegistered()
+	public void DoesNotRegisterASecondPageBackRoute()
 	{
 		var backButton = new FakeWindowBackButton();
 		var factory = new TizenModalNavigationPlatformFactory(new FakeModalPageRealizer());
@@ -556,6 +523,6 @@ public class TizenModalNavigationPlatformFactoryTests
 		using var platform = factory.CreateModalNavigationPlatform(host)!;
 		platform.PageAttached();
 
-		Assert.NotNull(backButton.Handler);
+		Assert.Null(backButton.Handler);
 	}
 }

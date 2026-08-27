@@ -76,9 +76,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 				try
 				{
-					pushPlaceholderDisposed = await RemovePlaceholderAsync(
-						placeholder,
-						missingMeansDisposed: false).ConfigureAwait(true);
+					pushPlaceholderDisposed = await RemovePlaceholderAsync(placeholder).ConfigureAwait(true);
 				}
 				catch (Exception ex)
 				{
@@ -151,9 +149,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				{
 					// PopAsync can remove the top entry and then fault its transition task. Removal
 					// is idempotent and also covers the pre-mutation failure case.
-					placeholderDisposed = await RemovePlaceholderAsync(
-						placeholder,
-						missingMeansDisposed: true).ConfigureAwait(true);
+					placeholderDisposed = await RemovePlaceholderAsync(placeholder).ConfigureAwait(true);
 					throw;
 				}
 			}
@@ -198,11 +194,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 		static void DisposePlaceholder(object placeholder) =>
 			(placeholder as IDisposable)?.Dispose();
 
-		async Task<bool> RemovePlaceholderAsync(object placeholder, bool missingMeansDisposed)
+		async Task<bool> RemovePlaceholderAsync(object placeholder)
 		{
 			if (!_stack.Contains(placeholder))
 			{
-				return missingMeansDisposed;
+				return _stack.IsDisposed(placeholder);
 			}
 
 			if (ReferenceEquals(_stack.Top, placeholder))
@@ -210,7 +206,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				try
 				{
 					await _stack.PopAsync(false).ConfigureAwait(true);
-					return true;
+					return _stack.IsDisposed(placeholder);
 				}
 				catch (Exception retryFailure)
 				{

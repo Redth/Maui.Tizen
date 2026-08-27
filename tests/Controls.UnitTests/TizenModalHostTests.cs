@@ -218,6 +218,23 @@ public class TizenModalHostTests
 	}
 
 	[Fact]
+	public async Task APlaceholderPopThatRemovesThenFaultsBeforeDisposalIsDisposedExactlyOnce()
+	{
+		var stack = new FakeNavigationStack
+		{
+			PopFailure = new InvalidOperationException("stack pop failed"),
+			MutateBeforePopFailure = true,
+			RemoveBeforePopFailureWithoutDisposal = true,
+		};
+		var host = new TizenModalHost(stack);
+
+		await Assert.ThrowsAsync<InvalidOperationException>(() => host.RunModalAsync(() => Task.CompletedTask));
+
+		Assert.Equal(0, stack.Count);
+		Assert.Equal(1, Assert.Single(stack.Placeholders).DisposeCount);
+	}
+
+	[Fact]
 	public async Task TheStackIsBalancedWhenOperationsCompleteAsynchronously()
 	{
 		var stack = new FakeNavigationStack { CompleteAsynchronously = true };
