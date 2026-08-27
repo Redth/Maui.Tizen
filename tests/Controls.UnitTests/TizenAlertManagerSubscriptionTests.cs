@@ -158,6 +158,35 @@ public class TizenAlertManagerSubscriptionTests
 	}
 
 	[Fact]
+	public async Task DialogDisposalFailureFaultsTheCallerInsteadOfLeavingItPending()
+	{
+		var fixture = new Fixture();
+		var args = Alert();
+
+		fixture.Subscription.OnAlertRequested(fixture.Page, args);
+		var dialog = fixture.Dialogs.LastAlert!;
+		dialog.DisposeFailure = new InvalidOperationException("dispose failed");
+		dialog.CompleteWith(true);
+
+		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(args.Result.Task));
+		Assert.Equal("dispose failed", exception.Message);
+	}
+
+	[Fact]
+	public async Task DisposedRaceDialogDisposalFailureFaultsTheCaller()
+	{
+		var fixture = new Fixture();
+		var args = Alert();
+		fixture.Dialogs.BeforeCreateAlertDialog = fixture.Subscription.Dispose;
+		fixture.Dialogs.AlertDialogDisposeFailure = new InvalidOperationException("dispose failed");
+
+		fixture.Subscription.OnAlertRequested(fixture.Page, args);
+
+		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(args.Result.Task));
+		Assert.Equal("dispose failed", exception.Message);
+	}
+
+	[Fact]
 	public async Task ModalStackIsPushedAndPoppedInBalance()
 	{
 		var fixture = new Fixture();

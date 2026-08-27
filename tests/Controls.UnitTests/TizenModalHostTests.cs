@@ -235,6 +235,24 @@ public class TizenModalHostTests
 	}
 
 	[Fact]
+	public async Task PreMutationPlaceholderPopFailureThenRetryRemovalBeforeDisposalIsDisposedExactlyOnce()
+	{
+		var stack = new FakeNavigationStack
+		{
+			PopFailure = new InvalidOperationException("stack pop failed"),
+			MutateBeforePopFailure = true,
+			PopFailuresBeforeMutationRemaining = 1,
+			RemoveBeforePopFailureWithoutDisposal = true,
+		};
+		var host = new TizenModalHost(stack);
+
+		await Assert.ThrowsAsync<InvalidOperationException>(() => host.RunModalAsync(() => Task.CompletedTask));
+
+		Assert.Equal(0, stack.Count);
+		Assert.Equal(1, Assert.Single(stack.Placeholders).DisposeCount);
+	}
+
+	[Fact]
 	public async Task TheStackIsBalancedWhenOperationsCompleteAsynchronously()
 	{
 		var stack = new FakeNavigationStack { CompleteAsynchronously = true };
@@ -448,7 +466,7 @@ public class ProvisionalModalNavigationContractTests
 	[Theory]
 	[InlineData(typeof(IModalNavigationPlatform), "IsReady", "PushModalAsync", "PopModalAsync", "PageAttached")]
 	[InlineData(typeof(IModalNavigationPlatformFactory), "CreateModalNavigationPlatform")]
-	[InlineData(typeof(IModalNavigationHost), "Window", "MauiContext", "PlatformModalStack", "CurrentPage", "CurrentPlatformPage", "IsModalReady", "IsBatchPopping", "RequestSync")]
+	[InlineData(typeof(IModalNavigationHost), "Window", "MauiContext", "PlatformModalStack", "CurrentPage", "CurrentPlatformPage", "IsWindowReady", "IsBatchPushing", "RequestSync")]
 	public void TheProvisionalShapeMatchesTheUpstreamPullRequest(Type contract, params string[] expectedMembers)
 	{
 		var actual = contract

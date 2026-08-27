@@ -48,6 +48,8 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 
 	public bool RemoveBeforePopFailureWithoutDisposal { get; set; }
 
+	public int PopFailuresBeforeMutationRemaining { get; set; }
+
 	public List<FakePlaceholder> Placeholders { get; } = new();
 
 	public object CreatePlaceholder()
@@ -97,8 +99,14 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 		Operations.Add($"Pop({animated})");
 		PopAnimations.Add(animated);
 
-		if (PopFailure is not null && !MutateBeforePopFailure)
+		if (PopFailure is not null
+			&& (!MutateBeforePopFailure || PopFailuresBeforeMutationRemaining > 0))
 		{
+			if (PopFailuresBeforeMutationRemaining > 0)
+			{
+				PopFailuresBeforeMutationRemaining--;
+			}
+
 			return Task.FromException(PopFailure);
 		}
 
@@ -165,9 +173,9 @@ internal sealed class FakeModalNavigationHost : IModalNavigationHost
 			? _platformModalStack[^1]
 			: CurrentPage ?? throw new InvalidOperationException("No page.");
 
-	public bool IsModalReady { get; set; } = true;
+	public bool IsWindowReady { get; set; } = true;
 
-	public bool IsBatchPopping { get; set; }
+	public bool IsBatchPushing { get; set; }
 
 	public int RequestSyncCount { get; private set; }
 

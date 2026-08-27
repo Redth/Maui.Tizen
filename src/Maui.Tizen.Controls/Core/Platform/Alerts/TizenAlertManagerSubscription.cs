@@ -289,7 +289,16 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (!TrackDialog(dialog))
 			{
 				// Disposed between the affinity check and here.
-				dialog.Dispose();
+				try
+				{
+					dialog.Dispose();
+				}
+				catch (Exception ex)
+				{
+					completion.TrySetException(ex);
+					return;
+				}
+
 				setResult(canceledResult());
 				return;
 			}
@@ -336,7 +345,20 @@ namespace Microsoft.Maui.Platforms.Tizen
 			finally
 			{
 				UntrackDialog(dialog);
-				dialog.Dispose();
+
+				try
+				{
+					dialog.Dispose();
+				}
+				catch (Exception ex)
+				{
+					failure = failure is null
+						? ex
+						: new AggregateException(
+							"The dialog operation and disposal both failed.",
+							failure,
+							ex);
+				}
 			}
 
 			if (failure is not null)

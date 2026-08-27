@@ -105,10 +105,10 @@ Deliberately **absent** from the port:
 
 Two behaviours worth calling out:
 
-- **Batch pop.** `PopModalAsync` passes `animated && !host.IsBatchPopping`. A `Shell` pop-to-root
-  dismisses several modals at once; animating the intermediate ones makes them flash on screen.
-- **Back button.** The handler resolves `host.CurrentPage` on every press rather than capturing it,
-  because the current page changes as modals come and go.
+- **Batch push.** `PushModalAsync` passes `animated && !host.IsBatchPushing`, suppressing animation
+  while the framework applies several modal presentations as one batch.
+- **Back button.** Core's per-window back route is the sole page-navigation owner; the modal
+  platform does not register a second callback that could dispatch the top page twice.
 
 ### Cross-window page reuse
 

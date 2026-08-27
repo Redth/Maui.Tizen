@@ -22,6 +22,8 @@ internal sealed class FakeAlertDialog<TResult> : ITizenAlertDialog<TResult>
 
 	public Exception? CloseFailure { get; set; }
 
+	public Exception? DisposeFailure { get; set; }
+
 	public int DisposeCount { get; private set; }
 
 	public Task<TResult> OpenAsync()
@@ -46,6 +48,11 @@ internal sealed class FakeAlertDialog<TResult> : ITizenAlertDialog<TResult>
 	{
 		Disposed = true;
 		DisposeCount++;
+
+		if (DisposeFailure is not null)
+		{
+			throw DisposeFailure;
+		}
 	}
 
 	public void CompleteWith(TResult result) => _completion.TrySetResult(result);
@@ -58,6 +65,10 @@ internal sealed class FakeAlertDialog<TResult> : ITizenAlertDialog<TResult>
 /// </summary>
 internal sealed class FakeAlertDialogFactory : ITizenAlertDialogFactory
 {
+	public Action? BeforeCreateAlertDialog { get; set; }
+
+	public Exception? AlertDialogDisposeFailure { get; set; }
+
 	public List<AlertArguments> AlertRequests { get; } = new();
 
 	public List<ActionSheetArguments> ActionSheetRequests { get; } = new();
@@ -76,8 +87,12 @@ internal sealed class FakeAlertDialogFactory : ITizenAlertDialogFactory
 
 	public ITizenAlertDialog<bool> CreateAlertDialog(AlertArguments arguments)
 	{
+		BeforeCreateAlertDialog?.Invoke();
 		AlertRequests.Add(arguments);
-		return LastAlert = new FakeAlertDialog<bool>();
+		return LastAlert = new FakeAlertDialog<bool>
+		{
+			DisposeFailure = AlertDialogDisposeFailure,
+		};
 	}
 
 	public ITizenAlertDialog<string?> CreateActionSheetDialog(ActionSheetArguments arguments)

@@ -165,7 +165,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			try
 			{
-				await _stack.PushAsync(platformView, animated).ConfigureAwait(true);
+				await _stack.PushAsync(platformView, animated && !_host.IsBatchPushing).ConfigureAwait(true);
 				_platformViews.Add(modal, platformView);
 				_presentationOrder.Add(modal);
 			}
@@ -228,7 +228,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				{
 					if (ReferenceEquals(_stack.Top, platformView))
 					{
-						await _stack.PopAsync(animated && !_host.IsBatchPopping).ConfigureAwait(true);
+						await _stack.PopAsync(animated).ConfigureAwait(true);
 						platformViewDisposed = true;
 					}
 					else
@@ -368,7 +368,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 							return _stack.Remove(platformView);
 						}
 
-						return true;
+						return _stack.IsDisposed(platformView);
 					}
 					catch (Exception removeFailure)
 					{

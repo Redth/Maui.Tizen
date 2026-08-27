@@ -140,13 +140,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <summary>
 		/// Gets a value indicating whether the framework considers the window ready to present modals.
 		/// </summary>
-		bool IsModalReady { get; }
+		bool IsWindowReady { get; }
 
 		/// <summary>
-		/// Gets a value indicating whether several modals are being dismissed as a single batch, for
-		/// example during a <see cref="Shell"/> pop-to-root.
+		/// Gets a value indicating whether several modals are being presented as a single batch.
 		/// </summary>
-		bool IsBatchPopping { get; }
+		bool IsBatchPushing { get; }
 
 		/// <summary>
 		/// Asks the framework to re-run the reconciliation loop between the requested modal stack

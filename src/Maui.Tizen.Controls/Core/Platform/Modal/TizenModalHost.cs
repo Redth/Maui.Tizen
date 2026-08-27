@@ -217,7 +217,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 							return _stack.Remove(placeholder);
 						}
 
-						return true;
+						return _stack.IsDisposed(placeholder);
 					}
 					catch (Exception removeFailure)
 					{
