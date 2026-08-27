@@ -277,14 +277,17 @@ bridge round trip. Those cross into native Tizen libraries.
 
 ## Public API baseline
 
-The package's baseline lives in `src/Maui.Tizen.BlazorWebView/PublicAPI/` and describes **the assembly
-this package actually emits** — the handler, the web view manager and the registration extensions.
+The package's baseline lives in `src/Maui.Tizen.BlazorWebView/PublicAPI/tizen/` and describes **the
+assembly this package actually emits** — the handler, the web view manager and the registration
+extensions. The project opts in explicitly with `EnablePublicApiAnalyzer` and `AdditionalFiles`, per the
+contract documented in `eng/targets/TizenPackage.props`; baselines are deliberately never attached by a
+glob.
 
-The `net-tizen` baseline that came across with the raw dotnet/maui import describes
+The `PublicAPI/net-tizen/` baseline that came across with the raw dotnet/maui import describes
 `Microsoft.AspNetCore.Components.WebView.Maui` instead: types this package deliberately does not define.
-Leaving it attached would have had the analyzer demand members the assembly never declares while ignoring
-every member it does. It is kept for provenance under `Tizen/PublicAPI/`, alongside the rest of the raw
-import, where the `PublicAPI/**` glob in `eng/targets/TizenPackage.props` does not pick it up.
+Pointing the analyzer at it would make it demand members the assembly never declares while ignoring every
+member it does. It stays where the import put it, as a provenance fixture feeding the API diffing in
+`eng/api-baselines/`.
 
 Because the shipping project is workload-gated, the analyzer it references never actually runs.
 `tests/Maui.Tizen.BlazorWebView.PublicApi` compiles the same sources on a plain `net11.0` host with

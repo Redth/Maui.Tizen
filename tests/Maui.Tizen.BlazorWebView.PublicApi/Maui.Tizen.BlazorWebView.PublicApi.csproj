@@ -44,8 +44,8 @@
 
   <ItemGroup>
     <!-- The baseline under enforcement: the package's own, NOT the imported upstream MAUI one. -->
-    <AdditionalFiles Include="$(MauiTizenBlazorWebViewDir)PublicAPI/PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="$(MauiTizenBlazorWebViewDir)PublicAPI/PublicAPI.Unshipped.txt" />
+    <AdditionalFiles Include="$(MauiTizenBlazorWebViewDir)PublicAPI/tizen/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="$(MauiTizenBlazorWebViewDir)PublicAPI/tizen/PublicAPI.Unshipped.txt" />
   </ItemGroup>
 
   <ItemGroup>

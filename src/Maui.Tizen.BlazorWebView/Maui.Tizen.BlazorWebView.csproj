@@ -29,6 +29,18 @@
 
     <!-- The reworked sources compile, so docs are generated for them. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!--
+      This project compiles and ships public API, so it opts into the analyzer per the contract in
+      eng/targets/TizenPackage.props. The baseline below describes THIS assembly - not the imported
+      PublicAPI/net-tizen fixture, which records the unsplit upstream
+      Microsoft.AspNetCore.Components.WebView.Maui surface and would produce an RS0017 flood.
+
+      The analyzer cannot actually run here while the Samsung workload gate is closed, which is why
+      tests/Maui.Tizen.BlazorWebView.PublicApi compiles the same sources on a plain net11.0 host and
+      enforces the same baseline today.
+    -->
+    <EnablePublicApiAnalyzer>true</EnablePublicApiAnalyzer>
   </PropertyGroup>
 
   <ItemGroup>
@@ -53,6 +65,11 @@
   <ItemGroup>
     <Compile Include="@(MauiTizenBlazorWebViewCompile)" />
     <None Remove="@(Compile)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI/tizen/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/tizen/PublicAPI.Unshipped.txt" />
   </ItemGroup>
 
   <ItemGroup>
