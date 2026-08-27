@@ -72,7 +72,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				InitializeAsync,
 				async state =>
 				{
-					var voices = await _dispatcher.InvokeAsync(state.Client.GetSupportedVoices).ConfigureAwait(false);
+					var voices = await _dispatcher.InvokeAsync(() =>
+					{
+						ThrowIfNativeCallInvalid(state, CancellationToken.None);
+						return state.Client!.GetSupportedVoices();
+					}).ConfigureAwait(false);
 					foreach (var voice in voices)
 					{
 						if (!languages.Any(value =>
@@ -147,12 +151,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 						var utteranceId = await _dispatcher.InvokeAsync(() =>
 						{
-							var (resolvedLanguage, voiceType) = ResolveVoice(state.Client, language);
-							return state.Client.AddText(
+							ThrowIfNativeCallInvalid(state, cancelToken);
+							var (resolvedLanguage, voiceType) = ResolveVoice(state.Client!, language);
+							return state.Client!.AddText(
 								text,
 								resolvedLanguage,
 								voiceType,
-								ResolveRate(state.Client, rate));
+								ResolveRate(state.Client!, rate));
 						}).ConfigureAwait(false);
 
 						SetActiveUtterance(state, utteranceId, completion);
@@ -160,7 +165,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 						try
 						{
-							await _dispatcher.InvokeAsync(state.Client.Play).ConfigureAwait(false);
+							await _dispatcher.InvokeAsync(() =>
+							{
+								ThrowIfNativeCallInvalid(state, cancelToken);
+								state.Client!.Play();
+							}).ConfigureAwait(false);
 						}
 						catch
 						{
@@ -249,11 +258,48 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		void PrepareOnMainThread(ClientState state)
 		{
-			state.Client = _clientFactory.Create();
-			state.Client.StateChanged += OnStateChanged;
-			state.Client.UtteranceCompleted += OnUtteranceCompleted;
-			state.Client.ErrorOccurred += OnErrorOccurred;
-			state.Client.Prepare();
+			lock (_stateLock)
+			{
+				if (state.Retired || _disposed || !ReferenceEquals(_initializingState, state))
+					return;
+			}
+
+			var client = _clientFactory.Create();
+			var retireLateClient = false;
+			lock (_stateLock)
+			{
+				state.Client = client;
+				retireLateClient =
+					state.Retired ||
+					_disposed ||
+					!ReferenceEquals(_initializingState, state);
+			}
+
+			if (retireLateClient)
+			{
+				DispatchTeardown(state, stop: true);
+				return;
+			}
+
+			client.StateChanged += OnStateChanged;
+			client.UtteranceCompleted += OnUtteranceCompleted;
+			client.ErrorOccurred += OnErrorOccurred;
+
+			lock (_stateLock)
+			{
+				retireLateClient =
+					state.Retired ||
+					_disposed ||
+					!ReferenceEquals(_initializingState, state);
+			}
+
+			if (retireLateClient)
+			{
+				DispatchTeardown(state, stop: true);
+				return;
+			}
+
+			client.Prepare();
 
 			void OnStateChanged(TizenTextToSpeechState current)
 			{
@@ -276,7 +322,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			void OnUtteranceCompleted(int utteranceId)
 			{
-				_dispatcher.Dispatch(() =>
+				_dispatcher.Post(() =>
 				{
 					ActiveUtterance? utterance;
 					lock (_stateLock)
@@ -291,7 +337,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					if (utterance is null)
 						return;
 
-					StopQuietly(state.Client);
+					StopQuietly(state.Client!);
 					utterance.Completion.TrySetResult(true);
 				});
 			}
@@ -402,19 +448,48 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		void DispatchTeardown(ClientState state, bool stop)
 		{
-			if (Interlocked.Exchange(ref state.TeardownScheduled, 1) != 0)
-				return;
-
-			_dispatcher.Dispatch(() =>
+			lock (_stateLock)
 			{
-				if (state.Client is null)
+				state.TeardownRequested = true;
+				state.StopBeforeTeardown |= stop;
+
+				if (state.Client is null || state.TeardownPosted)
 					return;
 
-				if (stop)
-					StopQuietly(state.Client);
+				state.TeardownPosted = true;
+			}
 
-				state.Client.Dispose();
+			_dispatcher.Post(() =>
+			{
+				var client = state.Client;
+				if (client is null)
+					return;
+
+				if (state.StopBeforeTeardown)
+					StopQuietly(client);
+
+				try
+				{
+					client.Dispose();
+				}
+				catch (Exception)
+				{
+					// Teardown is best effort and must not terminate the Ecore loop.
+				}
 			});
+		}
+
+		void ThrowIfNativeCallInvalid(ClientState state, CancellationToken cancelToken)
+		{
+			cancelToken.ThrowIfCancellationRequested();
+
+			lock (_stateLock)
+			{
+				cancelToken.ThrowIfCancellationRequested();
+				ObjectDisposedException.ThrowIf(_disposed, this);
+				if (state.Retired || !ReferenceEquals(_clientState, state))
+					throw new InvalidOperationException("The Tizen text-to-speech client was retired.");
+			}
 		}
 
 		static void StopQuietly(ITizenTextToSpeechClient client)
@@ -512,7 +587,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		sealed class ClientState
 		{
-			public ITizenTextToSpeechClient Client { get; set; } = null!;
+			public ITizenTextToSpeechClient? Client { get; set; }
 
 			public TaskCompletionSource<bool> Readiness { get; } =
 				new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -522,7 +597,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			public bool Retired { get; set; }
 
-			public int TeardownScheduled;
+			public bool TeardownRequested { get; set; }
+
+			public bool StopBeforeTeardown { get; set; }
+
+			public bool TeardownPosted { get; set; }
 		}
 
 		sealed record ActiveUtterance(
@@ -550,7 +629,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		Task<T> InvokeAsync<T>(Func<T> action);
 
-		void Dispatch(Action action);
+		void Post(Action action);
 	}
 
 	internal interface ITizenTextToSpeechClientFactory
@@ -587,7 +666,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		public Task<T> InvokeAsync<T>(Func<T> action) => MainThread.InvokeOnMainThreadAsync(action);
 
-		public void Dispatch(Action action) => MainThread.BeginInvokeOnMainThread(action);
+		public void Post(Action action) =>
+			MainThread.BeginInvokeOnMainThread(() =>
+			{
+				var context = SynchronizationContext.Current ??
+					throw new InvalidOperationException("The Tizen main loop has no synchronization context.");
+				context.Post(static state => ((Action)state!).Invoke(), action);
+			});
 	}
 
 	sealed class TizenTextToSpeechClientFactory : ITizenTextToSpeechClientFactory

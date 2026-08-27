@@ -740,6 +740,110 @@ public class TizenServiceBehaviorTests
 	}
 
 	[Fact]
+	public async Task TextToSpeechErrorTeardownIsPostedWhenMainThreadDispatchWouldInline()
+	{
+		using var dispatcher = new FakeTextToSpeechDispatcher();
+		var factory = new FakeTextToSpeechClientFactory(dispatcher);
+		using var textToSpeech = new TizenTextToSpeech(dispatcher, factory);
+
+		var speak = textToSpeech.SpeakAsync(
+			"active",
+			cancelToken: TestContext.Current.CancellationToken);
+		var client = await factory.WaitForClientAsync();
+		await client.Played.Task;
+		await client.FailAsync(client.LastUtteranceId);
+
+		await Assert.ThrowsAsync<InvalidOperationException>(() => speak);
+		await client.Disposed.Task;
+		Assert.False(client.DisposedInsideCallback);
+	}
+
+	[Fact]
+	public async Task TextToSpeechDisposeBeforeQueuedConstructionDoesNotCreateClient()
+	{
+		using var dispatcher = new FakeTextToSpeechDispatcher();
+		var blocked = dispatcher.BlockNextAction();
+		var factory = new FakeTextToSpeechClientFactory(dispatcher);
+		var textToSpeech = new TizenTextToSpeech(dispatcher, factory);
+
+		var speak = textToSpeech.SpeakAsync(
+			"never constructed",
+			cancelToken: TestContext.Current.CancellationToken);
+		await blocked.Queued;
+		textToSpeech.Dispose();
+		blocked.Release();
+
+		await Assert.ThrowsAsync<ObjectDisposedException>(() => speak);
+		Assert.Equal(0, factory.ClientCount);
+	}
+
+	[Fact]
+	public async Task TextToSpeechCancellationBeforeQueuedAddTextSkipsNativeCall()
+	{
+		using var dispatcher = new FakeTextToSpeechDispatcher();
+		var factory = new FakeTextToSpeechClientFactory(dispatcher);
+		using var textToSpeech = new TizenTextToSpeech(dispatcher, factory);
+		await textToSpeech.GetSupportedVoiceLanguagesAsync();
+		var client = await factory.WaitForClientAsync();
+		var blocked = dispatcher.BlockNextAction();
+		using var cancellation = new CancellationTokenSource();
+
+		var speak = textToSpeech.SpeakAsync("cancelled", cancelToken: cancellation.Token);
+		await blocked.Queued;
+		cancellation.Cancel();
+		blocked.Release();
+
+		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => speak);
+		await client.Disposed.Task;
+		Assert.Equal(0, client.AddTextCalls);
+		Assert.Equal(0, client.PlayCalls);
+	}
+
+	[Fact]
+	public async Task TextToSpeechCancellationBeforeQueuedPlaySkipsPlayback()
+	{
+		using var dispatcher = new FakeTextToSpeechDispatcher();
+		var factory = new FakeTextToSpeechClientFactory(dispatcher)
+		{
+			BlockAfterAddText = true,
+		};
+		using var textToSpeech = new TizenTextToSpeech(dispatcher, factory);
+		using var cancellation = new CancellationTokenSource();
+
+		var speak = textToSpeech.SpeakAsync("cancelled", cancelToken: cancellation.Token);
+		var client = await factory.WaitForClientAsync();
+		var blocked = await factory.WaitForBlockedActionAsync();
+		await blocked.Queued;
+		cancellation.Cancel();
+		blocked.Release();
+
+		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => speak);
+		await client.Disposed.Task;
+		Assert.Equal(1, client.AddTextCalls);
+		Assert.Equal(0, client.PlayCalls);
+		Assert.True(client.StoppedBeforeDisposed);
+	}
+
+	[Fact]
+	public async Task TextToSpeechDisposeFailureDoesNotStopDispatcherLoop()
+	{
+		using var dispatcher = new FakeTextToSpeechDispatcher();
+		var factory = new FakeTextToSpeechClientFactory(dispatcher)
+		{
+			ThrowOnDispose = true,
+		};
+		var textToSpeech = new TizenTextToSpeech(dispatcher, factory);
+		await textToSpeech.GetSupportedVoiceLanguagesAsync();
+		var client = await factory.WaitForClientAsync();
+
+		textToSpeech.Dispose();
+		await client.DisposeAttempted.Task;
+		var dispatcherStillRunning = false;
+		await dispatcher.InvokeAsync(() => dispatcherStillRunning = true);
+		Assert.True(dispatcherStillRunning);
+	}
+
+	[Fact]
 	public async Task TextToSpeechPlayFailureRetiresClientBeforeRetry()
 	{
 		using var dispatcher = new FakeTextToSpeechDispatcher();
@@ -1104,6 +1208,8 @@ public class TizenServiceBehaviorTests
 		readonly BlockingCollection<Action> _work = [];
 		readonly Thread _thread;
 		readonly ManualResetEventSlim _started = new();
+		readonly object _blockLock = new();
+		BlockedAction? _nextBlockedAction;
 
 		public FakeTextToSpeechDispatcher()
 		{
@@ -1145,7 +1251,9 @@ public class TizenServiceBehaviorTests
 		public Task<T> InvokeAsync<T>(Func<T> action)
 		{
 			if (Thread.CurrentThread.ManagedThreadId == ThreadId)
+			{
 				return Task.FromResult(action());
+			}
 
 			var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
 			_work.Add(() =>
@@ -1162,7 +1270,19 @@ public class TizenServiceBehaviorTests
 			return completion.Task;
 		}
 
-		public void Dispatch(Action action) => _work.Add(action);
+		public void Post(Action action) => _work.Add(action);
+
+		public BlockedAction BlockNextAction()
+		{
+			lock (_blockLock)
+			{
+				if (_nextBlockedAction is not null)
+					throw new InvalidOperationException("An action is already blocked.");
+
+				_nextBlockedAction = new BlockedAction();
+				return _nextBlockedAction;
+			}
+		}
 
 		public void Dispose()
 		{
@@ -1177,7 +1297,37 @@ public class TizenServiceBehaviorTests
 			ThreadId = Thread.CurrentThread.ManagedThreadId;
 			_started.Set();
 			foreach (var action in _work.GetConsumingEnumerable())
+			{
+				BlockedAction? blocked;
+				lock (_blockLock)
+				{
+					blocked = _nextBlockedAction;
+					_nextBlockedAction = null;
+				}
+
+				if (blocked is not null)
+				{
+					blocked.MarkQueued();
+					blocked.Wait();
+				}
+
 				action();
+			}
+		}
+
+		public sealed class BlockedAction
+		{
+			readonly TaskCompletionSource _queued =
+				new(TaskCreationOptions.RunContinuationsAsynchronously);
+			readonly ManualResetEventSlim _release = new();
+
+			public Task Queued => _queued.Task;
+
+			public void Release() => _release.Set();
+
+			internal void MarkQueued() => _queued.TrySetResult();
+
+			internal void Wait() => _release.Wait(TestContext.Current.CancellationToken);
 		}
 	}
 
@@ -1185,6 +1335,8 @@ public class TizenServiceBehaviorTests
 	{
 		readonly FakeTextToSpeechDispatcher _dispatcher;
 		readonly List<FakeTextToSpeechClient> _clients = [];
+		readonly TaskCompletionSource<FakeTextToSpeechDispatcher.BlockedAction> _blockedAction =
+			new(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		public FakeTextToSpeechClientFactory(FakeTextToSpeechDispatcher dispatcher)
 		{
@@ -1193,12 +1345,29 @@ public class TizenServiceBehaviorTests
 
 		public bool FailFirstPlay { get; init; }
 
+		public bool BlockAfterAddText { get; init; }
+
+		public bool ThrowOnDispose { get; init; }
+
+		public int ClientCount
+		{
+			get
+			{
+				lock (_clients)
+					return _clients.Count;
+			}
+		}
+
 		public ITizenTextToSpeechClient Create()
 		{
 			Assert.Equal(_dispatcher.ThreadId, Thread.CurrentThread.ManagedThreadId);
 			var client = new FakeTextToSpeechClient(
 				_dispatcher,
-				throwOnPlay: FailFirstPlay && _clients.Count == 0);
+				throwOnPlay: FailFirstPlay && _clients.Count == 0,
+				throwOnDispose: ThrowOnDispose,
+				onAddText: BlockAfterAddText
+					? () => _blockedAction.TrySetResult(_dispatcher.BlockNextAction())
+					: null);
 			lock (_clients)
 				_clients.Add(client);
 			return client;
@@ -1217,22 +1386,31 @@ public class TizenServiceBehaviorTests
 				await Task.Delay(1, TestContext.Current.CancellationToken);
 			}
 		}
+
+		public Task<FakeTextToSpeechDispatcher.BlockedAction> WaitForBlockedActionAsync() =>
+			_blockedAction.Task.WaitAsync(TestContext.Current.CancellationToken);
 	}
 
 	sealed class FakeTextToSpeechClient : ITizenTextToSpeechClient
 	{
 		readonly FakeTextToSpeechDispatcher _dispatcher;
 		readonly bool _throwOnPlay;
+		readonly bool _throwOnDispose;
+		readonly Action? _onAddText;
 		bool _insideErrorCallback;
 		bool _stopped;
 		int _nextUtteranceId;
 
 		public FakeTextToSpeechClient(
 			FakeTextToSpeechDispatcher dispatcher,
-			bool throwOnPlay)
+			bool throwOnPlay,
+			bool throwOnDispose,
+			Action? onAddText)
 		{
 			_dispatcher = dispatcher;
 			_throwOnPlay = throwOnPlay;
+			_throwOnDispose = throwOnDispose;
+			_onAddText = onAddText;
 		}
 
 		public event Action<TizenTextToSpeechState>? StateChanged;
@@ -1249,6 +1427,9 @@ public class TizenServiceBehaviorTests
 		public TaskCompletionSource Disposed { get; } =
 			new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+		public TaskCompletionSource DisposeAttempted { get; } =
+			new(TaskCreationOptions.RunContinuationsAsynchronously);
+
 		public int LastUtteranceId { get; private set; }
 
 		public int GetSupportedVoicesCalls { get; private set; }
@@ -1256,6 +1437,10 @@ public class TizenServiceBehaviorTests
 		public bool StoppedBeforeDisposed { get; private set; }
 
 		public bool DisposedInsideCallback { get; private set; }
+
+		public int AddTextCalls { get; private set; }
+
+		public int PlayCalls { get; private set; }
 
 		public void Prepare()
 		{
@@ -1279,13 +1464,16 @@ public class TizenServiceBehaviorTests
 		public int AddText(string text, string language, int voiceType, int speed)
 		{
 			AssertThread(nameof(AddText));
+			AddTextCalls++;
 			LastUtteranceId = ++_nextUtteranceId;
+			_onAddText?.Invoke();
 			return LastUtteranceId;
 		}
 
 		public void Play()
 		{
 			AssertThread(nameof(Play));
+			PlayCalls++;
 			if (_throwOnPlay)
 				throw new InvalidOperationException("play failed");
 			Played.TrySetResult();
@@ -1302,6 +1490,9 @@ public class TizenServiceBehaviorTests
 			AssertThread(nameof(Dispose));
 			DisposedInsideCallback = _insideErrorCallback;
 			StoppedBeforeDisposed = _stopped;
+			DisposeAttempted.TrySetResult();
+			if (_throwOnDispose)
+				throw new InvalidOperationException("dispose failed");
 			Disposed.TrySetResult();
 		}
 
