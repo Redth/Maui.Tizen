@@ -78,37 +78,17 @@ check "Maui.Tizen.slnx is valid" "$DOTNET" sln Maui.Tizen.slnx list
 # ---------------------------------------------------------------------------
 # 2. Baseline consistency.
 #
-# Directory.Build.props and eng/baselines.json both declare the target framework.
-# They drift silently and the symptom (API baselines generated for a different
-# platform version) is expensive to diagnose, so check it cheaply here.
+# Directory.Build.props, eng/Validation.Versions-equivalent properties and
+# eng/baselines.json all restate parts of the target contract, and they drift silently.
+#
+# This check used to live here as an inline python snippet. It now lives in
+# Maui.Tizen.Validation.Tests.RepositoryContractTests, which asserts the same invariants
+# plus TizenManifestApiVersion and SDK band membership, and reports failures with the
+# specific property that drifted. Keeping a second copy here meant two things to update
+# and two places to disagree.
+#
+# Run it with ./eng/validation/run-hosted-validation.sh (the hosted-validation CI job).
 # ---------------------------------------------------------------------------
-info "Baseline consistency"
-check "Directory.Build.props TFM matches eng/baselines.json" python3 - <<'PY'
-import json, re, sys
-
-baselines = json.load(open("eng/baselines.json"))
-expected = baselines["target"]["targetFramework"]
-
-props = open("Directory.Build.props").read()
-version = re.search(r"<TizenPlatformVersion>([^<]+)</TizenPlatformVersion>", props)
-dotnet  = re.search(r"<DotNetVersion>([^<]+)</DotNetVersion>", props)
-if not version or not dotnet:
-    sys.exit("could not read TFM properties from Directory.Build.props")
-
-actual = f"net{dotnet.group(1)}-tizen{version.group(1)}"
-if actual != expected:
-    sys.exit(f"Directory.Build.props builds '{actual}' but eng/baselines.json declares '{expected}'")
-
-band = baselines["target"]["sdkBand"]
-gj = json.load(open("global.json"))
-sdk = gj["sdk"]["version"]
-if not sdk.startswith(band):
-    sys.exit(f"global.json SDK '{sdk}' is not in the declared band '{band}'")
-if sdk == band:
-    sys.exit(
-        f"global.json SDK '{sdk}' is a bare band, not a resolvable SDK version. "
-        "actions/setup-dotnet cannot install it. Pin a concrete version within the band.")
-PY
 
 # ---------------------------------------------------------------------------
 # 3. Import reproducibility contract.
