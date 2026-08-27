@@ -62,16 +62,31 @@
 
     <ItemGroup>
       <!--
-        Precompressed .gz/.br alternatives are skipped unless compression is explicitly enabled:
-        a Tizen app serves these from local storage, so shipping both costs TPK size for nothing.
-        Mirrors the same filter in dotnet/maui's ConvertStaticWebAssetsToMauiAssets.
+        Real Razor builds create Alternative assets only during WebAssembly publish, not during
+        this host-side build. Seed SDK-shaped items when requested so the tests exercise the
+        compression filter rather than passing over an empty Alternative set.
+      -->
+      <_MauiTizenStaticWebAssetWithTargetPath Include="$(SeedAlternativeAssetPath)"
+                                              Condition="'$(SeedCompressedAssets)' == 'true'"
+                                              AssetRole="Alternative"
+                                              TargetPath="wwwroot/app.generated.js.gz" />
+      <_MauiTizenStaticWebAssetWithTargetPath Include="$(SeedPrimaryGzipAssetPath)"
+                                              Condition="'$(SeedCompressedAssets)' == 'true'"
+                                              AssetRole="Primary"
+                                              TargetPath="wwwroot/data/archive.gz" />
+
+      <!--
+        Precompressed variants are identified by AssetRole, not by physical extension. The SDK
+        may give an Alternative asset a generated identity that does not end in .gz or .br, while
+        a user-authored file named archive.gz remains a Primary asset and must survive.
       -->
       <MauiAsset Include="%(_MauiTizenStaticWebAssetWithTargetPath.Identity)"
-                 Condition="'$(CompressionEnabled)' != 'false' or '%(_MauiTizenStaticWebAssetWithTargetPath.AssetRole)' != 'Alternative' or ('%(_MauiTizenStaticWebAssetWithTargetPath.Extension)' != '.gz' and '%(_MauiTizenStaticWebAssetWithTargetPath.Extension)' != '.br')">
+                 Condition="'%(_MauiTizenStaticWebAssetWithTargetPath.AssetRole)' != 'Alternative'">
         <!-- Link is what the Resizetizer turns into the processed asset path, and what
              Maui.Tizen.Build.Tasks then maps onto TizenTpkFileName. -->
         <Link>%(_MauiTizenStaticWebAssetWithTargetPath.TargetPath)</Link>
         <TargetPath>%(_MauiTizenStaticWebAssetWithTargetPath.TargetPath)</TargetPath>
+        <AssetRole>%(_MauiTizenStaticWebAssetWithTargetPath.AssetRole)</AssetRole>
       </MauiAsset>
     </ItemGroup>
   </Target>

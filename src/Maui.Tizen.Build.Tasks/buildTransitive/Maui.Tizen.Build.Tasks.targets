@@ -587,11 +587,11 @@
            is recomputed from the item spec and would be lost once the identity becomes the TPK
            path below. -->
       <_MauiTizenAssetWithTpkPath Include="@(MauiProcessedAsset)"
-                                  Condition=" '%(MauiProcessedAsset.TizenTpkFileName)' == '' "
+                                  Condition=" '%(MauiProcessedAsset.AssetRole)' != 'Alternative' And '%(MauiProcessedAsset.TizenTpkFileName)' == '' "
                                   TizenTpkFileName="%(MauiProcessedAsset.Link)"
                                   SourcePath="%(MauiProcessedAsset.FullPath)" />
       <_MauiTizenAssetWithTpkPath Include="@(MauiProcessedAsset)"
-                                  Condition=" '%(MauiProcessedAsset.TizenTpkFileName)' != '' "
+                                  Condition=" '%(MauiProcessedAsset.AssetRole)' != 'Alternative' And '%(MauiProcessedAsset.TizenTpkFileName)' != '' "
                                   SourcePath="%(MauiProcessedAsset.FullPath)" />
 
       <!--
@@ -599,6 +599,12 @@
         that references both this package and one that already converts assets (for example a
         direct Microsoft.AspNetCore.Components.WebView.Maui reference, whose build/ targets do
         the same conversion) would otherwise produce duplicate TPK entries.
+
+        AssetRole is the authoritative compression signal. Static-web-asset providers use
+        Alternative for generated precompressed variants, whose physical identity is not
+        guaranteed to end in .gz or .br. Filtering here keeps packaging fail-closed even if a
+        provider forgets to remove them, while a user-authored Primary file named archive.gz
+        remains valid application content.
       -->
     </ItemGroup>
 

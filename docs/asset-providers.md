@@ -49,13 +49,18 @@ path `blazor.webview#[.{fingerprint}]?.js`. Pinning the unfingerprinted name pro
 looks right and resolves to nothing. Derive the name from the SDK rather than hard-coding it; for
 static web assets that means letting `ComputeStaticWebAssetsTargetPaths` compute the target path.
 
-**Drop precompressed variants.** The SDK emits `.gz` and `.br` alternatives alongside the original,
-marked `AssetRole='Alternative'`. A Tizen application serves its assets from local storage, so those
-are pure TPK bloat. Filter them unless `$(CompressionEnabled)` is explicitly true:
+**Drop precompressed variants.** The SDK marks generated compressed variants
+`AssetRole='Alternative'`. A Tizen application serves its assets from local storage, so those are
+pure TPK bloat:
 
 ```xml
-Condition="'$(CompressionEnabled)' != 'false' or '%(_Asset.AssetRole)' != 'Alternative' or ('%(_Asset.Extension)' != '.gz' and '%(_Asset.Extension)' != '.br')"
+Condition="'%(_Asset.AssetRole)' != 'Alternative'"
 ```
+
+Use `AssetRole`, not the physical file extension. An SDK-generated Alternative identity is not
+guaranteed to end in `.gz` or `.br`, while a user-authored file merely named `archive.gz` is Primary
+and must remain in the application. Build.Tasks repeats this filter before creating
+`TizenResource`, so a provider bug cannot silently add compressed variants to the TPK.
 
 ### Duplicates are handled here
 

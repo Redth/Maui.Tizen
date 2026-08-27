@@ -38,7 +38,8 @@ public class TizenBlazorAssetHandoffTests : TestBase
 	/// </summary>
 	private (MSBuildProjectBuilder App, BuildResult Result) BuildBlazorApp(
 		bool includeDuplicateProvider = false,
-		bool includeImage = false)
+		bool includeImage = false,
+		bool seedCompressedAssets = false)
 	{
 		var app = new MSBuildProjectBuilder(CreateTempDirectory("maui-tizen-blazor"))
 		{
@@ -57,6 +58,16 @@ public class TizenBlazorAssetHandoffTests : TestBase
 			""");
 		app.WriteText("wwwroot/css/app.css", "body { font-family: sans-serif; }");
 		app.WriteTizenManifest();
+
+		if (seedCompressedAssets)
+		{
+			var alternative = app.WriteText("generated/app-compressed", "generated alternative");
+			var primaryGzip = app.WriteText("wwwroot/data/archive.gz", "user-authored primary");
+			app
+				.WithProperty("SeedCompressedAssets", "true")
+				.WithProperty("SeedAlternativeAssetPath", alternative)
+				.WithProperty("SeedPrimaryGzipAssetPath", primaryGzip);
+		}
 
 		if (includeImage)
 		{
@@ -162,6 +173,23 @@ public class TizenBlazorAssetHandoffTests : TestBase
 		Assert.Contains(processed, p => p == "wwwroot/_framework/blazor.webview.js");
 	}
 
+	[Fact]
+	public void ProviderDropsAlternativeAssetsButKeepsAPrimaryGzipFile()
+	{
+		var (_, result) = BuildBlazorApp(seedCompressedAssets: true);
+		var processed = result.ItemsOf("MauiProcessedAsset").ToList();
+		var resources = result.ItemsOf("TizenResource").ToList();
+
+		Assert.DoesNotContain(processed, i => TpkPathOf(i) == "wwwroot/app.generated.js.gz");
+		Assert.Contains(processed, i =>
+			TpkPathOf(i) == "wwwroot/data/archive.gz"
+			&& i.Metadata2 == "Primary");
+		Assert.DoesNotContain(resources, i => TpkPathOf(i) == "wwwroot/app.generated.js.gz");
+		Assert.Contains(resources, i =>
+			TpkPathOf(i) == "wwwroot/data/archive.gz"
+			&& i.Metadata2 == "Primary");
+	}
+
 	/// <summary>
 	/// Two providers contributing the same file must not pack it twice. An app that references
 	/// both this package and something that already converts static web assets would otherwise
@@ -248,5 +276,27 @@ public class TizenBlazorAssetHandoffTests : TestBase
 		Assert.True(result.Success, "Build failed:" + Environment.NewLine + result.Output);
 
 		Assert.Contains(result.ItemsOf("TizenResource"), i => TpkPathOf(i) == "provided/hello.txt");
+	}
+
+	[Fact]
+	public void PackagingRejectsAlternativeAssetsFromAnyProvider()
+	{
+		var app = new MSBuildProjectBuilder(CreateTempDirectory("maui-tizen-alternative-assets"));
+		var alternative = app.WriteText("generated/app-compressed", "generated alternative");
+		var primaryGzip = app.WriteText("generated/archive.gz", "user-authored primary");
+		app.WriteTizenManifest();
+
+		app
+			.WithItem("MauiAsset", alternative, ("Link", "wwwroot/app.generated.js.gz"), ("AssetRole", "Alternative"))
+			.WithItem("MauiAsset", primaryGzip, ("Link", "wwwroot/data/archive.gz"), ("AssetRole", "Primary"));
+		app.Generate();
+
+		var result = app.Build();
+		Assert.True(result.Success, "Build failed:" + Environment.NewLine + result.Output);
+
+		Assert.DoesNotContain(result.ItemsOf("TizenResource"), i => TpkPathOf(i) == "wwwroot/app.generated.js.gz");
+		Assert.Contains(result.ItemsOf("TizenResource"), i =>
+			TpkPathOf(i) == "wwwroot/data/archive.gz"
+			&& i.Metadata2 == "Primary");
 	}
 }

@@ -265,10 +265,10 @@ public sealed class MSBuildProjectBuilder
 		  <Target Name="DumpTizenState" AfterTargets="Build">
 		    <ItemGroup>
 		      <_Dump Include="@(TizenTpkUserIncludeFiles->'TizenTpkUserIncludeFiles%09%(Identity)%09%(TizenTpkSubDir)%09')" />
-		      <_Dump Include="@(TizenResource->'TizenResource%09%(Identity)%09%(TizenTpkFileName)%09')" />
+		      <_Dump Include="@(TizenResource->'TizenResource%09%(Identity)%09%(TizenTpkFileName)%09%(AssetRole)')" />
 		      <_Dump Include="@(MauiProcessedImage->'MauiProcessedImage%09%(Identity)%09%09')" />
 		      <_Dump Include="@(MauiProcessedFont->'MauiProcessedFont%09%(Identity)%09%09')" />
-		      <_Dump Include="@(MauiProcessedAsset->'MauiProcessedAsset%09%(Identity)%09%(Link)%09')" />
+		      <_Dump Include="@(MauiProcessedAsset->'MauiProcessedAsset%09%(Identity)%09%(Link)%09%(AssetRole)')" />
 		      <_Dump Include="@(MauiImage->'MauiImage%09%(Identity)%09%09')" />
 		      <_Dump Include="@(MauiPlatformSpecificFolder->'MauiPlatformSpecificFolder%09%(Identity)%09%(TargetPlatformIdentifiers)%09')" />
 		    </ItemGroup>
