@@ -29,6 +29,7 @@
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenDisplayDensity.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenLayoutExtensions.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenPropertyResolvers.cs" />
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenNavigationReconciler.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenMauiContext.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenMauiContextExtensions.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)LifecycleEvents/TizenLifecycleEventExtensions.cs" />

@@ -142,10 +142,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
-			if (newPageStack.Count > previousCount)
-				await PushToSync(newPageStack, e.Animated).ConfigureAwait(true);
-			else
-				await PopToSync(newPageStack, e.Animated).ConfigureAwait(true);
+			await ReconcileStack(previousStack, newPageStack, e.Animated).ConfigureAwait(true);
 
 			Finish(newPageStack);
 		}
@@ -223,7 +220,22 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			ArgumentNullException.ThrowIfNull(page);
 
-			_pageMap.Remove(page);
+			// Order matters. Detach the content BEFORE disposing the wrapper, then dispose the
+			// handler.
+			//
+			// The wrapper's Content is the handler's platform view, which the handler owns and
+			// disposes. Disposing the wrapper while it still holds that content would dispose the
+			// child native view too, and the handler would then dispose it a second time. Clearing
+			// Content first makes the two disposals disjoint.
+			//
+			// The wrapper itself was previously only dropped from the map and never disposed, so
+			// every page that left the stack leaked its TizenNaviPage.
+			if (_pageMap.TryGetValue(page, out var naviPage))
+			{
+				naviPage.Content = null;
+				naviPage.Dispose();
+				_pageMap.Remove(page);
+			}
 
 			if (_handlerMap.TryGetValue(page, out var handler))
 			{
@@ -241,51 +253,64 @@ namespace Microsoft.Maui.Platforms.Tizen
 			OnNavigationFinished(stack);
 		}
 
+		/// <summary>
+		/// Reconciles the pages beneath an unchanged top, without animating.
+		/// </summary>
+		/// <remarks>
+		/// Insertions and removals are computed together rather than in mutually exclusive
+		/// branches. The old code chose one or the other by comparing stack LENGTHS, so a change
+		/// that both added and removed pages while keeping the count similar silently did only half
+		/// the work. Its insert path also indexed the old stack with a position taken from the
+		/// longer new one, which threw once more than one page was inserted.
+		/// </remarks>
 		void SyncBackStackToNavigationStack(List<IView> newStack)
 		{
-			if (newStack.Count > _navigationStack.Count)
-			{
-				for (var i = 0; i < newStack.Count; i++)
-				{
-					if (_navigationStack.IndexOf(newStack[i]) == -1)
-						PlatformNavigation.Insert(GetNavigationItem(_navigationStack[i]), GetNavigationItem(newStack[i]));
-				}
+			foreach (var (page, before) in TizenNavigationReconciler.PlanInsertions(_navigationStack, newStack))
+				PlatformNavigation.Insert(GetNavigationItem(before), GetNavigationItem(page));
 
-				return;
-			}
-
-			foreach (var page in _navigationStack)
+			foreach (var page in TizenNavigationReconciler.PlanRemovals(_navigationStack, newStack))
 			{
-				if (newStack.IndexOf(page) == -1)
-				{
-					PlatformNavigation.Pop(GetNavigationItem(page));
-					ReleasePage(page);
-				}
+				PlatformNavigation.Pop(GetNavigationItem(page));
+				ReleasePage(page);
 			}
 		}
 
-		async Task PushToSync(List<IView> newStack, bool animated)
+		/// <summary>
+		/// Moves the platform stack to <paramref name="target"/> by popping down to the longest
+		/// common prefix and pushing the remainder.
+		/// </summary>
+		/// <remarks>
+		/// This replaces separate push-only and pop-only paths that both assumed the new stack was
+		/// the old one with pages added or removed at the top. Replacing pages - [A, B] becoming
+		/// [A, C, D] - pushed C and D on top of B and left B in the platform stack, permanently
+		/// desynchronising it from the managed stack. Reconciling against the common prefix handles
+		/// replacement, insertion and truncation without special cases.
+		/// </remarks>
+		async Task ReconcileStack(List<IView> previous, List<IView> target, bool animated)
 		{
-			for (var i = _navigationStack.Count; i < newStack.Count; i++)
-			{
-				var isTop = i + 1 == newStack.Count;
-				await PlatformNavigation.Push(GetNavigationItem(newStack[i]), isTop && animated).ConfigureAwait(true);
-			}
-		}
+			var plan = TizenNavigationReconciler.Reconcile(previous, target);
 
-		async Task PopToSync(List<IView> newStack, bool animated)
-		{
-			for (var i = newStack.Count; i < _navigationStack.Count; i++)
-			{
-				var isLast = i + 1 == _navigationStack.Count;
-				var page = _navigationStack[i];
+			// Only the last visible transition animates. If pages are being pushed afterwards, the
+			// pops are bookkeeping and animating them would show pages the user never asked for.
+			var animatePop = animated && plan.Pushes.Count == 0;
 
-				if (isLast)
-					await PlatformNavigation.Pop(animated).ConfigureAwait(true);
+			for (var i = 0; i < plan.Pops.Count; i++)
+			{
+				var page = plan.Pops[i];
+
+				// Pops are ordered top-most first, so only the first one is the visible transition.
+				if (i == 0 && animatePop)
+					await PlatformNavigation.Pop(true).ConfigureAwait(true);
 				else
 					PlatformNavigation.Pop(GetNavigationItem(page));
 
 				ReleasePage(page);
+			}
+
+			for (var i = 0; i < plan.Pushes.Count; i++)
+			{
+				var isTop = i + 1 == plan.Pushes.Count;
+				await PlatformNavigation.Push(GetNavigationItem(plan.Pushes[i]), isTop && animated).ConfigureAwait(true);
 			}
 		}
 
