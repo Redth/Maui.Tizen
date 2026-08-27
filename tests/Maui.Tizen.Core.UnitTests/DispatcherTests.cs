@@ -597,7 +597,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		public void TimerDoesNotTickBeforeStart()
 		{
 			var context = new LoopContext();
-			using var timer = new TizenDispatcherTimer(context)
+			var time = new ManualTimeProvider();
+			using var timer = new TizenDispatcherTimer(context, time)
 			{
 				Interval = TimeSpan.FromMilliseconds(5),
 				IsRepeating = true,
@@ -606,7 +607,9 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var ticks = 0;
 			timer.Tick += (_, _) => ticks++;
 
-			context.Drain(TimeSpan.FromMilliseconds(100));
+			// However far the clock moves, an unstarted timer is armed with nothing.
+			time.Advance(TimeSpan.FromMinutes(5));
+			context.DrainAvailable();
 
 			Assert.False(timer.IsRunning);
 			Assert.Equal(0, ticks);
@@ -615,8 +618,13 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[Fact]
 		public void NonRepeatingTimerTicksExactlyOnce()
 		{
+			// Was wall-clock based: arm a 5ms timer, pump for a fixed 400ms, assert exactly one
+			// tick. A loaded CI runner delivered ZERO inside that window and the test failed
+			// asserting 1 - a false red that says nothing about the dispatcher. Found by the
+			// Blazor lane.
 			var context = new LoopContext();
-			using var timer = new TizenDispatcherTimer(context)
+			var time = new ManualTimeProvider();
+			using var timer = new TizenDispatcherTimer(context, time)
 			{
 				Interval = TimeSpan.FromMilliseconds(5),
 				IsRepeating = false,
@@ -628,7 +636,16 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			timer.Start();
 			Assert.True(timer.IsRunning);
 
-			context.Drain(TimeSpan.FromMilliseconds(400));
+			time.Advance(TimeSpan.FromMilliseconds(5));
+			context.DrainAvailable();
+
+			Assert.Equal(1, ticks);
+
+			// Push the clock far past the interval: a one-shot must not fire again no matter how
+			// much time passes. That is the "exactly once" half, and the fixed window could only
+			// ever sample it.
+			time.Advance(TimeSpan.FromMinutes(5));
+			context.DrainAvailable();
 
 			Assert.Equal(1, ticks);
 			Assert.False(timer.IsRunning);
@@ -637,8 +654,13 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[Fact]
 		public void RepeatingTimerKeepsTicking()
 		{
+			// Same wall-clock hazard as NonRepeatingTimerTicksExactlyOnce, and not reported -
+			// found while sweeping for others of its kind. `ticks > 1` after a fixed 400ms window
+			// can observe 0 or 1 on a busy runner. Driving the clock also lets the count be
+			// asserted EXACTLY rather than as an inequality that tolerates almost anything.
 			var context = new LoopContext();
-			using var timer = new TizenDispatcherTimer(context)
+			var time = new ManualTimeProvider();
+			using var timer = new TizenDispatcherTimer(context, time)
 			{
 				Interval = TimeSpan.FromMilliseconds(5),
 				IsRepeating = true,
@@ -648,10 +670,20 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			timer.Tick += (_, _) => ticks++;
 
 			timer.Start();
-			context.Drain(TimeSpan.FromMilliseconds(400));
+
+			// Five intervals, so exactly five ticks.
+			time.Advance(TimeSpan.FromMilliseconds(25));
+			context.DrainAvailable();
+
+			Assert.Equal(5, ticks);
+
 			timer.Stop();
 
-			Assert.True(ticks > 1, $"Expected more than one tick, observed {ticks}.");
+			// And stopping really stops it.
+			time.Advance(TimeSpan.FromMinutes(5));
+			context.DrainAvailable();
+
+			Assert.Equal(5, ticks);
 			Assert.False(timer.IsRunning);
 		}
 
@@ -659,7 +691,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		public void StoppedTimerDoesNotRaiseQueuedTicks()
 		{
 			var context = new LoopContext();
-			using var timer = new TizenDispatcherTimer(context)
+			var time = new ManualTimeProvider();
+			using var timer = new TizenDispatcherTimer(context, time)
 			{
 				Interval = TimeSpan.FromMilliseconds(5),
 				IsRepeating = true,
@@ -669,11 +702,14 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			timer.Tick += (_, _) => ticks++;
 
 			timer.Start();
-			Thread.Sleep(50);
+
+			// Queue several ticks on the loop WITHOUT pumping, then stop. Driving the clock makes
+			// "callbacks are already queued" a certainty rather than something a sleep hopes for.
+			time.Advance(TimeSpan.FromMilliseconds(25));
 			timer.Stop();
 
-			// Callbacks queued before Stop must be swallowed when the loop finally pumps.
-			context.Drain(TimeSpan.FromMilliseconds(150));
+			// They are delivered now, and must all decline to run.
+			context.DrainAvailable();
 
 			Assert.Equal(0, ticks);
 		}
