@@ -243,6 +243,36 @@ Two gaps in MAUI's public surface shaped this wave. Both are additions to the li
    image backgrounds, clip shapes and shadows are limited to what NUI can paint on the view
    itself.
 
+   Tracked upstream by [dotnet/maui#37854](https://github.com/dotnet/maui/pull/37854), which adds
+   a `ValidateContainerView` hook for external backends. **The signature is the load-bearing part:**
+
+   ```csharp
+   protected override void ValidateContainerView(object containerView)
+   {
+       // narrow to TizenWrapperView / the NUI type HERE, in the body
+   }
+   ```
+
+   The parameter must be `object`. Narrowing it to the backend's own wrapper type overrides
+   nothing and fails with **CS0115** — an override has to match the base signature exactly, and on
+   the neutral package MAUI types platform things as `object`.
+
+   That is worth stating plainly because it is the **third** appearance of one root cause on this
+   branch. The neutral package types platform-facing things as `object`, and every attempt to be
+   more specific than the base declaration fails — sometimes loudly, sometimes silently:
+
+   | Where | Symptom |
+   |---|---|
+   | `IXHandler.PlatformView` explicit implementation | `CS9333` — produced the retired `ITizen*Handler` hierarchy |
+   | Mapper entries typed against the concrete handler | silent rebinding to MAUI's inherited no-op |
+   | `ValidateContainerView(TizenWrapperView)` | `CS0115` |
+
+   The rule for Waves B/C: **match the base or interface signature exactly, and narrow inside the
+   body.** `UpstreamGapExpiryTests.ContainerViewIsStillUnsettableByAnExternalBackend` asserts the
+   gap still exists, reports the shipped signature when it lands (including a warning if it is
+   *not* the shape this plan assumed), and fails so the workaround cannot outlive its
+   justification. Adoption is core's, since `NeedsContainer` is core-owned.
+
 2. **`ImageSourcePaint` is `internal`.** MAUI models an image background with an internal paint
    type, so a backend cannot detect one. `IView.Background` carrying an image therefore flattens
    through `Paint.ToColor()` and the image never renders. The code to apply one exists and works;

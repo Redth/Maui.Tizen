@@ -41,7 +41,8 @@ Two keys are `excluded` throughout, both inherited from the core slice's base ma
 
 - `ContainerView` - `ViewHandler.ContainerView` has a `private protected` setter, so an
   out-of-repo backend cannot publish a container view it constructs. Background, clip and
-  shadow are rendered onto the platform view instead (`NeedsContainer => false`).
+  shadow are rendered onto the platform view instead (`NeedsContainer => false`). Tracked
+  upstream by dotnet/maui#37854; re-measure this key when that lands.
 - `Border` - the obsolete `IBorder.Border` mapping. MAUI marks the property `[Obsolete]`
   and states it will be removed; border rendering is driven by the stroke and shape
   properties that replaced it.

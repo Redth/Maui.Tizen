@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Microsoft.Maui;
 using Microsoft.Maui.Graphics;
 using Xunit;
@@ -100,6 +101,97 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				internalPaint is null || !internalPaint.IsVisible,
 				"Microsoft.Maui.ImageSourcePaint is now publicly visible, so an image background " +
 				"can be detected without the workaround. See the guidance above.");
+		}
+
+		/// <summary>
+		/// Fails once MAUI lets an external backend publish a container view.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// <b>The gap.</b> MAUI declares
+		/// <c>ViewHandler.ContainerView { get; private protected set; }</c>. An out-of-repo backend
+		/// therefore cannot publish a container it constructs in <c>SetupContainer</c>, so the whole
+		/// container mechanism is unusable and <c>NeedsContainer</c> is forced to
+		/// <see langword="false"/>. Background, clip and shadow are rendered directly onto the
+		/// platform view instead of onto a wrapper - which is why <c>ContainerView</c> is reported
+		/// as <c>excluded</c> in the parity matrix rather than as a mapping anyone forgot.
+		/// </para>
+		/// <para>
+		/// <b>The fix being tracked.</b> dotnet/maui#37854 adds a
+		/// <c>ValidateContainerView</c> hook that an external backend overrides. The signature is
+		/// the load-bearing part and is easy to get wrong:
+		/// </para>
+		/// <code>
+		/// protected override void ValidateContainerView(object containerView)
+		/// {
+		///     // pattern match the Tizen wrapper / NUI view here
+		/// }
+		/// </code>
+		/// <para>
+		/// The parameter <b>must</b> be <see cref="object"/>. Narrowing it to the backend's own
+		/// wrapper type does not override anything and fails with <c>CS0115</c> - an override must
+		/// match the base signature exactly, and on the neutral package MAUI types platform things
+		/// as <see cref="object"/>. That is the same trap that produced the <c>CS9333</c> confusion
+		/// behind the retired <c>ITizen*Handler</c> hierarchy, and the same one behind mappings that
+		/// must be declared against the handler <em>interface</em>. Narrow inside the body, never in
+		/// the signature.
+		/// </para>
+		/// <para>
+		/// The workaround is core-owned (<c>TizenViewHandler&lt;,&gt;.NeedsContainer</c>), so this
+		/// test does not fix anything - it makes sure the gap cannot quietly outlive its
+		/// justification, which nothing else on this branch was doing.
+		/// </para>
+		/// </remarks>
+		[Fact]
+		public void ContainerViewIsStillUnsettableByAnExternalBackend()
+		{
+			var handler = typeof(Microsoft.Maui.Handlers.ViewHandler);
+
+			var hook = handler
+				.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+				.FirstOrDefault(m => m.Name == "ValidateContainerView");
+
+			var shape = hook is null
+				? string.Empty
+				: $"\n\nShipped shape: {(hook.IsFamily ? "protected" : hook.IsFamilyOrAssembly ? "protected internal" : "OTHER")} " +
+				  $"{(hook.IsVirtual ? "virtual " : "")}{hook.ReturnType.Name} ValidateContainerView(" +
+				  string.Join(", ", hook.GetParameters().Select(p => $"{p.ParameterType.Name} {p.Name}")) + ")" +
+				  (hook.GetParameters().Length == 1 && hook.GetParameters()[0].ParameterType == typeof(object)
+					  ? " - matches the planned adoption; override it with an `object` parameter."
+					  : " - NOTE: this is not the shape the adoption plan assumed. Re-read it before overriding.");
+
+			Assert.True(
+				hook is null,
+				$$"""
+				MAUI now exposes ViewHandler.ValidateContainerView. This is the upstream fix from
+				dotnet/maui#37854 landing, so the container workaround can be removed.
+
+				Adopt it by overriding the hook with the NEUTRAL signature and pattern matching
+				inside the body:
+
+				    protected override void ValidateContainerView(object containerView)
+				    {
+				        if (containerView is not TizenWrapperView) { ...reject... }
+				    }
+
+				Do NOT narrow the parameter to the wrapper type - that overrides nothing and fails
+				with CS0115. Then core's TizenViewHandler<,>.NeedsContainer can stop being hardcoded
+				to false, SetupContainer/RemoveContainer can do real work, and `ContainerView` should
+				be re-measured in the parity matrix instead of being reported as `excluded`.
+				Finally, delete this test.{{shape}}
+				""");
+
+			// The gap is only real while the setter is genuinely inaccessible. private protected
+			// surfaces through reflection as IsFamilyAndAssembly.
+			var setter = handler
+				.GetProperty("ContainerView", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+				?.SetMethod;
+
+			Assert.True(
+				setter is null || setter.IsFamilyAndAssembly || setter.IsAssembly,
+				"ViewHandler.ContainerView now has a setter an external backend can reach " +
+				$"(accessibility: {(setter!.IsPublic ? "public" : setter.IsFamily ? "protected" : "other")}). " +
+				"The container workaround's justification is gone - see the guidance above.");
 		}
 
 		/// <summary>

@@ -224,7 +224,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			sb.AppendLine();
 			sb.AppendLine("- `ContainerView` - `ViewHandler.ContainerView` has a `private protected` setter, so an");
 			sb.AppendLine("  out-of-repo backend cannot publish a container view it constructs. Background, clip and");
-			sb.AppendLine("  shadow are rendered onto the platform view instead (`NeedsContainer => false`).");
+			sb.AppendLine("  shadow are rendered onto the platform view instead (`NeedsContainer => false`). Tracked");
+			sb.AppendLine("  upstream by dotnet/maui#37854; re-measure this key when that lands.");
 			sb.AppendLine("- `Border` - the obsolete `IBorder.Border` mapping. MAUI marks the property `[Obsolete]`");
 			sb.AppendLine("  and states it will be removed; border rendering is driven by the stroke and shape");
 			sb.AppendLine("  properties that replaced it.");
