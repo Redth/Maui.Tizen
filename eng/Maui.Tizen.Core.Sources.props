@@ -60,6 +60,40 @@
     <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenContentViewGroup.cs" />
     <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenLayoutViewGroup.cs" />
     <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenLabelView.cs" />
+
+    <!--
+      Core-owned platform primitives consumed by the Wave C handlers. They live here, not with
+      those handlers, because they are NUI surfaces rather than handlers.
+      ==========================================================================================
+      SUPERSESSION - these three files replace imported dotnet/maui sources outright. The
+      originals must never be added to any compile lane; doing so would duplicate the types.
+      A regression in tests/Maui.Tizen.Core.UnitTests/CorePlatformPrimitiveTests.cs enforces it.
+
+        src/Core/src/Platform/Tizen/MauiToolbar.cs             -> TizenToolbarView.cs
+          also supersedes Microsoft.Maui.Platform.IToolbarContainer -> ITizenToolbarContainer
+        src/Core/src/Platform/Tizen/StackNavigationManager.cs  -> TizenStackNavigationManager.cs
+        src/Core/src/Platform/Tizen/NaviPage.cs                -> TizenNaviPage.cs
+        src/Core/src/Platform/Tizen/MauiFlyoutView.cs          -> TizenFlyoutView.cs
+        src/Core/src/Platform/Tizen/MauiTVFlyoutView.cs        -> TizenFlyoutView.cs (TizenTVFlyoutView)
+        src/Core/src/Platform/Tizen/FlyoutViewExtensions.cs    -> TizenFlyoutViewExtensions.cs
+        src/Core/src/Platform/Tizen/ToolbarExtensions.cs       -> TizenToolbarView.cs (instance methods)
+
+      Every one was RENAMED rather than kept, because MauiToolbar, StackNavigationManager and
+      NaviPage all exist in the net*-tizen build of Microsoft.Maui.dll - NaviPage in the neutral
+      Microsoft.Maui namespace - so reusing the names is a CS0433 hazard for any consumer that
+      references both assemblies. collisionRisk: type-name.
+      ==========================================================================================
+    -->
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenToolbarView.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenNaviPage.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenStackNavigationManager.cs" />
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenFlyoutView.cs" />
+    <!--
+      Flyout drawer mapping. Platform-only rather than portable: although the FlyoutBehavior
+      mapping is pure enum logic, its result type (Tizen.UIExtensions.Common.DrawerBehavior) is a
+      TizenFX type, so it cannot be compiled into the host lane. It is covered by the ref-pack lane.
+    -->
+    <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenFlyoutViewExtensions.cs" />
     <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenMauiApplication.cs" />
     <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenCoreApplicationExtensions.cs" />
     <MauiTizenPlatformCompile Include="$(MauiTizenCoreDir)LifecycleEvents/TizenLifecycle.cs" />
