@@ -39,44 +39,48 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 		/// public <c>IShellController.GetFlyoutItemDataTemplate</c> never returns null - it falls
 		/// back to <c>BaseShellItem.CreateDefaultFlyoutItemCell</c> - so calling it unguarded would
 		/// silently replace Tizen's own flyout item view with MAUI's generic cell for every app that
-		/// never authored a template. Upstream's in-tree selector guards it with the same
-		/// <c>IsSet</c> probe reproduced below, and the redesigned API returns
-		/// <c>DataTemplate?</c> for exactly this reason.
+		/// never authored a template. Null here means "the app supplied no template, use the
+		/// platform default", which is exactly what the redesigned upstream API means.
 		/// </para>
 		/// <para>
-		/// The raw <paramref name="flyoutItem"/> is passed to
-		/// <c>GetFlyoutItemDataTemplate</c> deliberately. That method re-derives the template owner
-		/// itself, <em>including</em> the <c>MenuShellItem</c> branch that is unreachable from
-		/// outside <c>Microsoft.Maui.Controls</c> - so handing it a pre-resolved owner both loses
-		/// that branch and picks the wrong <see cref="BindableProperty"/>, because the
-		/// menu-vs-item choice is made from the argument's own type. An earlier revision of this
-		/// backend did exactly that and silently dropped <c>MenuItemTemplate</c>.
+		/// The returned template MAY be a <see cref="DataTemplateSelector"/>. Resolving it is the
+		/// caller's job, matching upstream - see the call sites in
+		/// <c>TizenShellFlyoutItemAdaptor</c>. This method deliberately does NOT resolve selectors,
+		/// because doing so would make its contract differ from the API it stands in for and turn
+		/// adoption into a behaviour change rather than a body swap.
+		/// </para>
+		/// <para>
+		/// An explicitly authored <c>null</c> template is honoured as an opt-out from any
+		/// Shell-level template, rather than falling through to it.
 		/// </para>
 		/// </remarks>
-		public static DataTemplate? ResolveFlyoutItemTemplate(Shell? shell, BindableObject? flyoutItem)
+		public static DataTemplate? ResolveFlyoutItemTemplate(Shell? shell, BindableObject flyoutItem)
 		{
-			if (shell is null || flyoutItem is null)
-			{
-				return null;
-			}
+			ArgumentNullException.ThrowIfNull(flyoutItem);
+
+			shell ??= (flyoutItem as Element).FindParentOfType<Shell>();
 
 			BindableProperty templateProperty = flyoutItem is IMenuItemController
 				? Shell.MenuItemTemplateProperty
 				: Shell.ItemTemplateProperty;
 
-			// Owner resolution is confined to this probe and never leaves the method.
-			BindableObject owner = ShellTemplateResolver.GetBindableObjectWithFlyoutItemTemplate(flyoutItem);
+			// Owner resolution is confined to this method and never surfaces to callers.
+			BindableObject templateSource = ShellTemplateResolver.GetBindableObjectWithFlyoutItemTemplate(flyoutItem);
 
-			if (!owner.IsSet(templateProperty) && !shell.IsSet(templateProperty))
+			// An explicitly set template wins even when its value is null, which is how an app opts a
+			// single item out of a Shell-level template. A null value is reported as "no template" so
+			// the caller falls back to the platform default.
+			if (templateSource.IsSet(templateProperty))
 			{
-				return null;
+				return templateSource.GetValue(templateProperty) as DataTemplate;
 			}
 
-			DataTemplate? template = ((IShellController)shell).GetFlyoutItemDataTemplate(flyoutItem);
+			if (shell is not null && shell.IsSet(templateProperty))
+			{
+				return shell.GetValue(templateProperty) as DataTemplate;
+			}
 
-			// The template may itself be a selector; the item is both the data and the selector
-			// input, and the shell is the container - matching upstream.
-			return template.SelectDataTemplate(flyoutItem, shell);
+			return null;
 		}
 	}
 }

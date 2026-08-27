@@ -66,7 +66,15 @@ public class WaveCUpstreamExpiryTests
 	/// being redesigned again toward a single nullable result-oriented resolver (null meaning "use
 	/// the platform default"), with the template owner and property kept internal and the flyout
 	/// item itself retained as the binding context. Independent review rejected the decomposed
-	/// three-member shape, so NONE of the names seen so far should be treated as final.
+	/// three-member shape.
+	/// <para>
+	/// The current proposed head (6cc7f668f0) settles on a single symbol:
+	/// <c>public static DataTemplate? Shell.ResolveFlyoutItemTemplate(Shell? shell, BindableObject
+	/// flyoutItem)</c>. <see cref="ExplicitlyRecognisesTheProposedResolverSymbol"/> pins that name so
+	/// it is unmistakably covered, but the broad match below is retained rather than replaced by it:
+	/// the PR is still open and re-reviewing, and narrowing to one name is what blinded this test
+	/// twice already.
+	/// </para>
 	/// <para>
 	/// Each time this test named members explicitly it silently stopped detecting anything, which is
 	/// worse than having no test at all - a green build then implies the adapter is still needed
@@ -201,5 +209,31 @@ public class WaveCUpstreamExpiryTests
 	[InlineData("FlyoutBehavior", false)]
 	public void FlyoutTemplateContractDetectorMatchesTheConceptNotAName(string memberName, bool expected)
 		=> Assert.Equal(expected, IsNewFlyoutTemplateContractMember(memberName));
+
+
+	/// <summary>
+	/// Pins the exact symbol proposed by the current dotnet/maui#37862 head.
+	/// </summary>
+	/// <remarks>
+	/// Belt and braces alongside the concept match: if the API merges under this name, this asserts
+	/// the detector recognises it, and the table-driven test below asserts the matcher agrees.
+	/// </remarks>
+	[Fact]
+	public void ExplicitlyRecognisesTheProposedResolverSymbol()
+	{
+		const string ProposedSymbol = "ResolveFlyoutItemTemplate";
+
+		Assert.True(
+			IsNewFlyoutTemplateContractMember(ProposedSymbol),
+			$"The detector must recognise '{ProposedSymbol}', the symbol proposed by dotnet/maui#37862 "
+				+ "head 6cc7f668f0.");
+
+		// And it must not yet exist on the referenced package - adoption waits for merge AND a
+		// package floor that actually contains it.
+		var shell = NeutralMaui.Controls.GetType("Microsoft.Maui.Controls.Shell");
+
+		Assert.NotNull(shell);
+		Assert.Null(shell!.GetMethod(ProposedSymbol, BindingFlags.Public | BindingFlags.Static));
+	}
 
 }

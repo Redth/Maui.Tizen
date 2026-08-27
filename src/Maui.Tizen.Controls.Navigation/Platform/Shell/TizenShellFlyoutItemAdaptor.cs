@@ -54,12 +54,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			if (header != null)
 			{
-				DataTemplate? template = ShellFlyoutTemplateResolution.ResolveFlyoutItemTemplate(Shell, header as BindableObject);
+				DataTemplate? template = header is BindableObject headerItem
+					? ShellFlyoutTemplateResolution.ResolveFlyoutItemTemplate(Shell, headerItem)
+					: null;
 
 				View? view = null;
 				if (template != null)
 				{
-					view = (View)template.CreateContent();
+					// The resolver may return a selector; resolving it is the caller's job, matching
+					// upstream's documented usage pattern.
+					view = (View)template.SelectDataTemplate(header, Shell).CreateContent();
 					view.BindingContext = header;
 				}
 				else if (header is View vw)
@@ -98,7 +102,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				View? view;
 				if (template != null)
 				{
-					view = (View)template.CreateContent();
+					// Selector resolution belongs to the caller. The item is both the selector input
+					// and the eventual binding context, matching upstream's documented pattern.
+					view = (View)template.SelectDataTemplate(item, Shell).CreateContent();
 				}
 				else
 				{
