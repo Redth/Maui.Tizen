@@ -70,6 +70,12 @@ for f in eng/baselines.json eng/manifests/*.json; do
 done
 
 # ---------------------------------------------------------------------------
+# 1b. Solution XML validation.
+# ---------------------------------------------------------------------------
+info "Solution validation"
+check "Maui.Tizen.slnx is valid" "$DOTNET" sln Maui.Tizen.slnx list
+
+# ---------------------------------------------------------------------------
 # 2. Baseline consistency.
 #
 # Directory.Build.props and eng/baselines.json both declare the target framework.
