@@ -1,0 +1,58 @@
+{
+  "$comment": [
+    "Repository trust anchor for the eng/scripts/generate-api-baseline.ps1 NuGet downloads.",
+    "",
+    "These SHA-256 hashes were established ONCE, deliberately, not on-first-download (TOFU).",
+    "Each was captured by downloading the package fresh from nuget.org, independently",
+    "verifying its NuGet author signature via eng/tools/PackageVerify (both integrity --",
+    "does the package content still match what was signed -- and certificate trust chain),",
+    "confirming isSigned=true and isValid=true for all seven, and only then recording the",
+    "resulting file hash here under review.",
+    "",
+    "generate-api-baseline.ps1 treats this file as the source of truth for 'is this the",
+    "package we mean to trust': every package+version pair it downloads MUST already have",
+    "an entry here, or the script refuses to proceed. A downloaded (or cached) file whose",
+    "SHA-256 does not match its pinned entry is rejected outright, regardless of whether its",
+    "signature still verifies -- a byte-for-byte identical republish is the only thing that",
+    "should ever match. A locally cached copy is only a performance shortcut for avoiding a",
+    "redundant download; this file, not the cache, is what decides trust.",
+    "",
+    "packageVersion must equal eng/baselines.json's source.behaviorBaseline.tag. If that tag",
+    "is ever bumped, this file must be regenerated (delete it, run",
+    "eng/scripts/generate-api-baseline.ps1, review the new pinned hashes in the diff, and",
+    "commit the result) -- never edited to just add new entries alongside stale ones for a",
+    "different version."
+  ],
+  "schemaVersion": 1,
+  "packageVersion": "9.0.120",
+  "packages": [
+    {
+      "packageId": "Microsoft.Maui.Core",
+      "nupkgSha256": "bd0743eccdebffaf7e8293a186eb6ce6a263d926ce94c2204588c2aed058295d"
+    },
+    {
+      "packageId": "Microsoft.Maui.Essentials",
+      "nupkgSha256": "cd374d6854ce512b9b615bdb9ec589911a6541e88a45c078c42234e7a6f4addd"
+    },
+    {
+      "packageId": "Microsoft.Maui.Graphics",
+      "nupkgSha256": "af52d73df2b81cf602d0d7e1aae3a78af705c923d715f535c3d2a3b48132ee03"
+    },
+    {
+      "packageId": "Microsoft.Maui.Controls.Core",
+      "nupkgSha256": "1b81aec95f624c06ca659290c930d3ee3c5553ba58c8af27e4726f507a574617"
+    },
+    {
+      "packageId": "Microsoft.Maui.Controls.Xaml",
+      "nupkgSha256": "6d7ea0625910175b1ad337dfcb508fe08abe2536fa9770ebed8b2e6275d06bcf"
+    },
+    {
+      "packageId": "Microsoft.Maui.Controls.Compatibility",
+      "nupkgSha256": "1f452148f46e09496293e49281009e2563e54cd4e0305ef433c833e637a800f5"
+    },
+    {
+      "packageId": "Microsoft.Maui.Controls.Maps",
+      "nupkgSha256": "c5276d399bc3d421f98056c735386f8662e48e50d3d5e34fe439ca779d1fb53b"
+    }
+  ]
+}

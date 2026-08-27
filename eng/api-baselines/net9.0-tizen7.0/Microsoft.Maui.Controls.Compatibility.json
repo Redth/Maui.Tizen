@@ -1,0 +1,3830 @@
+{
+  "assemblyName": "Microsoft.Maui.Controls.Compatibility",
+  "assemblyVersion": "1.0.0.0",
+  "targetFramework": ".NETCoreApp,Version=v9.0",
+  "sourcePath": "Microsoft.Maui.Controls.Compatibility.dll",
+  "sha256": "00a2b04601b41ad437b401ffe1f1708a4a746478ab5ce361e3db9f5abccd541b",
+  "types": [
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility",
+      "name": "DisplayResolutionUnit",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "DP(bool) -\u003E Microsoft.Maui.Controls.Compatibility.DisplayResolutionUnit",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Pixel(bool) -\u003E Microsoft.Maui.Controls.Compatibility.DisplayResolutionUnit",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "VP(double) -\u003E Microsoft.Maui.Controls.Compatibility.DisplayResolutionUnit",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "UseDP { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "UseDeviceScale { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "UseVP { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "ViewportWidth { get; set; } : double",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility",
+      "name": "DisplayResolutionUnitConverter",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "ToCompatibility(Tizen.UIExtensions.Common.DisplayResolutionUnit, double) -\u003E Microsoft.Maui.Controls.Compatibility.DisplayResolutionUnit",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ToDeviceInfo(Microsoft.Maui.Controls.Compatibility.DisplayResolutionUnit) -\u003E Tizen.UIExtensions.Common.DisplayResolutionUnit",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility",
+      "name": "ExportCellAttribute",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.HandlerAttribute",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(System.Type, System.Type) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility",
+      "name": "ExportImageSourceHandlerAttribute",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.HandlerAttribute",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(System.Type, System.Type) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility",
+      "name": "ExportRendererAttribute",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.HandlerAttribute",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(System.Type, System.Type) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "constructor",
+          "signature": "#ctor(System.Type, System.Type, System.Type[]) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility",
+      "name": "Forms",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "event",
+          "signature": "ViewInitialized : System.EventHandler\u003CMicrosoft.Maui.Controls.Compatibility.ViewInitializedEventArgs\u003E",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ConvertToDPFont(int) -\u003E double",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ConvertToEflFontPoint(double) -\u003E int",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ConvertToPixel(double) -\u003E int",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ConvertToScaledDP(double) -\u003E double",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ConvertToScaledDP(int) -\u003E double",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ConvertToScaledPixel(double) -\u003E int",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "GetDeviceType() -\u003E string",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "GetHandler\u003CT0\u003E(System.Type, object[]) -\u003E T0",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "GetHandlerForObject\u003CT0\u003E(object) -\u003E T0",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "GetHandlerForObject\u003CT0\u003E(object, object[]) -\u003E T0",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "GetProfile() -\u003E string",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Init(Microsoft.Maui.IActivationState) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Init(Microsoft.Maui.IActivationState, Microsoft.Maui.Controls.Compatibility.InitializationOptions) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Init(Microsoft.Maui.IMauiContext, Microsoft.Maui.Controls.Compatibility.InitializationOptions) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "SetTitleBarVisibility(Microsoft.Maui.Controls.Compatibility.TizenTitleBarVisibility) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "DisplayResolutionUnit { get; set; } : Microsoft.Maui.Controls.Compatibility.DisplayResolutionUnit",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Flags { get; } : System.Collections.Generic.IReadOnlyList\u003Cstring\u003E",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "IsInitialized { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "IsInitializedRenderers { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "MauiContext { get; set; } : Microsoft.Maui.IMauiContext",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "PhysicalScreenSize { get; } : Microsoft.Maui.Graphics.Size",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "PlatformType { get; set; } : Microsoft.Maui.Controls.Compatibility.PlatformType",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "ScreenDPI { get; } : int",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "StaticRegistrarStrategy { get; set; } : Microsoft.Maui.Controls.Compatibility.StaticRegistrarStrategy",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "UseMessagingCenter { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Hosting",
+      "name": "AppHostBuilderExtensions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Hosting",
+      "name": "MauiAppBuilderExtensions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "UseMauiCompatibility(Microsoft.Maui.Hosting.MauiAppBuilder) -\u003E Microsoft.Maui.Hosting.MauiAppBuilder",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Hosting",
+      "name": "MauiHandlersCollectionExtensions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "AddCompatibilityEffects(Microsoft.Maui.Controls.Hosting.IEffectsBuilder, System.Reflection.Assembly[]) -\u003E Microsoft.Maui.Controls.Hosting.IEffectsBuilder",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "AddCompatibilityFonts(Microsoft.Maui.Hosting.IFontCollection, Microsoft.Maui.IFontRegistrar, System.Reflection.Assembly[]) -\u003E Microsoft.Maui.Hosting.IFontCollection",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "AddCompatibilityRenderer(Microsoft.Maui.Hosting.IMauiHandlersCollection, System.Type, System.Type) -\u003E Microsoft.Maui.Hosting.IMauiHandlersCollection",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "AddCompatibilityRenderer\u003CT0, T1, T2\u003E(Microsoft.Maui.Hosting.IMauiHandlersCollection) -\u003E Microsoft.Maui.Hosting.IMauiHandlersCollection",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "AddCompatibilityRenderer\u003CT0, T1\u003E(Microsoft.Maui.Hosting.IMauiHandlersCollection) -\u003E Microsoft.Maui.Hosting.IMauiHandlersCollection",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "AddCompatibilityRenderers(Microsoft.Maui.Hosting.IMauiHandlersCollection, System.Reflection.Assembly[]) -\u003E Microsoft.Maui.Hosting.IMauiHandlersCollection",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "AddCompatibilityServices(Microsoft.Maui.Hosting.IImageSourceServiceCollection, System.Reflection.Assembly[]) -\u003E Microsoft.Maui.Hosting.IImageSourceServiceCollection",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "TryAddCompatibilityRenderer(Microsoft.Maui.Hosting.IMauiHandlersCollection, System.Type, System.Type) -\u003E Microsoft.Maui.Hosting.IMauiHandlersCollection",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility",
+      "name": "InitializationOptions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "constructor",
+          "signature": "#ctor(bool, Microsoft.Maui.Controls.HandlerAttribute[]) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "constructor",
+          "signature": "#ctor(bool, System.Reflection.Assembly[]) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "UseStaticRegistrar(Microsoft.Maui.Controls.Compatibility.StaticRegistrarStrategy, System.Collections.Generic.Dictionary\u003CSystem.Type, System.Func\u003CMicrosoft.Maui.Controls.IRegisterable\u003E\u003E, bool) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Assemblies { get; set; } : System.Reflection.Assembly[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Context { get; set; } : Tizen.Applications.CoreApplication",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "CustomHandlers { get; set; } : System.Collections.Generic.Dictionary\u003CSystem.Type, System.Func\u003CMicrosoft.Maui.Controls.IRegisterable\u003E\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "DisplayResolutionUnit { get; set; } : Microsoft.Maui.Controls.Compatibility.DisplayResolutionUnit",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "EffectScopes { get; set; } : EffectScope[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Flags { get; set; } : Microsoft.Maui.Controls.InitializationFlags",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Handlers { get; set; } : Microsoft.Maui.Controls.HandlerAttribute[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "PlatformType { get; set; } : Microsoft.Maui.Controls.Compatibility.PlatformType",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "StaticRegistarStrategy { get; set; } : Microsoft.Maui.Controls.Compatibility.StaticRegistrarStrategy",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "UseDeviceIndependentPixel { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "UseMessagingCenter { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "UseSkiaSharp { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility",
+      "name": "InitializationOptions\u002BEffectScope",
+      "kind": "struct",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "field",
+          "signature": "Effects : Microsoft.Maui.Controls.ExportEffectAttribute[]",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "Name : string",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "BoxViewRenderer",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.ViewRenderer\u003CMicrosoft.Maui.Controls.BoxView, Tizen.NUI.BaseComponents.View\u003E",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "OnElementChanged(Microsoft.Maui.Controls.Platform.ElementChangedEventArgs\u003CMicrosoft.Maui.Controls.BoxView\u003E) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "BrushExtensions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "CreateShader(Microsoft.Maui.Controls.GradientBrush, SkiaSharp.SKRect) -\u003E SkiaSharp.SKShader",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "GetBackgroundPaint(Microsoft.Maui.Controls.VisualElement, SkiaSharp.SKRectI) -\u003E SkiaSharp.SKPaint",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ToNativeEFL(Microsoft.Maui.Graphics.Color) -\u003E ElmSharp.Color",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ToPath(SkiaSharp.SKRectI) -\u003E SkiaSharp.SKPath",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ToPath(SkiaSharp.SKRoundRect) -\u003E SkiaSharp.SKPath",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ToRoundedRectPath(SkiaSharp.SKRectI, Microsoft.Maui.CornerRadius) -\u003E SkiaSharp.SKPath",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ToSolidColor(Microsoft.Maui.Controls.SolidColorBrush) -\u003E SkiaSharp.SKColor",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "ColorExtensions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "ToNative(Microsoft.Maui.Graphics.Color) -\u003E Tizen.UIExtensions.Common.Color",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ToNativeNUI(Microsoft.Maui.Graphics.Color) -\u003E Tizen.NUI.Color",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "WithAlpha(Microsoft.Maui.Graphics.Color, double) -\u003E Microsoft.Maui.Graphics.Color",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "WithPremultiplied(Microsoft.Maui.Graphics.Color, double) -\u003E Microsoft.Maui.Graphics.Color",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "CompatibilityEmbeddedFontLoader",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.EmbeddedFontLoader",
+      "interfaces": [
+        "Microsoft.Maui.Controls.IRegisterable"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "DefaultPlatform",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.BindableObject",
+      "interfaces": [
+        "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.ITizenPlatform",
+        "Microsoft.Maui.Controls.INavigation",
+        "System.IDisposable"
+      ],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "Dispose() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Dispose(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Finalize() -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "GetRootNativeView() -\u003E Tizen.NUI.BaseComponents.View",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnBindingContextChanged() -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "PageIsChildOfPlatform(Microsoft.Maui.Controls.Page) -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "SendBackButtonPressed() -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "SetPage(Microsoft.Maui.Controls.Page) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Page { get; set; } : Microsoft.Maui.Controls.Page",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "DefaultRenderer",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.VisualElementRenderer\u003CMicrosoft.Maui.Controls.VisualElement\u003E",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "OnElementChanged(Microsoft.Maui.Controls.Platform.ElementChangedEventArgs\u003CMicrosoft.Maui.Controls.VisualElement\u003E) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "DensityIndependentPixelExtensions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "ToDP(Tizen.NUI.Size2D) -\u003E Microsoft.Maui.Graphics.Size",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ToDP(Tizen.UIExtensions.Common.Rect) -\u003E Microsoft.Maui.Graphics.Rect",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ToDP(Tizen.UIExtensions.Common.Size) -\u003E Microsoft.Maui.Graphics.Size",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ToPixel(Microsoft.Maui.Graphics.Rect) -\u003E Tizen.UIExtensions.Common.Rect",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ToPixel(Microsoft.Maui.Graphics.Size) -\u003E Tizen.UIExtensions.Common.Size",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "FileImageSourceHandler",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.IImageSourceHandler",
+        "Microsoft.Maui.Controls.IRegisterable"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "LoadImageAsync(Tizen.NUI.BaseComponents.ImageView, Microsoft.Maui.Controls.ImageSource, System.Threading.CancellationToken) -\u003E System.Threading.Tasks.Task\u003Cbool\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "FontImageSourceHandler",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.IImageSourceHandler",
+        "Microsoft.Maui.Controls.IRegisterable"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "LoadImageAsync(Tizen.NUI.BaseComponents.ImageView, Microsoft.Maui.Controls.ImageSource, System.Threading.CancellationToken) -\u003E System.Threading.Tasks.Task\u003Cbool\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "FormsApplication",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Tizen.NUI.NUIApplication",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Exit() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "LoadApplication(Microsoft.Maui.Controls.Application) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "OnPause() -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnPreCreate() -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnResume() -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnTerminate() -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Run() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "MainWindow { get; set; } : Tizen.NUI.Window",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "RequestingUserConsentFunc { get; set; } : System.Func\u003CSystem.Threading.Tasks.Task\u003E",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "GeometryExtensions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "ToSKPath(Microsoft.Maui.Controls.Shapes.Geometry) -\u003E SkiaSharp.SKPath",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "GestureDetector",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(Microsoft.Maui.Controls.Compatibility.Platform.Tizen.IVisualElementRenderer) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "AddGesture(Microsoft.Maui.Controls.IGestureRecognizer) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "AddGestures(System.Collections.Generic.IEnumerable\u003CMicrosoft.Maui.Controls.IGestureRecognizer\u003E) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Clear() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "RemoveGesture(Microsoft.Maui.Controls.IGestureRecognizer) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "RemoveGestures(System.Collections.Generic.IEnumerable\u003CMicrosoft.Maui.Controls.IGestureRecognizer\u003E) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "IsEnabled { get; set; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "GestureHandler",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": true,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.IRegisterable",
+        "System.IDisposable"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(Microsoft.Maui.Controls.IGestureRecognizer) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Attach(Microsoft.Maui.Controls.Compatibility.Platform.Tizen.IVisualElementRenderer) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "CreateNativeDetector(Microsoft.Maui.Controls.IGestureRecognizer) -\u003E Tizen.NUI.GestureDetector",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Detach() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Dispose() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Dispose(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "NativeDetector { get; } : Tizen.NUI.GestureDetector",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Recognizer { get; set; } : Microsoft.Maui.Controls.IGestureRecognizer",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Renderer { get; set; } : Microsoft.Maui.Controls.Compatibility.Platform.Tizen.IVisualElementRenderer",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "View { get; } : Microsoft.Maui.Controls.View",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "HandlerToRendererShim",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.IVisualElementRenderer",
+        "Microsoft.Maui.Controls.IRegisterable",
+        "System.IDisposable"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(Microsoft.Maui.IPlatformViewHandler) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "event",
+          "signature": "ElementChanged : System.EventHandler\u003CMicrosoft.Maui.Controls.Platform.VisualElementChangedEventArgs\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "event",
+          "signature": "ElementPropertyChanged : System.EventHandler\u003CSystem.ComponentModel.PropertyChangedEventArgs\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Dispose() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "GetDesiredSize(double, double) -\u003E Microsoft.Maui.SizeRequest",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "SetElement(Microsoft.Maui.Controls.VisualElement) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "SetElementSize(Microsoft.Maui.Graphics.Size) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "UpdateLayout() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Element { get; set; } : Microsoft.Maui.Controls.VisualElement",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "NativeView { get; } : Tizen.NUI.BaseComponents.View",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "IImageSourceHandler",
+      "kind": "interface",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": true,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.IRegisterable"
+      ],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "LoadImageAsync(Tizen.NUI.BaseComponents.ImageView, Microsoft.Maui.Controls.ImageSource, System.Threading.CancellationToken) -\u003E System.Threading.Tasks.Task\u003Cbool\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "ILayoutRenderer",
+      "kind": "interface",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": true,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "RegisterOnLayoutUpdated() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "ILogger",
+      "kind": "interface",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": true,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "Debug(string, string, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Error(string, string, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Fatal(string, string, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Info(string, string, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Verbose(string, string, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Warn(string, string, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "ITizenPlatform",
+      "kind": "interface",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": true,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "System.IDisposable"
+      ],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "GetRootNativeView() -\u003E Tizen.NUI.BaseComponents.View",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "PageIsChildOfPlatform(Microsoft.Maui.Controls.Page) -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "SendBackButtonPressed() -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "SetPage(Microsoft.Maui.Controls.Page) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "IVisualElementRenderer",
+      "kind": "interface",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": true,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.IRegisterable",
+        "System.IDisposable"
+      ],
+      "members": [
+        {
+          "kind": "event",
+          "signature": "ElementChanged : System.EventHandler\u003CMicrosoft.Maui.Controls.Platform.VisualElementChangedEventArgs\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "GetDesiredSize(double, double) -\u003E Microsoft.Maui.SizeRequest",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "SetElement(Microsoft.Maui.Controls.VisualElement) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "UpdateLayout() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Element { get; } : Microsoft.Maui.Controls.VisualElement",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "NativeView { get; } : Tizen.NUI.BaseComponents.View",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": true,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "ImageExtensions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "IsNullOrEmpty(Microsoft.Maui.Controls.ImageSource) -\u003E bool",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "LoadFromImageSourceAsync(Tizen.NUI.BaseComponents.ImageView, Microsoft.Maui.Controls.ImageSource) -\u003E System.Threading.Tasks.Task\u003Cbool\u003E",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "ImageRenderer",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.ViewRenderer\u003CMicrosoft.Maui.Controls.Image, Tizen.UIExtensions.NUI.Image\u003E",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "OnElementChanged(Microsoft.Maui.Controls.Platform.ElementChangedEventArgs\u003CMicrosoft.Maui.Controls.Image\u003E) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "UpdateAfterLoading(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "LabelRenderer",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.ViewRenderer\u003CMicrosoft.Maui.Controls.Label, Tizen.UIExtensions.NUI.Label\u003E",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "OnElementChanged(Microsoft.Maui.Controls.Platform.ElementChangedEventArgs\u003CMicrosoft.Maui.Controls.Label\u003E) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "LayoutExtensions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "Add(System.Collections.Generic.IList\u003CMicrosoft.Maui.Controls.View\u003E, Tizen.NUI.BaseComponents.View, Microsoft.Maui.Controls.Compatibility.Platform.Tizen.MeasureDelegate) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ToView(Tizen.NUI.BaseComponents.View, Microsoft.Maui.Controls.Compatibility.Platform.Tizen.MeasureDelegate) -\u003E Microsoft.Maui.Controls.View",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "LayoutRenderer",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.ViewRenderer\u003CMicrosoft.Maui.Controls.Compatibility.Layout, Tizen.UIExtensions.NUI.ViewGroup\u003E",
+      "interfaces": [
+        "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.ILayoutRenderer"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Dispose(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnElementChanged(Microsoft.Maui.Controls.Platform.ElementChangedEventArgs\u003CMicrosoft.Maui.Controls.Compatibility.Layout\u003E) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnElementPropertyChanged(object, System.ComponentModel.PropertyChangedEventArgs) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "RegisterOnLayoutUpdated() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "UpdateInputTransparent(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "UpdateLayout() -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "Log",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "Debug(string, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Debug\u003CT0, T1, T2, T3, T4, T5, T6, T7, T8, T9\u003E(string, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Debug\u003CT0, T1, T2, T3, T4, T5, T6, T7, T8\u003E(string, T0, T1, T2, T3, T4, T5, T6, T7, T8, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Debug\u003CT0, T1, T2, T3, T4, T5, T6, T7\u003E(string, T0, T1, T2, T3, T4, T5, T6, T7, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Debug\u003CT0, T1, T2, T3, T4, T5, T6\u003E(string, T0, T1, T2, T3, T4, T5, T6, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Debug\u003CT0, T1, T2, T3, T4, T5\u003E(string, T0, T1, T2, T3, T4, T5, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Debug\u003CT0, T1, T2, T3, T4\u003E(string, T0, T1, T2, T3, T4, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Debug\u003CT0, T1, T2, T3\u003E(string, T0, T1, T2, T3, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Debug\u003CT0, T1, T2\u003E(string, T0, T1, T2, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Debug\u003CT0, T1\u003E(string, T0, T1, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Debug\u003CT0\u003E(string, T0, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Error(string, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Error\u003CT0, T1, T2, T3, T4, T5, T6, T7, T8, T9\u003E(string, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Error\u003CT0, T1, T2, T3, T4, T5, T6, T7, T8\u003E(string, T0, T1, T2, T3, T4, T5, T6, T7, T8, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Error\u003CT0, T1, T2, T3, T4, T5, T6, T7\u003E(string, T0, T1, T2, T3, T4, T5, T6, T7, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Error\u003CT0, T1, T2, T3, T4, T5, T6\u003E(string, T0, T1, T2, T3, T4, T5, T6, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Error\u003CT0, T1, T2, T3, T4, T5\u003E(string, T0, T1, T2, T3, T4, T5, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Error\u003CT0, T1, T2, T3, T4\u003E(string, T0, T1, T2, T3, T4, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Error\u003CT0, T1, T2, T3\u003E(string, T0, T1, T2, T3, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Error\u003CT0, T1, T2\u003E(string, T0, T1, T2, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Error\u003CT0, T1\u003E(string, T0, T1, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Error\u003CT0\u003E(string, T0, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Fatal(string, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Fatal\u003CT0, T1, T2, T3, T4, T5, T6, T7, T8, T9\u003E(string, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Fatal\u003CT0, T1, T2, T3, T4, T5, T6, T7, T8\u003E(string, T0, T1, T2, T3, T4, T5, T6, T7, T8, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Fatal\u003CT0, T1, T2, T3, T4, T5, T6, T7\u003E(string, T0, T1, T2, T3, T4, T5, T6, T7, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Fatal\u003CT0, T1, T2, T3, T4, T5, T6\u003E(string, T0, T1, T2, T3, T4, T5, T6, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Fatal\u003CT0, T1, T2, T3, T4, T5\u003E(string, T0, T1, T2, T3, T4, T5, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Fatal\u003CT0, T1, T2, T3, T4\u003E(string, T0, T1, T2, T3, T4, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Fatal\u003CT0, T1, T2, T3\u003E(string, T0, T1, T2, T3, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Fatal\u003CT0, T1, T2\u003E(string, T0, T1, T2, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Fatal\u003CT0, T1\u003E(string, T0, T1, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Fatal\u003CT0\u003E(string, T0, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Info(string, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Info\u003CT0, T1, T2, T3, T4, T5, T6, T7, T8, T9\u003E(string, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Info\u003CT0, T1, T2, T3, T4, T5, T6, T7, T8\u003E(string, T0, T1, T2, T3, T4, T5, T6, T7, T8, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Info\u003CT0, T1, T2, T3, T4, T5, T6, T7\u003E(string, T0, T1, T2, T3, T4, T5, T6, T7, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Info\u003CT0, T1, T2, T3, T4, T5, T6\u003E(string, T0, T1, T2, T3, T4, T5, T6, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Info\u003CT0, T1, T2, T3, T4, T5\u003E(string, T0, T1, T2, T3, T4, T5, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Info\u003CT0, T1, T2, T3, T4\u003E(string, T0, T1, T2, T3, T4, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Info\u003CT0, T1, T2, T3\u003E(string, T0, T1, T2, T3, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Info\u003CT0, T1, T2\u003E(string, T0, T1, T2, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Info\u003CT0, T1\u003E(string, T0, T1, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Info\u003CT0\u003E(string, T0, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Verbose(string, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Verbose\u003CT0, T1, T2, T3, T4, T5, T6, T7, T8, T9\u003E(string, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Verbose\u003CT0, T1, T2, T3, T4, T5, T6, T7, T8\u003E(string, T0, T1, T2, T3, T4, T5, T6, T7, T8, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Verbose\u003CT0, T1, T2, T3, T4, T5, T6, T7\u003E(string, T0, T1, T2, T3, T4, T5, T6, T7, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Verbose\u003CT0, T1, T2, T3, T4, T5, T6\u003E(string, T0, T1, T2, T3, T4, T5, T6, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Verbose\u003CT0, T1, T2, T3, T4, T5\u003E(string, T0, T1, T2, T3, T4, T5, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Verbose\u003CT0, T1, T2, T3, T4\u003E(string, T0, T1, T2, T3, T4, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Verbose\u003CT0, T1, T2, T3\u003E(string, T0, T1, T2, T3, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Verbose\u003CT0, T1, T2\u003E(string, T0, T1, T2, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Verbose\u003CT0, T1\u003E(string, T0, T1, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Verbose\u003CT0\u003E(string, T0, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Warn(string, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Warn\u003CT0, T1, T2, T3, T4, T5, T6, T7, T8, T9\u003E(string, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Warn\u003CT0, T1, T2, T3, T4, T5, T6, T7, T8\u003E(string, T0, T1, T2, T3, T4, T5, T6, T7, T8, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Warn\u003CT0, T1, T2, T3, T4, T5, T6, T7\u003E(string, T0, T1, T2, T3, T4, T5, T6, T7, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Warn\u003CT0, T1, T2, T3, T4, T5, T6\u003E(string, T0, T1, T2, T3, T4, T5, T6, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Warn\u003CT0, T1, T2, T3, T4, T5\u003E(string, T0, T1, T2, T3, T4, T5, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Warn\u003CT0, T1, T2, T3, T4\u003E(string, T0, T1, T2, T3, T4, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Warn\u003CT0, T1, T2, T3\u003E(string, T0, T1, T2, T3, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Warn\u003CT0, T1, T2\u003E(string, T0, T1, T2, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Warn\u003CT0, T1\u003E(string, T0, T1, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Warn\u003CT0\u003E(string, T0, Guardian, string, string, int) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Logger { get; set; } : Microsoft.Maui.Controls.Compatibility.Platform.Tizen.ILogger",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Tag { get; set; } : string",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "Log\u002BGuardian",
+      "kind": "struct",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "MeasureDelegate",
+      "kind": "delegate",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "delegateSignature": "Invoke(Microsoft.Maui.Controls.Compatibility.Platform.Tizen.NativeViewWrapperRenderer, int, int) -\u003E System.Nullable\u003CMicrosoft.Maui.Graphics.Size\u003E",
+      "members": []
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "NativeBindingExtensions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "SetBinding(Tizen.NUI.BaseComponents.View, Microsoft.Maui.Controls.BindableProperty, Microsoft.Maui.Controls.BindingBase) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "SetBinding(Tizen.NUI.BaseComponents.View, string, Microsoft.Maui.Controls.BindingBase, string) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "SetBindingContext(Tizen.NUI.BaseComponents.View, object, System.Func\u003CTizen.NUI.BaseComponents.View, System.Collections.Generic.IEnumerable\u003CTizen.NUI.BaseComponents.View\u003E\u003E) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "SetValue(Tizen.NUI.BaseComponents.View, Microsoft.Maui.Controls.BindableProperty, object) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "NativeViewWrapper",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.View",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(Tizen.NUI.BaseComponents.View, Microsoft.Maui.Controls.Compatibility.Platform.Tizen.MeasureDelegate) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "OnBindingContextChanged() -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "MeasureDelegate { get; } : Microsoft.Maui.Controls.Compatibility.Platform.Tizen.MeasureDelegate",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "NativeView { get; set; } : Tizen.NUI.BaseComponents.View",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "NativeViewWrapperRenderer",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.DefaultRenderer",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "NavigationPageRenderer",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.VisualElementRenderer\u003CMicrosoft.Maui.Controls.NavigationPage\u003E",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Dispose(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnElementChanged(Microsoft.Maui.Controls.Platform.ElementChangedEventArgs\u003CMicrosoft.Maui.Controls.NavigationPage\u003E) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnElementPropertyChanged(object, System.ComponentModel.PropertyChangedEventArgs) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "PageRenderer",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.VisualElementRenderer\u003CMicrosoft.Maui.Controls.Page\u003E",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Dispose(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnElementChanged(Microsoft.Maui.Controls.Platform.ElementChangedEventArgs\u003CMicrosoft.Maui.Controls.Page\u003E) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "UpdateLayout() -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "PanGestureHandler",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.GestureHandler",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(Microsoft.Maui.Controls.IGestureRecognizer) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "CreateNativeDetector(Microsoft.Maui.Controls.IGestureRecognizer) -\u003E Tizen.NUI.GestureDetector",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "Platform",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "GetNativeSize(Microsoft.Maui.Controls.VisualElement, double, double) -\u003E Microsoft.Maui.SizeRequest",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "GetOrCreateRenderer(Microsoft.Maui.Controls.VisualElement) -\u003E Microsoft.Maui.Controls.Compatibility.Platform.Tizen.IVisualElementRenderer",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "GetRenderer(Microsoft.Maui.Controls.BindableObject) -\u003E Microsoft.Maui.Controls.Compatibility.Platform.Tizen.IVisualElementRenderer",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "SetRenderer(Microsoft.Maui.Controls.BindableObject, Microsoft.Maui.Controls.Compatibility.Platform.Tizen.IVisualElementRenderer) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "PlatformConfigurationExtensions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "OnThisPlatform\u003CT0\u003E(T0) -\u003E Microsoft.Maui.Controls.IPlatformElementConfiguration\u003CMicrosoft.Maui.Controls.PlatformConfiguration.Tizen, T0\u003E",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "PopupManager",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [
+        "System.IDisposable"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(Microsoft.Maui.Controls.Compatibility.Platform.Tizen.ITizenPlatform) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Dispose() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Dispose(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "ResourcePath",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "GetPath(string) -\u003E string",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "ScrollViewRenderer",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.ViewRenderer\u003CMicrosoft.Maui.Controls.ScrollView, Tizen.UIExtensions.NUI.ScrollView\u003E",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "CreateNativeControl() -\u003E Tizen.UIExtensions.NUI.ScrollView",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Dispose(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnElementChanged(Microsoft.Maui.Controls.Platform.ElementChangedEventArgs\u003CMicrosoft.Maui.Controls.ScrollView\u003E) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnElementPropertyChanged(object, System.ComponentModel.PropertyChangedEventArgs) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnScrolled(object, System.EventArgs) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "StaticRegistrar",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "RegisterHandlers(System.Collections.Generic.Dictionary\u003CSystem.Type, System.Func\u003CMicrosoft.Maui.Controls.IRegisterable\u003E\u003E) -\u003E void",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "Registered { get; set; } : Microsoft.Maui.Controls.Compatibility.Platform.Tizen.StaticRegistrar\u003CMicrosoft.Maui.Controls.IRegisterable\u003E",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "StaticRegistrar",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 1,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "GetHandler\u003CT0\u003E(System.Type, object[]) -\u003E T0",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "GetHandlerForObject\u003CT0\u003E(object) -\u003E T0",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "GetHandlerForObject\u003CT0\u003E(object, object[]) -\u003E T0",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "LookupHandler(System.Type, System.Func\u003CT0\u003E\u0026) -\u003E bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Register(System.Type, System.Func\u003CT0\u003E) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "StreamImageSourceHandler",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.IImageSourceHandler",
+        "Microsoft.Maui.Controls.IRegisterable"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "LoadImageAsync(Tizen.NUI.BaseComponents.ImageView, Microsoft.Maui.Controls.ImageSource, System.Threading.CancellationToken) -\u003E System.Threading.Tasks.Task\u003Cbool\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "TapGestureHandler",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.GestureHandler",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor(Microsoft.Maui.Controls.IGestureRecognizer) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "CreateNativeDetector(Microsoft.Maui.Controls.IGestureRecognizer) -\u003E Tizen.NUI.GestureDetector",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "TransformExtensions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "ToSkia(Microsoft.Maui.Controls.Shapes.Transform) -\u003E SkiaSharp.SKMatrix",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "UriImageSourceHandler",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.IImageSourceHandler",
+        "Microsoft.Maui.Controls.IRegisterable"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "LoadImageAsync(Tizen.NUI.BaseComponents.ImageView, Microsoft.Maui.Controls.ImageSource, System.Threading.CancellationToken) -\u003E System.Threading.Tasks.Task\u003Cbool\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "ViewRenderer",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": true,
+      "isSealed": false,
+      "arity": 2,
+      "baseType": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.VisualElementRenderer\u003CT0\u003E",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Dispose(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnElementChanged(Microsoft.Maui.Controls.Platform.ElementChangedEventArgs\u003CT0\u003E) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "SetNativeControl(T1) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "UpdateIsEnabled(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Control { get; } : T1",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "VisualElementRenderer",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": true,
+      "isSealed": false,
+      "arity": 1,
+      "interfaces": [
+        "Microsoft.Maui.Controls.Compatibility.Platform.Tizen.IVisualElementRenderer",
+        "Microsoft.Maui.Controls.IEffectControlProvider",
+        "Microsoft.Maui.Controls.IRegisterable",
+        "System.IDisposable"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "event",
+          "signature": "ElementChanged : System.EventHandler\u003CMicrosoft.Maui.Controls.Platform.ElementChangedEventArgs\u003CT0\u003E\u003E",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "AddChild(Microsoft.Maui.Controls.Element) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "ApplyTransformation(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "ApplyTranslation(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "Dispose() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Dispose(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Finalize() -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "GetDesiredSize(double, double) -\u003E Microsoft.Maui.SizeRequest",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Measure(double, double) -\u003E Microsoft.Maui.Graphics.Size",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "MinimumSize() -\u003E Microsoft.Maui.Graphics.Size",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnElementChanged(Microsoft.Maui.Controls.Platform.ElementChangedEventArgs\u003CT0\u003E) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnElementPropertyChanged(object, System.ComponentModel.PropertyChangedEventArgs) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnElementReady() -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnFocused(object, System.EventArgs) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "OnUnfocused(object, System.EventArgs) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "RegisterEffect(Microsoft.Maui.Controls.Effect) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "RegisterPropertyHandler(Microsoft.Maui.Controls.BindableProperty, System.Action) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "RegisterPropertyHandler(Microsoft.Maui.Controls.BindableProperty, System.Action\u003Cbool\u003E) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "RegisterPropertyHandler(string, System.Action) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "RegisterPropertyHandler(string, System.Action\u003Cbool\u003E) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "RemoveChild(Microsoft.Maui.Controls.VisualElement) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "SetAccessibilityDescription(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "SetAccessibilityName(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "SetElement(T0) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "SetIsAccessibilityElement(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "SetLabeledBy(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "SetNativeView(Tizen.NUI.BaseComponents.View) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "UpdateAllProperties(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "UpdateBackground(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "UpdateBackgroundColor(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "UpdateClip(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "UpdateInputTransparent(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "UpdateIsEnabled(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "UpdateLayout() -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "UpdateOpacity(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "UpdateThemeStyle() -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "Element { get; set; } : T0",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "IsDisposed { get; } : bool",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "NativeView { get; set; } : Tizen.NUI.BaseComponents.View",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility.Platform.Tizen",
+      "name": "VisualElementRendererFlags",
+      "kind": "enum",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "underlyingType": "byte",
+      "members": [
+        {
+          "kind": "field",
+          "signature": "Disposed = 1",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "NeedsLayout = 2",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "NeedsTransformation = 4",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "None = 0",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility",
+      "name": "PlatformType",
+      "kind": "enum",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "underlyingType": "int",
+      "members": [
+        {
+          "kind": "field",
+          "signature": "Defalut = 0",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "Lightweight = 1",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility",
+      "name": "RendererToHandlerShim",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "Microsoft.Maui.Handlers.ViewHandler\u003CMicrosoft.Maui.IView, Tizen.NUI.BaseComponents.View\u003E",
+      "interfaces": [
+        "Microsoft.Maui.IElementHandler",
+        "Microsoft.Maui.IPlatformViewHandler",
+        "Microsoft.Maui.IViewHandler",
+        "System.IDisposable"
+      ],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "constructor",
+          "signature": "#ctor(Microsoft.Maui.Controls.Compatibility.Platform.Tizen.IVisualElementRenderer) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "ShimMapper : Microsoft.Maui.PropertyMapper\u003CMicrosoft.Maui.IView, Microsoft.Maui.Handlers.ViewHandler\u003CMicrosoft.Maui.IView, Tizen.NUI.BaseComponents.View\u003E\u003E",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "ConnectHandler(Tizen.NUI.BaseComponents.View) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "CreatePlatformView() -\u003E Tizen.NUI.BaseComponents.View",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "CreateShim(object) -\u003E Microsoft.Maui.IViewHandler",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "DisconnectHandler(Tizen.NUI.BaseComponents.View) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "Dispose(bool) -\u003E void",
+          "accessibility": "protected",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "GetDesiredSize(double, double) -\u003E Microsoft.Maui.Graphics.Size",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "PlatformArrange(Microsoft.Maui.Graphics.Rect) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "SetVirtualView(Microsoft.Maui.IView) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "method",
+          "signature": "SetupRenderer(Microsoft.Maui.Controls.Compatibility.Platform.Tizen.IVisualElementRenderer) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "UpdateValue(string) -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        },
+        {
+          "kind": "property",
+          "signature": "NeedsContainer { get; } : bool",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": true
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility",
+      "name": "StaticRegistrarStrategy",
+      "kind": "enum",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "underlyingType": "int",
+      "members": [
+        {
+          "kind": "field",
+          "signature": "All = 2",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "None = 0",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "StaticRegistrarOnly = 1",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility",
+      "name": "TizenTitleBarVisibility",
+      "kind": "enum",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": true,
+      "arity": 0,
+      "interfaces": [],
+      "underlyingType": "int",
+      "members": [
+        {
+          "kind": "field",
+          "signature": "Default = 0",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "field",
+          "signature": "Never = 1",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Controls.Compatibility",
+      "name": "ViewInitializedEventArgs",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": false,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "baseType": "System.EventArgs",
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "constructor",
+          "signature": "#ctor() -\u003E void",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "NativeView { get; set; } : Tizen.NUI.BaseComponents.View",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "property",
+          "signature": "View { get; set; } : Microsoft.Maui.Controls.VisualElement",
+          "accessibility": "public",
+          "isStatic": false,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    },
+    {
+      "namespace": "Microsoft.Maui.Embedding",
+      "name": "AppHostBuilderExtensions",
+      "kind": "class",
+      "accessibility": "public",
+      "isStatic": true,
+      "isAbstract": false,
+      "isSealed": false,
+      "arity": 0,
+      "interfaces": [],
+      "members": [
+        {
+          "kind": "method",
+          "signature": "UseMauiEmbedding\u003CT0\u003E(Microsoft.Maui.Hosting.MauiAppBuilder) -\u003E Microsoft.Maui.Hosting.MauiAppBuilder",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        },
+        {
+          "kind": "method",
+          "signature": "UseMauiEmbedding\u003CT0\u003E(Microsoft.Maui.Hosting.MauiAppBuilder, System.Func\u003CSystem.IServiceProvider, T0\u003E) -\u003E Microsoft.Maui.Hosting.MauiAppBuilder",
+          "accessibility": "public",
+          "isStatic": true,
+          "isAbstract": false,
+          "isVirtual": false
+        }
+      ]
+    }
+  ]
+}
