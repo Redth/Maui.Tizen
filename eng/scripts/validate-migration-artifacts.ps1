@@ -8,9 +8,10 @@
       1. Builds eng/tools/ApiDump and eng/tools/SourceInventory (compile-correctness check).
       2. Runs tests/Migration.Tooling.Tests, which schema-validates
          eng/manifests/source-disposition.json, cross-checks eng/api-baselines/** manifests
-         against eng/baselines.json, and re-hashes every checked-in PublicAPI.*.txt file against
-         its recorded SHA-256 -- catching a generated artifact that was hand-edited (or a
-         baselines.json ref bump) without being regenerated.
+         against eng/baselines.json, and re-hashes every checked-in baseline against its
+         recorded SHA-256. The same trusted net11 manifest is joined to source-disposition.json
+         to verify that src/**/PublicAPI/net-tizen/** remains byte-identical to the imported
+         source snapshot, while generated PublicAPI/slice/** package baselines remain separate.
 
     This does NOT re-download sources/packages or re-run the generators against the network; for
     that (to actually refresh the checked-in artifacts), use:

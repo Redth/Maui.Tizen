@@ -22,8 +22,8 @@
 #    turn a clean rename-only diff into a large content-churn diff. Removing the
 #    redundancy belongs with the handler implementation workstream, not the foundation.
 #
-#  * PublicAPI/net-tizen/*.txt files travel with their project. They are consumed as
-#    API baselines by the inventory tooling.
+#  * PublicAPI/net-tizen/*.txt files travel with their project as byte-identical imported
+#    provenance fixtures. Standalone package baselines are generated under PublicAPI/slice/.
 #
 # Usage: eng/import/normalize-layout.sh
 # Safe to re-run: each move is skipped if the source no longer exists.
