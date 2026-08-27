@@ -205,9 +205,23 @@ The conversion is idempotent — an app that *also* references the MAUI Blazor p
 upstream conversion as well, and duplicate `MauiAsset` entries would produce duplicate resources. Set
 `TizenBlazorWebViewConvertStaticWebAssets=false` to opt out entirely.
 
+The conversion is reached two ways, and both are tested. It registers through
+`MauiTizenAssetProviderTargets`, the provider contract `Maui.Tizen.Build.Tasks` publishes, and it also
+carries a direct `BeforeTargets` hook as a fallback for graphs that do not include that package at all.
+MSBuild runs a target at most once per build, so being reached both ways is harmless.
+
 `AssetPipelineTests` runs MSBuild against a real Razor project and asserts that `index.html`, a nested
 app asset and `_framework/blazor.webview.js` all arrive as `MauiAsset` with the right `TargetPath`, with
-no duplicates and no `.gz`/`.br` variants.
+no duplicates and no `.gz`/`.br` variants. Because the fixture imports only this package, those
+assertions reach the conversion through the fallback — so the fixture also defines a stand-in for
+`MauiTizenCollectProvidedAssets` and drives it directly, which exercises the registration in isolation
+(none of the targets named in `BeforeTargets` are scheduled by that entry point). A further test asserts
+both entry points yield identical assets, since an application gets one or the other depending on
+whether `Maui.Tizen.Build.Tasks` is in the graph.
+
+Asset file names must not be hard-coded: the SDK fingerprints static web assets in some configurations
+(`blazor.webview.<hash>.js`), so the tests match by prefix and extension and assert on the `wwwroot`
+content-root prefix, which is the property that actually determines runtime reachability.
 
 ### The Tizen workload gate
 

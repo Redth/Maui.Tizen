@@ -26,4 +26,18 @@
   <Import Project="__TARGETS_PROPS__" />
   <Import Project="__TARGETS_FILE__" />
 
+  <!--
+    Stands in for Maui.Tizen.Build.Tasks' MauiTizenCollectProvidedAssets, which runs every target
+    listed in MauiTizenAssetProviderTargets.
+
+    This exists so the REGISTRATION path can be tested in isolation. Nothing else in this fixture
+    runs GetMauiItems, ProcessMauiAssets, ResizetizeCollectItems or _CheckForContent, so the
+    conversion's own BeforeTargets hook never fires when this target is invoked directly - which
+    means assets appearing here can only have come through the provider contract.
+
+    Deliberately a stand-in rather than a reference to the real package: depending on another
+    package's sources to test our own registration would couple the two repositories' suites.
+  -->
+  <Target Name="SimulateAssetProviderContract" DependsOnTargets="$(MauiTizenAssetProviderTargets)" />
+
 </Project>

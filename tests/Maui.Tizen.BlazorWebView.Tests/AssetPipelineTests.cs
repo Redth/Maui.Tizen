@@ -36,11 +36,14 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 
 		private readonly string _workDirectory;
 		private readonly Lazy<IReadOnlyList<MauiAssetItem>> _assets;
+		private readonly Lazy<IReadOnlyList<MauiAssetItem>> _assetsViaProviderContract;
 
 		public AssetPipelineTests()
 		{
 			_workDirectory = Path.Combine(Path.GetTempPath(), "maui-tizen-assets-" + Guid.NewGuid().ToString("n"));
-			_assets = new Lazy<IReadOnlyList<MauiAssetItem>>(BuildAndReadMauiAssets);
+			_assets = new Lazy<IReadOnlyList<MauiAssetItem>>(() => BuildAndReadMauiAssets(TargetName));
+			_assetsViaProviderContract = new Lazy<IReadOnlyList<MauiAssetItem>>(
+				() => BuildAndReadMauiAssets("SimulateAssetProviderContract"));
 		}
 
 		public void Dispose()
@@ -162,30 +165,46 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		}
 
 		[Fact]
-		public void ConversionRegistersWithThePublishedAssetProviderContract()
+		public void ConversionRunsThroughThePublishedAssetProviderContract()
 		{
-			// Maui.Tizen.Build.Tasks runs providers listed in MauiTizenAssetProviderTargets, expanded at
-			// execution time so import order does not matter. Registering there rather than only hooking
-			// Resizetizer target names by name is what keeps the two packages decoupled.
-			var targets = File.ReadAllText(Path.Combine(
-				FindRepositoryRoot(), "src", "Maui.Tizen.BlazorWebView", "buildTransitive",
-				"Maui.Tizen.BlazorWebView.targets"));
+			// Maui.Tizen.Build.Tasks runs every target listed in MauiTizenAssetProviderTargets. The
+			// fixture's SimulateAssetProviderContract target does the same and nothing else, so none of
+			// the targets the conversion's own BeforeTargets names are scheduled - which means assets
+			// here can only have arrived through the registration.
+			//
+			// This distinction matters: the other tests in this class reach the conversion through the
+			// BeforeTargets fallback, because the fixture imports only this package. Without this test
+			// the registration could silently stop working and the suite would stay green while real
+			// applications - where Maui.Tizen.Build.Tasks drives the contract - broke.
+			var viaContract = _assetsViaProviderContract.Value;
 
-			Assert.Contains("<MauiTizenAssetProviderTargets>", targets, StringComparison.Ordinal);
-			Assert.Contains("$(MauiTizenAssetProviderTargets);", targets, StringComparison.Ordinal);
-			Assert.Contains(TargetName, targets, StringComparison.Ordinal);
+			Assert.NotEmpty(viaContract);
+			Assert.Contains(
+				viaContract,
+				a => a.TargetPath.Replace('\\', '/').Equals("wwwroot/index.html", StringComparison.OrdinalIgnoreCase));
+		}
 
-			// The direct BeforeTargets hook stays as a fallback for graphs without Maui.Tizen.Build.Tasks.
-			// This test is what proves the conversion still runs there - it is how the other six tests
-			// in this class get their assets, since the fixture imports only this package.
-			Assert.Contains("BeforeTargets=", targets, StringComparison.Ordinal);
+		[Fact]
+		public void BothEntryPointsProduceTheSameAssets()
+		{
+			// The fallback and the registration must not diverge: an app gets one or the other
+			// depending on whether Maui.Tizen.Build.Tasks is in the graph, and both have to ship the
+			// same files.
+			var viaFallback = _assets.Value
+				.Select(a => a.TargetPath.Replace('\\', '/'))
+				.OrderBy(p => p, StringComparer.Ordinal);
+			var viaContract = _assetsViaProviderContract.Value
+				.Select(a => a.TargetPath.Replace('\\', '/'))
+				.OrderBy(p => p, StringComparer.Ordinal);
+
+			Assert.Equal(viaFallback, viaContract);
 		}
 
 		private MauiAssetItem? FindByTargetPath(string targetPath) =>
 			_assets.Value.FirstOrDefault(a =>
 				string.Equals(a.TargetPath.Replace('\\', '/'), targetPath, StringComparison.OrdinalIgnoreCase));
 
-		private IReadOnlyList<MauiAssetItem> BuildAndReadMauiAssets()
+		private IReadOnlyList<MauiAssetItem> BuildAndReadMauiAssets(string target)
 		{
 			var repoRoot = FindRepositoryRoot();
 			var fixtureSource = Path.Combine(repoRoot, "tests", "Maui.Tizen.BlazorWebView.Tests", "AssetPipelineFixture");
@@ -205,7 +224,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 
 			// A NuGet.config is not copied in: the fixture must resolve packages the same way the
 			// repository does, so it relies on the repo-level nuget.config found by directory walk.
-			var output = RunMSBuild(project, repoRoot);
+			var output = RunMSBuild(project, target);
 
 			using var document = JsonDocument.Parse(output);
 			if (!document.RootElement.TryGetProperty("Items", out var items) ||
@@ -236,7 +255,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			return version!;
 		}
 
-		private static string RunMSBuild(string project, string repoRoot)
+		private static string RunMSBuild(string project, string target)
 		{
 			var startInfo = new ProcessStartInfo
 			{
@@ -259,7 +278,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			// this build is tiny, so parallelism buys nothing and only widens the contention window.
 			startInfo.ArgumentList.Add("-nodeReuse:false");
 			startInfo.ArgumentList.Add("-m:1");
-			startInfo.ArgumentList.Add($"-t:{TargetName}");
+			startInfo.ArgumentList.Add($"-t:{target}");
 			startInfo.ArgumentList.Add("-getItem:MauiAsset");
 			// Central Package Management lives at the repository root and would otherwise reject the
 			// fixture's explicit Version attribute.
