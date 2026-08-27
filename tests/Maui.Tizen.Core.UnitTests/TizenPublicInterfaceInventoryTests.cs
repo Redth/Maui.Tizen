@@ -72,6 +72,13 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 					// Native container contract consumed by the Wave C toolbar work.
 					"ITizenToolbarContainer",
+
+					// Wave A adds ITizenFontManager and ITizenModalHost here when it lands. Both
+					// are SERVICE interfaces, so neither derives from IElementHandler and neither
+					// shadows a MAUI handler interface - verified by temporarily declaring both and
+					// confirming NoParallelTizenHandlerInterfacesRemain and
+					// NoTizenPrefixedInterfaceShadowsAMauiHandlerInterface still pass. Adding them
+					// is a one-line change here and nothing else.
 				},
 				ExportedTizenInterfaces);
 		}
