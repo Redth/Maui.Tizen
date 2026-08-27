@@ -3,9 +3,10 @@
   <!--
     Offline consistency tests for the migration inventory + API baseline tooling
     (eng/tools, eng/manifests, eng/api-baselines). No network access and no Tizen workload:
-    schema-validates eng/manifests/source-disposition.json and re-hashes every generated
-    artifact against its recorded checksum and against eng/baselines.json, so a stale or
-    hand-edited artifact fails here instead of silently drifting.
+    schema-validates eng/manifests/source-disposition.json, re-hashes every generated
+    artifact against its recorded checksum and against eng/baselines.json, and proves the
+    normalized src/**/PublicAPI/net-tizen imports still match those trusted source hashes.
+    A stale, overwritten, deleted, added, or path-drifted imported baseline fails here.
   -->
 
   <PropertyGroup>

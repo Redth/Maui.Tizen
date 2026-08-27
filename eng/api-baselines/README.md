@@ -7,8 +7,27 @@
 | `net9.0-tizen7.0/` | API surface extracted from the **published** MAUI 9.0.120 Tizen assemblies | Inventory tooling |
 | `net11.0-publicapi/` | The 18 `PublicAPI/net-tizen/*.txt` files collected from the `net11.0` source baseline | Inventory tooling |
 
-Both are currently empty. The generators are owned by the inventory tooling workstream;
-this directory structure is the contract they target.
+The `net11.0-publicapi/manifest.json` hashes are also the repository trust anchor for the
+normalized copies under `src/**/PublicAPI/net-tizen/`. The manifest pins the upstream commit,
+and `eng/manifests/source-disposition.json` maps each upstream path to its imported target path.
+The workload-free tests join those two manifests and require every target file to remain
+byte-identical. They also reject deletion, extra files, and path or case drift without network
+access or a writable hash sidecar.
+
+## Imported provenance versus package baselines
+
+These directories have different owners and must never be generated into each other:
+
+| Path | Purpose | Update rule |
+|---|---|---|
+| `src/**/PublicAPI/net-tizen/` | Imported dotnet/maui provenance fixture for the pinned `sourceBaseline` | Never regenerate from a Maui.Tizen assembly. It changes only with an intentional source-baseline import update. |
+| `src/**/PublicAPI/slice/` | Public API contract generated for a standalone Maui.Tizen package assembly | Regenerate when that package's API intentionally changes and attach it explicitly with `AdditionalFiles`. |
+
+To intentionally update the imported fixtures, change the pinned source commit in
+`eng/baselines.json`, obtain a verified snapshot with `Get-MauiSourceSnapshot.ps1`, regenerate
+`net11.0-publicapi/` and `source-disposition.json`, and copy the source bytes to the mapped
+`net-tizen` targets. The source-ref change, trusted hashes, copied artifacts, and imported files
+must appear together in review. CI only verifies this state; it never learns or rewrites hashes.
 
 ## Why two baselines
 

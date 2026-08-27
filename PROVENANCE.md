@@ -145,6 +145,24 @@ that redundancy belongs with the handler implementation workstream.
 The two steps are kept separate so a reviewer can verify that nothing was smuggled in
 during the filter by diffing the import commit on its own.
 
+### Imported PublicAPI fixtures are immutable
+
+`src/**/PublicAPI/net-tizen/` belongs to the history import. Those files are the monolithic
+dotnet/maui assembly baselines from the pinned `sourceBaseline`; they are not generated API
+contracts for this repository's standalone assemblies.
+
+Their upstream paths and normalized target paths are recorded in
+[`eng/manifests/source-disposition.json`](eng/manifests/source-disposition.json). Their trusted
+SHA-256 values are generated from a provenance-verified snapshot and pinned in
+[`eng/api-baselines/net11.0-publicapi/manifest.json`](eng/api-baselines/net11.0-publicapi/manifest.json).
+The workload-free CI lane joins those manifests and rejects content changes, deletion, extra
+files, and path or case drift entirely offline.
+
+Generated package baselines belong under `src/**/PublicAPI/slice/` and describe the standalone
+Maui.Tizen assembly that consumes them. Generating a slice baseline into `net-tizen` would replace
+imported evidence with a different assembly's contract, so the two locations are intentionally
+distinct.
+
 ---
 
 ## Licensing
