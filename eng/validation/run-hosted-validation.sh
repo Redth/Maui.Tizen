@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+#
+# run-hosted-validation.sh - run every validation suite that needs no Tizen workload.
+#
+# WHY THIS EXISTS RATHER THAN `dotnet test`
+#
+# The validation suites use xunit v3, which runs on Microsoft.Testing.Platform. The .NET 10+ SDK
+# removed VSTest support for that platform, so `dotnet test` refuses to run them unless global.json
+# opts into the Microsoft.Testing.Platform runner - and that opt-in would simultaneously break
+# tests/UnitTests, which is still xunit v2 on VSTest.
+#
+# Rather than force one of those two migrations as a side effect of adding a validation lane, the v3
+# suites are executed directly. They are self-hosting executables, so this is a supported and
+# entirely ordinary way to run them.
+#
+# Once tests/UnitTests moves to xunit v3, add
+#   "test": { "runner": "Microsoft.Testing.Platform" }
+# to global.json and this script can collapse to a single `dotnet test`.
+# RepositoryContractTests.TestRunnerSplit_IsRecordedRatherThanAssumed guards that transition.
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$REPO_ROOT"
+
+DOTNET="${DOTNET:-dotnet}"
+CONFIGURATION="${CONFIGURATION:-Release}"
+RESULTS_DIR="${RESULTS_DIR:-$REPO_ROOT/artifacts/test-results}"
+
+# Suites are listed explicitly rather than globbed. A suite that silently stops being discovered is
+# indistinguishable from one that passes.
+# MAUI_TIZEN_SUITES restricts the run to named suites. The device lane uses it so lab hardware
+# runs only device-specific work: the hosted suites already ran on ubuntu-latest, and repeating
+# them on a scarce device runner re-proves something that has nothing to do with the device.
+SUITES=(
+  "tests/Maui.Tizen.Validation.Tests/Maui.Tizen.Validation.Tests.csproj"
+  "tests/Maui.Tizen.Build.Tests/Maui.Tizen.Build.Tests.csproj"
+  "tests/Maui.Tizen.Conventions.Tests/Maui.Tizen.Conventions.Tests.csproj"
+  "tests/Maui.Tizen.DevFlow.Tests/Maui.Tizen.DevFlow.Tests.csproj"
+  "tests/Maui.Tizen.Consumer.Tests/Maui.Tizen.Consumer.Tests.csproj"
+)
+
+# Run with CI semantics by default, mirroring eng/build-workload-free.sh.
+#
+# TreatWarningsAsErrors is conditioned on ContinuousIntegrationBuild, so without this a locally
+# green run can still fail in CI. That happened: xUnit1051 (async calls should flow
+# TestContext.Current.CancellationToken) is a warning locally and an error in CI, and the first
+# push failed on it. Set MAUI_TIZEN_LOCAL_SEMANTICS=1 to opt out.
+if [[ "${MAUI_TIZEN_LOCAL_SEMANTICS:-0}" != "1" ]]; then
+  export ContinuousIntegrationBuild=true
+fi
+
+filter_suites() {
+  [[ -z "${MAUI_TIZEN_SUITES:-}" ]] && return 0
+
+  local kept=() suite name
+  for suite in "${SUITES[@]}"; do
+    name="$(basename "$suite" .csproj)"
+    if [[ " $MAUI_TIZEN_SUITES " == *" $name "* ]]; then
+      kept+=("$suite")
+    fi
+  done
+
+  if [[ ${#kept[@]} -eq 0 ]]; then
+    echo "MAUI_TIZEN_SUITES='$MAUI_TIZEN_SUITES' matched no suite." >&2
+    exit 2
+  fi
+
+  SUITES=("${kept[@]}")
+}
+
+pass() { printf '\033[1;32m  PASS\033[0m %s\n' "$*"; }
+fail() { printf '\033[1;31m  FAIL\033[0m %s\n' "$*"; }
+info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
+
+FAILURES=0
+
+mkdir -p "$RESULTS_DIR"
+
+filter_suites
+
+info "SDK"
+"$DOTNET" --version | sed 's/^/  /'
+
+# The Tizen agent cannot be built for its real TFM anywhere, so it is compiled here against the
+# API15 reference assemblies instead. Building it first means a broken agent fails the lane rather
+# than being reported only by whatever test happens to touch it.
+if [[ -z "${MAUI_TIZEN_SUITES:-}" ]]; then
+info "Compiling the Tizen agent against the API15 reference assemblies"
+if "$DOTNET" build eng/tests/Api15CompileProbe/Api15CompileProbe.csproj -c "$CONFIGURATION" --nologo -v q >/tmp/mt-api15.$$ 2>&1; then
+  pass "API15 compile probe"
+else
+  fail "API15 compile probe"
+  sed 's/^/        /' /tmp/mt-api15.$$ | tail -40
+  FAILURES=$((FAILURES + 1))
+fi
+rm -f /tmp/mt-api15.$$
+fi
+
+info "Building validation suites ($CONFIGURATION)"
+for suite in "${SUITES[@]}"; do
+  if ! "$DOTNET" build "$suite" -c "$CONFIGURATION" --nologo -v q >/tmp/mt-build.$$ 2>&1; then
+    fail "build $(basename "$suite" .csproj)"
+    sed 's/^/        /' /tmp/mt-build.$$ | tail -40
+    FAILURES=$((FAILURES + 1))
+  else
+    pass "build $(basename "$suite" .csproj)"
+  fi
+  rm -f /tmp/mt-build.$$
+done
+
+if [[ $FAILURES -gt 0 ]]; then
+  fail "$FAILURES suite(s) failed to build"
+  exit 1
+fi
+
+info "Running validation suites"
+for suite in "${SUITES[@]}"; do
+  name="$(basename "$suite" .csproj)"
+
+  # Ask MSBuild where the binary is rather than guessing a path. The repository sets a custom
+  # BaseOutputPath (artifacts/bin/<Project>/), so a hard-coded bin/<config>/<tfm> path would break.
+  target_path="$("$DOTNET" msbuild "$suite" -getProperty:TargetPath -p:Configuration="$CONFIGURATION" -v:q 2>/dev/null | tail -1 | tr -d '\r')"
+  binary="${target_path%.dll}"
+
+  if [[ ! -x "$binary" ]]; then
+    fail "$name: no runnable test binary at '$binary'"
+    FAILURES=$((FAILURES + 1))
+    continue
+  fi
+
+  if "$binary" -result-trx "$RESULTS_DIR/$name.trx" >/tmp/mt-test.$$ 2>&1; then
+    executed="$(python3 - "$RESULTS_DIR/$name.trx" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+
+root = ET.parse(sys.argv[1]).getroot()
+counters = next((e for e in root.iter() if e.tag.rsplit('}', 1)[-1] == 'Counters'), None)
+print((counters.attrib if counters is not None else {}).get('executed', '0'))
+PY
+)"
+    if [[ "$executed" =~ ^[0-9]+$ ]] && [[ "$executed" -gt 0 ]]; then
+      pass "$name ($executed tests executed)"
+    else
+      fail "$name: result file reports zero executed tests"
+      FAILURES=$((FAILURES + 1))
+    fi
+    # Surface skips even on success: a suite that quietly skips everything is the failure mode
+    # this whole lane is designed to avoid.
+    grep -E '\[SKIP\]' -A 1 /tmp/mt-test.$$ | sed 's/^/        /' || true
+    grep -E 'Total:' /tmp/mt-test.$$ | sed 's/^/        /' || true
+  else
+    fail "$name"
+    sed 's/^/        /' /tmp/mt-test.$$ | tail -60
+    FAILURES=$((FAILURES + 1))
+  fi
+  rm -f /tmp/mt-test.$$
+done
+
+echo
+if [[ $FAILURES -gt 0 ]]; then
+  fail "$FAILURES validation suite(s) failed"
+  exit 1
+fi
+
+pass "All hosted validation suites passed"
+info "Results: $RESULTS_DIR"

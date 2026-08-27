@@ -1,0 +1,163 @@
+{
+  "$comment": [
+    "Machine-readable inventory of the control catalog.",
+    "",
+    "This is the single source that drives three things that would otherwise drift apart:",
+    "  1. the catalog sample's page list,",
+    "  2. the visual-baseline inventory (which images must exist, per profile/theme/density),",
+    "  3. the lifecycle/input/TV-focus test plan.",
+    "",
+    "Adding a control means adding a case here. Tests in Maui.Tizen.Validation.Tests enforce",
+    "that every case is well-formed and that every checked-in baseline maps back to a case."
+  ],
+
+  "schemaVersion": 1,
+
+  "interactions": {
+    "$comment": "Closed vocabulary; Maui.Tizen.Validation.Tests rejects anything outside it.",
+    "allowed": ["tap", "fill", "scroll", "focus", "select", "toggle", "longpress", "swipe", "remote-navigate"]
+  },
+
+  "cases": [
+    {
+      "id": "button-default",
+      "control": "Button",
+      "category": "core",
+      "description": "Default button with text, exercising the primary tap path.",
+      "profiles": ["mobile", "tv"],
+      "capturesBaseline": true,
+      "interactions": ["tap", "focus"],
+      "focusable": true
+    },
+    {
+      "id": "label-wrapping",
+      "control": "Label",
+      "category": "core",
+      "description": "Multi-line label validating text measurement and wrapping.",
+      "profiles": ["mobile", "tv"],
+      "capturesBaseline": true,
+      "interactions": [],
+      "focusable": false
+    },
+    {
+      "id": "entry-text-input",
+      "control": "Entry",
+      "category": "input",
+      "description": "Single-line entry covering framework fill and native NUI TextField fill.",
+      "profiles": ["mobile"],
+      "capturesBaseline": true,
+      "interactions": ["tap", "fill", "focus"],
+      "focusable": true
+    },
+    {
+      "id": "editor-multiline",
+      "control": "Editor",
+      "category": "input",
+      "description": "Multi-line editor covering NUI TextEditor fill.",
+      "profiles": ["mobile"],
+      "capturesBaseline": true,
+      "interactions": ["tap", "fill", "focus"],
+      "focusable": true
+    },
+    {
+      "id": "switch-toggle",
+      "control": "Switch",
+      "category": "input",
+      "description": "Toggle state changes and their visual states.",
+      "profiles": ["mobile", "tv"],
+      "capturesBaseline": true,
+      "interactions": ["tap", "toggle", "focus"],
+      "focusable": true
+    },
+    {
+      "id": "slider-drag",
+      "control": "Slider",
+      "category": "input",
+      "description": "Value changes via drag, and via remote left/right on TV.",
+      "profiles": ["mobile", "tv"],
+      "capturesBaseline": true,
+      "interactions": ["swipe", "focus", "remote-navigate"],
+      "focusable": true
+    },
+    {
+      "id": "collectionview-vertical",
+      "control": "CollectionView",
+      "category": "collections",
+      "description": "Vertical list covering virtualization and scroll.",
+      "profiles": ["mobile", "tv"],
+      "capturesBaseline": true,
+      "interactions": ["scroll", "select", "focus", "remote-navigate"],
+      "focusable": true
+    },
+    {
+      "id": "carouselview-horizontal",
+      "control": "CarouselView",
+      "category": "collections",
+      "description": "Horizontal carousel covering paging and swipe.",
+      "profiles": ["mobile"],
+      "capturesBaseline": true,
+      "interactions": ["swipe", "scroll"],
+      "focusable": true
+    },
+    {
+      "id": "shell-flyout",
+      "control": "Shell",
+      "category": "navigation",
+      "description": "Shell flyout chrome, registered through NativeElementDiagnosticsBridge because it is platform-owned and absent from the MAUI visual tree.",
+      "profiles": ["mobile"],
+      "capturesBaseline": true,
+      "interactions": ["tap", "focus"],
+      "focusable": true
+    },
+    {
+      "id": "shell-tabs",
+      "control": "Shell",
+      "category": "navigation",
+      "description": "Shell tab bar, also bridged as native chrome.",
+      "profiles": ["mobile", "tv"],
+      "capturesBaseline": true,
+      "interactions": ["tap", "focus", "remote-navigate"],
+      "focusable": true
+    },
+    {
+      "id": "navigationpage-toolbar",
+      "control": "NavigationPage",
+      "category": "navigation",
+      "description": "Toolbar items and back button, bridged as native chrome.",
+      "profiles": ["mobile"],
+      "capturesBaseline": true,
+      "interactions": ["tap"],
+      "focusable": true
+    },
+    {
+      "id": "alert-dialog",
+      "control": "Page.DisplayAlert",
+      "category": "dialogs",
+      "description": "Native dialog, bridged so its buttons are reachable by a driver.",
+      "profiles": ["mobile", "tv"],
+      "capturesBaseline": true,
+      "interactions": ["tap", "focus"],
+      "focusable": true
+    },
+    {
+      "id": "graphicsview-drawing",
+      "control": "GraphicsView",
+      "category": "graphics",
+      "description": "Direct drawing surface validating the Tizen graphics backend.",
+      "profiles": ["mobile", "tv"],
+      "capturesBaseline": true,
+      "interactions": [],
+      "focusable": false
+    },
+    {
+      "id": "tv-focus-grid",
+      "control": "Grid",
+      "category": "tv",
+      "description": "Focus traversal grid for remote D-pad navigation ordering.",
+      "profiles": ["tv"],
+      "capturesBaseline": true,
+      "interactions": ["remote-navigate", "focus"],
+      "focusable": true
+    }
+  ]
+}

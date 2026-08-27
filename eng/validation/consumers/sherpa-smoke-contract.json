@@ -1,0 +1,80 @@
+{
+  "$comment": [
+    "Smoke contract for the MAUI.Sherpa consumer head.",
+    "",
+    "Sherpa is validated as a SEPARATE CONSUMER, not as part of this repository. Nothing in",
+    "Sherpa changes here. This file is the handoff: it states exactly which packages Sherpa",
+    "consumes, from which feed, and what 'working' means, so the Sherpa side can implement the",
+    "head against a fixed contract instead of against a moving target.",
+    "",
+    "Validated for well-formedness by Maui.Tizen.Consumer.Tests. Executed by the Sherpa",
+    "repository's own pipeline once a package feed exists; see docs/validation/sherpa.md."
+  ],
+
+  "schemaVersion": 1,
+
+  "consumer": {
+    "name": "MAUI.Sherpa",
+    "role": "External consumer head. Exercises Maui.Tizen packages the way a real application does, which is the only way to catch packaging and MSBuild problems that a source build cannot see.",
+    "ownedBy": "the MAUI.Sherpa repository",
+    "changesInThisPr": "none"
+  },
+
+  "packageFeed": {
+    "$comment": [
+      "The feed is supplied to the Sherpa pipeline as a parameter, never committed here.",
+      "No credentials, URLs to private infrastructure, or account identifiers belong in this file."
+    ],
+    "kind": "parameter",
+    "parameterName": "MAUI_TIZEN_PACKAGE_FEED",
+    "versionParameterName": "MAUI_TIZEN_PACKAGE_VERSION",
+    "fallback": "When unset, the Sherpa smoke job reports 'not run' rather than failing, because no feed exists until the Samsung workload unblocks packing."
+  },
+
+  "packages": [
+    "Maui.Tizen.Core",
+    "Maui.Tizen.Controls",
+    "Maui.Tizen.Essentials",
+    "Maui.Tizen.Graphics"
+  ],
+
+  "smokeSteps": [
+    {
+      "id": "restore",
+      "description": "Restore the Sherpa Tizen head against the supplied feed.",
+      "mustSucceed": true,
+      "failureMeaning": "Package metadata or dependency graph is wrong; this is a packaging defect, not a Sherpa defect."
+    },
+    {
+      "id": "dependency-policy",
+      "description": "Assert the restored graph violates none of the banned resolutions in eng/validation/profiles/tizen-profiles.json.",
+      "mustSucceed": true,
+      "failureMeaning": "A banned transitive dependency reached a real consumer. Most likely Tizen.UIExtensions pulling MAUI Graphics 6.x."
+    },
+    {
+      "id": "build",
+      "description": "Build the Sherpa Tizen head for the primary target framework.",
+      "mustSucceed": true,
+      "failureMeaning": "buildTransitive targets or assembly references are broken for consumers."
+    },
+    {
+      "id": "tpk",
+      "description": "Produce a TPK.",
+      "mustSucceed": true,
+      "failureMeaning": "Packaging or tizen-manifest.xml generation is broken."
+    },
+    {
+      "id": "launch",
+      "description": "Install and launch on an emulator or device, and confirm the first page renders.",
+      "mustSucceed": true,
+      "requiresDeviceInfrastructure": true,
+      "failureMeaning": "The app builds but does not run: typically a missing runtime dependency that only appears in a packaged app."
+    }
+  ],
+
+  "reportsBackTo": {
+    "mechanism": "commit status on the Maui.Tizen commit that produced the packages",
+    "context": "maui-tizen/sherpa-smoke",
+    "required": "for release only"
+  }
+}

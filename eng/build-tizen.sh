@@ -21,6 +21,7 @@ fi
 # explicitly. The transition regression test rejects a newly added Tizen project that is
 # not added here, including a future sample or package project.
 TIZEN_PROJECTS=(
+  "src/Diagnostics/Maui.Tizen.DevFlow.Agent/Maui.Tizen.DevFlow.Agent.csproj"
   "src/Maui.Tizen.Core/Maui.Tizen.Core.csproj"
   "src/Maui.Tizen.Controls/Maui.Tizen.Controls.csproj"
   "src/Maui.Tizen.Essentials/Maui.Tizen.Essentials.csproj"
