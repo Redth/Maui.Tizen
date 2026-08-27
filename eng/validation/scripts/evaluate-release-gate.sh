@@ -13,11 +13,13 @@
 #                            --release-validation <true|false|empty> \
 #                            --lab-enabled <true|false> \
 #                            --matrix-result <success|failure|cancelled|skipped> \
-#                            --required-profiles "mobile tv" \
+#                            --consumer-result <success|failure|cancelled|skipped> \
+#                            --required-profiles "mobile-mdpi mobile-hdpi mobile-xhdpi tv-fhd tv-uhd" \
 #                            --results-dir <dir>
 #
-# <results-dir> holds one file per profile, named 'device-result-<profile>.txt', written by the
-# device job. Each must contain 'lane_available=true' and 'status=pass'. Reporting through
+# <results-dir> holds one file per required visual target, named
+# 'device-result-<profile>-<density>.txt', written by the device job. Each must contain
+# 'lane_available=true' and 'status=pass'. Reporting through
 # artifacts rather than job outputs is deliberate: matrix job outputs collapse to a single
 # last-writer-wins value, so a passing profile could mask a failing one.
 #
@@ -29,6 +31,7 @@ REQUIRED=false
 RELEASE_VALIDATION=false
 LAB_ENABLED=false
 MATRIX_RESULT=skipped
+CONSUMER_RESULT=skipped
 REQUIRED_PROFILES=""
 RESULTS_DIR=""
 
@@ -38,6 +41,7 @@ while [[ $# -gt 0 ]]; do
     --release-validation) RELEASE_VALIDATION="${2:-}"; shift 2 ;;
     --lab-enabled)       LAB_ENABLED="$2"; shift 2 ;;
     --matrix-result)     MATRIX_RESULT="$2"; shift 2 ;;
+    --consumer-result)   CONSUMER_RESULT="$2"; shift 2 ;;
     --required-profiles) REQUIRED_PROFILES="$2"; shift 2 ;;
     --results-dir)       RESULTS_DIR="$2"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -72,6 +76,11 @@ fi
 # ships with no device validation at all.
 if [[ "$MATRIX_RESULT" != "success" ]]; then
   fail "the device matrix did not succeed (result: $MATRIX_RESULT)."
+  exit 1
+fi
+
+if [[ "$CONSUMER_RESULT" != "success" ]]; then
+  fail "the real-package consumer restore did not succeed on a workload-equipped runner (result: $CONSUMER_RESULT)."
   exit 1
 fi
 

@@ -106,9 +106,21 @@ public sealed class TizenProfile
 
     public IReadOnlyList<string> Densities { get; init; } = [];
 
+    public IReadOnlyDictionary<string, VisualTarget> VisualTargets { get; init; } =
+        new Dictionary<string, VisualTarget>(StringComparer.Ordinal);
+
     public ScreenSize Screen { get; init; } = new();
 
     public EmulatorSettings Emulator { get; init; } = new();
+}
+
+public sealed class VisualTarget
+{
+    public int Width { get; init; }
+
+    public int Height { get; init; }
+
+    public double DisplayDensity { get; init; }
 }
 
 public sealed class ScreenSize

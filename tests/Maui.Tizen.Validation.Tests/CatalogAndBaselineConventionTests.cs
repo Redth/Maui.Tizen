@@ -29,6 +29,16 @@ public partial class CatalogAndBaselineConventionTests
             Assert.False(string.IsNullOrWhiteSpace(profile.DisplayName), $"Profile '{profile.Id}' has no display name.");
             Assert.NotEmpty(profile.Themes);
             Assert.NotEmpty(profile.Densities);
+            Assert.Equal(
+                profile.Densities.OrderBy(d => d, StringComparer.Ordinal),
+                profile.VisualTargets.Keys.OrderBy(d => d, StringComparer.Ordinal));
+            Assert.All(
+                profile.VisualTargets,
+                target =>
+                {
+                    Assert.True(target.Value.Width > 0 && target.Value.Height > 0);
+                    Assert.True(target.Value.DisplayDensity > 0);
+                });
             Assert.NotEmpty(profile.InputMethods);
 
             Assert.Contains(

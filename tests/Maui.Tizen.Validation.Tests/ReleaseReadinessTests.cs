@@ -129,21 +129,25 @@ public partial class ReleaseReadinessTests
 
         foreach (var profile in TizenProfiles.ReleaseGatingProfiles)
         {
-            var path = Path.Combine(DeviceResultsDirectory, $"device-result-{profile.Id}.txt");
+            foreach (var density in profile.Densities)
+            {
+                var target = $"{profile.Id}-{density}";
+                var path = Path.Combine(DeviceResultsDirectory, $"device-result-{target}.txt");
 
-            Assert.True(
-                File.Exists(path),
-                $"Profile '{profile.Id}' gates a release but produced no device result file.");
+                Assert.True(
+                    File.Exists(path),
+                    $"Visual target '{target}' gates a release but produced no device result file.");
 
-            var content = File.ReadAllText(path);
+                var content = File.ReadAllText(path);
 
-            Assert.True(
-                content.Contains("lane_available=true", StringComparison.Ordinal),
-                $"Profile '{profile.Id}' did not run on hardware:{Environment.NewLine}{content}");
+                Assert.True(
+                    content.Contains("lane_available=true", StringComparison.Ordinal),
+                    $"Visual target '{target}' did not run on hardware:{Environment.NewLine}{content}");
 
-            Assert.True(
-                content.Contains("status=pass", StringComparison.Ordinal),
-                $"Profile '{profile.Id}' did not pass:{Environment.NewLine}{content}");
+                Assert.True(
+                    content.Contains("status=pass", StringComparison.Ordinal),
+                    $"Visual target '{target}' did not pass:{Environment.NewLine}{content}");
+            }
         }
     }
 

@@ -28,8 +28,9 @@ Environment-specific values arrive at runtime:
 | Variable | Purpose |
 |---|---|
 | `TIZEN_PROFILE` | `mobile` or `tv` |
-| `TIZEN_MOBILE_SERIAL` / `TIZEN_TV_SERIAL` | `sdb` serial per profile. The matrix binds each profile to an explicit serial: a runner label says which *machine* to use, not which of several attached targets to drive, so a `tv` job could otherwise silently run against a handset. |
-| `TIZEN_DEVICE_SERIAL` | Serial used by a manual invocation of the script |
+| `TIZEN_DEVICE_SERIAL` | `sdb` serial for the current profile+density target |
+| `TIZEN_REQUIRED_SERIALS` | Comma-separated serials for all five required visual targets. They must be distinct and connected. |
+| `TIZEN_DENSITY` | Current declared visual target (`mdpi`, `hdpi`, `xhdpi`, `fhd`, or `uhd`) |
 | `TIZEN_DEVICE_IMAGE` | Recorded in capture sidecars; must name an image, never a machine |
 | `TIZEN_TFM` | Target framework; defaults to `eng/baselines.json > target.targetFramework` |
 | `DEVFLOW_HOST_PORT` / `DEVFLOW_DEVICE_PORT` | Tunnel ports, default `9223` |
@@ -53,7 +54,9 @@ repository variable.
 |---|---|
 | `TIZEN_CATALOG_PROJECT` | Path to the application under test. **Unset today**, so the device job reports no application and a release is blocked rather than passing vacuously. There is deliberately no hard-coded path: a workflow step that builds a non-existent project looks plausible for as long as the job never runs. |
 | `TIZEN_CATALOG_APP_ID` | Tizen application id, for launch and lifecycle. |
-| `TIZEN_HOME_APP_ID` | Home application id, used to background the app under test. Profile-specific, so it has no default. |
+| `TIZEN_MOBILE_HOME_APP_ID` / `TIZEN_TV_HOME_APP_ID` | Profile-specific home application ids used to background the app under test. |
+| `TIZEN_MOBILE_MDPI_SERIAL` / `TIZEN_MOBILE_HDPI_SERIAL` / `TIZEN_MOBILE_XHDPI_SERIAL` | Separately configured mobile targets for each declared density. |
+| `TIZEN_TV_FHD_SERIAL` / `TIZEN_TV_UHD_SERIAL` | Separately configured TV targets for each declared resolution. |
 
 Verify with:
 
@@ -123,8 +126,10 @@ baseline rather than being matched by guesswork. It then runs the comparison
 uploads screenshots and diffs whatever the outcome: on failure they are the evidence, on success
 they are what a reviewer needs to approve an intentional visual change.
 
-Theme and density describe how the *device* is configured, so they come from `TIZEN_THEME` and
-`TIZEN_DENSITY`, defaulting to the first entry in the profile matrix.
+Theme is applied through DevFlow. Density/resolution is not relabelled in a loop: the workflow has
+five separately configured targets and verifies `device.windowWidth`, `device.windowHeight`, and
+`device.displayDensity` from the serialized `/agent/status` payload against the corresponding
+`visualTargets` entry in `tizen-profiles.json` before capture.
 
 All DevFlow calls use `curl --fail`. Without it curl exits 0 on a 4xx/5xx and writes the error body
 to the output file, so a `501` would be saved as a `.png` and the capture step would report success.
@@ -152,9 +157,10 @@ re-attach their renderer, because the process survives and the surface does not.
 Three things are asserted after resume, because each fails independently:
 
 1. the process is still running after backgrounding (a terminated app is a lifecycle failure);
-2. the agent responds and the visual tree is non-empty (handlers re-attached - an app can answer
+2. `app.processId` is identical before and after the cycle (persistent preferences cannot distinguish
+   a cold restart);
+3. the agent responds and the visual tree is non-empty (handlers re-attached - an app can answer
    `/agent/status` with a detached renderer);
-3. a marker written before backgrounding survives (proving this was a resume, not a cold start).
 
 ## On-device assertions run on the device
 

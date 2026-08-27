@@ -30,7 +30,8 @@ public class ReleaseGateTests
         string requiredProfiles,
         string resultsDirectory,
         string? releaseValidation = null,
-        string? githubOutput = null)
+        string? githubOutput = null,
+        string consumerResult = "success")
     {
         var psi = new ProcessStartInfo("bash")
         {
@@ -49,6 +50,8 @@ public class ReleaseGateTests
         psi.ArgumentList.Add(labEnabled);
         psi.ArgumentList.Add("--matrix-result");
         psi.ArgumentList.Add(matrixResult);
+        psi.ArgumentList.Add("--consumer-result");
+        psi.ArgumentList.Add(consumerResult);
         psi.ArgumentList.Add("--required-profiles");
         psi.ArgumentList.Add(requiredProfiles);
         psi.ArgumentList.Add("--results-dir");
@@ -169,6 +172,23 @@ public class ReleaseGateTests
         Assert.Contains(matrixResult, output, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("skipped")]
+    [InlineData("failure")]
+    [InlineData("cancelled")]
+    public void Release_IsBlockedWhenRealPackageConsumerRestoreDidNotSucceed(string consumerResult)
+    {
+        using var workspace = TempWorkspace.Create("gate-consumer");
+        WriteResult(workspace, "mobile", laneAvailable: "true", status: "pass");
+
+        var (exitCode, output) = Evaluate(
+            "true", "true", "success", "mobile", workspace.Path, consumerResult: consumerResult);
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("real-package consumer restore", output, StringComparison.Ordinal);
+        Assert.Contains(consumerResult, output, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Release_IsBlockedWhenNoLabIsAttached()
     {
@@ -286,5 +306,10 @@ public class ReleaseGateTests
         var expected = TizenProfiles.ReleaseGatingProfiles.Select(p => p.Id).OrderBy(p => p, StringComparer.Ordinal);
 
         Assert.Equal(["mobile", "tv"], expected);
+
+        var requiredTargets = TizenProfiles.ReleaseGatingProfiles
+            .SelectMany(p => p.Densities.Select(d => $"{p.Id}-{d}"))
+            .OrderBy(p => p, StringComparer.Ordinal);
+        Assert.Equal(["mobile-hdpi", "mobile-mdpi", "mobile-xhdpi", "tv-fhd", "tv-uhd"], requiredTargets);
     }
 }

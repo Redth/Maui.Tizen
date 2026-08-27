@@ -212,11 +212,17 @@ public class ConsumerRestoreTests
             .Where(id => NuPkg.FindPackagePaths(packagesDirectory, id).Count > 0)
             .ToList();
 
+        var completePackageSet = produced.Count == declared.Count && declared.Count > 0;
         ValidationSkip.When(
-            produced.Count != declared.Count || declared.Count == 0,
+            !completePackageSet &&
+            Environment.GetEnvironmentVariable("MAUI_TIZEN_RELEASE_VALIDATION") != "1",
             $"Only {produced.Count} of {declared.Count} declared shipping package(s) have been " +
             "produced. A consumer restore needs the full set, and they cannot be packed until the " +
             "Samsung workload is available; see docs/validation/blockers.md.");
+        Assert.True(
+            completePackageSet,
+            $"Release validation requires every declared shipping package, but only {produced.Count} " +
+            $"of {declared.Count} were downloaded.");
 
         using var workspace = TempWorkspace.Create("consumer-real");
         WriteIsolation(workspace);

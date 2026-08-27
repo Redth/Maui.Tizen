@@ -96,7 +96,10 @@ jobs:
           required_profiles="$(python3 -c "
           import json
           m = json.load(open('eng/validation/profiles/tizen-profiles.json'))
-          print(' '.join(p['id'] for p in m['profiles'] if p.get('gatesRelease')))
+          print(' '.join(
+              f\"{p['id']}-{density}\"
+              for p in m['profiles'] if p.get('gatesRelease')
+              for density in p['densities']))
           ")"
 
           {
@@ -118,7 +121,7 @@ jobs:
   # that drives the baseline layout and the catalog test plan.
   # ---------------------------------------------------------------------------
   device-matrix:
-    name: ${{ matrix.profile }} / ${{ matrix.tfm }}
+    name: ${{ matrix.profile }} / ${{ matrix.density }} / ${{ matrix.tfm }}
     needs: availability
     if: needs.availability.outputs.enabled == 'true'
     runs-on: [self-hosted, tizen]
@@ -131,24 +134,46 @@ jobs:
       max-parallel: 1
       matrix:
         include:
-          # Each profile is bound to an explicit device serial, not just a runner label. A label
-          # alone says which machine to use, not which of several attached targets to drive - so a
-          # tv job could silently run against a handset.
+          # Each density/resolution is a separately configured target. A single unchanged device
+          # must never be captured repeatedly and relabelled as several visual variants.
           - profile: mobile
+            density: mdpi
             tfm: net11.0-tizen11.0
-            serial_var: TIZEN_MOBILE_SERIAL
+            serial_var: TIZEN_MOBILE_MDPI_SERIAL
+            home_app_var: TIZEN_MOBILE_HOME_APP_ID
             host_port: 9223
-          - profile: tv
+          - profile: mobile
+            density: hdpi
             tfm: net11.0-tizen11.0
-            serial_var: TIZEN_TV_SERIAL
+            serial_var: TIZEN_MOBILE_HDPI_SERIAL
+            home_app_var: TIZEN_MOBILE_HOME_APP_ID
             host_port: 9224
+          - profile: mobile
+            density: xhdpi
+            tfm: net11.0-tizen11.0
+            serial_var: TIZEN_MOBILE_XHDPI_SERIAL
+            home_app_var: TIZEN_MOBILE_HOME_APP_ID
+            host_port: 9225
+            packages: true
+          - profile: tv
+            density: fhd
+            tfm: net11.0-tizen11.0
+            serial_var: TIZEN_TV_FHD_SERIAL
+            home_app_var: TIZEN_TV_HOME_APP_ID
+            host_port: 9226
+          - profile: tv
+            density: uhd
+            tfm: net11.0-tizen11.0
+            serial_var: TIZEN_TV_UHD_SERIAL
+            home_app_var: TIZEN_TV_HOME_APP_ID
+            host_port: 9227
     env:
       TIZEN_PROFILE: ${{ matrix.profile }}
+      TIZEN_DENSITY: ${{ matrix.density }}
       TIZEN_TFM: ${{ matrix.tfm }}
-      RESULT_FILE: artifacts/device-results/device-result-${{ matrix.profile }}.txt
+      RESULT_FILE: artifacts/device-results/device-result-${{ matrix.profile }}-${{ matrix.density }}.txt
       TIZEN_DEVICE_SERIAL: ${{ vars[matrix.serial_var] }}
-      TIZEN_MOBILE_SERIAL: ${{ vars.TIZEN_MOBILE_SERIAL }}
-      TIZEN_TV_SERIAL: ${{ vars.TIZEN_TV_SERIAL }}
+      TIZEN_REQUIRED_SERIALS: ${{ vars.TIZEN_MOBILE_MDPI_SERIAL }},${{ vars.TIZEN_MOBILE_HDPI_SERIAL }},${{ vars.TIZEN_MOBILE_XHDPI_SERIAL }},${{ vars.TIZEN_TV_FHD_SERIAL }},${{ vars.TIZEN_TV_UHD_SERIAL }}
       # Distinct host ports so a leaked forward from one profile cannot capture the other's traffic.
       DEVFLOW_HOST_PORT: ${{ matrix.host_port }}
     steps:
@@ -165,7 +190,8 @@ jobs:
           mkdir -p artifacts/device-results
           # Written up front and overwritten on success, so a job that dies mid-way still leaves
           # a record that says it did not pass.
-          printf 'profile=%s\nlane_available=false\nstatus=incomplete\n' "${{ matrix.profile }}" > "$RESULT_FILE"
+          printf 'profile=%s\ndensity=%s\nlane_available=false\nstatus=incomplete\n' \
+            "${{ matrix.profile }}" "${{ matrix.density }}" > "$RESULT_FILE"
 
       - name: Preflight
         id: preflight
@@ -174,8 +200,9 @@ jobs:
       - name: Record lane availability
         run: |
           set -euo pipefail
-          printf 'profile=%s\nlane_available=%s\nstatus=%s\n' \
+          printf 'profile=%s\ndensity=%s\nlane_available=%s\nstatus=%s\n' \
             "${{ matrix.profile }}" \
+            "${{ matrix.density }}" \
             "${{ steps.preflight.outputs.lane_available }}" \
             "$([ "${{ steps.preflight.outputs.lane_available }}" = "true" ] && echo running || echo skipped)" \
             > "$RESULT_FILE"
@@ -204,8 +231,8 @@ jobs:
 
           if [ -z "$project" ] || [ ! -f "$project" ]; then
             echo "available=false" >> "$GITHUB_OUTPUT"
-            printf 'profile=%s\nlane_available=false\nstatus=skipped\nreason=no_app\n' \
-              "${{ matrix.profile }}" > "$RESULT_FILE"
+            printf 'profile=%s\ndensity=%s\nlane_available=false\nstatus=skipped\nreason=no_app\n' \
+              "${{ matrix.profile }}" "${{ matrix.density }}" > "$RESULT_FILE"
             echo "::warning::No application under test. Set the TIZEN_CATALOG_PROJECT repository"
             echo "::warning::variable to a real project path once the catalog application exists."
             exit 0
@@ -228,7 +255,7 @@ jobs:
       # Shipping packages can only be produced where the workload exists, and the release gates
       # in ReleaseReadinessTests require them to exist.
       - name: Pack the shipping packages
-        if: needs.availability.outputs.required == 'true' && steps.preflight.outputs.lane_available == 'true'
+        if: needs.availability.outputs.required == 'true' && steps.preflight.outputs.lane_available == 'true' && matrix.packages == true
         run: ./eng/validation/scripts/tizen-device-lane.sh pack
 
       # Installing does not start anything. The previous version installed, forwarded and then
@@ -248,6 +275,7 @@ jobs:
           ./eng/validation/scripts/tizen-device-lane.sh wait-for-agent
           ./eng/validation/scripts/tizen-device-lane.sh agent-status
           ./eng/validation/scripts/tizen-device-lane.sh verify-device-profile
+          ./eng/validation/scripts/tizen-device-lane.sh verify-visual-target
 
       # -------------------------------------------------------------------------------------
       # On-device assertions.
@@ -265,7 +293,7 @@ jobs:
         if: steps.app.outputs.available == 'true'
         env:
           APP_ID: ${{ vars.TIZEN_CATALOG_APP_ID }}
-          HOME_APP_ID: ${{ vars.TIZEN_HOME_APP_ID }}
+          HOME_APP_ID: ${{ vars[matrix.home_app_var] }}
         run: ./eng/validation/scripts/tizen-device-lane.sh lifecycle
 
       - name: TV remote focus traversal
@@ -284,7 +312,8 @@ jobs:
         run: |
           set -euo pipefail
           status="$([ "${{ job.status }}" = "success" ] && echo pass || echo fail)"
-          printf 'profile=%s\nlane_available=true\nstatus=%s\n' "${{ matrix.profile }}" "$status" > "$RESULT_FILE"
+          printf 'profile=%s\ndensity=%s\nlane_available=true\nstatus=%s\n' \
+            "${{ matrix.profile }}" "${{ matrix.density }}" "$status" > "$RESULT_FILE"
 
       - name: Always tear the tunnel down
         if: always()
@@ -294,7 +323,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: device-result-${{ matrix.profile }}
+          name: device-result-${{ matrix.profile }}-${{ matrix.density }}
           path: artifacts/device-results/
           if-no-files-found: error
 
@@ -304,7 +333,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: device-diagnostics-${{ matrix.profile }}-${{ matrix.tfm }}
+          name: device-diagnostics-${{ matrix.profile }}-${{ matrix.density }}-${{ matrix.tfm }}
           path: |
             artifacts/test-results/
             artifacts/visual-diffs/
@@ -313,19 +342,53 @@ jobs:
 
       # Packages are uploaded separately so release-gate can download only what it needs.
       - name: Upload shipping packages
-        if: always() && needs.availability.outputs.required == 'true'
+        if: always() && needs.availability.outputs.required == 'true' && matrix.packages == true
         uses: actions/upload-artifact@v4
         with:
-          name: shipping-packages-${{ matrix.profile }}
+          name: shipping-packages
           path: artifacts/packages/
           if-no-files-found: ignore
+
+  package-consumer:
+    name: Restore real packages on Tizen workload
+    needs: [availability, device-matrix]
+    if: always() && needs.availability.outputs.required == 'true' && needs.availability.outputs.enabled == 'true'
+    runs-on: [self-hosted, tizen]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Require the Samsung workload
+        run: |
+          set -euo pipefail
+          if ! dotnet workload list | grep -qiE '^\s*tizen\b'; then
+            echo "::error::The real-package consumer restore requires the Samsung Tizen workload."
+            exit 1
+          fi
+
+      - name: Download shipping packages
+        uses: actions/download-artifact@v4
+        with:
+          name: shipping-packages
+          path: artifacts/packages
+
+      - name: Restore the real package consumer
+        env:
+          MAUI_TIZEN_RELEASE_VALIDATION: '1'
+          MAUI_TIZEN_SUITES: Maui.Tizen.Consumer.Tests
+        run: ./eng/validation/run-hosted-validation.sh
 
   # ---------------------------------------------------------------------------
   # The gate. Point branch protection at this job for release branches.
   # ---------------------------------------------------------------------------
   release-gate:
     name: Device lane release gate
-    needs: [availability, device-matrix]
+    needs: [availability, device-matrix, package-consumer]
     if: always()
     runs-on: ubuntu-latest
     # The approval belongs on the job that actually decides, not on the job that runs the tests.
@@ -349,8 +412,7 @@ jobs:
         if: needs.availability.outputs.required == 'true'
         uses: actions/download-artifact@v4
         with:
-          pattern: shipping-packages-*
-          merge-multiple: true
+          name: shipping-packages
           path: artifacts/packages
         continue-on-error: true
 
@@ -369,6 +431,9 @@ jobs:
         if: needs.availability.outputs.required == 'true'
         env:
           MAUI_TIZEN_RELEASE_VALIDATION: '1'
+          MAUI_TIZEN_SUITES: >-
+            Maui.Tizen.Validation.Tests Maui.Tizen.Build.Tests
+            Maui.Tizen.Conventions.Tests Maui.Tizen.DevFlow.Tests
         run: ./eng/validation/run-hosted-validation.sh
 
       - name: Evaluate
@@ -382,6 +447,7 @@ jobs:
             --release-validation "${{ inputs.release_validation }}" \
             --lab-enabled "${{ needs.availability.outputs.enabled }}" \
             --matrix-result "${{ needs.device-matrix.result }}" \
+            --consumer-result "${{ needs.package-consumer.result }}" \
             --required-profiles "${{ needs.availability.outputs.required_profiles }}" \
             --results-dir artifacts/device-results | tee gate.log
 

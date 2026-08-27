@@ -95,7 +95,9 @@ the gate can only block what actually calls it.
 | `TIZEN_DEVICE_LAB_ENABLED` | `true` when a `tizen`-labelled runner is registered |
 | `TIZEN_CATALOG_PROJECT` | Path to the application under test. Unset today, so a release is blocked rather than passing vacuously. |
 | `TIZEN_CATALOG_APP_ID` | Application id used to launch and for the lifecycle harness |
-| `TIZEN_HOME_APP_ID` | Home application id, used to background the app under test |
+| `TIZEN_MOBILE_HOME_APP_ID` / `TIZEN_TV_HOME_APP_ID` | Profile-specific home application ids used to background the app under test |
+| `TIZEN_MOBILE_MDPI_SERIAL` / `TIZEN_MOBILE_HDPI_SERIAL` / `TIZEN_MOBILE_XHDPI_SERIAL` | Distinct mobile targets with the declared effective metrics |
+| `TIZEN_TV_FHD_SERIAL` / `TIZEN_TV_UHD_SERIAL` | Distinct TV targets with the declared effective resolution |
 
 Variables, not secrets — none of these are sensitive, and using secrets would make them invisible in
 logs where they are useful for diagnosis.

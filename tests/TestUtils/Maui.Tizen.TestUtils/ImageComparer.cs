@@ -22,7 +22,40 @@ public static class ImageComparer
         {
             return ImageComparisonResult.SizeMismatch(
                 (expected.Width, expected.Height),
-                (actual.Width, actual.Height));
+                (actual.Width, actual.Height),
+                CreateSizeMismatchDiff(expected, actual));
+        }
+
+        static PngImage CreateSizeMismatchDiff(PngImage expected, PngImage actual)
+        {
+            var width = Math.Max(expected.Width, actual.Width);
+            var height = Math.Max(expected.Height, actual.Height);
+            var diff = new PngImage(width, height, new byte[width * height * 4]);
+
+            for (var y = 0; y < height; y++)
+            {
+                for (var x = 0; x < width; x++)
+                {
+                    if (x >= expected.Width || y >= expected.Height || x >= actual.Width || y >= actual.Height)
+                    {
+                        diff.SetPixel(x, y, 255, 0, 255, 255);
+                        continue;
+                    }
+
+                    var e = expected.GetPixel(x, y);
+                    var a = actual.GetPixel(x, y);
+                    if (e != a)
+                    {
+                        diff.SetPixel(x, y, 255, 0, 255, 255);
+                        continue;
+                    }
+
+                    var dim = (byte)(((e.R + e.G + e.B) / 3) / 4);
+                    diff.SetPixel(x, y, dim, dim, dim, 255);
+                }
+            }
+
+            return diff;
         }
 
         var totalPixels = expected.Width * expected.Height;
@@ -101,7 +134,7 @@ public static class ImageComparer
     }
 }
 
-/// <param name="Diff">Diff mask, or <see langword="null"/> when sizes did not match.</param>
+/// <param name="Diff">Diff mask on a canvas large enough to contain both images.</param>
 public sealed record ImageComparisonResult(
     bool Passed,
     string? SizeMismatchDescription,
@@ -112,11 +145,14 @@ public sealed record ImageComparisonResult(
     (int X, int Y)? FirstDifference,
     PngImage? Diff)
 {
-    internal static ImageComparisonResult SizeMismatch((int Width, int Height) expected, (int Width, int Height) actual) =>
+    internal static ImageComparisonResult SizeMismatch(
+        (int Width, int Height) expected,
+        (int Width, int Height) actual,
+        PngImage diff) =>
         new(
             false,
             $"expected {expected.Width}x{expected.Height} but captured {actual.Width}x{actual.Height}",
-            0, 0, 0, 0, null, null);
+            0, 0, 0, 0, null, diff);
 
     /// <summary>Failure text naming the tolerance that was exceeded and where.</summary>
     public string Describe(string caseName)

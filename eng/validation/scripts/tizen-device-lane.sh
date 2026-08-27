@@ -21,7 +21,9 @@
 # ENVIRONMENT
 #
 #   TIZEN_PROFILE        mobile | tv                       (default: mobile)
-#   TIZEN_DEVICE_SERIAL  sdb serial; empty = sole target    (default: empty)
+#   TIZEN_DEVICE_SERIAL  sdb serial for this visual target   (default: empty)
+#   TIZEN_REQUIRED_SERIALS comma-separated serials for every required visual target
+#   TIZEN_DENSITY        declared visual target id           (for example: xhdpi)
 #   TIZEN_DEVICE_IMAGE   device/emulator image identifier   (default: unspecified)
 #   TIZEN_TFM            target framework                   (default: from eng/baselines.json)
 #   DEVFLOW_HOST_PORT    host side of the sdb tunnel        (default: 9223)
@@ -113,30 +115,35 @@ cmd_preflight() {
     gate "Tizen Studio tooling is missing (need both 'sdb' and 'tizen' on PATH)."
   fi
 
-  # 3. Both release profiles must be explicitly bound to distinct connected targets. Checking only
-  # the current matrix serial lets two jobs accidentally validate the same handset.
-  local mobile_serial="${TIZEN_MOBILE_SERIAL:-}"
-  local tv_serial="${TIZEN_TV_SERIAL:-}"
-  local expected_serial=""
-  [[ "$TIZEN_PROFILE" == "mobile" ]] && expected_serial="$mobile_serial"
-  [[ "$TIZEN_PROFILE" == "tv" ]] && expected_serial="$tv_serial"
+  # 3. Every declared density/resolution is bound to a distinct target. Reusing one serial while
+  # only relabelling output would manufacture several baseline variants from one unchanged device.
+  local required_serials="${TIZEN_REQUIRED_SERIALS:-}"
+  local serial_count unique_serial_count
+  serial_count="$(printf '%s\n' "$required_serials" | tr ',' '\n' | sed '/^$/d' | wc -l | tr -d ' ')"
+  unique_serial_count="$(printf '%s\n' "$required_serials" | tr ',' '\n' | sed '/^$/d' | sort -u | wc -l | tr -d ' ')"
 
-  if [[ -z "$mobile_serial" || -z "$tv_serial" ]]; then
-    gate "Both TIZEN_MOBILE_SERIAL and TIZEN_TV_SERIAL must be configured."
-  elif [[ "$mobile_serial" == "$tv_serial" ]]; then
-    gate "TIZEN_MOBILE_SERIAL and TIZEN_TV_SERIAL must identify distinct targets."
-  elif [[ "$TIZEN_DEVICE_SERIAL" != "$expected_serial" ]]; then
-    gate "TIZEN_DEVICE_SERIAL does not match the configured '$TIZEN_PROFILE' target."
+  if [[ -z "$TIZEN_DEVICE_SERIAL" || -z "$required_serials" ]]; then
+    gate "TIZEN_DEVICE_SERIAL and TIZEN_REQUIRED_SERIALS must be configured."
+  elif [[ "$serial_count" -eq 0 || "$serial_count" -ne "$unique_serial_count" ]]; then
+    gate "Every required density/resolution must identify a distinct target."
+  elif ! printf '%s\n' "$required_serials" | tr ',' '\n' | grep -Fxq "$TIZEN_DEVICE_SERIAL"; then
+    gate "TIZEN_DEVICE_SERIAL is not one of the configured required visual targets."
   elif [[ "$tools_ok" == true ]]; then
     local devices
     devices="$(sdb devices 2>/dev/null || true)"
-    if printf '%s\n' "$devices" | awk -v serial="$mobile_serial" '$1 == serial && $2 == "device" { found=1 } END { exit !found }' &&
-       printf '%s\n' "$devices" | awk -v serial="$tv_serial" '$1 == serial && $2 == "device" { found=1 } END { exit !found }'; then
+    local missing_serial=false serial
+    while IFS= read -r serial; do
+      [[ -z "$serial" ]] && continue
+      if ! printf '%s\n' "$devices" | awk -v serial="$serial" '$1 == serial && $2 == "device" { found=1 } END { exit !found }'; then
+        gate "Configured target '$serial' is not connected with state 'device'."
+        missing_serial=true
+      fi
+    done < <(printf '%s\n' "$required_serials" | tr ',' '\n')
+
+    if [[ "$missing_serial" == false ]]; then
       device_ok=true
-      pass "Distinct mobile and TV targets are connected"
+      pass "All distinct density/resolution targets are connected"
       printf '%s\n' "$devices" | sed 's/^/        /'
-    else
-      gate "Both configured Tizen targets must be connected with state 'device'."
     fi
   fi
 
@@ -246,9 +253,13 @@ list_baseline_variants() {
 import json
 m = json.load(open('$REPO_ROOT/eng/validation/profiles/tizen-profiles.json'))
 profile = next(p for p in m['profiles'] if p['id'] == '$TIZEN_PROFILE')
+density_filter = '${TIZEN_DENSITY:-}'
+if density_filter and density_filter not in profile['densities']:
+    raise SystemExit(f\"density '{density_filter}' is not declared for profile '$TIZEN_PROFILE'\")
 for theme in profile['themes']:
     for density in profile['densities']:
-        print(f'{theme} {density}')
+        if not density_filter or density == density_filter:
+            print(f'{theme} {density}')
 "
 }
 
@@ -316,7 +327,7 @@ cmd_verify_device_profile() {
 import json,sys
 d=json.load(sys.stdin)
 device=d.get('device') or {}
-platform=str((d.get('agent') or {}).get('platform', d.get('platform', ''))).lower()
+platform=str(device.get('platform', '')).lower()
 actual_type=str(device.get('deviceType', '')).lower()
 actual_idiom=str(device.get('idiom', '')).lower()
 expected_profile='$TIZEN_PROFILE'
@@ -332,6 +343,43 @@ if platform != 'tizen' or actual_type != expected_profile or actual_idiom != exp
   fi
 
   pass "Connected target identity matches '$TIZEN_PROFILE'"
+}
+
+cmd_verify_visual_target() {
+  local expected_density="${TIZEN_DENSITY:?TIZEN_DENSITY must identify the configured visual target}"
+  local target
+  target="$(python3 -c "
+import json
+m=json.load(open('$REPO_ROOT/eng/validation/profiles/tizen-profiles.json'))
+p=next(p for p in m['profiles'] if p['id'] == '$TIZEN_PROFILE')
+t=p.get('visualTargets', {}).get('$expected_density')
+if not t:
+    raise SystemExit(\"no visual target metrics for $TIZEN_PROFILE/$expected_density\")
+print(t['width'], t['height'], t['displayDensity'])
+")"
+  local expected_width expected_height expected_display_density
+  read -r expected_width expected_height expected_display_density <<< "$target"
+
+  if ! devflow "agent/status" | python3 -c "
+import json,math,sys
+d=json.load(sys.stdin)
+device=d.get('device') or {}
+actual_width=float(device.get('windowWidth', 0))
+actual_height=float(device.get('windowHeight', 0))
+actual_density=float(device.get('displayDensity', 0))
+expected_width=float('$expected_width')
+expected_height=float('$expected_height')
+expected_density=float('$expected_display_density')
+if (actual_width, actual_height) != (expected_width, expected_height) or not math.isclose(actual_density, expected_density, rel_tol=0, abs_tol=0.01):
+    print(f\"visual target '$expected_density' expected {expected_width:g}x{expected_height:g} at density {expected_density:g}; \"
+          f\"got {actual_width:g}x{actual_height:g} at density {actual_density:g}\", file=sys.stderr)
+    raise SystemExit(1)
+"; then
+    fail "The connected target does not match visual configuration '$expected_density'."
+    exit 1
+  fi
+
+  pass "Visual target '$expected_density' has the required effective metrics"
 }
 
 # ---------------------------------------------------------------------------
@@ -421,12 +469,15 @@ cmd_lifecycle() {
   sleep 3
   cmd_agent_status >/dev/null
 
-  # Write a marker into the running app so resume can be distinguished from a cold start:
-  # a restarted process would have lost it.
-  local marker="lifecycle-$(date +%s)"
-  devflow "storage/preferences/devflow.lifecycle.marker" -X PUT \
-    -H 'Content-Type: application/json' \
-    -d "{\"value\":\"$marker\",\"type\":\"string\"}" >/dev/null
+  local before_pid
+  before_pid="$(devflow "agent/status" | python3 -c "
+import json,sys
+print((json.load(sys.stdin).get('app') or {}).get('processId', ''))
+")"
+  if [[ -z "$before_pid" ]]; then
+    fail "agent/status did not report app.processId before backgrounding."
+    exit 1
+  fi
 
   info "Backgrounding via $home"
   sdb_cmd shell app_launcher -s "$home"
@@ -468,22 +519,22 @@ print(len(roots))
   fi
   pass "Visual tree re-attached after resume ($elements root element(s))"
 
-  local restored
-  restored="$(devflow "storage/preferences/devflow.lifecycle.marker" | python3 -c "
+  local after_pid
+  after_pid="$(devflow "agent/status" | python3 -c "
 import json,sys
-try:
-    print(json.load(sys.stdin).get('value',''))
-except Exception:
-    print('')
+print((json.load(sys.stdin).get('app') or {}).get('processId', ''))
 ")"
 
-  if [[ "$restored" == "$marker" ]]; then
-    pass "In-process state survived the cycle (this was a resume, not a cold start)"
-  else
-    fail "State did not survive: expected '$marker', got '${restored:-<empty>}'."
-    fail "  The app was restarted rather than resumed, so suspend/resume was not exercised."
+  if [[ -z "$after_pid" ]]; then
+    fail "agent/status did not report app.processId after foregrounding."
+    exit 1
+  elif [[ "$after_pid" != "$before_pid" ]]; then
+    fail "Process changed across the lifecycle cycle: before=$before_pid after=$after_pid."
+    fail "  The app cold-started instead of resuming in process."
     exit 1
   fi
+
+  pass "Process $before_pid survived the cycle (resume, not cold start)"
 }
 
 # ---------------------------------------------------------------------------
@@ -670,6 +721,7 @@ print(' '.join(c['id'] for c in m['cases'] if c.get('capturesBaseline') and '$TI
 
   claim_mutation_lease
   trap release_mutation_lease EXIT
+  cmd_verify_visual_target
 
   local theme density out id capture_count=0 variant_count=0
   while read -r theme density; do
@@ -739,6 +791,7 @@ case "${1:-}" in
   wait-for-agent)  shift; cmd_wait_for_agent "$@" ;;
   agent-status)    shift; cmd_agent_status "$@" ;;
   verify-device-profile) shift; cmd_verify_device_profile "$@" ;;
+  verify-visual-target) shift; cmd_verify_visual_target "$@" ;;
   list-baseline-variants) shift; list_baseline_variants "$@" ;;
   remote-focus) shift; cmd_remote_focus "$@" ;;
   lifecycle)    shift; cmd_lifecycle "$@" ;;

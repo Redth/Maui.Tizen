@@ -72,6 +72,10 @@ public class ImageComparisonTests
 
         Assert.False(result.Passed);
         Assert.Contains("4x5", result.Describe("size"), StringComparison.Ordinal);
+        Assert.NotNull(result.Diff);
+        Assert.Equal(4, result.Diff.Width);
+        Assert.Equal(5, result.Diff.Height);
+        Assert.Equal((255, 0, 255, 255), result.Diff.GetPixel(0, 4));
     }
 
     [Fact]
@@ -150,5 +154,27 @@ public class ImageComparisonTests
         // The diff must itself be a valid PNG so CI can attach and render it.
         var diff = PngImage.Load(Path.Combine(directory, "diff.png"));
         Assert.Equal((255, 0, 255, 255), diff.GetPixel(1, 1));
+    }
+
+    [Fact]
+    public void WriteFailureArtifacts_DimensionMismatchProducesAllThreeImages()
+    {
+        using var workspace = TempWorkspace.Create("baseline-size-artifacts");
+        var expected = Solid(3, 2, 10, 20, 30);
+        var actual = Solid(2, 4, 10, 20, 30);
+
+        var result = ImageComparer.Compare(expected, actual, Exact);
+        var directory = ImageComparer.WriteFailureArtifacts(
+            workspace.Path, "mobile/light/mdpi/size", expected, actual, result);
+
+        var expectedArtifact = PngImage.Load(Path.Combine(directory, "expected.png"));
+        var actualArtifact = PngImage.Load(Path.Combine(directory, "actual.png"));
+        var diffArtifact = PngImage.Load(Path.Combine(directory, "diff.png"));
+
+        Assert.Equal((3, 2), (expectedArtifact.Width, expectedArtifact.Height));
+        Assert.Equal((2, 4), (actualArtifact.Width, actualArtifact.Height));
+        Assert.Equal((3, 4), (diffArtifact.Width, diffArtifact.Height));
+        Assert.Equal((255, 0, 255, 255), diffArtifact.GetPixel(2, 0));
+        Assert.Equal((255, 0, 255, 255), diffArtifact.GetPixel(0, 3));
     }
 }

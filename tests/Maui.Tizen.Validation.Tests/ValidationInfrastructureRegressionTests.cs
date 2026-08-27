@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Maui.Tizen.Validation.Tests;
 
@@ -121,6 +122,33 @@ public class ValidationInfrastructureRegressionTests
         Assert.Equal(expectedCount, output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length);
     }
 
+    [Theory]
+    [InlineData("mobile", "hdpi", 2)]
+    [InlineData("tv", "uhd", 1)]
+    public void DeviceLaneCapturesOnlyTheConfiguredDensityTarget(string profile, string density, int expectedCount)
+    {
+        var psi = new ProcessStartInfo("bash")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            WorkingDirectory = RepoLayout.Root,
+        };
+        psi.Environment["TIZEN_PROFILE"] = profile;
+        psi.Environment["TIZEN_DENSITY"] = density;
+        psi.ArgumentList.Add(DeviceLaneScript);
+        psi.ArgumentList.Add("list-baseline-variants");
+
+        using var process = Process.Start(psi)!;
+        var output = process.StandardOutput.ReadToEnd();
+        var error = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+
+        Assert.True(process.ExitCode == 0, error);
+        Assert.Equal(expectedCount, output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length);
+        Assert.All(output.Split('\n', StringSplitOptions.RemoveEmptyEntries), line => Assert.EndsWith($" {density}", line));
+    }
+
     [Fact]
     public void DeviceProtocolUsesLeaseProtectedPinnedRoutes()
     {
@@ -129,12 +157,80 @@ public class ValidationInfrastructureRegressionTests
         Assert.Contains("/api/v1/agent/lease", script, StringComparison.Ordinal);
         Assert.Contains("X-DevFlow-Lease", script, StringComparison.Ordinal);
         Assert.Contains("ui/elements?selector=%2A", script, StringComparison.Ordinal);
-        Assert.Contains("storage/preferences/devflow.lifecycle.marker", script, StringComparison.Ordinal);
-        Assert.Contains("-X PUT", script, StringComparison.Ordinal);
-        Assert.DoesNotContain("storage/preferences?key=", script, StringComparison.Ordinal);
-        Assert.DoesNotContain("marker\\\"}\" >/dev/null || true", script, StringComparison.Ordinal);
+        Assert.Contains("get('app') or {}).get('processId'", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("storage/preferences/devflow.lifecycle.marker", script, StringComparison.Ordinal);
         Assert.Contains("found_route = node", script, StringComparison.Ordinal);
         Assert.DoesNotContain("found_route = node.lstrip", script, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("mobile", """{"agent":{"platform":"linux"},"device":{"platform":"tizen","deviceType":"mobile","idiom":"phone"},"app":{"processId":42}}""")]
+    [InlineData("tv", """{"platform":"linux","device":{"platform":"tizen","deviceType":"tv","idiom":"tv"},"app":{"processId":42}}""")]
+    public void VerifyDeviceProfileAcceptsTheSerializedNestedDeviceShape(string profile, string payload)
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        using var workspace = TempWorkspace.Create("device-profile");
+        var curl = workspace.WriteFile("bin/curl", "#!/usr/bin/env bash\nprintf '%s\\n' \"$DEVFLOW_PAYLOAD\"\n");
+        MakeExecutable(curl);
+
+        var result = RunDeviceScript(
+            workspace,
+            "verify-device-profile",
+            new Dictionary<string, string?>
+            {
+                ["DEVFLOW_PAYLOAD"] = payload,
+                ["TIZEN_PROFILE"] = profile,
+            });
+
+        Assert.Equal(0, result.ExitCode);
+    }
+
+    [Fact]
+    public void VerifyDeviceProfileBlocksWhenNestedDevicePlatformMismatches()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        using var workspace = TempWorkspace.Create("device-profile-mismatch");
+        var curl = workspace.WriteFile(
+            "bin/curl",
+            "#!/usr/bin/env bash\nprintf '%s\\n' '{\"agent\":{\"platform\":\"tizen\"},\"device\":{\"platform\":\"android\",\"deviceType\":\"mobile\",\"idiom\":\"phone\"}}'\n");
+        MakeExecutable(curl);
+
+        var result = RunDeviceScript(
+            workspace,
+            "verify-device-profile",
+            new Dictionary<string, string?> { ["TIZEN_PROFILE"] = "mobile" });
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("got platform=android", result.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VerifyVisualTargetBlocksWhenEffectiveMetricsDoNotMatchTheLabel()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        using var workspace = TempWorkspace.Create("visual-target-mismatch");
+        var curl = workspace.WriteFile(
+            "bin/curl",
+            "#!/usr/bin/env bash\nprintf '%s\\n' '{\"device\":{\"windowWidth\":360,\"windowHeight\":640,\"displayDensity\":1}}'\n");
+        MakeExecutable(curl);
+
+        var result = RunDeviceScript(
+            workspace,
+            "verify-visual-target",
+            new Dictionary<string, string?>
+            {
+                ["TIZEN_PROFILE"] = "mobile",
+                ["TIZEN_DENSITY"] = "xhdpi",
+            });
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("does not match visual configuration 'xhdpi'", result.Output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -206,9 +302,7 @@ public class ValidationInfrastructureRegressionTests
         var dotnet = workspace.WriteFile(
             "bin/dotnet",
             "#!/usr/bin/env bash\nprintf 'tizen 11.0.100\\n'\n");
-        var sdb = workspace.WriteFile(
-            "bin/sdb",
-            "#!/usr/bin/env bash\nprintf 'mobile-1 device\\ntv-1 device\\n'\n");
+        var sdb = workspace.WriteFile("bin/sdb", "#!/usr/bin/env bash\nprintf 'mobile-1 device\\ntv-1 device\\n'\n");
         var tizen = workspace.WriteFile("bin/tizen", "#!/usr/bin/env bash\nexit 0\n");
         MakeExecutable(dotnet);
         MakeExecutable(sdb);
@@ -222,8 +316,7 @@ public class ValidationInfrastructureRegressionTests
                 ["DOTNET"] = dotnet,
                 ["TIZEN_PROFILE"] = "mobile",
                 ["TIZEN_DEVICE_SERIAL"] = "mobile-1",
-                ["TIZEN_MOBILE_SERIAL"] = "mobile-1",
-                ["TIZEN_TV_SERIAL"] = "tv-1",
+                ["TIZEN_REQUIRED_SERIALS"] = "mobile-1,tv-1",
             });
 
         Assert.Equal(0, result.ExitCode);
@@ -237,13 +330,12 @@ public class ValidationInfrastructureRegressionTests
                 ["DOTNET"] = dotnet,
                 ["TIZEN_PROFILE"] = "mobile",
                 ["TIZEN_DEVICE_SERIAL"] = "same",
-                ["TIZEN_MOBILE_SERIAL"] = "same",
-                ["TIZEN_TV_SERIAL"] = "same",
+                ["TIZEN_REQUIRED_SERIALS"] = "same,same",
             });
 
         Assert.Equal(0, duplicate.ExitCode);
         Assert.Contains("lane_available=false", duplicate.Output, StringComparison.Ordinal);
-        Assert.Contains("distinct targets", duplicate.Output, StringComparison.Ordinal);
+        Assert.Contains("distinct target", duplicate.Output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -252,14 +344,83 @@ public class ValidationInfrastructureRegressionTests
         var workflow = File.ReadAllText(
             Path.Combine(RepoLayout.Root, ".github", "workflows", "tizen-device-validation.yml"));
 
-        Assert.Contains("TIZEN_MOBILE_SERIAL", workflow, StringComparison.Ordinal);
-        Assert.Contains("TIZEN_TV_SERIAL", workflow, StringComparison.Ordinal);
+        Assert.Contains("TIZEN_MOBILE_MDPI_SERIAL", workflow, StringComparison.Ordinal);
+        Assert.Contains("TIZEN_MOBILE_HDPI_SERIAL", workflow, StringComparison.Ordinal);
+        Assert.Contains("TIZEN_MOBILE_XHDPI_SERIAL", workflow, StringComparison.Ordinal);
+        Assert.Contains("TIZEN_TV_FHD_SERIAL", workflow, StringComparison.Ordinal);
+        Assert.Contains("TIZEN_TV_UHD_SERIAL", workflow, StringComparison.Ordinal);
+        Assert.Contains("TIZEN_MOBILE_HOME_APP_ID", workflow, StringComparison.Ordinal);
+        Assert.Contains("TIZEN_TV_HOME_APP_ID", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("vars.TIZEN_HOME_APP_ID", workflow, StringComparison.Ordinal);
         Assert.Contains("status=skipped\\nreason=no_app", workflow, StringComparison.Ordinal);
         Assert.Contains("verify-device-profile", workflow, StringComparison.Ordinal);
+        Assert.Contains("verify-visual-target", workflow, StringComparison.Ordinal);
+        Assert.Equal(5, Regex.Matches(workflow, @"^\s+serial_var:", RegexOptions.Multiline).Count);
+        Assert.Contains("runs-on: [self-hosted, tizen]", JobBlock(workflow, "package-consumer"), StringComparison.Ordinal);
+        Assert.Contains("MAUI_TIZEN_SUITES: Maui.Tizen.Consumer.Tests", JobBlock(workflow, "package-consumer"), StringComparison.Ordinal);
+        Assert.Contains("--consumer-result \"${{ needs.package-consumer.result }}\"", workflow, StringComparison.Ordinal);
         Assert.Contains(
             "steps.app.outputs.available == 'true'",
             workflow[workflow.IndexOf("- name: Record the result", StringComparison.Ordinal)..],
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LifecycleBlocksWhenTheAppProcessChanges()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        using var workspace = TempWorkspace.Create("lifecycle-process");
+        var curl = workspace.WriteFile(
+            "bin/curl",
+            """
+            #!/usr/bin/env bash
+            for arg in "$@"; do
+              [[ "$arg" == http://* ]] && url="$arg"
+            done
+            case "$url" in
+              */api/v1/agent/lease)
+                printf '{"ok":true,"allowed":true,"youHold":true}\n'
+                ;;
+              */api/v1/agent/status)
+                count=0
+                [[ -f "$STATUS_COUNT" ]] && count="$(cat "$STATUS_COUNT")"
+                count=$((count + 1))
+                printf '%s' "$count" > "$STATUS_COUNT"
+                pid=100
+                [[ "$count" -ge 3 ]] && pid=200
+                printf '{"device":{"platform":"tizen","deviceType":"mobile","idiom":"phone"},"app":{"processId":%s}}\n' "$pid"
+                ;;
+              */api/v1/agent/capabilities)
+                printf '{"extensions":[]}\n'
+                ;;
+              */api/v1/ui/tree*)
+                printf '{"roots":[{"id":"root"}]}\n'
+                ;;
+              *)
+                printf '{}\n'
+                ;;
+            esac
+            """);
+        var sdb = workspace.WriteFile(
+            "bin/sdb",
+            "#!/usr/bin/env bash\nif [[ \"$*\" == *'app_launcher -r'* ]]; then printf 'catalog.app\\n'; fi\n");
+        MakeExecutable(curl);
+        MakeExecutable(sdb);
+
+        var result = RunDeviceScript(
+            workspace,
+            "lifecycle",
+            new Dictionary<string, string?>
+            {
+                ["APP_ID"] = "catalog.app",
+                ["HOME_APP_ID"] = "home.app",
+                ["STATUS_COUNT"] = workspace.Combine("status-count"),
+            });
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("Process changed across the lifecycle cycle", result.Output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -294,5 +455,13 @@ public class ValidationInfrastructureRegressionTests
         var output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
         process.WaitForExit();
         return (process.ExitCode, output);
+    }
+
+    static string JobBlock(string workflow, string jobName)
+    {
+        var start = workflow.IndexOf($"\n  {jobName}:", StringComparison.Ordinal);
+        Assert.True(start >= 0, $"Job '{jobName}' was not found.");
+        var next = Regex.Match(workflow[(start + 1)..], @"\n  [a-z][a-z0-9-]*:\n");
+        return next.Success ? workflow.Substring(start, next.Index + 1) : workflow[start..];
     }
 }
