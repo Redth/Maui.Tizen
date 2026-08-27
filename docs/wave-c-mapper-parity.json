@@ -49,9 +49,7 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": [
-        "IsVisible"
-      ]
+      "UncoveredNeutralKeys": []
     },
     {
       "Handler": "TizenCollectionViewHandler",
@@ -60,9 +58,7 @@
       "NeutralHandler": "Microsoft.Maui.Controls.Handlers.Items.CollectionViewHandler",
       "PropertyMappers": [],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": [
-        "IsVisible"
-      ]
+      "UncoveredNeutralKeys": []
     },
     {
       "Handler": "TizenFlyoutViewHandler",
@@ -103,6 +99,11 @@
         {
           "Key": "Toolbar",
           "Method": "MapToolbar",
+          "Status": "Supported"
+        },
+        {
+          "Key": "FlyoutLayoutBehavior",
+          "Method": "MapFlyoutLayoutBehavior",
           "Status": "Supported"
         }
       ],
@@ -181,6 +182,11 @@
           "Method": "MapItemsUpdatingScrollMode",
           "Status": "NoOp",
           "Reason": "No-op: ItemsUpdatingScrollMode is not supported on Tizen."
+        },
+        {
+          "Key": "IsVisible",
+          "Method": "MapIsVisible",
+          "Status": "Supported"
         }
       ],
       "CommandMappers": [

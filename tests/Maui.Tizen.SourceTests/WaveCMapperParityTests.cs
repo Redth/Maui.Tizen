@@ -248,4 +248,34 @@ public class WaveCMapperParityTests
 		}
 	}
 
+
+	/// <summary>
+	/// The Controls-level mapper remaps must have run before any neutral mapper is read.
+	/// </summary>
+	/// <remarks>
+	/// Neutral mappers are mutated at runtime: <c>FlyoutPage.RemapForControls()</c> adds
+	/// <c>FlyoutLayoutBehavior</c> to the static <c>FlyoutViewHandler.Mapper</c> when a Controls host
+	/// is built. Without forcing that first, the generated parity manifest depends on test ORDER -
+	/// which is exactly how it came to disagree between a local run and CI on the same commit.
+	/// <para>
+	/// This asserts the forcing in <c>NeutralMaui</c> actually worked, rather than having silently
+	/// swallowed an exception and left the neutral key set half-populated.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void ControlsRemapsAreDeterministic()
+	{
+		var flyout = NeutralMaui.FindHandler("FlyoutViewHandler");
+
+		Assert.NotNull(flyout);
+
+		Assert.True(
+			NeutralMaui.RemapFailure is null,
+			"Forcing the Controls remaps failed: " + NeutralMaui.RemapFailure);
+
+		var keys = NeutralMaui.MapperKeys(flyout!, "Mapper");
+
+		Assert.Contains("FlyoutLayoutBehavior", keys);
+	}
+
 }

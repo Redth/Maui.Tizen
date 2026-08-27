@@ -24,6 +24,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(IFlyoutView.FlyoutWidth)] = MapFlyoutWidth,
 				[nameof(IFlyoutView.IsGestureEnabled)] = MapIsGestureEnabled,
 				[nameof(IToolbarElement.Toolbar)] = MapToolbar,
+
+				// Controls adds this key to the neutral mapper via FlyoutPage.RemapForControls. Wave C
+				// declares its own mapper rather than chaining onto the neutral one, so it must declare
+				// this explicitly or a FlyoutLayoutBehavior change never reaches the platform.
+				["FlyoutLayoutBehavior"] = MapFlyoutLayoutBehavior,
 			};
 
 		public static CommandMapper<IFlyoutView, TizenFlyoutViewHandler> CommandMapper = new(ViewCommandMapper);
@@ -87,6 +92,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapFlyoutWidth(TizenFlyoutViewHandler handler, IFlyoutView flyoutView)
 			=> handler.PlatformView.UpdateFlyoutWidth(flyoutView);
+
+		/// <summary>
+		/// Re-applies the flyout behaviour when <c>FlyoutPage.FlyoutLayoutBehavior</c> changes.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// Not a no-op and not a direct write. <c>FlyoutLayoutBehavior</c> (Popover / Split /
+		/// SplitOnLandscape / SplitOnPortrait) is a Controls-level property that is projected into
+		/// <see cref="IFlyoutView.FlyoutBehavior"/>: <c>FlyoutPage</c> computes Locked or Flyout from
+		/// it. So the correct response is to re-dispatch the <c>FlyoutBehavior</c> mapping and let
+		/// the projection do the work - exactly what upstream's
+		/// <c>FlyoutPage.MapFlyoutLayoutBehavior</c> does.
+		/// </para>
+		/// <para>
+		/// Without this key a runtime switch between Popover and Split leaves the Tizen drawer in
+		/// its previous mode, because nothing tells the handler the projected value changed.
+		/// </para>
+		/// </remarks>
+		public static void MapFlyoutLayoutBehavior(TizenFlyoutViewHandler handler, IFlyoutView flyoutView)
+			=> handler.UpdateValue(nameof(IFlyoutView.FlyoutBehavior));
 
 		public static void MapIsGestureEnabled(TizenFlyoutViewHandler handler, IFlyoutView flyoutView)
 			=> handler.PlatformView.UpdateIsGestureEnabled(flyoutView);

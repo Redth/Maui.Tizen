@@ -311,7 +311,9 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [
+        "StrokeDashArray"
+      ]
     },
     {
       "Handler": "TizenPathHandler",
@@ -331,7 +333,9 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [
+        "StrokeDashArray"
+      ]
     },
     {
       "Handler": "TizenPolygonHandler",
@@ -351,7 +355,9 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [
+        "StrokeDashArray"
+      ]
     },
     {
       "Handler": "TizenPolylineHandler",
@@ -371,7 +377,9 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [
+        "StrokeDashArray"
+      ]
     },
     {
       "Handler": "TizenRectangleHandler",
@@ -391,7 +399,9 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [
+        "StrokeDashArray"
+      ]
     },
     {
       "Handler": "TizenRefreshViewHandler",
@@ -442,7 +452,9 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [
+        "StrokeDashArray"
+      ]
     },
     {
       "Handler": "TizenScrollViewHandler",
@@ -538,7 +550,9 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [
+        "StrokeDashArray"
+      ]
     },
     {
       "Handler": "TizenStreamImageSourceService",

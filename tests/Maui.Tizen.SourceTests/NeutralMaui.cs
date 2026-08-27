@@ -12,6 +12,82 @@ public static class NeutralMaui
 	public static readonly Assembly Core = typeof(Microsoft.Maui.IView).Assembly;
 	public static readonly Assembly Controls = typeof(Microsoft.Maui.Controls.Element).Assembly;
 
+	static NeutralMaui() => EnsureControlsRemapsHaveRun();
+
+	/// <summary>
+	/// Forces the Controls-level mapper remaps to run before any neutral mapper is read.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// NEUTRAL MAPPERS ARE MUTATED AT RUNTIME. Types such as <c>FlyoutPage</c> and <c>Toolbar</c>
+	/// call <c>RemapForControls()</c>, which adds Controls-level keys - <c>FlyoutLayoutBehavior</c>
+	/// among them - to the static <c>FlyoutViewHandler.Mapper</c>. That happens when a Controls host
+	/// is built, not when the assembly loads.
+	/// </para>
+	/// <para>
+	/// Reading a neutral mapper without forcing this first makes the answer depend on whether some
+	/// earlier test happened to build a host. That is exactly how the generated parity manifest came
+	/// to disagree between a local run and CI: same commit, same packages, different test order. A
+	/// parity artifact whose contents depend on execution order is worse than none, because both
+	/// answers look authoritative.
+	/// </para>
+	/// <para>
+	/// Building the host is the supported way to trigger the remaps; poking the internal
+	/// <c>RemapForControls</c> methods by reflection would just re-encode upstream's private wiring.
+	/// </para>
+	/// </remarks>
+	/// <summary>Why the remap forcing failed, if it did.</summary>
+	public static Exception? RemapFailure { get; private set; }
+
+	static void EnsureControlsRemapsHaveRun()
+	{
+		try
+		{
+			var builder = Microsoft.Maui.Hosting.MauiApp.CreateBuilder(useDefaults: false);
+
+			// UseMauiApp<T> is what registers the Controls handlers and runs the remaps.
+			//
+			// Located by scanning rather than named directly: Microsoft.Maui.Controls and
+			// Microsoft.Maui.Controls.Xaml both declare a
+			// Microsoft.Maui.Controls.Hosting.AppHostBuilderExtensions, so referencing it by name is
+			// CS0433-ambiguous, and the generic overload does not live in the assembly one would
+			// first guess.
+			var useMauiApp = new[] { Controls, typeof(Microsoft.Maui.Controls.Xaml.Extensions).Assembly }
+				.Distinct()
+				.SelectMany(a => a.GetType("Microsoft.Maui.Controls.Hosting.AppHostBuilderExtensions") is { } type
+					? type.GetMethods(BindingFlags.Public | BindingFlags.Static)
+					: Array.Empty<MethodInfo>())
+				.FirstOrDefault(m => m.Name == "UseMauiApp"
+					&& m.IsGenericMethodDefinition
+					&& m.GetGenericArguments().Length == 1
+					&& m.GetParameters().Length == 1);
+
+			if (useMauiApp is null)
+			{
+				RemapFailure = new MissingMethodException(
+					"Could not locate a static generic UseMauiApp<T>(MauiAppBuilder) on any "
+						+ "AppHostBuilderExtensions. The Controls mapper remaps cannot be forced.");
+				return;
+			}
+
+			useMauiApp
+				.MakeGenericMethod(typeof(RemapTriggerApplication))
+				.Invoke(null, new object[] { builder });
+		}
+		catch (Exception ex)
+		{
+			// Recorded rather than swallowed: a silent failure here leaves the neutral key set
+			// half-populated, which is precisely the order-dependence this method exists to remove.
+			// ControlsRemapsAreDeterministic surfaces it.
+			RemapFailure = ex;
+		}
+	}
+
+	/// <summary>Minimal application used only to trigger the Controls handler remaps.</summary>
+	sealed class RemapTriggerApplication : Microsoft.Maui.Controls.Application
+	{
+	}
+
 	/// <summary>Every public type name declared by the MAUI assemblies.</summary>
 	public static IReadOnlySet<string> PublicTypeNames { get; } =
 		new[] { Core, Controls }

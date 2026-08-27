@@ -199,6 +199,34 @@ references to those two types - zero warnings, nothing else outstanding.
 `AcceptanceGateMustBeReopenedOnceCoreLandsThePrimitives` fails as soon as core provides either, so
 the flag cannot be left off once the blocker clears.
 
+### Neutral mappers are mutated at runtime
+
+Controls types call `RemapForControls()` when a MAUI host is built, which **adds keys to the static
+neutral mappers** — `FlyoutPage` adds `FlyoutLayoutBehavior` to `FlyoutViewHandler.Mapper`. Two
+consequences, both of which bit this wave:
+
+**Parity generation was order-dependent.** Reading a neutral mapper before those remaps ran gave a
+smaller key set than reading it after, so the generated manifest differed between a local run and CI
+on the *same commit and packages* — purely because of test order. `NeutralMaui` now builds a Controls
+host in its static initializer to force the remaps, and `ControlsRemapsAreDeterministic` asserts that
+actually happened rather than letting a swallowed exception leave the key set half-populated.
+
+**Three real behaviours were missing.** Wave C declares its own mappers rather than chaining the
+neutral ones (the `RemapForControls` hook is unreachable out-of-tree), so every key Controls adds at
+runtime must be declared here too or it is silently never dispatched. Once generation was
+deterministic, three surfaced — and none of them was a no-op:
+
+| Key | Why it matters |
+| --- | --- |
+| `FlyoutLayoutBehavior` | A Controls-level property projected into `IFlyoutView.FlyoutBehavior`. Without the mapping, switching Popover↔Split at runtime leaves the drawer in its previous mode. Re-dispatches `FlyoutBehavior`, exactly as upstream does. |
+| `ItemsView.IsVisible` (CollectionView, CarouselView) | Controls routes this through the items handler rather than the chained view mapper, because the platform view is the scrolling container. The port had dropped it, so hiding a `CollectionView` did nothing. |
+
+`WaveCNeutralKeyCoverageTests` pins all of it, including a test that proves
+`FlyoutLayoutBehavior` genuinely changes the projected `FlyoutBehavior` — so the mapping is
+demonstrably necessary rather than merely present. `WaveCLeavesNoNeutralMapperKeyUncovered` asserts
+the uncovered set is **empty**, so a newly added neutral key fails the build instead of being
+quietly appended to the manifest on the next regeneration.
+
 ### Executable verification, where it is possible
 
 Most of Wave C touches Tizen.NUI and so is source-verified plus API15 type-checked. Two pieces are

@@ -45,6 +45,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(ItemsView.HorizontalScrollBarVisibility)] = MapHorizontalScrollBarVisibility,
 				[nameof(ItemsView.VerticalScrollBarVisibility)] = MapVerticalScrollBarVisibility,
 				[nameof(ItemsView.ItemsUpdatingScrollMode)] = MapItemsUpdatingScrollMode,
+
+				// Controls routes IsVisible through the items handler rather than leaving it to the
+				// chained ViewMapper, because the platform view here is a scrolling container whose
+				// visibility must be applied to the container itself. Upstream's Tizen backend maps it too;
+				// this port had dropped it, so hiding a CollectionView silently did nothing.
+				[nameof(ItemsView.IsVisible)] = MapIsVisible,
 			};
 
 		/// <summary>
@@ -193,6 +199,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		#region Mapper Methods
+
+		/// <summary>
+		/// Applies <see cref="ItemsView.IsVisible"/> to the platform collection view.
+		/// </summary>
+		/// <remarks>
+		/// Mapped explicitly rather than inherited from the chained view mapper: Controls declares
+		/// IsVisible on the items handler itself, and the platform view is the scrolling container,
+		/// so the value has to be applied there.
+		/// </remarks>
+		public static void MapIsVisible(TizenItemsViewHandler<TItemsView> handler, TItemsView itemsView)
+		{
+			if (itemsView.IsVisible)
+			{
+				handler.PlatformView.Show();
+			}
+			else
+			{
+				handler.PlatformView.Hide();
+			}
+		}
 
 		/// <summary>
 		/// Maps <see cref="ItemsView.ItemsSource"/> to the platform.
