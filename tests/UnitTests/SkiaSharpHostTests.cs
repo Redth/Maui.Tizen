@@ -132,8 +132,12 @@ public class SkiaSharpHostTests : TestBase
 	/// Full-framework MSBuild cannot be executed from this test suite - it does not exist on
 	/// macOS or Linux, and the tests themselves run on .NET. What is verified here is the part
 	/// that is host independent: that the same candidate list resolves to a real binary and that
-	/// the OS loader accepts it. The remaining gap is running MSBuild.exe itself, which needs a
-	/// Windows agent.
+	/// the OS loader accepts it.
+	///
+	/// The remaining half - the tasks running under MSBuild.exe itself - is not approximated with
+	/// a stub host or a conditional skip. It runs for real on a Windows agent in the
+	/// `windows-full-framework` CI job, which builds a project through the whole generator
+	/// pipeline and asserts that splash screens were rasterized and the manifest generated.
 	/// </remarks>
 	[Fact]
 	public void DesktopFrameworkPreloadSelectsALoadableBinary()

@@ -105,6 +105,126 @@ jobs:
           exit $fail
 
   # ---------------------------------------------------------------------------
+  # Full-framework MSBuild.
+  #
+  # THE ACKNOWLEDGED GAP, RUN FOR REAL RATHER THAN SIMULATED.
+  #
+  # Maui.Tizen.Build.Tasks runs inside whatever MSBuild host loads it. Visual Studio and
+  # MSBuild.exe are .NET FRAMEWORK hosts, where System.Runtime.InteropServices.NativeLibrary
+  # does not exist, so the resolver the tasks register on .NET cannot be used and the native
+  # SkiaSharp binary has to be preloaded through the OS loader instead. That difference is
+  # not observable from the test suite: the tests run on .NET, and MSBuild.exe does not exist
+  # on macOS or Linux.
+  #
+  # SkiaSharpHostTests covers the host-independent half (the candidate list resolves to a
+  # real binary that the OS loader accepts). The remaining half - the tasks actually
+  # executing under MSBuild.exe - can only be run on a Windows agent, so it is run on a
+  # Windows agent. It is deliberately NOT faked locally with a stub host or a conditional
+  # skip: a green check that proves nothing is worse than a missing one.
+  #
+  # This is the last lane rather than a required one because it depends on the Visual Studio
+  # MSBuild present on the runner image. Promote it to required once it has been stable for
+  # a few runs.
+  # ---------------------------------------------------------------------------
+  windows-full-framework:
+    name: Build tasks under full-framework MSBuild (final lane)
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Build the tasks
+        run: dotnet build src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj -c Release
+
+      - name: Rasterize through MSBuild.exe
+        shell: pwsh
+        run: |
+          # A minimal project that opts into the external-backend contract and drives the
+          # image, splash and manifest generators - i.e. the code paths that call into
+          # native SkiaSharp from inside the task assembly.
+          $ErrorActionPreference = 'Stop'
+
+          $probe = Join-Path $env:RUNNER_TEMP 'fullframework-probe'
+          New-Item -ItemType Directory -Force -Path $probe | Out-Null
+          Copy-Item nuget.config (Join-Path $probe 'NuGet.config')
+          Set-Content (Join-Path $probe 'Directory.Build.props')   '<Project />'
+          Set-Content (Join-Path $probe 'Directory.Build.targets') '<Project />'
+
+          $app = Join-Path $probe 'TizenApp'
+          New-Item -ItemType Directory -Force -Path (Join-Path $app 'Resources\AppIcon') | Out-Null
+          New-Item -ItemType Directory -Force -Path (Join-Path $app 'Resources\Splash') | Out-Null
+          New-Item -ItemType Directory -Force -Path (Join-Path $app 'Platforms\Tizen') | Out-Null
+
+          $svg = '<?xml version="1.0" encoding="UTF-8" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect width="128" height="128" fill="#512BD4" /></svg>'
+          Set-Content (Join-Path $app 'Resources\AppIcon\appicon.svg') $svg
+          Set-Content (Join-Path $app 'Resources\Splash\splash.svg')   $svg
+          Set-Content (Join-Path $app 'Program.cs') 'internal class Program { private static void Main() { } }'
+
+          @'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest package="maui-application-id-placeholder" version="0.0.0" api-version="11" xmlns="http://tizen.org/ns/packages">
+            <profile name="common" />
+            <ui-application appid="maui-application-id-placeholder" exec="TizenApp.dll" multiple="false" nodisplay="false" taskmanage="true" type="dotnet" launch_mode="single">
+              <label>maui-application-title-placeholder</label>
+              <icon>maui-appicon-placeholder</icon>
+            </ui-application>
+          </manifest>
+          '@ | Set-Content (Join-Path $app 'Platforms\Tizen\tizen-manifest.xml')
+
+          $resizetizer = ([xml](Get-Content Directory.Packages.props)).
+            SelectSingleNode("//PackageVersion[@Include='Microsoft.Maui.Resizetizer']").Version
+          $tasks = Join-Path $PWD 'artifacts\bin\Maui.Tizen.Build.Tasks\Release\netstandard2.0\Maui.Tizen.Build.Tasks.dll'
+          $transitive = Join-Path $PWD 'src\Maui.Tizen.Build.Tasks\buildTransitive'
+
+          @"
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net11.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <ResizetizerPlatformType>tizen</ResizetizerPlatformType>
+              <ApplicationId>com.contoso.fullframework</ApplicationId>
+              <ApplicationTitle>Contoso</ApplicationTitle>
+              <_MauiTizenBuildTasksAssembly>$tasks</_MauiTizenBuildTasksAssembly>
+            </PropertyGroup>
+            <Import Project="$transitive\Maui.Tizen.Build.Tasks.props" />
+            <ItemGroup>
+              <PackageReference Include="Microsoft.Maui.Resizetizer" Version="$resizetizer" />
+            </ItemGroup>
+            <ItemGroup>
+              <MauiIcon Include="Resources\AppIcon\appicon.svg" Color="#512BD4" />
+              <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
+            </ItemGroup>
+            <Import Project="$transitive\Maui.Tizen.Build.Tasks.targets" />
+          </Project>
+          "@ | Set-Content (Join-Path $app 'TizenApp.csproj')
+
+          dotnet restore (Join-Path $app 'TizenApp.csproj')
+          if ($LASTEXITCODE -ne 0) { throw 'restore failed' }
+
+          # msbuild.exe, NOT dotnet build: running it on .NET would exercise the host this
+          # lane exists to be different from.
+          msbuild (Join-Path $app 'TizenApp.csproj') /nologo /v:m /nodeReuse:false
+          if ($LASTEXITCODE -ne 0) { throw 'full-framework MSBuild build failed' }
+
+          $generated = Join-Path $app 'obj\Debug\net11.0\maui-tizen'
+          $splash = Get-ChildItem (Join-Path $generated 'splash') -Filter *.png -ErrorAction SilentlyContinue
+          if (-not $splash) { throw 'No splash screens were rasterized under full-framework MSBuild.' }
+
+          $manifest = Get-Content (Join-Path $generated 'tizen-manifest.xml') -Raw
+          if ($manifest -match 'maui-application-id-placeholder') {
+            throw 'The generated manifest still contains placeholder tokens.'
+          }
+
+          Write-Host "Rasterized $($splash.Count) splash screen(s) under full-framework MSBuild."
+
+  # ---------------------------------------------------------------------------
   # The external gate.
   #
   # This job does NOT silently skip. It runs on every build and reports, in the job

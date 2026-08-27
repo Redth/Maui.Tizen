@@ -7,11 +7,33 @@
     not participate in the Tizen workload gate: it can be packed on any machine, including
     ones where the emitted project cannot yet be restored.
 
-    The emitted project targets net11.0-tizen11.0 and references Samsung.Tizen.Ref.API15,
-    matching Directory.Build.props and eng/baselines.json. Until the Samsung .NET 11
-    workload ships, a generated project will hit the same external gate every Tizen project
-    in this repository hits; that is the honest shape, and it is why the template pins the
-    versioned TFM rather than an unversioned net11.0-tizen.
+    The emitted project targets net11.0-tizen11.0, matching Directory.Build.props and
+    eng/baselines.json. It does NOT PackageReference the TizenFX reference pack: that is a
+    DotnetPlatform-typed package delivered by the Samsung workload, and referencing it directly
+    fails restore with NU1213. Until the Samsung .NET 11 workload ships, a generated project
+    will hit the same external gate every Tizen project in this repository hits; that is the
+    honest shape, and it is why the template pins the versioned TFM rather than an unversioned
+    net11.0-tizen.
+
+    NO C# PREPROCESSOR DIRECTIVES IN TEMPLATE CONTENT.
+
+    The .NET Template Engine treats `#if` / `#else` / `#endif` in template content as TEMPLATE
+    conditionals rather than compiler directives, and it recognizes them even when they are
+    commented out (the "commented conditional" form). Two distinct failures came from this:
+
+      * MauiProgram.cs guarded the Tizen host-builder call with `#if TIZEN`. TIZEN is not a
+        template symbol, so the engine evaluated the block as false and emitted only the
+        else-branch. Every generated application silently called UseMauiApp instead of
+        UseMauiAppTizen, with the Microsoft.Maui.Platforms.Tizen.Hosting `using` stripped out
+        alongside it. The file read correctly here and was wrong in every instantiation.
+
+      * Explaining the above INSIDE the template file reintroduced it: a commented-out example
+        of the directives is still parsed, and `dotnet new` failed outright with
+        "Index was out of range" and a half-written project directory.
+
+    So the rationale lives here, in the packaging project, which is not template content. The
+    emitted project has exactly one target framework, so there is no branch to select; if it
+    ever grows more, use a template symbol and a real MSBuild condition.
   -->
 
   <PropertyGroup>
@@ -24,7 +46,6 @@
 
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-    <ContentTargetFolders>content</ContentTargetFolders>
     <NoDefaultExcludes>true</NoDefaultExcludes>
     <!--
       Nothing under templates/ is a project item. The files there carry unresolved template
@@ -43,7 +64,30 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="templates/**/*" Exclude="templates/**/bin/**;templates/**/obj/**" />
+    <!--
+      PackagePath is written out per file rather than left to $(ContentTargetFolders).
+
+      A template package is only a template package if the directory tree survives packing:
+      `dotnet new install <nupkg>` looks for a `.template.config/template.json` and then treats
+      the directory CONTAINING it as the template source root. Flatten the tree and the package
+      still installs - it just emits the package's own internals into the user's folder instead
+      of a project.
+
+      Relying on $(ContentTargetFolders) makes that tree an inference: NuGet reconstructs the
+      relative path from the item's identity, and any Content item it cannot relate back to the
+      project directory (an absolute include, a linked file, a Content item contributed by
+      another import) is written flat into the target folder instead. Writing the destination
+      explicitly removes the inference, so the layout cannot depend on how the item was
+      specified or on which NuGet version does the packing.
+
+      Pinned end to end by PackageContentTests: the produced nupkg is installed into an isolated
+      template hive and instantiated, so a flattened package fails the tests rather than the
+      first person to run `dotnet new`.
+    -->
+    <Content Include="templates/**/*"
+             Exclude="templates/**/bin/**;templates/**/obj/**"
+             Pack="true"
+             PackagePath="content/templates/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

@@ -196,7 +196,12 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
 " "$README_NUPKG" 2>/dev/null)" || README_PROBE_STATUS=$?
   fi
   if [[ "$README_PROBE_STATUS" -ne 0 || -z "$README_COUNT" ]]; then
+    # Counted as a failure. It previously was not: this branch reported FAIL and left
+    # $FAILURES untouched, so a probe that could not read the package printed a red line
+    # and the script still exited 0 - the exact "reported but not enforced" shape this
+    # lane exists to avoid.
     fail "could not read '$README_NUPKG' to verify its README (the package may be fine; the probe failed)"
+    FAILURES=$((FAILURES + 1))
   elif [[ "$README_COUNT" -gt 0 ]]; then
     pass "packed nupkg contains README.md"
   else

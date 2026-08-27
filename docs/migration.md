@@ -42,7 +42,10 @@ The lane in `eng/build-workload-free.sh` (required in CI) genuinely exercises:
 - central package management and package source mapping
 - MSBuild conventions and the workload gate itself
 - consistency between `Directory.Build.props`, `global.json` and `eng/baselines.json`
-- 20 repository invariant tests, built and executed on `net11.0`
+- the repository invariant and build-pipeline test suites, built and executed on `net11.0`
+- the packable projects' shape: the produced template nupkg is installed into an isolated
+  template hive and instantiated, and the generated project's package references are restored
+  cold against the approved feeds
 - integrity of the imported history and the import tooling
 
 So when the workload does ship, the workload is the *only* thing that needs to start

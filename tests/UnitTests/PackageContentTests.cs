@@ -24,64 +24,8 @@ namespace Maui.Tizen.UnitTests;
 [Trait("Category", "Packaging")]
 public class PackageContentTests : TestBase
 {
-	private static readonly Lazy<string> PackageDirectory = new(PackOnce);
-
-	private static string PackOnce()
-	{
-		var output = Path.Combine(RepositoryRoot, "artifacts", "packages", "test");
-
-		foreach (var project in new[]
-		{
-			Path.Combine("src", "Maui.Tizen.Build.Tasks", "Maui.Tizen.Build.Tasks.csproj"),
-			Path.Combine("src", "Maui.Tizen.Templates", "Maui.Tizen.Templates.csproj"),
-		})
-		{
-			var startInfo = new ProcessStartInfo("dotnet")
-			{
-				WorkingDirectory = RepositoryRoot,
-				RedirectStandardOutput = true,
-				RedirectStandardError = true,
-				UseShellExecute = false,
-			};
-
-			startInfo.ArgumentList.Add("pack");
-			startInfo.ArgumentList.Add(Path.Combine(RepositoryRoot, project));
-			startInfo.ArgumentList.Add("-p:PackageOutputPath=" + output);
-			startInfo.ArgumentList.Add("--nologo");
-			startInfo.ArgumentList.Add("-v:q");
-
-
-			foreach (var isolation in ConfigureIsolatedMSBuild(startInfo))
-				startInfo.ArgumentList.Add(isolation);
-
-			using var process = Process.Start(startInfo)!;
-			var log = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
-			process.WaitForExit();
-
-			if (process.ExitCode != 0)
-				throw new InvalidOperationException($"dotnet pack failed for '{project}':{Environment.NewLine}{log}");
-		}
-
-		return output;
-	}
-
 	private static IReadOnlyList<string> EntriesOf(string packageId)
-	{
-		var path = Directory.GetFiles(PackageDirectory.Value, packageId + ".*.nupkg")
-			.OrderBy(p => p, StringComparer.Ordinal)
-			.LastOrDefault();
-
-		Assert.True(path is not null, $"No package was produced for '{packageId}'.");
-
-		using var archive = ZipFile.OpenRead(path!);
-		return archive.Entries
-			.Select(e => e.FullName.Replace('\\', '/'))
-			.Where(n => !n.StartsWith("_rels/", StringComparison.Ordinal)
-				&& !n.StartsWith("package/", StringComparison.Ordinal)
-				&& n != "[Content_Types].xml")
-			.OrderBy(n => n, StringComparer.Ordinal)
-			.ToList();
-	}
+		=> ProducedPackages.EntryNames(ProducedPackages.PathOf(packageId));
 
 	[Fact]
 	public void BuildTasksPackageShipsItsMSBuildEntryPoints()
@@ -315,19 +259,96 @@ public class PackageContentTests : TestBase
 		Assert.Contains("content/templates/maui-tizen/Platforms/Tizen/tizen-manifest.xml", entries);
 	}
 
+	/// <summary>
+	/// Every template file must land under the directory that holds <c>.template.config</c>, with
+	/// its tree intact.
+	/// </summary>
+	/// <remarks>
+	/// A template package is only a template package if the tree survives. Flattened into
+	/// <c>content/</c>, the package still installs and <c>dotnet new</c> still "succeeds" - it
+	/// just writes package internals into the user's folder instead of a project, which is a
+	/// failure nobody attributes to packing. Asserting the shape here, and instantiating for real
+	/// below, means neither half can regress unnoticed.
+	/// </remarks>
+	[Fact]
+	public void TemplatePackageKeepsTheTemplateDirectoryTree()
+	{
+		var entries = EntriesOf("Maui.Tizen.Templates");
+
+		var templateRoot = "content/templates/maui-tizen/";
+		var templateEntries = entries.Where(e => e.StartsWith("content/", StringComparison.Ordinal)).ToList();
+
+		Assert.NotEmpty(templateEntries);
+		Assert.All(templateEntries, e => Assert.StartsWith(templateRoot, e, StringComparison.Ordinal));
+
+		// Nothing flattened: the deepest authored file must still be nested.
+		Assert.Contains(templateEntries, e => e.EndsWith("/Resources/AppIcon/appicon.svg", StringComparison.Ordinal));
+
+		// And the source tree and the package tree agree file for file.
+		var sourceRoot = Path.Combine(RepositoryRoot, "src", "Maui.Tizen.Templates", "templates", "maui-tizen");
+		var expected = Directory
+			.GetFiles(sourceRoot, "*", SearchOption.AllDirectories)
+			.Select(p => templateRoot + Path.GetRelativePath(sourceRoot, p).Replace('\\', '/'))
+			.OrderBy(p => p, StringComparer.Ordinal)
+			.ToList();
+
+		Assert.Equal(expected, templateEntries.OrderBy(p => p, StringComparer.Ordinal).ToList());
+	}
+
 	[Fact]
 	public void TemplatePackageIsMarkedAsATemplatePackage()
 	{
 		Assert.Contains("<packageTypes>", ReadNuspec("Maui.Tizen.Templates"));
 	}
 
+	/// <summary>
+	/// Two packs of identical sources must ship identical content.
+	/// </summary>
+	/// <remarks>
+	/// This compares the packages by NORMALIZED ENTRIES - the shipped entry names plus a hash of
+	/// each entry's bytes - rather than by comparing archives byte for byte or by comparing zip
+	/// entry timestamps. Those differ between two packs by design: NuGet stamps the .nuspec and
+	/// the OPC bookkeeping per pack, and zip entries carry the local file's modification time.
+	/// A byte or timestamp comparison would therefore either fail always or, if narrowed to a
+	/// single archive read twice, assert nothing at all - which is what the previous version of
+	/// this test did: it called the same accessor twice on the same file.
+	/// </remarks>
 	[Fact]
-	public void PackagingIsDeterministic()
+	public void PackingTheSameSourcesTwiceProducesTheSameContent()
 	{
-		var first = EntriesOf("Maui.Tizen.Build.Tasks");
-		var second = EntriesOf("Maui.Tizen.Build.Tasks");
+		var second = ProducedPackages.PackAgain();
 
-		Assert.Equal(first, second);
+		foreach (var packageId in new[] { "Maui.Tizen.Build.Tasks", "Maui.Tizen.Templates" })
+		{
+			var first = NormalizedContent(ProducedPackages.PathOf(packageId));
+			var repeat = NormalizedContent(ProducedPackages.PathOf(packageId, second));
+
+			Assert.Equal(first, repeat);
+		}
+	}
+
+	/// <summary>
+	/// Entry name to content hash, for every shipped entry. The .nuspec is compared by name only:
+	/// it legitimately carries per-pack metadata.
+	/// </summary>
+	private static IReadOnlyList<string> NormalizedContent(string packagePath)
+	{
+		using var archive = ZipFile.OpenRead(packagePath);
+
+		return archive.Entries
+			.Select(e => e.FullName.Replace('\\', '/'))
+			.Where(ProducedPackages.IsMeaningfulEntry)
+			.OrderBy(n => n, StringComparer.Ordinal)
+			.Select(name =>
+			{
+				if (name.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase))
+					return name + " (metadata)";
+
+				using var stream = archive.GetEntry(name)!.Open();
+				using var sha = System.Security.Cryptography.SHA256.Create();
+				return name + " " + Convert.ToHexString(sha.ComputeHash(stream));
+			})
+			.ToList();
 	}
 
 	/// <summary>
@@ -336,11 +357,9 @@ public class PackageContentTests : TestBase
 	/// </summary>
 	private static IReadOnlyList<(string Name, string Path)> ExtractedPackageFiles(string packageId)
 	{
-		var source = Directory.GetFiles(PackageDirectory.Value, packageId + ".*.nupkg")
-			.OrderBy(p => p, StringComparer.Ordinal)
-			.Last();
+		var source = ProducedPackages.PathOf(packageId);
 
-		var destination = Path.Combine(PackageDirectory.Value, "extracted", packageId);
+		var destination = Path.Combine(ProducedPackages.Directory, "extracted", packageId);
 
 		if (!Directory.Exists(destination))
 		{
@@ -356,11 +375,7 @@ public class PackageContentTests : TestBase
 
 	private static string ReadNuspec(string packageId)
 	{
-		var path = Directory.GetFiles(PackageDirectory.Value, packageId + ".*.nupkg")
-			.OrderBy(p => p, StringComparer.Ordinal)
-			.Last();
-
-		using var archive = ZipFile.OpenRead(path);
+		using var archive = ZipFile.OpenRead(ProducedPackages.PathOf(packageId));
 		var entry = archive.Entries.Single(e => e.FullName.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase));
 		using var reader = new StreamReader(entry.Open());
 		return reader.ReadToEnd();
@@ -415,23 +430,67 @@ public class TemplateContentTests : TestBase
 		Assert.Contains("api-version=\"TIZEN_API_VERSION\"", manifest);
 	}
 
-	[Fact]
-	public void TemplateReferencesThePinnedTizenReferencePack()
-	{
-		// eng/Maui.props is the single declaration of the TizenFX reference pack.
-		var mauiProps = File.ReadAllText(Path.Combine(RepositoryRoot, "eng", "Maui.props"));
-		var expected = Regex.Match(mauiProps, "<TizenReferencePackVersion[^>]*>([^<]+)</TizenReferencePackVersion>").Groups[1].Value;
-		Assert.False(string.IsNullOrEmpty(expected), "eng/Maui.props does not declare <TizenReferencePackVersion>.");
+	private static string ReadTemplateProjectWithoutComments()
+		=> Regex.Replace(
+			File.ReadAllText(Path.Combine(TemplateDirectory, "MauiTizenApp.csproj")),
+			"<!--.*?-->",
+			string.Empty,
+			RegexOptions.Singleline);
 
+	/// <summary>
+	/// The TizenFX reference pack must be declared once, in eng/Maui.props, and must NEVER be a
+	/// PackageReference in the emitted project.
+	/// </summary>
+	/// <remarks>
+	/// Samsung.Tizen.Ref.API15 has the <c>DotnetPlatform</c> package type, which NuGet refuses to
+	/// install through PackageReference (NU1213). The Samsung workload supplies it as a reference
+	/// pack, resolved from the tizen platform version in the target framework. The template used
+	/// to reference it explicitly, which meant the one configuration the template exists to serve
+	/// - a machine with the workload installed - was the configuration it broke.
+	///
+	/// Comments are stripped before matching: the template file explains this rule in prose, and
+	/// the prose names the very reference it forbids.
+	/// </remarks>
+	[Fact]
+	public void TemplateNeverPackageReferencesTheTizenReferencePack()
+	{
+		var mauiProps = File.ReadAllText(Path.Combine(RepositoryRoot, "eng", "Maui.props"));
 		var expectedId = Regex.Match(mauiProps, "<TizenReferencePackId[^>]*>([^<]+)</TizenReferencePackId>").Groups[1].Value;
+		Assert.False(string.IsNullOrEmpty(expectedId), "eng/Maui.props does not declare <TizenReferencePackId>.");
+
+		var csproj = ReadTemplateProjectWithoutComments();
+
+		Assert.DoesNotMatch(new Regex($@"<PackageReference\s+Include=""{Regex.Escape(expectedId)}"""), csproj);
 
 		var template = JsonDocument.Parse(File.ReadAllText(Path.Combine(TemplateDirectory, ".template.config", "template.json")));
-		var symbol = template.RootElement.GetProperty("symbols").GetProperty("TizenRefPackVersion");
+
+		// The symbol that fed the reference is gone too, so nothing can quietly re-add it.
+		Assert.False(
+			template.RootElement.GetProperty("symbols").TryGetProperty("TizenRefPackVersion", out _),
+			"The template still declares a TizenFX reference pack version symbol.");
+	}
+
+	/// <summary>
+	/// The MAUI packages are on their own version line and must be pinned to the repository's
+	/// declared development baseline, not to the Maui.Tizen version.
+	/// </summary>
+	[Fact]
+	public void TemplatePinsTheMauiPackagesToTheDevelopmentBaseline()
+	{
+		var packages = File.ReadAllText(Path.Combine(RepositoryRoot, "Directory.Packages.props"));
+		var expected = Regex
+			.Match(packages, @"<PackageVersion\s+Include=""Microsoft\.Maui\.Controls""\s+Version=""([^""]+)""")
+			.Groups[1].Value;
+
+		Assert.False(string.IsNullOrEmpty(expected), "Directory.Packages.props does not pin Microsoft.Maui.Controls.");
+
+		var template = JsonDocument.Parse(File.ReadAllText(Path.Combine(TemplateDirectory, ".template.config", "template.json")));
+		var symbol = template.RootElement.GetProperty("symbols").GetProperty("MauiVersion");
 
 		Assert.Equal(expected, symbol.GetProperty("defaultValue").GetString());
 
 		var csproj = File.ReadAllText(Path.Combine(TemplateDirectory, "MauiTizenApp.csproj"));
-		Assert.Contains(expectedId, csproj);
+		Assert.Contains(@"<PackageReference Include=""Microsoft.Maui.Controls"" Version=""MAUI_VERSION"" />", csproj);
 	}
 
 	/// <summary>
@@ -452,13 +511,145 @@ public class TemplateContentTests : TestBase
 		Assert.Contains("Maui.Tizen.Build.Tasks", csproj);
 	}
 
+	/// <summary>
+	/// Every Maui.Tizen package the template references must be one this repository declares.
+	/// </summary>
+	/// <remarks>
+	/// The template referenced an umbrella <c>Maui.Tizen</c> package that no project produces and
+	/// that has never existed. Package IDs in this repository follow the project name, so the
+	/// check is simply that the project is there.
+	/// </remarks>
+	[Fact]
+	public void TemplateReferencesOnlyPackageIdsThisRepositoryDeclares()
+	{
+		var csproj = ReadTemplateProjectWithoutComments();
+
+		var owned = Regex
+			.Matches(csproj, @"<PackageReference\s+Include=""(Maui\.Tizen[^""]*)""")
+			.Select(m => m.Groups[1].Value)
+			.Distinct(StringComparer.Ordinal)
+			.ToList();
+
+		Assert.NotEmpty(owned);
+
+		foreach (var id in owned)
+		{
+			Assert.True(
+				File.Exists(Path.Combine(RepositoryRoot, "src", id, id + ".csproj")),
+				$"The template references '{id}', but src/{id}/{id}.csproj does not exist, so no project "
+					+ "declares that package ID.");
+		}
+
+		// The hosting entry point and the Controls handlers both have to be there for the emitted
+		// MauiProgram.cs and App.cs to compile once the gate lifts.
+		Assert.Contains("Maui.Tizen.Core", owned);
+		Assert.Contains("Maui.Tizen.Controls", owned);
+	}
+
 	[Fact]
 	public void TemplateRegistersTheTizenHostBuilderExtension()
 	{
 		var mauiProgram = File.ReadAllText(Path.Combine(TemplateDirectory, "MauiProgram.cs"));
 
 		Assert.Contains("UseMauiAppTizen<App>()", mauiProgram);
-		Assert.Contains("#if TIZEN", mauiProgram);
+		Assert.Contains("using Microsoft.Maui.Platforms.Tizen.Hosting;", mauiProgram);
+
+		// The umbrella namespace the old conditional imported does not exist.
+		Assert.DoesNotContain("using Maui.Tizen;", mauiProgram);
+	}
+
+	/// <summary>
+	/// No file under templates/ may contain a C# preprocessor directive, commented out or not.
+	/// </summary>
+	/// <remarks>
+	/// The Template Engine parses <c>#if</c> / <c>#else</c> / <c>#endif</c> in template content as
+	/// TEMPLATE conditionals, including the commented-out form. That is what silently rewrote the
+	/// generated host builder, and a commented example of the same directives made
+	/// <c>dotnet new</c> fail outright after writing a partial project. This is asserted on the
+	/// SOURCE as well as on the instantiated output (see
+	/// <c>TemplateInstantiationTests.GeneratedSourcesContainNoPreprocessorDirectives</c>), because
+	/// the source check names the rule while the instantiation check proves the consequence.
+	/// </remarks>
+	[Fact]
+	public void TemplateContentContainsNoPreprocessorDirectives()
+	{
+		foreach (var file in Directory.EnumerateFiles(TemplateDirectory, "*.cs", SearchOption.AllDirectories))
+		{
+			foreach (var line in File.ReadAllLines(file))
+			{
+				var trimmed = line.TrimStart();
+				if (trimmed.StartsWith("//", StringComparison.Ordinal))
+					trimmed = trimmed.Substring(2).TrimStart();
+
+				Assert.False(
+					trimmed.StartsWith("#if", StringComparison.Ordinal)
+						|| trimmed.StartsWith("#else", StringComparison.Ordinal)
+						|| trimmed.StartsWith("#endif", StringComparison.Ordinal),
+					$"'{Path.GetRelativePath(RepositoryRoot, file)}' contains a preprocessor directive. "
+						+ "The Template Engine consumes these as template conditionals; explain the rule in "
+						+ "Maui.Tizen.Templates.csproj instead, which is not template content.");
+			}
+		}
+	}
+
+	/// <summary>
+	/// The Tizen entry point must derive from this backend's application class, not from MAUI's.
+	/// </summary>
+	[Fact]
+	public void TemplateEntryPointDerivesFromTizenMauiApplication()
+	{
+		var main = File.ReadAllText(Path.Combine(TemplateDirectory, "Platforms", "Tizen", "Main.cs"));
+
+		Assert.Contains("using Microsoft.Maui.Platforms.Tizen;", main);
+		Assert.Contains(": TizenMauiApplication", main);
+	}
+
+	/// <summary>
+	/// The template must not register a font it does not ship, and must not hand a non-font to
+	/// the font pipeline.
+	/// </summary>
+	/// <remarks>
+	/// MauiProgram.cs registered <c>OpenSans-Regular.ttf</c> while Resources/Fonts contained only
+	/// an instructions file. A missing font is not a build error - the font loader fails to
+	/// resolve the name at runtime - so nothing in the pipeline noticed, in either direction: the
+	/// bare <c>Resources\Fonts\*</c> glob simultaneously fed that instructions .txt to the font
+	/// pipeline, which copies it into the TPK's res/fonts.
+	/// </remarks>
+	[Fact]
+	public void TemplateRegistersNoFontItDoesNotShip()
+	{
+		var mauiProgram = File.ReadAllText(Path.Combine(TemplateDirectory, "MauiProgram.cs"));
+		var fonts = Path.Combine(TemplateDirectory, "Resources", "Fonts");
+
+		foreach (Match match in Regex.Matches(mauiProgram, @"^\s*fonts\.AddFont\(""([^""]+)""", RegexOptions.Multiline))
+		{
+			Assert.True(
+				File.Exists(Path.Combine(fonts, match.Groups[1].Value)),
+				$"MauiProgram.cs registers '{match.Groups[1].Value}' but the template does not ship it.");
+		}
+
+		var csproj = ReadTemplateProjectWithoutComments();
+
+		Assert.DoesNotContain(@"<MauiFont Include=""Resources\Fonts\*"" />", csproj);
+		Assert.Contains(@"<MauiFont Include=""Resources\Fonts\*.ttf"" />", csproj);
+	}
+
+	/// <summary>
+	/// Packing must not depend on NuGet inferring the template's directory structure.
+	/// </summary>
+	/// <remarks>
+	/// $(ContentTargetFolders) makes the packed layout an inference from each item's identity.
+	/// Any Content item NuGet cannot relate back to the project directory is written flat into
+	/// the target folder, which turns a template package into a package that installs and then
+	/// emits its own internals instead of a project. The destination is therefore written out.
+	/// </remarks>
+	[Fact]
+	public void TemplateContentDeclaresItsPackagePathExplicitly()
+	{
+		var project = File.ReadAllText(Path.Combine(RepositoryRoot, "src", "Maui.Tizen.Templates", "Maui.Tizen.Templates.csproj"));
+
+		Assert.DoesNotContain("<ContentTargetFolders>", project);
+		Assert.Contains(@"PackagePath=""content/templates/%(RecursiveDir)%(Filename)%(Extension)""", project);
 	}
 
 	[Fact]

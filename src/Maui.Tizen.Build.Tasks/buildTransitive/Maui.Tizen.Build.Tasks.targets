@@ -38,6 +38,7 @@
   <UsingTask AssemblyFile="$(_MauiTizenBuildTasksAssembly)" TaskName="Maui.Tizen.Build.Tasks.GenerateTizenSplashScreens" />
   <UsingTask AssemblyFile="$(_MauiTizenBuildTasksAssembly)" TaskName="Maui.Tizen.Build.Tasks.GenerateTizenResourceXml" />
   <UsingTask AssemblyFile="$(_MauiTizenBuildTasksAssembly)" TaskName="Maui.Tizen.Build.Tasks.ComputeTizenResourceLayout" />
+  <UsingTask AssemblyFile="$(_MauiTizenBuildTasksAssembly)" TaskName="Maui.Tizen.Build.Tasks.SelectDistinctTizenResources" />
 
   <PropertyGroup>
     <!--
@@ -109,10 +110,24 @@
 
     When the built-in Tizen branches are still present they schedule the same targets, and MSBuild
     runs each target at most once, so this is idempotent.
+
+    MauiTizenGenerateManifest is in the list, rather than only being reached through the
+    image-processing hook, on purpose.
+
+    Manifest generation used to hang off MauiTizenProcessImages, which the Resizetizer schedules
+    from ResizetizerAfterImageProcessingTargets - a target it only runs when
+    $(EnableMauiImageProcessing) is true. Setting EnableMauiImageProcessing=false therefore did
+    not merely skip images: it skipped manifest generation entirely, so $(TizenManifestFile) was
+    still pointing at the AUTHORED manifest when the Samsung packaging targets consumed it, and
+    the TPK shipped with the template's literal placeholder tokens - a package installed on a
+    device under the id "maui-application-id-placeholder".
+
+    The manifest describes application identity, which has nothing to do with whether images were
+    processed, so it is scheduled from the backend's own entry point instead.
   -->
   <Target Name="MauiTizenPrepareResources"
           BeforeTargets="PrepareResources"
-          DependsOnTargets="ResizetizeImages;ProcessMauiAssets;ProcessMauiFonts"
+          DependsOnTargets="ResizetizeImages;ProcessMauiAssets;ProcessMauiFonts;MauiTizenGenerateManifest"
           Condition=" '$(ResizetizerPlatformType)' == 'tizen' And '$(DisableResizetizer)' != 'true' " />
 
   <!-- ============================ Target framework validation ============================ -->
@@ -158,14 +173,48 @@
       <MauiTizenIntermediateOutputPath Condition=" '$(MauiTizenIntermediateOutputPath)' == '' ">$(IntermediateOutputPath)maui-tizen\</MauiTizenIntermediateOutputPath>
       <_MauiTizenSplashMapFile>$(MauiTizenIntermediateOutputPath)tizen-splash.map</_MauiTizenSplashMapFile>
       <_MauiTizenGeneratedManifest>$(MauiTizenIntermediateOutputPath)tizen-manifest.xml</_MauiTizenGeneratedManifest>
+      <_MauiTizenManifestInputsFile>$(MauiTizenIntermediateOutputPath)tizen-manifest.inputs</_MauiTizenManifestInputsFile>
+      <_MauiTizenSplashDirectory>$(MauiTizenIntermediateOutputPath)splash\</_MauiTizenSplashDirectory>
       <MauiTizenUseBuiltInResizetizerSupport Condition=" '$(MauiTizenUseBuiltInResizetizerSupport)' == '' ">$(_ResizetizerIsTizenApp)</MauiTizenUseBuiltInResizetizerSupport>
       <MauiTizenUseBuiltInResizetizerSupport Condition=" '$(MauiTizenUseBuiltInResizetizerSupport)' == '' ">false</MauiTizenUseBuiltInResizetizerSupport>
 
       <_MauiTizenGenerateResources Condition=" '$(MauiTizenUseBuiltInResizetizerSupport)' != 'true' And '$(MauiTizenUseBuiltInResizetizerSupport)' != 'True' ">true</_MauiTizenGenerateResources>
       <_MauiTizenGenerateResources Condition=" '$(_MauiTizenGenerateResources)' == '' ">false</_MauiTizenGenerateResources>
+
+      <!--
+        The Resizetizer's own splash output folder. Its private property is preferred when this
+        file was imported after the Resizetizer's; the literal fallback covers the early-import
+        order, where the property does not exist yet. Only the Tizen-specific 'splash' bucket
+        below it is ever touched.
+      -->
+      <_MauiTizenResizetizerSplashDirectory Condition=" '$(_MauiTizenResizetizerSplashDirectory)' == '' And '$(_MauiIntermediateSplashScreen)' != '' ">$(_MauiIntermediateSplashScreen)splash\</_MauiTizenResizetizerSplashDirectory>
+      <_MauiTizenResizetizerSplashDirectory Condition=" '$(_MauiTizenResizetizerSplashDirectory)' == '' ">$(IntermediateOutputPath)resizetizer\sp\splash\</_MauiTizenResizetizerSplashDirectory>
+
+      <!--
+        Splash processing follows the standard MAUI switch, and additionally requires image
+        processing.
+
+        EnableMauiSplashScreenProcessing=false has to suppress the CUSTOM Tizen splash
+        composition too, not just the Resizetizer's built-in one: those images are contributed to
+        TizenTpkUserIncludeFiles by this package, so leaving them on meant the switch appeared to
+        do nothing - the TPK still carried a full set of generated splash screens.
+
+        EnableMauiImageProcessing=false disables it for a different reason: the Tizen splash
+        composition consumes @(MauiProcessedImage), so with image processing off there is nothing
+        to compose from and GenerateTizenSplashScreens can only emit one warning per DPI bucket
+        and an empty map. Skipping is what that warning was already telling the user to expect.
+      -->
+      <EnableMauiSplashScreenProcessing Condition=" '$(EnableMauiSplashScreenProcessing)' == '' ">true</EnableMauiSplashScreenProcessing>
+      <EnableMauiImageProcessing Condition=" '$(EnableMauiImageProcessing)' == '' ">true</EnableMauiImageProcessing>
+      <_MauiTizenSplashScreensEnabled Condition=" '$(_MauiTizenGenerateResources)' == 'true' And '$(EnableMauiSplashScreenProcessing)' == 'true' And '$(EnableMauiImageProcessing)' == 'true' ">true</_MauiTizenSplashScreensEnabled>
+      <_MauiTizenSplashScreensEnabled Condition=" '$(_MauiTizenSplashScreensEnabled)' == '' ">false</_MauiTizenSplashScreensEnabled>
+
+      <!-- True only when splash output should exist after this build. -->
+      <_MauiTizenSplashScreensExpected Condition=" '$(_MauiTizenSplashScreensEnabled)' == 'true' And '@(MauiSplashScreen)' != '' ">true</_MauiTizenSplashScreensExpected>
+      <_MauiTizenSplashScreensExpected Condition=" '$(_MauiTizenSplashScreensExpected)' == '' ">false</_MauiTizenSplashScreensExpected>
     </PropertyGroup>
 
-    <Message Importance="Low" Text="Maui.Tizen: built-in Resizetizer Tizen support = '$(MauiTizenUseBuiltInResizetizerSupport)'; externalized generation = '$(_MauiTizenGenerateResources)'." />
+    <Message Importance="Low" Text="Maui.Tizen: built-in Resizetizer Tizen support = '$(MauiTizenUseBuiltInResizetizerSupport)'; externalized generation = '$(_MauiTizenGenerateResources)'; splash screens = '$(_MauiTizenSplashScreensExpected)'." />
   </Target>
 
   <!-- ================================= Splash screens =================================== -->
@@ -180,9 +229,48 @@
           AfterTargets="ProcessMauiSplashScreens"
           BeforeTargets="ResizetizeImages"
           Condition=" '$(ResizetizerPlatformType)' == 'tizen' ">
-    <ItemGroup Condition=" '$(_MauiTizenGenerateResources)' == 'true' ">
+    <ItemGroup Condition=" '$(_MauiTizenSplashScreensExpected)' == 'true' ">
       <MauiImage Include="@(MauiSplashScreen)" />
     </ItemGroup>
+  </Target>
+
+  <!--
+    Deletes splash artifacts that this build is not going to reproduce.
+
+    Two states reach here, and both used to ship stale images:
+
+      * @(MauiSplashScreen) was removed from the project. _MauiTizenGenerateSplashScreens is
+        then skipped (it requires the item), so the previously generated PNGs and the map file
+        survived on disk - and _MauiTizenCollectSplashScreenOutputs re-discovered them with a
+        glob and packed them. Removing a splash screen from a project therefore had no effect
+        until someone ran a clean build.
+      * EnableMauiSplashScreenProcessing (or EnableMauiImageProcessing) was turned off after a
+        build that had them on. Same outcome.
+
+    Both this package's own splash folder and the Resizetizer's Tizen splash bucket are cleaned:
+    when the built-in Tizen branches are active it is the Resizetizer that writes
+    <_MauiIntermediateSplashScreen>splash\, and that folder is equally stale.
+
+    Scoped to the externalized path ($(_MauiTizenGenerateResources)), which is the path this
+    package owns. While the built-in branches are active the Resizetizer both writes and gates
+    its own splash items, so a stale folder there is inert rather than packaged - and taking a
+    delete decision inside another package's incremental state is not something to do blind.
+
+    The map file goes too, so manifest generation stops emitting <splash-screen> elements that
+    point at images which no longer exist.
+  -->
+  <Target Name="_MauiTizenCleanStaleSplashArtifacts"
+          DependsOnTargets="_MauiTizenResolveBuiltInSupport"
+          BeforeTargets="MauiTizenPrepareResources;_MauiTizenGenerateSplashScreens;_MauiTizenCollectSplashScreenOutputs;MauiTizenGenerateManifest"
+          Condition=" '$(_MauiTizenGenerateResources)' == 'true' And '$(_MauiTizenSplashScreensExpected)' != 'true' ">
+
+    <Message Condition=" Exists('$(_MauiTizenSplashDirectory)') Or Exists('$(_MauiTizenSplashMapFile)') Or Exists('$(_MauiTizenResizetizerSplashDirectory)') "
+             Importance="Normal"
+             Text="Maui.Tizen: removing stale splash screen artifacts; no splash screen is expected for this build." />
+
+    <RemoveDir Directories="$(_MauiTizenSplashDirectory)" Condition=" Exists('$(_MauiTizenSplashDirectory)') " />
+    <RemoveDir Directories="$(_MauiTizenResizetizerSplashDirectory)" Condition=" Exists('$(_MauiTizenResizetizerSplashDirectory)') " />
+    <Delete Files="$(_MauiTizenSplashMapFile)" Condition=" Exists('$(_MauiTizenSplashMapFile)') " />
   </Target>
 
   <!--
@@ -198,7 +286,7 @@
   <Target Name="_MauiTizenValidateSplashScreenCache"
           DependsOnTargets="_MauiTizenResolveBuiltInSupport"
           BeforeTargets="_MauiTizenGenerateSplashScreens"
-          Condition=" '$(_MauiTizenGenerateResources)' == 'true' And Exists('$(_MauiTizenSplashMapFile)') ">
+          Condition=" '$(_MauiTizenSplashScreensExpected)' == 'true' And Exists('$(_MauiTizenSplashMapFile)') ">
 
     <ReadLinesFromFile File="$(_MauiTizenSplashMapFile)">
       <Output TaskParameter="Lines" ItemName="_MauiTizenSplashMapLine" />
@@ -227,7 +315,7 @@
   -->
   <Target Name="_MauiTizenGenerateSplashScreens"
           DependsOnTargets="_MauiTizenResolveBuiltInSupport"
-          Condition=" '$(_MauiTizenGenerateResources)' == 'true' And '@(MauiSplashScreen)' != '' "
+          Condition=" '$(_MauiTizenSplashScreensExpected)' == 'true' "
           Inputs="@(MauiSplashScreen);@(MauiProcessedImage)"
           Outputs="$(_MauiTizenSplashMapFile)">
 
@@ -250,12 +338,27 @@
   <!-- Re-discovers the generated splash files when the composition target was skipped. -->
   <Target Name="_MauiTizenCollectSplashScreenOutputs"
           DependsOnTargets="_MauiTizenGenerateSplashScreens"
-          Condition=" '$(_MauiTizenGenerateResources)' == 'true' ">
+          Condition=" '$(_MauiTizenSplashScreensExpected)' == 'true' ">
     <ItemGroup Condition=" '@(_MauiTizenSplashScreenFile)' == '' ">
-      <_MauiTizenRediscoveredSplashScreen Include="$(MauiTizenIntermediateOutputPath)splash\*" />
+      <_MauiTizenRediscoveredSplashScreen Include="$(_MauiTizenSplashDirectory)*" />
       <!-- Absolute, to match the identities the splash task itself produces. -->
       <_MauiTizenSplashScreenFile Include="@(_MauiTizenRediscoveredSplashScreen->'%(FullPath)')"
                                   TizenTpkSubDir="shared\res\splash\" />
+    </ItemGroup>
+
+    <!--
+      Re-declare the outputs as FileWrites on EVERY build, not only on the build that produced
+      them.
+
+      The SDK's IncrementalClean deletes anything recorded in FileListAbsolute.txt by a previous
+      build that the current build does not claim again. Declaring FileWrites only inside the
+      incremental generation target therefore made the first up-to-date build delete the splash
+      images it had just packaged, so the build after that had to regenerate them - an oscillation
+      that produced a different TPK on alternate builds.
+    -->
+    <ItemGroup>
+      <FileWrites Include="@(_MauiTizenSplashScreenFile)" />
+      <FileWrites Include="$(_MauiTizenSplashMapFile)" Condition=" Exists('$(_MauiTizenSplashMapFile)') " />
     </ItemGroup>
   </Target>
 
@@ -302,11 +405,89 @@
 
   <!-- ================================ Manifest generation =============================== -->
 
-  <Target Name="MauiTizenGenerateManifest"
+  <!--
+    Records the non-file inputs of manifest generation so that Inputs/Outputs can see them.
+
+    The manifest is derived from the authored file AND from a handful of properties and items -
+    ApplicationId, ApplicationTitle, the display version, the icon, the splash entries. MSBuild's
+    up-to-date check only compares timestamps, so an incremental target keyed on the authored
+    manifest alone would keep a stale generated manifest forever after someone edited
+    $(ApplicationId). Writing those values to a file, only when they differ, turns them into
+    something Inputs can compare - the same technique the Resizetizer uses for mauiimage.inputs.
+
+    WriteOnlyWhenDifferent is what makes a no-op build a genuine no-op: an unconditional write
+    would re-stamp this file on every build and make the manifest regenerate every time.
+  -->
+  <Target Name="_MauiTizenComputeManifestInputs"
           DependsOnTargets="_MauiTizenResolveBuiltInSupport;_MauiTizenCollectSplashScreenOutputs"
           Condition=" '$(_MauiTizenGenerateResources)' == 'true' And '$(TizenManifestFile)' != '' ">
 
     <MakeDir Directories="$(MauiTizenIntermediateOutputPath)" />
+
+    <ItemGroup>
+      <!--
+        Splash entries only reach the manifest when splash screens are enabled, so the switch is
+        part of the recorded state and flipping it regenerates the manifest.
+      -->
+      <_MauiTizenManifestSplashScreen Include="@(MauiSplashScreen)" Condition=" '$(_MauiTizenSplashScreensExpected)' == 'true' " />
+
+      <_MauiTizenManifestInput Include="ApplicationId=$(ApplicationId)" />
+      <_MauiTizenManifestInput Include="ApplicationTitle=$(ApplicationTitle)" />
+      <_MauiTizenManifestInput Include="ApplicationDisplayVersion=$(ApplicationDisplayVersion)" />
+      <_MauiTizenManifestInput Include="ApplicationVersion=$(ApplicationVersion)" />
+      <_MauiTizenManifestInput Include="SplashScreensEnabled=$(_MauiTizenSplashScreensExpected)" />
+      <_MauiTizenManifestInput Include="@(MauiIcon->'MauiIcon=%(Identity)|%(Color)|%(ForegroundFile)')" />
+      <_MauiTizenManifestInput Include="@(_MauiTizenManifestSplashScreen->'MauiSplashScreen=%(Identity)')" />
+      <!--
+        @(_MauiTizenSplashScreenEntry) is deliberately NOT recorded. It only exists on builds
+        where the splash task actually ran, so recording it would make this file differ between
+        a clean build and the incremental build that follows - regenerating the manifest every
+        other build forever. The durable form of the same information is the splash map, which
+        is an Inputs file below.
+      -->
+
+      <!--
+        The file inputs of the manifest, declared here rather than inline on the target below.
+        DependsOnTargets runs before a target's up-to-date check, so items created here are
+        visible to its Inputs. The splash map is only listed when it exists: a missing Inputs
+        file makes MSBuild treat the target as out of date, which would defeat the no-op case
+        for every project without a splash screen.
+      -->
+      <_MauiTizenManifestUpToDateInput Include="$(TizenManifestFile)" />
+      <_MauiTizenManifestUpToDateInput Include="$(_MauiTizenManifestInputsFile)" />
+      <_MauiTizenManifestUpToDateInput Include="$(_MauiTizenBuildTasksAssembly)" Condition=" Exists('$(_MauiTizenBuildTasksAssembly)') " />
+      <_MauiTizenManifestUpToDateInput Include="$(_MauiTizenSplashMapFile)" Condition=" Exists('$(_MauiTizenSplashMapFile)') " />
+    </ItemGroup>
+
+    <WriteLinesToFile File="$(_MauiTizenManifestInputsFile)"
+                      Lines="@(_MauiTizenManifestInput)"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+
+    <ItemGroup>
+      <FileWrites Include="$(_MauiTizenManifestInputsFile)" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    Writes the generated manifest. Incremental: skipped entirely when nothing it reads has
+    changed, which is what keeps a no-op build from rewriting the file (and from invalidating
+    everything downstream that depends on its timestamp).
+
+    The splash map is an input as well as the authored manifest, because the splash-screen
+    elements are read back from it on builds where the splash task itself was up to date.
+
+    The icon element is still resolved from @(MauiIcon) even when image processing is disabled.
+    That is intentional: disabling processing means the application supplies those resources
+    itself, and the manifest must describe where they will be, not fall back to a placeholder
+    token. A generated manifest that still says "maui-appicon-placeholder" is not a safer
+    outcome - it is an application that installs under a placeholder identity.
+  -->
+  <Target Name="_MauiTizenWriteManifest"
+          DependsOnTargets="_MauiTizenComputeManifestInputs"
+          Condition=" '$(_MauiTizenGenerateResources)' == 'true' And '$(TizenManifestFile)' != '' "
+          Inputs="@(_MauiTizenManifestUpToDateInput)"
+          Outputs="$(_MauiTizenGeneratedManifest)">
 
     <Maui.Tizen.Build.Tasks.GenerateTizenManifest
         IntermediateOutputPath="$(MauiTizenIntermediateOutputPath)"
@@ -317,19 +498,48 @@
         ApplicationVersion="$(ApplicationVersion)"
         ApplicationTitle="$(ApplicationTitle)"
         AppIcon="@(MauiIcon)"
-        SplashScreen="@(MauiSplashScreen)"
+        SplashScreen="@(_MauiTizenManifestSplashScreen)"
         SplashScreenEntries="@(_MauiTizenSplashScreenEntry)"
         SplashScreenMapFile="$(_MauiTizenSplashMapFile)">
       <Output TaskParameter="GeneratedTizenManifest" ItemName="_MauiTizenGeneratedManifestItem" />
     </Maui.Tizen.Build.Tasks.GenerateTizenManifest>
 
-    <!-- Hand the generated manifest to the Samsung workload in place of the authored one. -->
+    <ItemGroup>
+      <FileWrites Include="@(_MauiTizenGeneratedManifestItem)" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    Hands the generated manifest to the Samsung workload in place of the authored one.
+
+    This is deliberately OUTSIDE the incremental target above. If the property assignment lived
+    there, an up-to-date build would skip the target, leave $(TizenManifestFile) pointing at the
+    authored file, and package a manifest full of placeholder tokens - the incremental build
+    would produce a different TPK from the clean one, which is the worst possible failure mode
+    for an incrementality change.
+  -->
+  <Target Name="MauiTizenGenerateManifest"
+          DependsOnTargets="_MauiTizenResolveBuiltInSupport;_MauiTizenCollectSplashScreenOutputs;_MauiTizenWriteManifest"
+          Condition=" '$(_MauiTizenGenerateResources)' == 'true' And '$(TizenManifestFile)' != '' ">
+
+    <Error Code="MAUITIZEN1020"
+           Condition=" !Exists('$(_MauiTizenGeneratedManifest)') "
+           Text="The generated Tizen manifest '$(_MauiTizenGeneratedManifest)' is missing after manifest generation ran. Packaging the authored manifest instead would ship the unreplaced 'maui-*-placeholder' tokens to the device." />
+
     <PropertyGroup>
       <TizenManifestFile>$(_MauiTizenGeneratedManifest)</TizenManifestFile>
     </PropertyGroup>
 
+    <!--
+      Claimed on every build, not only on the build that wrote it.
+
+      IncrementalClean deletes files a previous build recorded in FileListAbsolute.txt that the
+      current build no longer claims. With generation made incremental, the first up-to-date
+      build would otherwise delete the generated manifest it had just handed to packaging, and
+      the build after that would regenerate it - alternating between two different packages.
+    -->
     <ItemGroup>
-      <FileWrites Include="@(_MauiTizenGeneratedManifestItem)" />
+      <FileWrites Include="$(_MauiTizenGeneratedManifest)" />
     </ItemGroup>
   </Target>
 
@@ -341,6 +551,14 @@
     <ItemGroup Condition=" '$(_MauiTizenGenerateResources)' == 'true' ">
       <TizenTpkUserIncludeFiles Include="@(_MauiTizenResourceTpkFile)" />
       <TizenTpkUserIncludeFiles Include="@(_MauiTizenResourceXml)" TizenTpkSubDir="res\" />
+    </ItemGroup>
+
+    <!--
+      Splash images are contributed only when splash processing is on. Without this condition
+      EnableMauiSplashScreenProcessing=false still packaged a full set of generated splash
+      screens, because they arrive here rather than through the Resizetizer's own item group.
+    -->
+    <ItemGroup Condition=" '$(_MauiTizenSplashScreensExpected)' == 'true' ">
       <TizenTpkUserIncludeFiles Include="@(_MauiTizenSplashScreenFile)" />
     </ItemGroup>
   </Target>
@@ -376,17 +594,33 @@
                                   Condition=" '%(MauiProcessedAsset.TizenTpkFileName)' != '' "
                                   SourcePath="%(MauiProcessedAsset.FullPath)" />
 
-      <!-- Key by destination so the same file contributed twice cannot be packed twice. An app
-           that references both this package and one that already converts assets (for example a
-           direct Microsoft.AspNetCore.Components.WebView.Maui reference, whose build/ targets do
-           the same conversion) would otherwise produce duplicate TPK entries. -->
-      <_MauiTizenAssetKeyedByTpkPath Include="@(_MauiTizenAssetWithTpkPath->'%(TizenTpkFileName)')" />
+      <!--
+        Key by destination so the same file contributed twice cannot be packed twice. An app
+        that references both this package and one that already converts assets (for example a
+        direct Microsoft.AspNetCore.Components.WebView.Maui reference, whose build/ targets do
+        the same conversion) would otherwise produce duplicate TPK entries.
+      -->
     </ItemGroup>
 
-    <RemoveDuplicates Condition=" '$(_MauiTizenGenerateResources)' == 'true' And '@(_MauiTizenAssetKeyedByTpkPath)' != '' "
-                      Inputs="@(_MauiTizenAssetKeyedByTpkPath)">
+    <!--
+      SelectDistinctTizenResources rather than the RemoveDuplicates task.
+
+      RemoveDuplicates compares with StringComparer.OrdinalIgnoreCase, and so does the
+      Distinct() item function. Tizen is Linux: "Foo.js" and "foo.js" are two different files
+      that an application may ship side by side, and a case-insensitive filter silently dropped
+      one of them from the TPK. The build stayed green and the app 404'd on the device.
+
+      DistinctWithCase() is ordinal but returns items with their metadata stripped, and the
+      source path this target has to re-attach lives in metadata, so it cannot be used here
+      either. Identical destinations are still collapsed - only the case-insensitive collision
+      is gone.
+    -->
+    <Maui.Tizen.Build.Tasks.SelectDistinctTizenResources
+        Condition=" '$(_MauiTizenGenerateResources)' == 'true' And '@(_MauiTizenAssetWithTpkPath)' != '' "
+        Inputs="@(_MauiTizenAssetWithTpkPath)"
+        KeyMetadata="TizenTpkFileName">
       <Output TaskParameter="Filtered" ItemName="_MauiTizenDistinctAsset" />
-    </RemoveDuplicates>
+    </Maui.Tizen.Build.Tasks.SelectDistinctTizenResources>
 
     <ItemGroup Condition=" '$(_MauiTizenGenerateResources)' == 'true' And '@(_MauiTizenDistinctAsset)' != '' ">
       <TizenResource Include="@(_MauiTizenDistinctAsset->'%(SourcePath)')" />

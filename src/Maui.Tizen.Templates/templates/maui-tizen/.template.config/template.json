@@ -44,16 +44,16 @@
       "replaces": "TIZEN_API_VERSION",
       "defaultValue": "11"
     },
-    "TizenRefPackVersion": {
+    "MauiVersion": {
       "type": "parameter",
-      "description": "The version of the Samsung.Tizen.Ref.API15 reference pack.",
+      "description": "The version of the published Microsoft.Maui.* packages to reference. This is a DIFFERENT version line from the Maui.Tizen backend and must not be set to the backend's version - no Microsoft.Maui.Controls exists at a Maui.Tizen build number. Pinned to eng/baselines.json > developmentPackageBaseline.",
       "datatype": "text",
-      "replaces": "TIZEN_REF_PACK_VERSION",
-      "defaultValue": "15.0.0.19396"
+      "replaces": "MAUI_VERSION",
+      "defaultValue": "11.0.0-preview.7.26426.4"
     },
     "MauiTizenVersion": {
       "type": "parameter",
-      "description": "The version of the Maui.Tizen packages to reference.",
+      "description": "The version of the Maui.Tizen backend packages to reference.",
       "datatype": "text",
       "replaces": "MAUI_TIZEN_VERSION",
       "defaultValue": "11.0.0-alpha"

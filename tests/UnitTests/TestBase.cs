@@ -27,6 +27,12 @@ public abstract class TestBase : IDisposable
 	/// <summary>The pinned Microsoft.AspNetCore.Components.WebView version, for Blazor scenarios.</summary>
 	public static string WebViewPackageVersion { get; } = ReadMetadata("WebViewPackageVersion");
 
+	/// <summary>
+	/// The pinned Microsoft.Maui.Controls version - the published MAUI version line, which is a
+	/// different line from this repository's own <see cref="PackageVersion"/>.
+	/// </summary>
+	public static string MauiPackageVersion { get; } = ReadMetadata("MauiPackageVersion");
+
 	public static string BuildTasksProjectDirectory { get; } =
 		Path.Combine(RepositoryRoot, "src", "Maui.Tizen.Build.Tasks");
 
@@ -69,6 +75,22 @@ public abstract class TestBase : IDisposable
 	/// <summary>Escapes a path for use inside a generated MSBuild attribute.</summary>
 	public static string Escape(string path)
 		=> path.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;");
+
+	/// <summary>The repository's own NuGet configuration, used verbatim by generated fixtures.</summary>
+	/// <remarks>
+	/// Fixtures used to write a NuGet.config listing only nuget.org, which is wrong in a way that
+	/// is invisible on a developer machine: the pinned Microsoft.Maui.Resizetizer is a net11
+	/// prerelease published ONLY to the dotnet11 feed, so every MSBuild integration test passed
+	/// solely because the package already sat in the global packages folder. On a cold cache -
+	/// which is exactly what a fresh CI agent has - restore fails with NU1101 and the failure
+	/// looks like a broken test rather than a broken fixture.
+	///
+	/// Reading the repository's real configuration rather than duplicating a feed list also means
+	/// the fixtures inherit the package source mapping, so a fixture cannot resolve a package from
+	/// a source the repository itself does not approve.
+	/// </remarks>
+	public static string ReadRepositoryNuGetConfig()
+		=> File.ReadAllText(Path.Combine(RepositoryRoot, "nuget.config"));
 
 	private static string ReadMetadata(string key)
 	{

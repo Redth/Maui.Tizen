@@ -160,15 +160,7 @@ public sealed class MSBuildProjectBuilder
 		File.WriteAllText(Path.Combine(_root, "Directory.Build.props"), "<Project />");
 		File.WriteAllText(Path.Combine(_root, "Directory.Build.targets"), "<Project />");
 		File.WriteAllText(Path.Combine(_root, "Directory.Packages.props"), "<Project><PropertyGroup><ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally></PropertyGroup></Project>");
-		File.WriteAllText(Path.Combine(_root, "NuGet.config"), """
-			<?xml version="1.0" encoding="utf-8"?>
-			<configuration>
-			  <packageSources>
-			    <clear />
-			    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
-			  </packageSources>
-			</configuration>
-			""");
+		File.WriteAllText(Path.Combine(_root, "NuGet.config"), TestBase.ReadRepositoryNuGetConfig());
 
 		var propsImport = TestBase.Escape(Path.Combine(TestBase.BuildTransitiveDirectory, "Maui.Tizen.Build.Tasks.props"));
 		var targetsImport = TestBase.Escape(Path.Combine(TestBase.BuildTransitiveDirectory, "Maui.Tizen.Build.Tasks.targets"));

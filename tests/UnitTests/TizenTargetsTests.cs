@@ -478,4 +478,379 @@ public class TizenTargetsTests : TestBase
 
 		Assert.Empty(result.ItemsOf("MauiProcessedImage"));
 	}
+
+	// =====================================================================================
+	// Resource and splash-screen semantics.
+	//
+	// The MAUI processing switches are not decorative: an app that turns one off is telling
+	// the build it will supply those resources itself. Each of the three tests below covers a
+	// state where this backend previously ignored that and packaged something wrong, and each
+	// failure was silent - a green build producing a broken TPK.
+	// =====================================================================================
+
+	/// <summary>
+	/// Reads the generated manifest that <c>$(TizenManifestFile)</c> points at after a build.
+	/// </summary>
+	private static string ReadPackagedManifest(MSBuildProjectBuilder app, BuildResult result)
+	{
+		var declared = result.Property("TizenManifestFile");
+		Assert.False(string.IsNullOrEmpty(declared), "The build did not report a TizenManifestFile.");
+
+		var path = Path.IsPathRooted(declared) ? declared : Path.Combine(app.ProjectDirectory, declared);
+		Assert.True(File.Exists(path), $"The manifest handed to packaging does not exist: '{path}'.");
+
+		return File.ReadAllText(path);
+	}
+
+	/// <summary>
+	/// With image processing disabled the build must still hand packaging a GENERATED manifest.
+	/// </summary>
+	/// <remarks>
+	/// Manifest generation used to be reachable only through the Resizetizer's image-processing
+	/// hook, which the Resizetizer skips entirely when EnableMauiImageProcessing is false. The
+	/// backend therefore left $(TizenManifestFile) pointing at the authored file, and the TPK
+	/// shipped with the template's literal placeholders - installing on a device under the
+	/// package id "maui-application-id-placeholder". Application identity has nothing to do with
+	/// image processing, so it must not be coupled to it.
+	/// </remarks>
+	[Fact]
+	public void DisablingImageProcessingStillGeneratesAPlaceholderFreeManifest()
+	{
+		var app = CreateApp();
+		app.WithProperty("EnableMauiImageProcessing", "false");
+		app.Generate();
+
+		var result = app.Build();
+		AssertBuildSucceeded(result);
+
+		Assert.Empty(result.ItemsOf("MauiProcessedImage"));
+
+		var manifest = ReadPackagedManifest(app, result);
+
+		Assert.DoesNotContain("maui-application-id-placeholder", manifest);
+		Assert.DoesNotContain("maui-application-title-placeholder", manifest);
+		Assert.DoesNotContain("maui-appicon-placeholder", manifest);
+
+		Assert.Contains("com.contoso.tizenapp", manifest);
+		Assert.Contains("Contoso Tizen", manifest);
+
+		// And the authored file is untouched - generation writes to the intermediate path.
+		var authored = File.ReadAllText(Path.Combine(app.ProjectDirectory, "Platforms", "Tizen", "tizen-manifest.xml"));
+		Assert.Contains("maui-application-id-placeholder", authored);
+	}
+
+	/// <summary>
+	/// EnableMauiSplashScreenProcessing=false must suppress this backend's own splash composition,
+	/// not merely the Resizetizer's built-in one.
+	/// </summary>
+	/// <remarks>
+	/// The custom splash images reach the TPK through TizenTpkUserIncludeFiles contributed by this
+	/// package, so gating only the Resizetizer's item group left the switch looking inert: the
+	/// package still carried a complete set of generated splash screens and the manifest still
+	/// advertised them.
+	/// </remarks>
+	[Fact]
+	public void DisablingSplashScreenProcessingPackagesNoSplashOutputs()
+	{
+		var app = CreateApp();
+		app.WithProperty("EnableMauiSplashScreenProcessing", "false");
+		app.Generate();
+
+		var result = app.Build();
+		AssertBuildSucceeded(result);
+
+		Assert.DoesNotContain(result.ItemsOf("TizenTpkUserIncludeFiles"), i =>
+			i.Metadata1.Replace('\\', '/').TrimEnd('/').EndsWith("res/splash", StringComparison.Ordinal));
+
+		var splashDirectory = Path.Combine(
+			app.ProjectDirectory,
+			result.Property("MauiTizenIntermediateOutputPath"),
+			GenerateTizenSplashScreens.SplashDirectoryName);
+
+		Assert.False(Directory.Exists(splashDirectory), "Splash images were composed even though splash processing was disabled.");
+
+		// The manifest must not advertise splash screens that are not in the package.
+		Assert.DoesNotContain("splash-screen", ReadPackagedManifest(app, result));
+	}
+
+	/// <summary>
+	/// Removing MauiSplashScreen from a project must remove its splash artifacts on the very next
+	/// build, not on the next clean build.
+	/// </summary>
+	/// <remarks>
+	/// This is a two-build mutation test because the defect only exists in the second build. The
+	/// composition target requires @(MauiSplashScreen), so removing the item skipped it - and the
+	/// re-discovery glob then found the previous build's PNGs on disk and packaged them anyway,
+	/// while the surviving splash map kept the manifest advertising them. Deleting a splash screen
+	/// from a project therefore appeared to do nothing at all.
+	///
+	/// The Resizetizer's own Tizen splash bucket is cleaned for the same reason: when the built-in
+	/// branches are active it is that folder which holds the stale images.
+	/// </remarks>
+	[Fact]
+	public void RemovingTheSplashScreenDeletesStaleSplashArtifactsOnTheNextBuild()
+	{
+		var root = CreateTempDirectory("maui-tizen-splash-mutation");
+
+		var withSplash = CreateApp(root: root);
+		withSplash.Generate();
+
+		var first = withSplash.Build();
+		AssertBuildSucceeded(first);
+
+		var intermediate = Path.Combine(withSplash.ProjectDirectory, first.Property("MauiTizenIntermediateOutputPath"));
+		var splashDirectory = Path.Combine(intermediate, GenerateTizenSplashScreens.SplashDirectoryName);
+		var splashMap = Path.Combine(intermediate, GenerateTizenSplashScreens.SplashMapFileName);
+
+		Assert.True(Directory.GetFiles(splashDirectory, "*.png").Length > 0, "The first build produced no splash screens.");
+		Assert.True(File.Exists(splashMap));
+
+		// A stale image in the Resizetizer's own Tizen splash bucket, which is what the built-in
+		// path writes once the workload exists. It must be cleaned by the same rule.
+		var resizetizerSplash = Path.Combine(withSplash.ProjectDirectory, "obj", "Debug", "net11.0", "resizetizer", "sp", "splash");
+		Directory.CreateDirectory(resizetizerSplash);
+		var resizetizerStale = Path.Combine(resizetizerSplash, "splash.mdpi.portrait.png");
+		File.Copy(Directory.GetFiles(splashDirectory, "*.png")[0], resizetizerStale, overwrite: true);
+
+		// Second build: same project directory, same intermediate output, no MauiSplashScreen.
+		var withoutSplash = new MSBuildProjectBuilder(root);
+		withoutSplash
+			.WithProperty("ApplicationId", "com.contoso.tizenapp")
+			.WithProperty("ApplicationTitle", "Contoso Tizen")
+			.WithProperty("ApplicationDisplayVersion", "1.2.3")
+			.WithItem("MauiIcon", "Resources\\AppIcon\\appicon.svg", ("Color", "#512BD4"))
+			.WithItem("MauiImage", "Resources\\Images\\logo.svg")
+			.WithItem("MauiFont", "Resources\\Fonts\\TestFont.ttf")
+			.WithItem("MauiAsset", "Resources\\Raw\\data.json", ("LogicalName", "data.json"));
+		withoutSplash.Generate();
+
+		var second = withoutSplash.Build();
+		AssertBuildSucceeded(second);
+
+		Assert.False(Directory.Exists(splashDirectory), "Stale generated splash screens survived a build with no MauiSplashScreen.");
+		Assert.False(File.Exists(splashMap), "The stale splash map survived a build with no MauiSplashScreen.");
+		Assert.False(File.Exists(resizetizerStale), "A stale Resizetizer splash artifact survived a build with no MauiSplashScreen.");
+
+		Assert.DoesNotContain(second.ItemsOf("TizenTpkUserIncludeFiles"), i =>
+			i.Metadata1.Replace('\\', '/').TrimEnd('/').EndsWith("res/splash", StringComparison.Ordinal));
+
+		Assert.DoesNotContain("splash-screen", ReadPackagedManifest(withoutSplash, second));
+	}
+
+	/// <summary>
+	/// Turning splash processing off after a build that had it on must clean up on the next build.
+	/// </summary>
+	/// <remarks>
+	/// The second half of the same defect: the switch was read only where new work was scheduled,
+	/// never where existing output was reconsidered, so an app that turned it off kept shipping
+	/// the splash screens from before the change until someone ran a clean build.
+	/// </remarks>
+	[Fact]
+	public void DisablingSplashScreenProcessingCleansUpTheOutputsOfAnEarlierBuild()
+	{
+		var root = CreateTempDirectory("maui-tizen-splash-switch");
+
+		var enabled = CreateApp(root: root);
+		enabled.Generate();
+
+		var first = enabled.Build();
+		AssertBuildSucceeded(first);
+
+		var intermediate = Path.Combine(enabled.ProjectDirectory, first.Property("MauiTizenIntermediateOutputPath"));
+		var splashDirectory = Path.Combine(intermediate, GenerateTizenSplashScreens.SplashDirectoryName);
+		var splashMap = Path.Combine(intermediate, GenerateTizenSplashScreens.SplashMapFileName);
+
+		Assert.True(Directory.GetFiles(splashDirectory, "*.png").Length > 0);
+		Assert.Contains("splash-screen", ReadPackagedManifest(enabled, first));
+
+		var disabled = CreateApp(root: root);
+		disabled.WithProperty("EnableMauiSplashScreenProcessing", "false");
+		disabled.Generate();
+
+		var second = disabled.Build();
+		AssertBuildSucceeded(second);
+
+		Assert.False(Directory.Exists(splashDirectory), "Splash images survived a build with splash processing disabled.");
+		Assert.False(File.Exists(splashMap), "The splash map survived a build with splash processing disabled.");
+
+		Assert.DoesNotContain(second.ItemsOf("TizenTpkUserIncludeFiles"), i =>
+			i.Metadata1.Replace('\\', '/').TrimEnd('/').EndsWith("res/splash", StringComparison.Ordinal));
+
+		Assert.DoesNotContain("splash-screen", ReadPackagedManifest(disabled, second));
+	}
+
+	/// <summary>
+	/// Two resources whose destinations differ only in case are two different files on Tizen and
+	/// both must reach the package.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The de-duplication step used the RemoveDuplicates task, which compares with
+	/// OrdinalIgnoreCase. "Bar.js" and "bar.js" therefore collapsed onto one entry and the build
+	/// stayed green while the application 404'd on the device. Tizen is Linux; case matters.
+	/// </para>
+	/// <para>
+	/// The destinations here are supplied through <c>Link</c>. That is deliberate and is not a
+	/// way of dodging the assertion: <c>LogicalName</c> goes through an ItemGroup in the
+	/// Resizetizer's own ProcessMauiAssets that BATCHES on <c>%(MauiAsset.LogicalName)</c>, and
+	/// MSBuild's metadata batching is itself case insensitive, so two LogicalNames differing only
+	/// in case are merged into a single bucket and given one shared destination before this
+	/// backend ever sees them. That is an upstream defect in a target this repository does not
+	/// own; what is verified here is that the backend does not add a SECOND, independent
+	/// case-insensitive collapse on the path it does own. Documented in docs/asset-providers.md.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void ResourcesWhoseDestinationsDifferOnlyInCaseAreBothPackaged()
+	{
+		var app = CreateApp();
+		app.WriteText("Resources/Raw/Bar.js", "// upper");
+		app.WriteText("Resources/Raw/lowerbar.js", "// lower");
+		app.WithItem("MauiAsset", "Resources\\Raw\\Bar.js", ("Link", "scripts/Bar.js"));
+		app.WithItem("MauiAsset", "Resources\\Raw\\lowerbar.js", ("Link", "scripts/bar.js"));
+		app.Generate();
+
+		var result = app.Build();
+		AssertBuildSucceeded(result);
+
+		var destinations = result.ItemsOf("TizenResource")
+			.Select(i => i.Metadata1.Replace('\\', '/'))
+			.ToList();
+
+		Assert.Contains("scripts/Bar.js", destinations);
+		Assert.Contains("scripts/bar.js", destinations);
+	}
+
+	/// <summary>
+	/// De-duplication must still collapse genuinely identical destinations.
+	/// </summary>
+	[Fact]
+	public void ResourcesWithIdenticalDestinationsAreStillDeduplicated()
+	{
+		var app = CreateApp();
+		var duplicated = app.WriteText("generated/dup.txt", "contributed twice");
+		app.WithRawProjectContent($"""
+			  <PropertyGroup>
+			    <MauiTizenAssetProviderTargets>
+			      $(MauiTizenAssetProviderTargets);
+			      TestContributeTwice;
+			    </MauiTizenAssetProviderTargets>
+			  </PropertyGroup>
+			  <Target Name="TestContributeTwice">
+			    <ItemGroup>
+			      <MauiAsset Include="{TestBase.Escape(duplicated)}" Link="shared/dup.txt" />
+			      <MauiAsset Include="{TestBase.Escape(duplicated)}" Link="shared/dup.txt" />
+			    </ItemGroup>
+			  </Target>
+			""");
+		app.Generate();
+
+		var result = app.Build();
+		AssertBuildSucceeded(result);
+
+		var matching = result.ItemsOf("TizenResource")
+			.Count(i => i.Metadata1.Replace('\\', '/') == "shared/dup.txt");
+
+		Assert.Equal(1, matching);
+	}
+
+	// =====================================================================================
+	// Manifest incrementality
+	// =====================================================================================
+
+	/// <summary>
+	/// A no-op build must not rewrite the generated manifest.
+	/// </summary>
+	/// <remarks>
+	/// Manifest generation had no Inputs/Outputs at all, so every build rewrote the file and
+	/// re-stamped everything downstream of it. Adding incrementality is only safe if the
+	/// property hand-off survives the target being skipped, which the next test covers.
+	/// </remarks>
+	[Fact]
+	public void ASecondBuildDoesNotRewriteTheGeneratedManifest()
+	{
+		var app = CreateApp();
+		app.Generate();
+
+		var first = app.Build();
+		AssertBuildSucceeded(first);
+
+		var manifestPath = Path.Combine(app.ProjectDirectory, first.Property("TizenManifestFile"));
+		Assert.True(File.Exists(manifestPath));
+
+		var stamp = File.GetLastWriteTimeUtc(manifestPath);
+		var contents = File.ReadAllText(manifestPath);
+
+		// Coarse filesystem timestamps would make an immediate rewrite look like a no-op.
+		System.Threading.Thread.Sleep(1100);
+
+		var second = app.Build();
+		AssertBuildSucceeded(second);
+
+		Assert.Equal(stamp, File.GetLastWriteTimeUtc(manifestPath));
+		Assert.Equal(contents, File.ReadAllText(manifestPath));
+	}
+
+	/// <summary>
+	/// The manifest handed to packaging must be the generated one even when generation was
+	/// skipped as up to date.
+	/// </summary>
+	/// <remarks>
+	/// This is the trap that makes naive incrementality worse than none: if the
+	/// $(TizenManifestFile) hand-off lives inside the incremental target, an up-to-date build
+	/// leaves the property pointing at the authored file and packages the placeholders. The
+	/// incremental build would then produce a different TPK from the clean one.
+	/// </remarks>
+	[Fact]
+	public void AnUpToDateBuildStillHandsPackagingTheGeneratedManifest()
+	{
+		var app = CreateApp();
+		app.Generate();
+
+		AssertBuildSucceeded(app.Build());
+
+		var second = app.Build();
+		AssertBuildSucceeded(second);
+
+		var declared = second.Property("TizenManifestFile").Replace('\\', '/');
+		Assert.Contains("maui-tizen/tizen-manifest.xml", declared);
+
+		var manifest = ReadPackagedManifest(app, second);
+		Assert.DoesNotContain("maui-application-id-placeholder", manifest);
+	}
+
+	/// <summary>
+	/// Changing a property the manifest is derived from must regenerate it. Timestamp-only
+	/// incrementality cannot see property changes, which is why the inputs are recorded to a file.
+	/// </summary>
+	[Fact]
+	public void ChangingTheApplicationIdRegeneratesTheManifest()
+	{
+		var root = CreateTempDirectory("maui-tizen-manifest-inputs");
+
+		var app = CreateApp(root: root);
+		app.Generate();
+
+		var first = app.Build();
+		AssertBuildSucceeded(first);
+
+		var manifestPath = Path.Combine(app.ProjectDirectory, first.Property("TizenManifestFile"));
+		Assert.Contains("com.contoso.tizenapp", File.ReadAllText(manifestPath));
+
+		var renamed = new MSBuildProjectBuilder(root);
+		renamed
+			.WithProperty("ApplicationId", "com.contoso.renamedapp")
+			.WithProperty("ApplicationTitle", "Contoso Tizen")
+			.WithProperty("ApplicationDisplayVersion", "1.2.3")
+			.WithItem("MauiIcon", "Resources\\AppIcon\\appicon.svg", ("Color", "#512BD4"))
+			.WithItem("MauiSplashScreen", "Resources\\Splash\\splash.svg", ("Color", "#512BD4"), ("BaseSize", "128,128"))
+			.WithItem("MauiImage", "Resources\\Images\\logo.svg")
+			.WithItem("MauiFont", "Resources\\Fonts\\TestFont.ttf")
+			.WithItem("MauiAsset", "Resources\\Raw\\data.json", ("LogicalName", "data.json"));
+		renamed.Generate();
+
+		AssertBuildSucceeded(renamed.Build());
+
+		Assert.Contains("com.contoso.renamedapp", File.ReadAllText(manifestPath));
+	}
 }

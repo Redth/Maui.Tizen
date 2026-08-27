@@ -21,6 +21,7 @@ the platform. This repository separates the two.
 | Files imported | 316 |
 | Repository scaffolding | Complete |
 | Package projects | Skeletons — identity and dependencies declared, sources not yet compiled |
+| Packable today | `Maui.Tizen.Build.Tasks`, `Maui.Tizen.Templates` — neither needs the workload |
 | Published packages | None |
 | **Buildable** | **Not yet — blocked on an external dependency** |
 
@@ -33,7 +34,9 @@ the platform. This repository separates the two.
 This is deliberately surfaced rather than worked around. There is no neutral `net11.0`
 fallback: it would make CI green while producing assemblies that cannot run on Tizen.
 Building a Tizen project without the workload fails with a `MAUITIZEN0001` error
-explaining exactly this.
+explaining exactly this, and forcing a Tizen project onto a different target framework —
+by environment variable, global property or an outer `Directory.Build.props` — fails with
+`MAUITIZEN0002` rather than quietly producing that neutral build.
 
 Details in [`docs/migration.md`](docs/migration.md).
 
@@ -44,9 +47,10 @@ Details in [`docs/migration.md`](docs/migration.md).
 ```
 
 This runs everything that does not need the Tizen workload — SDK and package
-configuration, baseline consistency, import tooling integrity, and 20 repository
-invariant tests. It is the required CI lane, so that when the workload ships, the
-workload is the only thing that has to start working.
+configuration, baseline consistency, import tooling integrity, the packable projects'
+shape (including installing the produced template package and instantiating it), and the
+repository invariant and build-pipeline test suites. It is the required CI lane, so that
+when the workload ships, the workload is the only thing that has to start working.
 
 Requires the .NET SDK pinned in [`global.json`](global.json) (11.0.100-preview.7).
 
@@ -61,10 +65,10 @@ src/
   Maui.Tizen.Maps/           Map handlers and controls
   Maui.Tizen.Graphics/       Skia view (provisional)
   Maui.Tizen.Compatibility/  Provisional; see its README
-  Maui.Tizen.Build.Tasks/    Manifest, resource and splash MSBuild tasks
-  Maui.Tizen.Templates/      dotnet new templates (not yet authored)
+  Maui.Tizen.Build.Tasks/    Manifest, resource and splash MSBuild tasks (packable)
+  Maui.Tizen.Templates/      `dotnet new maui-tizen` template package (packable)
 samples/                     Imported sample applications
-tests/UnitTests/             Repository invariant tests
+tests/UnitTests/             Repository invariant and build-pipeline tests
 eng/
   baselines.json             Pinned upstream baselines
   import/                    Reproducible history import tooling

@@ -58,6 +58,7 @@
   <PropertyGroup>
     <_ResizetizerPinnedVersion>@(PackageVersion->WithMetadataValue('Identity', 'Microsoft.Maui.Resizetizer')->'%(Version)')</_ResizetizerPinnedVersion>
     <_WebViewPinnedVersion>@(PackageVersion->WithMetadataValue('Identity', 'Microsoft.AspNetCore.Components.WebView')->'%(Version)')</_WebViewPinnedVersion>
+    <_MauiControlsPinnedVersion>@(PackageVersion->WithMetadataValue('Identity', 'Microsoft.Maui.Controls')->'%(Version)')</_MauiControlsPinnedVersion>
   </PropertyGroup>
 
   <!--
@@ -81,6 +82,10 @@
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
       <_Parameter1>WebViewPackageVersion</_Parameter1>
       <_Parameter2>$(_WebViewPinnedVersion)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>MauiPackageVersion</_Parameter1>
+      <_Parameter2>$(_MauiControlsPinnedVersion)</_Parameter2>
     </AssemblyAttribute>
   </ItemGroup>
 

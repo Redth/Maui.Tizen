@@ -62,6 +62,35 @@ Condition="'$(CompressionEnabled)' != 'false' or '%(_Asset.AssetRole)' != 'Alter
 Tizen resources are de-duplicated by destination path before packing, so two providers contributing
 the same file cannot produce a duplicate TPK entry. Providers do not need to coordinate.
 
+De-duplication compares destinations **ordinally**. Tizen is Linux: `Foo.js` and `foo.js` are two
+different files, and an application may legitimately ship both. That rules out MSBuild's
+`RemoveDuplicates` task and the `Distinct()` item function, which both compare with
+`OrdinalIgnoreCase` and silently discarded one of the pair — a green build and a 404 on the device.
+`Maui.Tizen.Build.Tasks.SelectDistinctTizenResources` does the comparison instead;
+`DistinctWithCase()` is ordinal but strips metadata, so it cannot be used where the source path has
+to survive.
+
+### Prefer `Link` over `LogicalName` for case-distinct destinations
+
+There is one case-sensitivity limitation this backend cannot fix, so it is written down rather than
+left to be rediscovered.
+
+`Microsoft.Maui.Resizetizer`'s `ProcessMauiAssets` normalizes `LogicalName` into `Link` through an
+`ItemGroup` that **batches on `%(MauiAsset.LogicalName)`**, and MSBuild's metadata batching is
+itself case insensitive. Two assets whose `LogicalName` values differ only in case therefore land in
+one batch bucket and are given a single shared destination *before* any Tizen target sees them. By
+the time they reach this backend they genuinely are duplicates, and they are collapsed correctly.
+
+Setting `Link` directly avoids that path entirely and both files survive to the TPK:
+
+```xml
+<!-- Both of these reach the package. -->
+<MauiAsset Include="wwwroot/Foo.js" Link="wwwroot/Foo.js" />
+<MauiAsset Include="wwwroot/other.js" Link="wwwroot/foo.js" />
+```
+
+Covered by `TizenTargetsTests.ResourcesWhoseDestinationsDifferOnlyInCaseAreBothPackaged`.
+
 ## Ownership
 
 | Concern | Owner |

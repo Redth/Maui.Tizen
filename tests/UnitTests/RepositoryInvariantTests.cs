@@ -727,4 +727,115 @@ public class RepositoryInvariantTests
 					+ "are on their own version line and that version does not exist for them.");
 		}
 	}
+
+	// ---------------------------------------------------------------------
+	// Lane integrity
+	// ---------------------------------------------------------------------
+
+	/// <summary>
+	/// Every explicit failure in the workload-free lane must also be counted.
+	/// </summary>
+	/// <remarks>
+	/// The lane's exit code is driven by a $FAILURES counter. One branch - the README probe
+	/// being unable to read the produced package - printed a red FAIL line and did not
+	/// increment it, so the script reported a failure and exited 0. A check that reports but
+	/// does not enforce is worse than no check, because the red line trains people to ignore it.
+	///
+	/// The `fail` call inside the shared `check` helper is exempt: `check` increments the
+	/// counter itself.
+	/// </remarks>
+	[Fact]
+	public void EveryExplicitFailureInTheWorkloadFreeLaneIsCounted()
+	{
+		var lines = ReadRepoFile("eng/build-workload-free.sh").Replace("\r\n", "\n").Split('\n');
+
+		var uncounted = new List<string>();
+
+		for (var i = 0; i < lines.Length; i++)
+		{
+			var trimmed = lines[i].Trim();
+
+			// The definition of `fail`, its use inside `check`, and the final summary line.
+			if (!trimmed.StartsWith("fail \"", StringComparison.Ordinal))
+				continue;
+			if (trimmed.Contains("$label", StringComparison.Ordinal))
+				continue;
+			if (trimmed.Contains("check(s) failed", StringComparison.Ordinal))
+				continue;
+
+			var next = i + 1 < lines.Length ? lines[i + 1].Trim() : string.Empty;
+
+			if (!next.StartsWith("FAILURES=", StringComparison.Ordinal))
+				uncounted.Add($"line {i + 1}: {trimmed}");
+		}
+
+		Assert.True(
+			uncounted.Count == 0,
+			"These failures are reported but not counted, so the lane would exit 0: "
+				+ string.Join("; ", uncounted));
+	}
+
+	/// <summary>
+	/// MSBuild fixtures must use the repository's own approved feeds.
+	/// </summary>
+	/// <remarks>
+	/// The fixtures reference the pinned Microsoft.Maui.Resizetizer, which is a net11
+	/// prerelease that exists only on the dotnet11 feed. A fixture NuGet.config listing only
+	/// nuget.org therefore passed on any machine with a warm global packages folder and failed
+	/// on a cold CI agent with NU1101 - a fixture defect that reads as a test failure.
+	/// </remarks>
+	[Fact]
+	public void MSBuildFixturesUseTheRepositoryPackageSources()
+	{
+		var builder = ReadRepoFile(Path.Combine("tests", "UnitTests", "MSBuildProjectBuilder.cs"));
+
+		Assert.Contains("ReadRepositoryNuGetConfig()", builder);
+		Assert.DoesNotContain("<packageSources", builder);
+		Assert.DoesNotContain("api.nuget.org", builder);
+	}
+
+	/// <summary>
+	/// A Tizen project must not be able to fall back to a neutral target framework by accident.
+	/// </summary>
+	[Fact]
+	public void ANonTizenTargetFrameworkOnATizenProjectIsAnError()
+	{
+		var targets = ReadRepoFile("Directory.Build.targets");
+
+		Assert.Contains("MAUITIZEN0002", targets);
+		Assert.Contains("ValidateTizenTargetFramework", targets);
+
+		// The gate has to run before anything that would consume the wrong framework.
+		var gate = Regex.Match(
+			targets,
+			@"<Target Name=""ValidateTizenTargetFramework""(.*?)>",
+			RegexOptions.Singleline);
+
+		Assert.True(gate.Success, "Directory.Build.targets must declare the ValidateTizenTargetFramework target.");
+		Assert.Contains("Restore", gate.Groups[1].Value);
+		Assert.Contains("Build", gate.Groups[1].Value);
+	}
+
+	/// <summary>
+	/// Full-framework MSBuild execution stays a real CI lane rather than a local simulation.
+	/// </summary>
+	/// <remarks>
+	/// The build tasks load native SkiaSharp differently on .NET Framework hosts (Visual Studio,
+	/// MSBuild.exe), where there is no NativeLibrary resolver. That path cannot be executed from
+	/// this test suite - the tests run on .NET, and MSBuild.exe does not exist on macOS or Linux -
+	/// so it is executed on a Windows agent instead of being approximated with a stub host or a
+	/// conditional skip. This test exists so the lane cannot quietly disappear and leave the gap
+	/// unacknowledged.
+	/// </remarks>
+	[Fact]
+	public void FullFrameworkExecutionIsCoveredByADedicatedCIJob()
+	{
+		var workflow = ReadRepoFile(Path.Combine(".github", "workflows", "ci.yml"));
+
+		Assert.Contains("windows-full-framework:", workflow);
+		Assert.Contains("runs-on: windows-latest", workflow);
+
+		// It has to invoke msbuild.exe; `dotnet build` would run on .NET and prove nothing.
+		Assert.Matches(new Regex(@"^\s*msbuild ", RegexOptions.Multiline), workflow);
+	}
 }
