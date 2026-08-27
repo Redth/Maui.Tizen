@@ -110,41 +110,65 @@ fix to `TryAdd` and watching three tests fail with the diagnostic that names the
 > property actually under test: *does the font manager the container hands out consult the
 > registrar at all?*
 
-## 2. Removing the Core-owned test delta
+## 2. Removing the Core-owned test delta — decision B, agreed
 
-Wave A carries **one** delta to a Core-owned test:
-`ControlsRegistrationTests.NoParallelTizenHandlerInterfacesRemain`, +17 lines.
+**Requirement: zero Wave A delta on Core-owned test files at final rebase.**
 
-It is not a redesign — an earlier revision was, and that was reverted. What remains is forced: the
-test asserts an *exact list* of exported `ITizen*` type names, and Wave A genuinely exports two
-more (`ITizenFontManager`, `ITizenModalHost`). Neither is a parallel handler hierarchy; the test
-matches on a name prefix, so it sees them.
+Two existed. One is already gone; one is blocked on Core and is *expected* to be dropped rather
+than merged.
 
-**This delta is a rebase hazard, and the resolution direction matters.** If Core independently
-adjusts the same test, the two edits conflict — and the correct resolution is to **take Core's
-version and drop Wave A's**, not to re-apply Wave A's on top. Re-applying would silently reinstate
-a delta on a file Wave A does not own.
+| File | Delta | State |
+|---|---|---|
+| `Maui.Tizen.Core.UnitTests.csproj` | +7 lines, comment only | **Removed.** The parity-vs-Controls rationale it explained is already carried in two Wave A-owned places (`MapperParityMatrixTests`' generator prose and `wave-a-handlers.md`), so nothing was lost. |
+| `ControlsRegistrationTests.cs` | +17 lines | **Blocked on Core.** Drop wholesale at rebase — see below. |
 
-Three ways it disappears, in order of preference:
+### The agreed shape (option B)
 
-**A. Core adds the two names to its own list.** Simplest; Core owns the file and the assertion.
-Wave A's delta vanishes at rebase with no further work.
+Core narrows `NoParallelTizenHandlerInterfacesRemain` to *actual handler interfaces*, and keeps any
+broader exported `ITizen*` service inventory in a separate, appropriately named test. This makes the
+test's intent and its implementation agree: it is named for handler hierarchies but currently
+matches on a name prefix, which is why Wave A's two service contracts tripped it at all.
 
-**B. Core narrows the test to handler interfaces.** The test's stated intent is "no parallel
-*handler* hierarchy remains"; its implementation is a name-prefix match. Narrowing it to
-`IElementHandler`-assignable types (or names ending in `Handler`) makes intent and implementation
-agree, and no service contract ever trips it again — including Waves B/C's.
+**Verified compatible — measured, not assumed.** Under a narrowing predicate of
+"assignable to `IElementHandler`, or name ends in `Handler`", Wave A's exported interfaces classify:
 
-**C. Wave A makes both interfaces `internal`.** Technically viable: every consumer is inside
-`Maui.Tizen.Core` (verified — `TizenTextExtensions` and `TizenControlHandlerCollectionExtensions`).
-But it is a **public API change** requiring a PublicAPI baseline regeneration, and it removes a
-host's ability to substitute a font manager or modal host. Not recommended unless Core declines
-both A and B.
+| Interface | `IElementHandler` | ends `Handler` | caught by narrowed test |
+|---|---|---|---|
+| `ITizenApplicationHandler` | yes | yes | **yes** |
+| `ITizenPlatformViewHandler` | yes | yes | **yes** |
+| `ITizenFontManager` | no | no | no |
+| `ITizenModalHost` | no | no | no |
+
+So Core's narrowed assertion stays exactly
+`["ITizenApplicationHandler", "ITizenPlatformViewHandler"]` and **passes unchanged against Wave A's
+assembly**. Wave A's delta is dropped with no replacement — nothing needs to be re-applied.
+
+### What Core needs from Wave A for the separate inventory test
+
+That test will see **four** names once Wave A lands, so it must be written to expect them or it
+fails the moment this branch rebases:
+
+- `ITizenApplicationHandler` — Core's; MAUI Core ships no `IApplicationHandler` to implement instead.
+- `ITizenPlatformViewHandler` — Core's; the internal native-parenting contract.
+- `ITizenFontManager` — **Wave A's.** MAUI's neutral `IFontManager` carries only `DefaultFontSize`;
+  the font-resolution members exist solely in each platform's own build of MAUI, which this backend
+  does not consume, so the resolution contract is declared here.
+- `ITizenModalHost` — **Wave A's.** The seam to the navigation wave's modal stack that Wave A's
+  pickers open through, pending that wave supplying a real implementation.
+
+### Sequencing — the delta cannot be dropped early
+
+Wave A **cannot** pre-emptively drop its `ControlsRegistrationTests.cs` delta: Core's current
+assertion expects exactly two names while the Wave A assembly exports four, so removing it before
+Core lands the narrowing turns the branch red for a reason nobody can act on. The order is fixed:
+Core narrows first, Wave A rebases onto that, delta disappears.
 
 ### Integration check
 
-- [ ] After rebase, `git diff <core-head> -- tests/Maui.Tizen.Core.UnitTests/` is **empty**.
-- [ ] If it is not, the remaining delta is deliberate and agreed with Core, or it is dropped.
+- [ ] `git diff <core-head> --diff-filter=M -- tests/` is **empty**.
+- [ ] The drop was a *removal*, not a re-application. If a conflict tempts you to re-add Wave A's
+      expected-list edit on top of Core's narrowed test, that is the wrong resolution — it silently
+      reinstates a delta on a file Wave A does not own.
 
 ## 3. Upstream adoption guards — only after packaged APIs
 
@@ -261,7 +285,8 @@ Everything past that needs the device lane the unpublished Samsung workload stil
 
 1. Confirm Core's head is **declared stable and reviewed**, not merely green.
 2. `git rebase <core-head>`; expect conflicts in `eng/Maui.Tizen.Core.Sources.props` (both waves
-   add compile items) and possibly `ControlsRegistrationTests.cs` (see §2 — take Core's).
+   add compile items) and `ControlsRegistrationTests.cs` (see §2 — take Core's narrowed version and
+   **drop** Wave A's edit; do not re-apply it on top).
 3. **Verify these behaviour-carrying fixes survived the rebase.** Each is a small edit inside a
    file another wave may also touch, so a conflict resolved in the wrong direction reverts it
    silently — and in every case the reverted code still compiles and still passes any test that

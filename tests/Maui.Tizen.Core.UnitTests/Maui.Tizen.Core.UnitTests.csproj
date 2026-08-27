@@ -36,13 +36,6 @@
     <!--
       Controls is referenced ONLY by this test project, to prove that MAUI Controls types resolve
       to this backend's handlers and that Controls' RemapForControls composes with our mappers.
-
-      Referencing the full Controls package (a superset of Controls.Core) also makes parity be
-      measured against what an application actually sees: RemapForControls runs in each control's
-      static constructor and mutates MAUI's static handler mappers in place, adding FormattedText,
-      TextType, LineBreakMode, MaxLines, TextTransform, CheckBox.Color and the accessibility keys.
-      Comparing against Core alone would report a parity the backend does not actually have.
-
       The product package deliberately does not depend on Controls.
     -->
     <PackageReference Include="Microsoft.Maui.Controls" />
