@@ -194,7 +194,7 @@ public class ImportedPublicApiBaselineTests
     {
         using var fixture = CreateValidFixture();
         var aliasPath = fixture.Path_("src/DanglingAlias");
-        var missingTarget = fixture.Path_("src/EXAMPLE");
+        var missingTarget = fixture.Path_("src/DefinitelyMissing");
 
         try
         {
@@ -214,7 +214,7 @@ public class ImportedPublicApiBaselineTests
         Assert.Contains(
             errors,
             error => error.Contains(
-                "Source tree symbolic links are not allowed because they can alias imported baselines:",
+                "Source tree reparse point could not be resolved:",
                 StringComparison.Ordinal));
     }
 
