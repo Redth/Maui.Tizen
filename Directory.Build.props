@@ -139,8 +139,18 @@
     <VersionSuffix Condition="'$(VersionSuffix)' == ''">alpha</VersionSuffix>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(IsPackable)' == 'true'">
-    <None Include="$(RepositoryRoot)README.md" Pack="true" PackagePath="/" Visible="false" />
-  </ItemGroup>
+  <!--
+    NOTE: the README <None Pack="true"> item lives in Directory.Build.targets, not here.
+
+    It works in either location - MSBuild evaluates properties across all imports AND the
+    project body in an earlier pass than any item, so an ItemGroup condition here already
+    observes a project-body <IsPackable>true</IsPackable>, and a shipping-shaped project
+    packs with README.md present (verified; see eng/tests/PackReadmeProbe).
+
+    It lives in .targets anyway because correctness that depends on knowing MSBuild's
+    multi-pass evaluation order is correctness nobody can review at a glance. Two separate
+    readers independently expected NU5039 here. Placing it after the project body makes it
+    obviously right instead of subtly right.
+  -->
 
 </Project>

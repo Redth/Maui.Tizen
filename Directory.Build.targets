@@ -98,4 +98,24 @@
   </Target>
 
 
+  <!--
+    README packing.
+    
+    Declared here, in .targets, rather than in Directory.Build.props, so that it is
+    evaluated unambiguously after the project body has set $(IsPackable). It also works
+    from .props - MSBuild evaluates all properties, including the project body, in an
+    earlier pass than any item - but relying on that means the correctness of every
+    shipping package rests on a multi-pass evaluation rule a reviewer has to recall.
+    Two readers independently expected NU5039 from the .props placement, which is reason
+    enough to move it: subtle-but-right is worse than obviously-right for something this
+    cheap to relocate.
+
+    eng/tests/PackReadmeProbe packs a project shaped exactly like a shipping package and
+    the workload-free lane asserts README.md is inside the resulting nupkg, so this is
+    pinned by behaviour rather than by argument.
+  -->
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <None Include="$(RepositoryRoot)README.md" Pack="true" PackagePath="/" Visible="false" />
+  </ItemGroup>
+
 </Project>

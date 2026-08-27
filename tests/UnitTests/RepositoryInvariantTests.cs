@@ -444,6 +444,28 @@ public class RepositoryInvariantTests
 	}
 
 	[Fact]
+	public void ReadmePackItemIsDeclaredAfterProjectEvaluation()
+	{
+		// The README <None Pack="true"> item belongs in Directory.Build.targets, not
+		// Directory.Build.props.
+		//
+		// It is conditioned on $(IsPackable), which shipping projects opt into from their
+		// own body. From .props that still works - MSBuild evaluates all properties,
+		// including the project body, in an earlier pass than any item - and a
+		// shipping-shaped project does pack with README.md present. But two reviewers
+		// independently read the .props placement as an NU5039 bug, because it only works
+		// if you know the multi-pass rule.
+		//
+		// Correctness that depends on recalling evaluation-pass ordering is correctness
+		// nobody can review at a glance, so it lives after the project body where it is
+		// obviously right. eng/tests/PackReadmeProbe pins the behaviour itself.
+		var pack = new Regex(@"<None\s+Include=""\$\(RepositoryRoot\)README\.md""[^>]*Pack=""true""");
+
+		Assert.Matches(pack, ReadRepoFile("Directory.Build.targets"));
+		Assert.DoesNotMatch(pack, ReadRepoFile("Directory.Build.props"));
+	}
+
+	[Fact]
 	public void EveryProjectReferencedBySolutionExists()
 	{
 		var solution = ReadRepoFile("Maui.Tizen.slnx");
