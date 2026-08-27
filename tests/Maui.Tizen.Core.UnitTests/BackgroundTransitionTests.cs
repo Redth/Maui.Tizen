@@ -21,6 +21,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	/// </description></item>
 	/// </list>
 	/// </remarks>
+	[Collection(StaticMapperCollection.Name)]
 	public class BackgroundTransitionTests
 	{
 		[Fact]

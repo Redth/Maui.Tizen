@@ -125,6 +125,24 @@ namespace Microsoft.Maui.Platforms.Tizen
 	{
 		/// <summary>Attaches a toolbar, replacing and disposing any previous one.</summary>
 		/// <param name="toolbar">The toolbar to attach.</param>
+		/// <remarks>
+		/// <para>
+		/// This is a PUSH with ownership transfer. The container takes ownership of
+		/// <paramref name="toolbar"/> and, when a different toolbar replaces it, both removes and
+		/// <see cref="IDisposable.Dispose"/>s the previous one. Callers must not keep using a
+		/// toolbar they have handed over, and must not dispose it themselves.
+		/// </para>
+		/// <para>
+		/// Because of that, callers must unsubscribe from the outgoing toolbar's events BEFORE
+		/// replacing it, and subscribe to the incoming one afterwards. A caller that caches a
+		/// toolbar it pulled earlier will be holding a disposed instance.
+		/// </para>
+		/// <para>
+		/// Passing the toolbar that is already attached is a no-op and is explicitly safe: it does
+		/// not dispose and re-add, which would leave a disposed native view in the tree. That makes
+		/// "ensure the toolbar is attached" callers idempotent.
+		/// </para>
+		/// </remarks>
 		void SetToolbar(TizenToolbarView toolbar);
 	}
 }

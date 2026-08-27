@@ -71,6 +71,20 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			ArgumentNullException.ThrowIfNull(toolbar);
 
+			// Setting the SAME toolbar again must be a no-op, not a disposal.
+			//
+			// Ownership transfers to this container: it removes and DISPOSES whatever toolbar it
+			// was holding. Without this guard, calling SetToolbar twice with the same instance -
+			// which a handler doing "ensure the toolbar is attached" work does naturally - disposed
+			// the toolbar and then re-added the disposed instance. The result is a native view that
+			// is still in the tree and no longer usable, which does not throw here and instead
+			// fails later somewhere unrelated.
+			if (ReferenceEquals(_toolbar, toolbar))
+			{
+				(toolbar.Layout as NLayoutGroup)?.ChangeLayoutSiblingOrder(0);
+				return;
+			}
+
 			if (_toolbar is not null)
 			{
 				Remove(_toolbar);

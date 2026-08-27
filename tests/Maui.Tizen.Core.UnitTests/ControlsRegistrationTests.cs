@@ -31,6 +31,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	/// mapper to be typed against <c>ILabelHandler</c>.
 	/// </para>
 	/// </remarks>
+	[Collection(StaticMapperCollection.Name)]
 	public class ControlsRegistrationTests
 	{
 		static MauiApp BuildControlsApp()

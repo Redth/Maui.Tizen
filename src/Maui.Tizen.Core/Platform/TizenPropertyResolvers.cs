@@ -1,0 +1,86 @@
+using System;
+
+namespace Microsoft.Maui.Platforms.Tizen
+{
+	/// <summary>
+	/// The pure decisions behind a handful of platform property mappings, kept separate from the
+	/// NUI calls that apply them.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Everything in <c>TizenPlatformExtensions</c> needs a real native view, so it can only ever be
+	/// compile-checked against the TizenFX reference assemblies - never executed. That is fine for
+	/// a one-line property assignment, but several genuine bugs have hidden in the small amount of
+	/// <em>logic</em> in front of those assignments, where a test would have caught them
+	/// immediately:
+	/// </para>
+	/// <list type="bullet">
+	/// <item>
+	/// Clearing a minimum returned early instead of resetting the native constraint, so a view
+	/// whose <c>MinimumWidth</c> was set once could never shrink below it again.
+	/// </item>
+	/// <item>
+	/// <c>TextDecorations</c> is a <c>[Flags]</c> enum, but it was matched with a switch over the
+	/// whole value, so <c>Underline | Strikethrough</c> hit neither arm and fell through to
+	/// <c>None</c> - dropping both decorations in the one case where the user asked for the most.
+	/// </item>
+	/// </list>
+	/// <para>
+	/// Pulling that logic into this file makes it run on the host. The platform code keeps only the
+	/// native assignment, which is what the ref-pack lane is good at checking.
+	/// </para>
+	/// <para>
+	/// Internal, not public: this is an implementation detail that exists to be testable, and the
+	/// unit-test lane compiles these sources directly, so it does not need to widen the package's
+	/// public surface.
+	/// </para>
+	/// </remarks>
+	internal static class TizenPropertyResolvers
+	{
+		/// <summary>Bit values of <c>Tizen.UIExtensions.Common.TextDecorations</c>.</summary>
+		/// <remarks>
+		/// Mirrored as integers so this file stays free of TizenFX. Verified against the shipped
+		/// assembly's metadata: None = 0, Underline = 1, Strikethrough = 2.
+		/// </remarks>
+		public const int NoDecorations = 0;
+
+		/// <summary>The native <c>Underline</c> bit.</summary>
+		public const int UnderlineDecoration = 1;
+
+		/// <summary>The native <c>Strikethrough</c> bit.</summary>
+		public const int StrikethroughDecoration = 2;
+
+		/// <summary>
+		/// Converts MAUI's flags to the native decoration bits, preserving combinations.
+		/// </summary>
+		public static int ResolveTextDecorations(TextDecorations decorations)
+		{
+			var result = NoDecorations;
+
+			if (decorations.HasFlag(TextDecorations.Underline))
+				result |= UnderlineDecoration;
+
+			if (decorations.HasFlag(TextDecorations.Strikethrough))
+				result |= StrikethroughDecoration;
+
+			return result;
+		}
+
+		/// <summary>
+		/// Resolves a minimum dimension to a native constraint, treating "not set" as no
+		/// constraint rather than as "leave whatever was there before".
+		/// </summary>
+		/// <param name="value">The cross-platform minimum.</param>
+		/// <param name="toScaledPixel">Converts a device-independent value to scaled pixels.</param>
+		public static int ResolveMinimum(double value, Func<double, int> toScaledPixel)
+		{
+			ArgumentNullException.ThrowIfNull(toScaledPixel);
+
+			// Dimension.IsExplicitSet, without taking a dependency on it: an unset minimum arrives
+			// as either the unset sentinel or NaN depending on the caller.
+			var isSet = !double.IsNaN(value) && value != Primitives.Dimension.Unset;
+
+			return isSet ? toScaledPixel(value) : 0;
+		}
+	}
+}

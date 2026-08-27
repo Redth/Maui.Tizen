@@ -330,10 +330,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ArgumentNullException.ThrowIfNull(platformView);
 			ArgumentNullException.ThrowIfNull(view);
 
-			if (!IsExplicitSet(view.MinimumWidth))
-				return;
+			// Clearing a minimum has to reset the native constraint, not be ignored. Returning
+			// early on an unset value meant the previous minimum stayed applied forever, so a view
+			// whose MinimumWidth was set once could never shrink below it again.
+			var width = TizenPropertyResolvers.ResolveMinimum(view.MinimumWidth, static v => v.ToScaledPixel());
 
-			platformView.MinimumSize = new Size2D(view.MinimumWidth.ToScaledPixel(), platformView.MinimumSize.Height);
+			platformView.MinimumSize = new Size2D(width, platformView.MinimumSize.Height);
 		}
 
 		/// <summary>Applies <see cref="IView.MinimumHeight"/>.</summary>
@@ -344,10 +346,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ArgumentNullException.ThrowIfNull(platformView);
 			ArgumentNullException.ThrowIfNull(view);
 
-			if (!IsExplicitSet(view.MinimumHeight))
-				return;
+			var height = TizenPropertyResolvers.ResolveMinimum(view.MinimumHeight, static v => v.ToScaledPixel());
 
-			platformView.MinimumSize = new Size2D(platformView.MinimumSize.Width, view.MinimumHeight.ToScaledPixel());
+			platformView.MinimumSize = new Size2D(platformView.MinimumSize.Width, height);
 		}
 
 		/// <summary>
@@ -653,12 +654,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ArgumentNullException.ThrowIfNull(platformLabel);
 			ArgumentNullException.ThrowIfNull(label);
 
-			platformLabel.TextDecorations = label.TextDecorations switch
-			{
-				TextDecorations.Strikethrough => NTextDecorations.Strikethrough,
-				TextDecorations.Underline => NTextDecorations.Underline,
-				_ => NTextDecorations.None,
-			};
+			// TextDecorations is a [Flags] enum, so Underline|Strikethrough is a legal combination.
+			// A switch on the whole value matched neither arm and fell through to None, dropping
+			// BOTH decorations. The flag arithmetic lives in TizenPropertyResolvers so it can be
+			// tested on the host; this is just the native assignment.
+			platformLabel.TextDecorations =
+				(NTextDecorations)TizenPropertyResolvers.ResolveTextDecorations(label.TextDecorations);
 		}
 
 		/// <summary>Applies <see cref="ITextStyle.CharacterSpacing"/>.</summary>

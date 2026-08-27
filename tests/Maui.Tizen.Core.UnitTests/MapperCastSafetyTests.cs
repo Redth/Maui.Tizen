@@ -42,6 +42,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	/// those entries in, which is why earlier parity tests missed them.
 	/// </para>
 	/// </remarks>
+	[Collection(StaticMapperCollection.Name)]
 	public class MapperCastSafetyTests
 	{
 		class ControlsApp : Microsoft.Maui.Controls.Application
