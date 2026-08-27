@@ -168,6 +168,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 		}
 
 		/// <summary>
+		/// Ends page-busy state when the owning page handler detaches while preserving dialogs.
+		/// </summary>
+		internal void Detach()
+		{
+			_busyCount = 0;
+			CloseBusyIndicator();
+		}
+
+		/// <summary>
 		/// Dismisses every dialog that is still open and tears down the busy indicator.
 		/// </summary>
 		/// <remarks>

@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui;
 using Microsoft.Maui.LifecycleEvents;
@@ -27,7 +29,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		static readonly ConditionalWeakTable<TizenNativeWindow, TizenNativeView> s_windowContent = new();
 		static readonly ConditionalWeakTable<TizenNativeWindow, ITizenPlatformViewHandler> s_windowContentHandler = new();
 		static readonly ConditionalWeakTable<TizenNativeWindow, Action> s_windowCloseRequestHandler = new();
-		static readonly ConditionalWeakTable<TizenNativeWindow, Func<bool>> s_windowBackButtonPressedHandler = new();
+		static readonly ConditionalWeakTable<TizenNativeWindow, BackButtonRouter> s_windowBackButtonRouter = new();
 		static readonly ConditionalWeakTable<TizenNativeWindow, NavigationStack> s_windowNavigationStack = new();
 
 		/// <summary>Gets the process-wide NUI window.</summary>
@@ -258,13 +260,26 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ArgumentNullException.ThrowIfNull(platformWindow);
 			ArgumentNullException.ThrowIfNull(handler);
 
-			s_windowBackButtonPressedHandler.Remove(platformWindow);
-			s_windowBackButtonPressedHandler.Add(platformWindow, handler);
+			s_windowBackButtonRouter.GetOrCreateValue(platformWindow).SetFallback(handler);
+		}
+
+		/// <summary>
+		/// Registers a handler that runs before the window's existing back-button fallback.
+		/// </summary>
+		/// <param name="platformWindow">The platform window.</param>
+		/// <param name="handler">The handler.</param>
+		/// <returns>A registration that removes the handler when disposed.</returns>
+		public static IDisposable RegisterBackButtonPressedHandler(this TizenNativeWindow platformWindow, Func<bool> handler)
+		{
+			ArgumentNullException.ThrowIfNull(platformWindow);
+			ArgumentNullException.ThrowIfNull(handler);
+
+			return s_windowBackButtonRouter.GetOrCreateValue(platformWindow).Register(handler);
 		}
 
 		static void OnBackButtonPressed(TizenNativeWindow platformWindow)
 		{
-			if (s_windowBackButtonPressedHandler.TryGetValue(platformWindow, out var backHandler) && backHandler())
+			if (s_windowBackButtonRouter.TryGetValue(platformWindow, out var router) && router.Invoke())
 				return;
 
 			if (s_windowCloseRequestHandler.TryGetValue(platformWindow, out var closeHandler))
@@ -276,6 +291,74 @@ namespace Microsoft.Maui.Platforms.Tizen
 				? navigationStack
 				: throw new InvalidOperationException(
 					"The platform window has no navigation stack. Call InitializePlatformWindow before creating its MAUI window scope.");
+
+		sealed class BackButtonRouter
+		{
+			readonly object _gate = new();
+			readonly List<Func<bool>> _handlers = new();
+			Func<bool>? _fallback;
+
+			public void SetFallback(Func<bool> fallback)
+			{
+				lock (_gate)
+				{
+					_fallback = fallback;
+				}
+			}
+
+			public IDisposable Register(Func<bool> handler)
+			{
+				lock (_gate)
+				{
+					_handlers.Add(handler);
+				}
+
+				return new Registration(this, handler);
+			}
+
+			public bool Invoke()
+			{
+				Func<bool>[] handlers;
+				Func<bool>? fallback;
+
+				lock (_gate)
+				{
+					handlers = _handlers.ToArray();
+					fallback = _fallback;
+				}
+
+				for (var index = handlers.Length - 1; index >= 0; index--)
+				{
+					if (handlers[index]())
+						return true;
+				}
+
+				return fallback?.Invoke() == true;
+			}
+
+			void Remove(Func<bool> handler)
+			{
+				lock (_gate)
+				{
+					_handlers.Remove(handler);
+				}
+			}
+
+			sealed class Registration : IDisposable
+			{
+				BackButtonRouter? _owner;
+				readonly Func<bool> _handler;
+
+				public Registration(BackButtonRouter owner, Func<bool> handler)
+				{
+					_owner = owner;
+					_handler = handler;
+				}
+
+				public void Dispose() =>
+					Interlocked.Exchange(ref _owner, null)?.Remove(_handler);
+			}
+		}
 
 		static void SetHandler(IElement element, object platformElement, IMauiContext context)
 		{

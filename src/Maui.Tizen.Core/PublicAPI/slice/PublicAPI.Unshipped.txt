@@ -280,6 +280,7 @@ static Microsoft.Maui.Platforms.Tizen.TizenCoreApplicationExtensions.CreatePlatf
 static Microsoft.Maui.Platforms.Tizen.TizenCoreApplicationExtensions.GetDefaultWindow() -> Tizen.NUI.Window!
 static Microsoft.Maui.Platforms.Tizen.TizenCoreApplicationExtensions.GetWindow(this Tizen.NUI.Window? platformWindow) -> Microsoft.Maui.IWindow?
 static Microsoft.Maui.Platforms.Tizen.TizenCoreApplicationExtensions.InitializePlatformWindow(this Tizen.NUI.Window! platformWindow) -> void
+static Microsoft.Maui.Platforms.Tizen.TizenCoreApplicationExtensions.RegisterBackButtonPressedHandler(this Tizen.NUI.Window! platformWindow, System.Func<bool>! handler) -> System.IDisposable!
 static Microsoft.Maui.Platforms.Tizen.TizenCoreApplicationExtensions.SetApplicationHandler(this Tizen.Applications.CoreApplication! platformApplication, Microsoft.Maui.IApplication! application, Microsoft.Maui.IMauiContext! context) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenCoreApplicationExtensions.SetBackButtonPressedHandler(this Tizen.NUI.Window! platformWindow, System.Func<bool>! handler) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenCoreApplicationExtensions.SetMainContent(this Tizen.NUI.Window! platformWindow, Tizen.NUI.BaseComponents.View! content, Microsoft.Maui.IView? contentView = null) -> void

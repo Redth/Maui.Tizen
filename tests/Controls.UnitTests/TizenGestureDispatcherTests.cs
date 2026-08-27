@@ -326,6 +326,24 @@ public class TizenGestureDispatcherTests
 		Assert.False(raised);
 	}
 
+	[Theory]
+	[InlineData(TizenPointerAction.Entered)]
+	[InlineData(TizenPointerAction.Moved)]
+	[InlineData(TizenPointerAction.Exited)]
+	public void SecondaryOnlyRecognizersStillReceiveButtonlessHoverTransitions(TizenPointerAction action)
+	{
+		var dispatcher = new TizenGestureDispatcher();
+		var recognizer = new PointerGestureRecognizer { Buttons = ButtonsMask.Secondary };
+		var fired = new List<TizenPointerAction>();
+		recognizer.PointerEntered += (_, _) => fired.Add(TizenPointerAction.Entered);
+		recognizer.PointerMoved += (_, _) => fired.Add(TizenPointerAction.Moved);
+		recognizer.PointerExited += (_, _) => fired.Add(TizenPointerAction.Exited);
+
+		dispatcher.SendPointer(recognizer, View, action, At(Point.Zero), TizenPointerButton.Unknown);
+
+		Assert.Equal(action, Assert.Single(fired));
+	}
+
 	// Long press is the ONE gesture this backend detects but cannot raise:
 	// LongPressGestureRecognizer.SendLongPressed and SendLongPressing are still internal in
 	// 11.0.0-preview.7.26426.4. This test pins that, and fails once they go public.

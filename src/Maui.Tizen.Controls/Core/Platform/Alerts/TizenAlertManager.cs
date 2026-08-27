@@ -23,8 +23,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// explicitly. The built-in manager treats <see cref="Unsubscribe"/> as "drop the reference",
 	/// which on Tizen would leave an orphaned modal popup on screen holding native resources and
 	/// would leave the awaiting <c>DisplayAlertAsync</c> caller pending forever. This manager
-	/// disposes its subscription on <see cref="Unsubscribe"/>, which dismisses in-flight dialogs
-	/// and completes their callers with the documented cancellation result.
+	/// retains detached subscriptions until scope teardown so in-flight dialogs can complete, while
+	/// ending any page-busy state immediately because subsequent updates go to a new subscription.
 	/// </para>
 	/// </remarks>
 	public sealed class TizenAlertManager : IAlertManager, IDisposable
@@ -110,8 +110,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <see cref="Dispose"/>, which the DI container calls when the window scope is torn down.
 		/// </para>
 		/// </remarks>
-		public void Unsubscribe() =>
+		public void Unsubscribe()
+		{
+			var subscription = _subscription;
 			_subscription = null;
+			subscription?.Detach();
+		}
 
 		/// <inheritdoc/>
 		public void RequestAlert(Page page, AlertArguments arguments) =>

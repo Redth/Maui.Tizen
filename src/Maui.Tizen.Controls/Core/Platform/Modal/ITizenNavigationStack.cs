@@ -62,11 +62,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// Removes <paramref name="platformView"/> from anywhere in the stack.
 		/// </summary>
 		/// <param name="platformView">The native view to remove.</param>
+		/// <returns>
+		/// <see langword="true"/> when the native stack disposed the view while removing it;
+		/// otherwise <see langword="false"/>.
+		/// </returns>
 		/// <remarks>
 		/// Used to unwind a placeholder that is no longer on top because something else was pushed
 		/// while a dialog was open.
 		/// </remarks>
-		void Remove(object platformView);
+		bool Remove(object platformView);
 	}
 
 	/// <summary>
@@ -85,8 +89,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <summary>
 		/// Releases the platform view created for <paramref name="page"/>.
 		/// </summary>
-		/// <param name="page">The page whose handler should be disconnected.</param>
-		void Release(Page page);
+		/// <param name="page">The page whose handler should be released.</param>
+		/// <param name="platformView">The platform view returned by <see cref="Realize"/>.</param>
+		/// <param name="platformViewDisposed">
+		/// Whether the native stack already disposed <paramref name="platformView"/>.
+		/// </param>
+		void Release(Page page, object platformView, bool platformViewDisposed);
 	}
 
 	/// <summary>
@@ -95,13 +103,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 	public interface ITizenWindowBackButton
 	{
 		/// <summary>
-		/// Sets the back-button handler, or clears it when <paramref name="handler"/> is
-		/// <see langword="null"/>.
+		/// Registers a back-button handler ahead of the window's existing fallback handler.
 		/// </summary>
 		/// <param name="handler">
 		/// Returns <see langword="true"/> when the press was handled and should not fall through to
 		/// the platform's default behaviour.
 		/// </param>
-		void SetBackButtonPressedHandler(Func<bool>? handler);
+		/// <returns>A registration that restores the previous routing when disposed.</returns>
+		IDisposable RegisterBackButtonPressedHandler(Func<bool> handler);
 	}
 }

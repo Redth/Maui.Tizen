@@ -94,24 +94,34 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 
 		if (_entries.Count > 0)
 		{
+			(_entries[^1] as IDisposable)?.Dispose();
 			_entries.RemoveAt(_entries.Count - 1);
 		}
 
 		return PopFailure is null ? Task.CompletedTask : Task.FromException(PopFailure);
 	}
 
-	public void Remove(object platformView)
+	public bool Remove(object platformView)
 	{
 		Operations.Add("Remove");
-		_entries.Remove(platformView);
+		var isTop = ReferenceEquals(Top, platformView);
+		var removed = _entries.Remove(platformView);
+
+		if (removed && isTop)
+		{
+			(platformView as IDisposable)?.Dispose();
+		}
+
+		return removed && isTop;
 	}
 }
 
 internal sealed class FakePlaceholder : IDisposable
 {
-	public bool Disposed { get; private set; }
+	public bool Disposed => DisposeCount > 0;
+	public int DisposeCount { get; private set; }
 
-	public void Dispose() => Disposed = true;
+	public void Dispose() => DisposeCount++;
 }
 
 /// <summary>
@@ -160,23 +170,42 @@ internal sealed class FakeModalNavigationHost : IModalNavigationHost
 /// </summary>
 internal sealed class FakeModalPageRealizer : ITizenModalPageRealizer
 {
-	readonly Dictionary<Page, object> _platformViews = new();
+	readonly Dictionary<Page, FakePlatformView> _platformViews = new();
 
 	public List<Page> Realized { get; } = new();
 
 	public List<Page> Released { get; } = new();
+	public List<(Page Page, bool PlatformViewDisposed)> Releases { get; } = new();
 
 	public object Realize(Page page, IMauiContext mauiContext)
 	{
 		Realized.Add(page);
-		var platformView = new object();
+		var platformView = new FakePlatformView();
 		_platformViews[page] = platformView;
 		return platformView;
 	}
 
-	public void Release(Page page) => Released.Add(page);
+	public void Release(Page page, object platformView, bool platformViewDisposed)
+	{
+		Released.Add(page);
+		Releases.Add((page, platformViewDisposed));
+
+		if (!platformViewDisposed)
+		{
+			(platformView as IDisposable)?.Dispose();
+		}
+	}
 
 	public object PlatformViewFor(Page page) => _platformViews[page];
+
+	public int DisposeCountFor(Page page) => _platformViews[page].DisposeCount;
+
+	sealed class FakePlatformView : IDisposable
+	{
+		public int DisposeCount { get; private set; }
+
+		public void Dispose() => DisposeCount++;
+	}
 }
 
 internal sealed class FakeWindowBackButton : ITizenWindowBackButton
@@ -184,10 +213,36 @@ internal sealed class FakeWindowBackButton : ITizenWindowBackButton
 	public Func<bool>? Handler { get; private set; }
 
 	public int SetCount { get; private set; }
+	public Func<bool>? FallbackHandler { get; set; }
 
-	public void SetBackButtonPressedHandler(Func<bool>? handler)
+	public IDisposable RegisterBackButtonPressedHandler(Func<bool> handler)
 	{
 		Handler = handler;
 		SetCount++;
+		return new Registration(this, handler);
+	}
+
+	public bool Invoke() => Handler?.Invoke() == true || FallbackHandler?.Invoke() == true;
+
+	sealed class Registration : IDisposable
+	{
+		FakeWindowBackButton? _owner;
+		readonly Func<bool> _handler;
+
+		public Registration(FakeWindowBackButton owner, Func<bool> handler)
+		{
+			_owner = owner;
+			_handler = handler;
+		}
+
+		public void Dispose()
+		{
+			var owner = _owner;
+			_owner = null;
+			if (owner is not null && ReferenceEquals(owner.Handler, _handler))
+			{
+				owner.Handler = null;
+			}
+		}
 	}
 }

@@ -95,12 +95,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 		/// a throw, so a partially configured host degrades instead of failing at window creation.
 		/// </para>
 		/// <para>
-		/// No back-button implementation is supplied by this layer. Upstream, the handler registry
-		/// lives in <c>Microsoft.Maui.Platform.WindowExtensions</c> and is consumed by
-		/// <c>MauiApplication</c>, both of which belong to the Tizen Core layer rather than to
-		/// Controls. Duplicating that registry here would create a second, competing source of
-		/// truth for back-button routing. Pass the Core layer's implementation instead; when it is
-		/// omitted, back presses fall through to the platform default.
+		/// The scoped initializer supplies an adapter over Core's existing per-window back route.
+		/// Modal handling is registered ahead of the cross-platform window fallback and removing the
+		/// modal registration restores that fallback; Controls never replaces Core's callback or
+		/// creates a competing registry.
 		/// </para>
 		/// </remarks>
 		public static void AttachTizenWindow(
@@ -157,8 +155,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 			public NuiWindowBackButton(TWindow window) =>
 				_window = window ?? throw new ArgumentNullException(nameof(window));
 
-			public void SetBackButtonPressedHandler(Func<bool>? handler) =>
-				_window.SetBackButtonPressedHandler(handler ?? (static () => false));
+			public IDisposable RegisterBackButtonPressedHandler(Func<bool> handler) =>
+				_window.RegisterBackButtonPressedHandler(handler);
 		}
 	}
 }

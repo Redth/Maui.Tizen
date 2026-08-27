@@ -17,7 +17,7 @@
     such problem - they are built on the public extensibility contracts that shipped in .NET
     MAUI 11 (IAlertManager, IAlertManagerSubscription, IGesturePlatformManager,
     IGesturePlatformManagerFactory) and are verified to type-check against TizenFX by
-    eng/verify-nui-sources.sh.
+    tests/Maui.Tizen.Controls.RefPackCompile.
 
     They are excluded from the <None> glob so they do not appear twice in the IDE.
   -->

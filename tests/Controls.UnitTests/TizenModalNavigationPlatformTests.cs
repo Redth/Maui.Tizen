@@ -55,7 +55,7 @@ public class TizenModalNavigationPlatformTests
 	[Fact]
 	public async Task PushPropagatesTheAnimationFlag()
 	{
-		var (platform, host, stack, _, _) = Build();
+		var (platform, host, stack, realizer, _) = Build();
 		using var _p = platform;
 
 		var first = new ContentPage();
@@ -83,6 +83,8 @@ public class TizenModalNavigationPlatformTests
 
 		Assert.Equal(0, stack.Count);
 		Assert.Equal(modal, Assert.Single(realizer.Released));
+		Assert.True(Assert.Single(realizer.Releases).PlatformViewDisposed);
+		Assert.Equal(1, realizer.DisposeCountFor(modal));
 	}
 
 	[Fact]
@@ -130,7 +132,7 @@ public class TizenModalNavigationPlatformTests
 	[Fact]
 	public async Task AFailedPushSurfacesToTheCaller()
 	{
-		var (platform, host, stack, _, _) = Build();
+		var (platform, host, stack, realizer, _) = Build();
 		using var _p = platform;
 
 		stack.PushFailure = new InvalidOperationException("native failure");
@@ -141,6 +143,9 @@ public class TizenModalNavigationPlatformTests
 		// The framework rolls the platform stack back and rethrows to the PushModalAsync caller,
 		// so the platform must not swallow this.
 		await Assert.ThrowsAsync<InvalidOperationException>(() => platform.PushModalAsync(modal, false));
+
+		Assert.False(Assert.Single(realizer.Releases).PlatformViewDisposed);
+		Assert.Equal(1, realizer.DisposeCountFor(modal));
 	}
 
 	[Fact]
@@ -158,6 +163,25 @@ public class TizenModalNavigationPlatformTests
 
 		Assert.Equal(0, stack.Count);
 		Assert.Equal(modal, Assert.Single(realizer.Released));
+		Assert.True(Assert.Single(realizer.Releases).PlatformViewDisposed);
+		Assert.Equal(1, realizer.DisposeCountFor(modal));
+	}
+
+	[Fact]
+	public async Task BuriedModalRemovalExplicitlyDisposesThePlatformView()
+	{
+		var (platform, host, stack, realizer, _) = Build();
+		using var _p = platform;
+		var modal = new ContentPage();
+		host.RecordPush(modal);
+		await platform.PushModalAsync(modal, false);
+		await stack.PushAsync(new object(), false);
+		host.RecordPop(modal);
+
+		await platform.PopModalAsync(modal, false);
+
+		Assert.False(Assert.Single(realizer.Releases).PlatformViewDisposed);
+		Assert.Equal(1, realizer.DisposeCountFor(modal));
 	}
 
 	[Fact]
@@ -237,7 +261,7 @@ public class TizenModalNavigationPlatformTests
 		platform.PageAttached();
 		platform.PageAttached();
 
-		Assert.Equal(2, backButton.SetCount);
+		Assert.Equal(1, backButton.SetCount);
 		Assert.NotNull(backButton.Handler);
 	}
 
@@ -294,6 +318,27 @@ public class TizenModalNavigationPlatformTests
 
 		Assert.Null(backButton.Handler);
 		Assert.False(platform.IsReady);
+	}
+
+	[Fact]
+	public void UnhandledModalBackFallsThroughAndDisposeRestoresTheExistingRoute()
+	{
+		var (platform, host, _, _, backButton) = Build();
+		var fallbackCalls = 0;
+		backButton.FallbackHandler = () =>
+		{
+			fallbackCalls++;
+			return true;
+		};
+		host.CurrentPage = new ContentPage();
+
+		platform.PageAttached();
+		Assert.True(backButton.Invoke());
+		Assert.Equal(1, fallbackCalls);
+
+		platform.Dispose();
+		Assert.True(backButton.Invoke());
+		Assert.Equal(2, fallbackCalls);
 	}
 
 	[Fact]

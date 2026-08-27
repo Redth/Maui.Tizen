@@ -282,7 +282,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			var mask = ToButtonsMask(button);
 
-			if (!recognizer.Buttons.HasFlag(mask))
+			if ((action is TizenPointerAction.Pressed or TizenPointerAction.Released)
+				&& !recognizer.Buttons.HasFlag(mask))
 			{
 				return;
 			}

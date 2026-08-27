@@ -69,7 +69,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public Task PopAsync(bool animated) => Target.PopAsync(animated);
 
 		/// <inheritdoc/>
-		public void Remove(object platformView) => Target.Remove(platformView);
+		public bool Remove(object platformView) => Target.Remove(platformView);
 
 		ITizenNavigationStack Target =>
 			_target ?? throw new InvalidOperationException(
@@ -90,6 +90,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 	{
 		ITizenWindowBackButton? _target;
 		Func<bool>? _pendingHandler;
+		IDisposable? _targetRegistration;
 
 		/// <summary>
 		/// Gets a value indicating whether a native window has been attached.
@@ -101,23 +102,62 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public void Attach(ITizenWindowBackButton target)
 		{
 			_target = target ?? throw new ArgumentNullException(nameof(target));
+			_targetRegistration?.Dispose();
+			_targetRegistration = null;
 
 			// The modal navigation platform installs its handler on PageAttached, which can happen
 			// before the window handler attaches the native window.
 			if (_pendingHandler is not null)
 			{
-				_target.SetBackButtonPressedHandler(_pendingHandler);
+				_targetRegistration = _target.RegisterBackButtonPressedHandler(_pendingHandler);
 			}
 		}
 
 		/// <summary>Clears the attached window.</summary>
-		public void Detach() => _target = null;
+		public void Detach()
+		{
+			_targetRegistration?.Dispose();
+			_targetRegistration = null;
+			_target = null;
+		}
 
 		/// <inheritdoc/>
-		public void SetBackButtonPressedHandler(Func<bool>? handler)
+		public IDisposable RegisterBackButtonPressedHandler(Func<bool> handler)
 		{
+			ArgumentNullException.ThrowIfNull(handler);
+
+			_targetRegistration?.Dispose();
 			_pendingHandler = handler;
-			_target?.SetBackButtonPressedHandler(handler);
+			_targetRegistration = _target?.RegisterBackButtonPressedHandler(handler);
+
+			return new Registration(this, handler);
+		}
+
+		sealed class Registration : IDisposable
+		{
+			TizenScopedWindowBackButton? _owner;
+			readonly Func<bool> _handler;
+
+			public Registration(TizenScopedWindowBackButton owner, Func<bool> handler)
+			{
+				_owner = owner;
+				_handler = handler;
+			}
+
+			public void Dispose()
+			{
+				var owner = _owner;
+				_owner = null;
+
+				if (owner is null || !ReferenceEquals(owner._pendingHandler, _handler))
+				{
+					return;
+				}
+
+				owner._pendingHandler = null;
+				owner._targetRegistration?.Dispose();
+				owner._targetRegistration = null;
+			}
 		}
 	}
 }

@@ -72,10 +72,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 				// identity even though PushAsync faulted so a half-completed push cannot wedge the
 				// stack.
 				var cleanupFailures = new List<Exception>();
+				var pushPlaceholderDisposed = false;
 
 				try
 				{
-					await RemovePlaceholderAsync(placeholder).ConfigureAwait(true);
+					pushPlaceholderDisposed = await RemovePlaceholderAsync(
+						placeholder,
+						missingMeansDisposed: false).ConfigureAwait(true);
 				}
 				catch (Exception ex)
 				{
@@ -84,7 +87,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 				try
 				{
-					DisposePlaceholder(placeholder);
+					if (!pushPlaceholderDisposed)
+					{
+						DisposePlaceholder(placeholder);
+					}
 				}
 				catch (Exception ex)
 				{
@@ -117,6 +123,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 
 			Exception? cleanupFailure = null;
+			var placeholderDisposed = false;
 
 			try
 			{
@@ -128,6 +135,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 					if (ReferenceEquals(_stack.Top, placeholder))
 					{
 						await _stack.PopAsync(false).ConfigureAwait(true);
+						placeholderDisposed = true;
 					}
 					else
 					{
@@ -135,7 +143,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 							"The dialog placeholder was no longer on top of the navigation stack; removing it by identity instead of popping.");
 						if (_stack.Contains(placeholder))
 						{
-							_stack.Remove(placeholder);
+							placeholderDisposed = _stack.Remove(placeholder);
 						}
 					}
 				}
@@ -143,7 +151,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 				{
 					// PopAsync can remove the top entry and then fault its transition task. Removal
 					// is idempotent and also covers the pre-mutation failure case.
-					await RemovePlaceholderAsync(placeholder).ConfigureAwait(true);
+					placeholderDisposed = await RemovePlaceholderAsync(
+						placeholder,
+						missingMeansDisposed: true).ConfigureAwait(true);
 					throw;
 				}
 			}
@@ -154,7 +164,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			try
 			{
-				DisposePlaceholder(placeholder);
+				if (!placeholderDisposed)
+				{
+					DisposePlaceholder(placeholder);
+				}
 			}
 			catch (Exception ex)
 			{
@@ -185,11 +198,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 		static void DisposePlaceholder(object placeholder) =>
 			(placeholder as IDisposable)?.Dispose();
 
-		async Task RemovePlaceholderAsync(object placeholder)
+		async Task<bool> RemovePlaceholderAsync(object placeholder, bool missingMeansDisposed)
 		{
 			if (!_stack.Contains(placeholder))
 			{
-				return;
+				return missingMeansDisposed;
 			}
 
 			if (ReferenceEquals(_stack.Top, placeholder))
@@ -197,6 +210,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				try
 				{
 					await _stack.PopAsync(false).ConfigureAwait(true);
+					return true;
 				}
 				catch (Exception retryFailure)
 				{
@@ -204,8 +218,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 					{
 						if (_stack.Contains(placeholder))
 						{
-							_stack.Remove(placeholder);
+							return _stack.Remove(placeholder);
 						}
+
+						return true;
 					}
 					catch (Exception removeFailure)
 					{
@@ -218,7 +234,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 			else
 			{
-				_stack.Remove(placeholder);
+				return _stack.Remove(placeholder);
 			}
 		}
 	}

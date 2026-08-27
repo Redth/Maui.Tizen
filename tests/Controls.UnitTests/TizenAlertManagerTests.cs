@@ -291,6 +291,24 @@ public class TizenAlertManagerTests
 	}
 
 	[Fact]
+	[Obsolete("Exercises the obsolete page-busy notification on purpose.")]
+	public void HandlerChurnClosesTheDetachedBusyIndicator()
+	{
+		var fixture = new Fixture();
+		fixture.Manager.Subscribe();
+		fixture.Manager.RequestPageBusy(fixture.Page, true);
+		var oldIndicator = fixture.Dialogs.LastBusyIndicator!;
+
+		fixture.Manager.Unsubscribe();
+		fixture.Manager.Subscribe();
+		fixture.Manager.RequestPageBusy(fixture.Page, false);
+
+		Assert.False(oldIndicator.IsOpen);
+		Assert.True(oldIndicator.Disposed);
+		Assert.Equal(1, fixture.Dialogs.BusyIndicatorsCreated);
+	}
+
+	[Fact]
 	public void ManagerImplementsThePublicMauiContract()
 	{
 		var fixture = new Fixture();

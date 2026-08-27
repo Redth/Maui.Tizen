@@ -54,7 +54,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 		public Task PopAsync(bool animated) => _stack.Pop(animated);
 
 		/// <inheritdoc/>
-		public void Remove(object platformView)
+		public bool Remove(object platformView)
 		{
 			var view = AsView(platformView, nameof(platformView));
 
@@ -63,11 +63,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 				// Pop(View) does not refresh NavigationStack.Top. Use the normal nonanimated pop
 				// for the top entry so the preceding view is shown and focus is restored.
 				_stack.Pop(false).GetAwaiter().GetResult();
+				return true;
 			}
-			else
-			{
-				_stack.Pop(view);
-			}
+
+			_stack.Pop(view);
+			return false;
 		}
 
 		static NView AsView(object platformView, string parameterName)

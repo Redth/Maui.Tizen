@@ -72,13 +72,26 @@ namespace Microsoft.Maui.Platforms.Tizen
 		}
 
 		/// <inheritdoc/>
-		public void Release(Page page)
+		public void Release(Page page, object platformView, bool platformViewDisposed)
 		{
 			ArgumentNullException.ThrowIfNull(page);
+			ArgumentNullException.ThrowIfNull(platformView);
 
-			// Disconnecting is what releases the native views; the framework detaches the page from
-			// its parent afterwards.
-			page.Handler?.DisconnectHandler();
+			var handler = page.Handler;
+
+			if (platformViewDisposed)
+			{
+				handler?.DisconnectHandler();
+			}
+			else if (handler is IDisposable disposableHandler)
+			{
+				disposableHandler.Dispose();
+			}
+			else
+			{
+				handler?.DisconnectHandler();
+				(platformView as IDisposable)?.Dispose();
+			}
 		}
 	}
 
@@ -111,6 +124,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		readonly Dictionary<Page, object> _platformViews = new();
 		readonly List<Page> _presentationOrder = new();
 
+		IDisposable? _backButtonRegistration;
 		bool _disposed;
 
 		/// <summary>
@@ -161,10 +175,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 			catch (Exception pushFailure)
 			{
 				var cleanupFailures = new List<Exception>();
+				var platformViewDisposed = false;
 
 				try
 				{
-					await RemovePlatformViewAsync(platformView).ConfigureAwait(true);
+					platformViewDisposed = await RemovePlatformViewAsync(
+						platformView,
+						missingMeansDisposed: false).ConfigureAwait(true);
 				}
 				catch (Exception ex)
 				{
@@ -173,7 +190,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 				try
 				{
-					_realizer.Release(modal);
+					_realizer.Release(modal, platformView, platformViewDisposed);
 				}
 				catch (Exception ex)
 				{
@@ -208,6 +225,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_platformViews.TryGetValue(modal, out var platformView);
 
 			Exception? popFailure = null;
+			var platformViewDisposed = platformView is not null && !_stack.Contains(platformView);
 
 			try
 			{
@@ -216,10 +234,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 					if (ReferenceEquals(_stack.Top, platformView))
 					{
 						await _stack.PopAsync(animated && !_host.IsBatchPopping).ConfigureAwait(true);
+						platformViewDisposed = true;
 					}
 					else
 					{
-						_stack.Remove(platformView);
+						platformViewDisposed = _stack.Remove(platformView);
 					}
 				}
 			}
@@ -231,7 +250,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 				{
 					try
 					{
-						await RemovePlatformViewAsync(platformView).ConfigureAwait(true);
+						platformViewDisposed = await RemovePlatformViewAsync(
+							platformView,
+							missingMeansDisposed: true).ConfigureAwait(true);
 					}
 					catch (Exception cleanupFailure)
 					{
@@ -249,7 +270,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 				try
 				{
-					_realizer.Release(modal);
+					if (platformView is not null)
+					{
+						_realizer.Release(modal, platformView, platformViewDisposed);
+					}
 				}
 				catch (Exception releaseFailure)
 				{
@@ -287,7 +311,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
-			_backButton.SetBackButtonPressedHandler(OnBackButtonPressed);
+			_backButtonRegistration ??= _backButton.RegisterBackButtonPressedHandler(OnBackButtonPressed);
 		}
 
 		/// <inheritdoc/>
@@ -304,7 +328,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			try
 			{
-				_backButton?.SetBackButtonPressedHandler(null);
+				_backButtonRegistration?.Dispose();
+				_backButtonRegistration = null;
 			}
 			catch (Exception ex)
 			{
@@ -314,12 +339,16 @@ namespace Microsoft.Maui.Platforms.Tizen
 			foreach (var page in _presentationOrder.AsEnumerable().Reverse())
 			{
 				var platformView = _platformViews[page];
+				var platformViewDisposed = false;
 
 				try
 				{
-					if (_stack.Contains(platformView))
+					var containsPlatformView = _stack.Contains(platformView);
+					platformViewDisposed = !containsPlatformView;
+
+					if (containsPlatformView)
 					{
-						_stack.Remove(platformView);
+						platformViewDisposed = _stack.Remove(platformView);
 					}
 				}
 				catch (Exception ex)
@@ -329,7 +358,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 				try
 				{
-					_realizer.Release(page);
+					_realizer.Release(page, platformView, platformViewDisposed);
 				}
 				catch (Exception ex)
 				{
@@ -348,11 +377,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		bool OnBackButtonPressed() => _host.CurrentPage?.SendBackButtonPressed() ?? false;
 
-		async Task RemovePlatformViewAsync(object platformView)
+		async Task<bool> RemovePlatformViewAsync(object platformView, bool missingMeansDisposed)
 		{
 			if (!_stack.Contains(platformView))
 			{
-				return;
+				return missingMeansDisposed;
 			}
 
 			if (ReferenceEquals(_stack.Top, platformView))
@@ -360,6 +389,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				try
 				{
 					await _stack.PopAsync(false).ConfigureAwait(true);
+					return true;
 				}
 				catch (Exception retryFailure)
 				{
@@ -367,8 +397,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 					{
 						if (_stack.Contains(platformView))
 						{
-							_stack.Remove(platformView);
+							return _stack.Remove(platformView);
 						}
+
+						return true;
 					}
 					catch (Exception removeFailure)
 					{
@@ -381,7 +413,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 			else
 			{
-				_stack.Remove(platformView);
+				return _stack.Remove(platformView);
 			}
 		}
 	}

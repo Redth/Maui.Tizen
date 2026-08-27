@@ -44,6 +44,7 @@ public class TizenModalHostTests
 
 		Assert.False(Assert.Single(stack.PushAnimations));
 		Assert.False(Assert.Single(stack.PopAnimations));
+		Assert.Equal(1, Assert.Single(stack.Placeholders).DisposeCount);
 	}
 
 	[Fact]
@@ -104,6 +105,7 @@ public class TizenModalHostTests
 		Assert.Contains("Remove", stack.Operations);
 		Assert.Equal(1, stack.Count);
 		Assert.True(Assert.Single(stack.Placeholders).Disposed);
+		Assert.Equal(1, Assert.Single(stack.Placeholders).DisposeCount);
 	}
 
 	[Fact]
@@ -180,6 +182,7 @@ public class TizenModalHostTests
 
 		Assert.Equal(0, stack.Count);
 		Assert.True(Assert.Single(stack.Placeholders).Disposed);
+		Assert.Equal(1, Assert.Single(stack.Placeholders).DisposeCount);
 	}
 
 	[Fact]
@@ -194,6 +197,7 @@ public class TizenModalHostTests
 		Assert.Equal("stack pop failed", exception.Message);
 		Assert.Equal(0, stack.Count);
 		Assert.True(Assert.Single(stack.Placeholders).Disposed);
+		Assert.Equal(1, Assert.Single(stack.Placeholders).DisposeCount);
 	}
 
 	[Fact]
@@ -210,6 +214,7 @@ public class TizenModalHostTests
 
 		Assert.Equal(0, stack.Count);
 		Assert.True(Assert.Single(stack.Placeholders).Disposed);
+		Assert.Equal(1, Assert.Single(stack.Placeholders).DisposeCount);
 	}
 
 	[Fact]
@@ -330,7 +335,7 @@ public class TizenScopedWindowServiceTests
 
 		// The modal platform installs its handler on PageAttached, which can run before the window
 		// handler attaches the native window.
-		scoped.SetBackButtonPressedHandler(handler);
+		using var registration = scoped.RegisterBackButtonPressedHandler(handler);
 
 		var target = new FakeWindowBackButton();
 		scoped.Attach(target);
@@ -345,10 +350,26 @@ public class TizenScopedWindowServiceTests
 		var target = new FakeWindowBackButton();
 		scoped.Attach(target);
 
-		scoped.SetBackButtonPressedHandler(static () => true);
+		using var registration = scoped.RegisterBackButtonPressedHandler(static () => true);
 
 		Assert.NotNull(target.Handler);
 		Assert.True(scoped.IsAttached);
+	}
+
+	[Fact]
+	public void DisposingTheScopedRegistrationRestoresTheTargetRoute()
+	{
+		var scoped = new TizenScopedWindowBackButton();
+		var target = new FakeWindowBackButton { FallbackHandler = static () => true };
+		scoped.Attach(target);
+		var registration = scoped.RegisterBackButtonPressedHandler(static () => false);
+
+		Assert.True(target.Invoke());
+
+		registration.Dispose();
+
+		Assert.Null(target.Handler);
+		Assert.True(target.Invoke());
 	}
 
 	[Fact]
@@ -357,7 +378,10 @@ public class TizenScopedWindowServiceTests
 		var scoped = new TizenScopedWindowBackButton();
 
 		// Unlike the navigation stack, the app still runs; back presses just fall through.
-		var exception = Record.Exception(() => scoped.SetBackButtonPressedHandler(static () => true));
+		var exception = Record.Exception(() =>
+		{
+			using var registration = scoped.RegisterBackButtonPressedHandler(static () => true);
+		});
 
 		Assert.Null(exception);
 	}
