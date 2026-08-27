@@ -263,6 +263,13 @@ present in the conversion's *input*, one asserts they are absent from its output
 `wwwroot/data/archive.gz` — a genuine user file discovered as `Primary` — still ships. That last one is
 what pins the `AssetRole` semantics; without it a filter keyed on the extension would pass.
 
+`AssetRole` is copied onto the emitted `MauiAsset` items. That is a cross-layer contract, not an
+incidental detail: `Maui.Tizen.Build.Tasks` re-filters `AssetRole='Alternative'` before `TizenResource`
+as defense in depth against exactly the provider bug described above. An MSBuild item created from
+`%(Identity)` inherits no metadata, so without the explicit copy every asset would reach that guard
+with a blank role and it could never fire. `AssetRoleIsPropagatedToMauiAssetForTheDownstreamGuard`
+pins it on this side, where it is produced.
+
 Asset file names must not be hard-coded: the SDK fingerprints static web assets in some configurations
 (`blazor.webview.<hash>.js`), so the tests match by prefix and extension and assert on the `wwwroot`
 content-root prefix, which is the property that actually determines runtime reachability.

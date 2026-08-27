@@ -233,6 +233,23 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		}
 
 		[Fact]
+		public void AssetRoleIsPropagatedToMauiAssetForTheDownstreamGuard()
+		{
+			// Cross-layer contract with Maui.Tizen.Build.Tasks, which re-filters AssetRole='Alternative'
+			// before TizenResource as defense in depth against a broken provider - exactly the failure
+			// this package shipped.
+			//
+			// That guard only works if the metadata survives this conversion. An item created from
+			// %(Identity) inherits NOTHING, so AssetRole has to be copied explicitly; without it every
+			// asset arrives downstream with a blank role and the guard silently never fires. Asserting
+			// it here means the seam is pinned on the side that produces it.
+			var assets = _assetsWithCompressedVariants.Value;
+
+			Assert.NotEmpty(assets);
+			Assert.All(assets, a => Assert.Equal("Primary", a.AssetRole));
+		}
+
+		[Fact]
 		public void ConversionRunsThroughThePublishedAssetProviderContract()
 		{
 			// Maui.Tizen.Build.Tasks runs every target listed in MauiTizenAssetProviderTargets. The
@@ -322,7 +339,8 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 				.Select(e => new MauiAssetItem(
 					e.TryGetProperty("FullPath", out var full) ? full.GetString() ?? string.Empty : string.Empty,
 					e.TryGetProperty("TargetPath", out var target) ? target.GetString() ?? string.Empty : string.Empty,
-					e.TryGetProperty("Link", out var link) ? link.GetString() ?? string.Empty : string.Empty))
+					e.TryGetProperty("Link", out var link) ? link.GetString() ?? string.Empty : string.Empty,
+					e.TryGetProperty("AssetRole", out var role) ? role.GetString() ?? string.Empty : string.Empty))
 				.ToArray();
 		}
 
@@ -454,6 +472,6 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			}
 		}
 
-		private sealed record MauiAssetItem(string Identity, string TargetPath, string Link);
+		private sealed record MauiAssetItem(string Identity, string TargetPath, string Link, string AssetRole);
 	}
 }

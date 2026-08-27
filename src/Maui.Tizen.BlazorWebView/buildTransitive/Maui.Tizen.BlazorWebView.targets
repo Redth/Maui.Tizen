@@ -82,6 +82,14 @@
           Include="%(_TizenBlazorStaticWebAssetWithTargetPath.Identity)"
           Condition=" '%(_TizenBlazorStaticWebAssetWithTargetPath.AssetRole)' != 'Alternative' ">
         <TargetPath>%(_TizenBlazorStaticWebAssetWithTargetPath.TargetPath)</TargetPath>
+        <!--
+          Carried through deliberately. Maui.Tizen.Build.Tasks re-filters AssetRole='Alternative'
+          before TizenResource as defense in depth, and an item created from %(Identity) inherits
+          no metadata - so without this the downstream guard would see a blank AssetRole on every
+          asset this provider supplies and could never fire. Propagating it means a regression in
+          the filter above is still caught one layer later.
+        -->
+        <AssetRole>%(_TizenBlazorStaticWebAssetWithTargetPath.AssetRole)</AssetRole>
       </_TizenBlazorMauiAssetCandidate>
 
       <!--
