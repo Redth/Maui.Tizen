@@ -77,8 +77,24 @@ Controls and inverting the dependency direction.
 `ILabel` carries only `TextDecorations` and `LineHeight` - verified by reflection over the shipped
 `Microsoft.Maui` assembly - so none of the three Label properties is reachable from this backend.
 
-Core ships the native halves it can own: `UpdateIsInAccessibleTree`, `UpdateExcludedWithChildren`
-and `UpdateLineBreakMode`. The last one matters because the two `LineBreakMode` enums are **not**
+**These are now bound**, in `src/Maui.Tizen.Controls/Platform/TizenControlsMappings.cs` - a real
+product assembly that legitimately references Controls, compiled by
+`tests/Maui.Tizen.Controls.RefPackCompile` against real TizenFX. It appends to the static Controls
+mappers, which is the same public mechanism Controls' own `RemapForControls` uses, because an
+out-of-repo backend cannot contribute to Controls' per-platform partial classes.
+
+`LineBreakMode` and both accessibility annotations are bound and working - the accessibility pair
+through a **single** mapper action, since both write to the same two NUI flags and binding them
+separately let whichever ran last overwrite the other.
+
+`MaxLines` and `FormattedText` are **not** bound, and no inert key is registered for either.
+`MaxLines` has no native equivalent at all. `FormattedText` requires converting Controls'
+`FormattedString` into the native markup form; upstream does not implement it on Tizen and neither
+does this backend yet - it is an explicit Wave A requirement before the sample can claim Label
+parity.
+
+Core ships the native halves it owns: `UpdateAccessibility` (both annotations at once) and
+`UpdateLineBreakMode`. The last one matters because the two `LineBreakMode` enums are **not**
 ordinal-compatible - `Microsoft.Maui.LineBreakMode.NoWrap` is 0 while
 `Tizen.UIExtensions.Common.LineBreakMode.NoWrap` is 1 - so casting between them turns NoWrap into
 None and shifts every value after it.

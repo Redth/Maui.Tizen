@@ -35,6 +35,7 @@
     <Project Path="tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj" />
     <Project Path="tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj" />
     <Project Path="tests/Maui.Tizen.Sample.RefPackCompile/Maui.Tizen.Sample.RefPackCompile.csproj" />
+    <Project Path="tests/Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj" />
     <Project Path="tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj" />
     <Project Path="eng/tests/PackageGraphProbe/PackageGraphProbe.csproj" />
     <Project Path="eng/tests/PublicApiOptIn/PublicApiOptIn.csproj" />

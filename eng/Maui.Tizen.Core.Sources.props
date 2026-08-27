@@ -104,6 +104,14 @@
   </ItemGroup>
 
   <!--
+    Controls bridge sources. Compiled into Maui.Tizen.Controls, which legitimately references
+    Microsoft.Maui.Controls - Core must not, and does not.
+  -->
+  <ItemGroup Label="Controls bridge sources">
+    <MauiTizenControlsCompile Include="$(MSBuildThisFileDirectory)../src/Maui.Tizen.Controls/Platform/TizenControlsMappings.cs" />
+  </ItemGroup>
+
+  <!--
     Sample head sources. Included in the compile-validation lane so the sample's managed code is
     type-checked against real TizenFX even though the sample itself cannot be packaged without the
     Samsung workload.

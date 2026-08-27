@@ -189,5 +189,44 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			{
 			}
 		}
+
+		[Fact]
+		public void PageRestoresItsDefaultWhenAnExplicitBackgroundIsCleared()
+		{
+			// The two "no background" states a page has are different, and only telling them apart
+			// over time gets both right:
+			//
+			//   never set    -> keep the opaque white the page was created with
+			//   set, cleared -> go BACK to opaque white
+			//
+			// Previously the second case left the old colour on screen forever, so a page could
+			// never lose a background once given one. Clearing to transparent would be wrong too,
+			// because white is the page default rather than "no colour".
+			var platform = new TizenPlatformView();
+			var page = new StubContentView { Background = new SolidPaint(Colors.Red) };
+			var handler = new RecordingPageHandler(platform, page);
+
+			TizenPageHandler.MapPageBackground(handler, page);
+			platform.Applied.Clear();
+
+			page.Background = null;
+			TizenPageHandler.MapPageBackground(handler, page);
+
+			Assert.Contains("Background:restoreDefault=True", platform.Applied);
+		}
+
+		[Fact]
+		public void PageWithNoBackgroundEverSetKeepsItsDefault()
+		{
+			// The other half. An initial null must NOT be treated as a transition, or every page
+			// repaints at launch - this mapper runs immediately after creation.
+			var platform = new TizenPlatformView();
+			var page = new StubContentView { Background = null };
+			var handler = new RecordingPageHandler(platform, page);
+
+			TizenPageHandler.MapPageBackground(handler, page);
+
+			Assert.DoesNotContain("Background:restoreDefault=True", platform.Applied);
+		}
 	}
 }

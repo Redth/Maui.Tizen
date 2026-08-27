@@ -118,6 +118,37 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_ => WordWrapLineBreak,
 		};
 
+		/// <summary>
+		/// The native accessibility state for a view, resolved from both Controls annotations at
+		/// once.
+		/// </summary>
+		/// <remarks>
+		/// Both must be resolved together. NUI has two flags - AccessibilityHidden and
+		/// AccessibilityHighlightable - and BOTH annotations write to BOTH flags, so applying them
+		/// through separate helpers means whichever mapper key ran last silently overwrites the
+		/// other. An element excluded with its children would become reachable again purely because
+		/// IsInAccessibleTree happened to be mapped afterwards.
+		///
+		/// Exclusion wins when set, because it is the stronger statement: it removes the element
+		/// and its subtree regardless of what IsInAccessibleTree says.
+		/// </remarks>
+		/// <param name="isInAccessibleTree">AutomationProperties.IsInAccessibleTree, if set.</param>
+		/// <param name="excludedWithChildren">AutomationProperties.ExcludedWithChildren, if set.</param>
+		/// <returns>The hidden and highlightable flags to apply.</returns>
+		public static (bool Hidden, bool Highlightable) ResolveAccessibility(
+			bool? isInAccessibleTree,
+			bool? excludedWithChildren)
+		{
+			if (excludedWithChildren == true)
+				return (Hidden: true, Highlightable: false);
+
+			if (isInAccessibleTree is bool inTree)
+				return (Hidden: !inTree, Highlightable: inTree);
+
+			// Neither annotation set: leave the element reachable, which is NUI's own default.
+			return (Hidden: false, Highlightable: true);
+		}
+
 		// MaxLines is deliberately absent.
 		//
 		// There is no native equivalent in this TizenFX. Tizen.NUI TextLabel exposes LineCount

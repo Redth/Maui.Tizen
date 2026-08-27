@@ -17,4 +17,15 @@
     <ProjectReference Include="../Maui.Tizen.Core/Maui.Tizen.Core.csproj" />
   </ItemGroup>
 
+  <!--
+    Explicit, like Maui.Tizen.Core: most of this project is still raw imported dotnet/maui source
+    that does not compile yet, so default globbing stays off and sources are opted in as they are
+    ported.
+  -->
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
+
+  <ItemGroup>
+    <Compile Include="@(MauiTizenControlsCompile)" />
+  </ItemGroup>
+
 </Project>

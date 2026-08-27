@@ -75,6 +75,55 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Fact]
+		public void ExclusionWinsOverIsInAccessibleTree()
+		{
+			// The overwrite hazard, resolved in one place. Both annotations write to BOTH NUI flags,
+			// so applying them through separate helpers let whichever mapper key ran last undo the
+			// other - an element excluded with its children became reachable again purely because
+			// IsInAccessibleTree happened to be mapped afterwards.
+			var (hidden, highlightable) = TizenPropertyResolvers.ResolveAccessibility(
+				isInAccessibleTree: true, excludedWithChildren: true);
+
+			Assert.True(hidden);
+			Assert.False(highlightable);
+		}
+
+		[Theory]
+		[InlineData(true, false, true)]
+		[InlineData(false, true, false)]
+		public void IsInAccessibleTreeDrivesBothFlagsWhenNotExcluded(
+			bool inTree, bool expectedHidden, bool expectedHighlightable)
+		{
+			var (hidden, highlightable) = TizenPropertyResolvers.ResolveAccessibility(inTree, null);
+
+			Assert.Equal(expectedHidden, hidden);
+			Assert.Equal(expectedHighlightable, highlightable);
+		}
+
+		[Fact]
+		public void UnannotatedViewsStayReachable()
+		{
+			// Neither annotation set must not hide anything; that is NUI's own default and the
+			// overwhelmingly common case.
+			var (hidden, highlightable) = TizenPropertyResolvers.ResolveAccessibility(null, null);
+
+			Assert.False(hidden);
+			Assert.True(highlightable);
+		}
+
+		[Fact]
+		public void ExplicitlyNotExcludedDoesNotForceReachability()
+		{
+			// ExcludedWithChildren=false is not a statement about reachability, so it must not
+			// override an explicit IsInAccessibleTree=false.
+			var (hidden, highlightable) = TizenPropertyResolvers.ResolveAccessibility(
+				isInAccessibleTree: false, excludedWithChildren: false);
+
+			Assert.True(hidden);
+			Assert.False(highlightable);
+		}
+
+		[Fact]
 		public void ClearingAMinimumResetsTheNativeConstraint()
 		{
 			// The regression. An unset minimum returned early instead of writing 0, so whatever

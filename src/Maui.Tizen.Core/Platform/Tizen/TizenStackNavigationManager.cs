@@ -35,9 +35,6 @@ namespace Microsoft.Maui.Platforms.Tizen
 		readonly Dictionary<IView, TizenNaviPage> _pageMap = new();
 		readonly Dictionary<IView, IViewHandler?> _handlerMap = new();
 
-		/// <summary>Pages whose handlers have been disposed, kept so they cannot be resurrected.</summary>
-		readonly HashSet<IView> _released = new();
-
 		TizenToolbarView? _toolbar;
 
 		/// <summary>Initializes a new instance of the <see cref="TizenStackNavigationManager"/> class.</summary>
@@ -233,6 +230,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 			//
 			// The wrapper itself must still be disposed; before this it was only dropped from the
 			// map, so every page leaving the stack leaked one.
+			// Absent from the map means the platform already disposed it - NavigationStack's
+			// animated Pop(bool) does exactly that - so there is nothing left to own here.
 			if (_pageMap.TryGetValue(page, out var naviPage))
 			{
 				naviPage.DetachContent();
@@ -240,12 +239,22 @@ namespace Microsoft.Maui.Platforms.Tizen
 				_pageMap.Remove(page);
 			}
 
-			_released.Add(page);
-
 			if (_handlerMap.TryGetValue(page, out var handler))
 			{
 				(handler as ITizenPlatformViewHandler)?.Dispose();
 				_handlerMap.Remove(page);
+
+				// Detach the disposed handler from the page so the SAME page instance can be
+				// pushed again later - which MAUI allows, and applications do routinely by keeping
+				// a reference and navigating back to it.
+				//
+				// Without this, ToPlatformView would hand back the disposed handler's platform
+				// view on the next push. An earlier attempt to make that safe by refusing to
+				// recreate a released page was worse: it threw, and RequestNavigation is
+				// async void, so an ordinary re-push became an unhandled exception on the main
+				// loop rather than a working navigation.
+				if (ReferenceEquals(page.Handler, handler))
+					page.Handler = null;
 			}
 		}
 
@@ -303,11 +312,31 @@ namespace Microsoft.Maui.Platforms.Tizen
 			{
 				var page = plan.Pops[i];
 
-				// Pops are ordered top-most first, so only the first one is the visible transition.
-				if (i == 0 && animatePop)
+				// Pops are ordered top-most first, so only the first is the visible transition.
+				var animatedTopPop = i == 0 && animatePop;
+
+				// The two overloads have DIFFERENT ownership, which is not obvious from their
+				// names: NavigationStack.Pop(bool) ends with `tobeRemoved.Dispose()`, while
+				// Pop(View) only unparents. Treating them the same disposed the wrapper twice on
+				// an animated pop, and detached content from an already-disposed object.
+				var wrapper = GetNavigationItem(page);
+
+				// Either way the handler's platform view must come out first, because it belongs
+				// to the handler and the wrapper's own disposal would take it along.
+				wrapper.DetachContent();
+
+				if (animatedTopPop)
+				{
+					// Hand ownership over before awaiting: Pop(true) disposes the wrapper, so it
+					// must no longer be reachable from the map or OnPageRemoved would dispose it
+					// again.
+					_pageMap.Remove(page);
 					await PlatformNavigation.Pop(true).ConfigureAwait(true);
+				}
 				else
-					PlatformNavigation.Pop(GetNavigationItem(page));
+				{
+					PlatformNavigation.Pop(wrapper);
+				}
 
 				ReleasePage(page);
 			}
@@ -332,16 +361,6 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			if (_pageMap.TryGetValue(page, out var existing))
 				return existing;
-
-			// Creating a wrapper for a page that has already been released would call
-			// ToPlatformView on a view whose handler is disposed. That happened silently, because
-			// this method creates on miss and a released page is always a miss.
-			if (_released.Contains(page))
-			{
-				throw new InvalidOperationException(
-					$"The page has already been removed from this navigation stack and its handler disposed. " +
-					$"Navigating back to it requires a new page instance.");
-			}
 
 			var naviPage = CreateNavigationItem(page);
 

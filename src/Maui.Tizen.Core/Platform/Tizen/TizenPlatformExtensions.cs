@@ -9,6 +9,7 @@ using NPoint = Tizen.UIExtensions.Common.Point;
 using NRect = Tizen.UIExtensions.Common.Rect;
 using NSize = Tizen.UIExtensions.Common.Size;
 using NLineBreakMode = Tizen.UIExtensions.Common.LineBreakMode;
+using NStrikethrough = Tizen.NUI.Text.Strikethrough;
 using NTextDecorations = Tizen.UIExtensions.Common.TextDecorations;
 using Color = Microsoft.Maui.Graphics.Color;
 using NFontAttributes = Tizen.UIExtensions.Common.FontAttributes;
@@ -593,57 +594,37 @@ namespace Microsoft.Maui.Platforms.Tizen
 		// ---------------------------------------------------------------------------------------
 
 		/// <summary>
-		/// Applies MAUI Controls' <c>AutomationProperties.IsInAccessibleTree</c>.
+		/// Applies MAUI Controls' accessibility annotations to the platform view.
 		/// </summary>
 		/// <remarks>
 		/// <para>
-		/// The native half of a binding that this package cannot complete on its own. Controls
-		/// exposes IsInAccessibleTree as its OWN mapper key, and the action behind that key lives in
-		/// Controls' per-platform code - <c>Element.Tizen.cs</c> - not in Core. A backend package
-		/// cannot supply it without taking a dependency on Controls, which would invert the
-		/// dependency direction.
+		/// Takes BOTH annotations, deliberately. They resolve onto the same two NUI flags, so
+		/// applying them through separate calls means the later one overwrites the earlier - an
+		/// element excluded with its children would silently become reachable again purely because
+		/// IsInAccessibleTree happened to be mapped afterwards.
 		/// </para>
 		/// <para>
-		/// Worth knowing: upstream that method is an empty <c>//TODO : Need to impl</c> stub, so
-		/// this annotation has never actually worked on Tizen. When dotnet/maui drops its Tizen
-		/// target the stub disappears with it. Implementing the native side here means whoever ends
-		/// up owning the Controls binding has something correct to call. See docs/net11-status.md.
-		/// </para>
-		/// <para>
-		/// <c>AccessibilityHighlightable</c> is what decides whether AT can reach the element;
-		/// <c>AccessibilityHidden</c> removes it outright. Both are set so that turning the flag
-		/// back on genuinely restores the element rather than leaving it hidden.
+		/// The values live on Controls types, so the binding itself is Controls-side - see
+		/// <c>TizenControlsMappings</c> in Maui.Tizen.Controls. This is the native half.
 		/// </para>
 		/// </remarks>
 		/// <param name="platformView">The platform view.</param>
-		/// <param name="isInAccessibleTree">Whether assistive technology may reach the view.</param>
-		public static void UpdateIsInAccessibleTree(this TizenNativeView platformView, bool isInAccessibleTree)
+		/// <param name="isInAccessibleTree">AutomationProperties.IsInAccessibleTree, if set.</param>
+		/// <param name="excludedWithChildren">AutomationProperties.ExcludedWithChildren, if set.</param>
+		public static void UpdateAccessibility(
+			this TizenNativeView platformView,
+			bool? isInAccessibleTree,
+			bool? excludedWithChildren)
 		{
 			ArgumentNullException.ThrowIfNull(platformView);
 
-			platformView.AccessibilityHighlightable = isInAccessibleTree;
-			platformView.AccessibilityHidden = !isInAccessibleTree;
+			var (hidden, highlightable) = TizenPropertyResolvers.ResolveAccessibility(
+				isInAccessibleTree, excludedWithChildren);
+
+			platformView.AccessibilityHidden = hidden;
+			platformView.AccessibilityHighlightable = highlightable;
 		}
 
-		/// <summary>
-		/// Applies MAUI Controls' <c>AutomationProperties.ExcludedWithChildren</c>.
-		/// </summary>
-		/// <remarks>
-		/// Same ownership caveat as <see cref="UpdateIsInAccessibleTree"/>. NUI's
-		/// <c>AccessibilityHidden</c> already applies to the subtree, so excluding a view excludes
-		/// its children without walking them.
-		/// </remarks>
-		/// <param name="platformView">The platform view.</param>
-		/// <param name="excluded">Whether the view and its children are excluded.</param>
-		public static void UpdateExcludedWithChildren(this TizenNativeView platformView, bool excluded)
-		{
-			ArgumentNullException.ThrowIfNull(platformView);
-
-			platformView.AccessibilityHidden = excluded;
-
-			if (excluded)
-				platformView.AccessibilityHighlightable = false;
-		}
 
 		/// <summary>Applies <see cref="ILabel.Text"/>.</summary>
 		/// <param name="platformLabel">The platform label.</param>
@@ -732,8 +713,23 @@ namespace Microsoft.Maui.Platforms.Tizen
 			// A switch on the whole value matched neither arm and fell through to None, dropping
 			// BOTH decorations. The flag arithmetic lives in TizenPropertyResolvers so it can be
 			// tested on the host; this is just the native assignment.
-			platformLabel.TextDecorations =
-				(NTextDecorations)TizenPropertyResolvers.ResolveTextDecorations(label.TextDecorations);
+			var resolved = TizenPropertyResolvers.ResolveTextDecorations(label.TextDecorations);
+
+			platformLabel.TextDecorations = (NTextDecorations)resolved;
+
+			// Strikethrough must be applied directly, because the property above will not do it.
+			// Tizen.UIExtensions' Label.TextDecorations setter reads ONLY the Underline flag: it
+			// stores the value and applies an underline PropertyMap, and the Strikethrough bit is
+			// dropped without a word.
+			//
+			// So computing the combined flags correctly - which is what the earlier fix to
+			// ResolveTextDecorations did - still rendered no strikethrough, because the value
+			// reached a sink that ignores it. TextLabel.SetStrikethrough is the API that works, and
+			// it is available on API15.
+			platformLabel.SetStrikethrough(new NStrikethrough
+			{
+				Enable = (resolved & TizenPropertyResolvers.StrikethroughDecoration) != 0,
+			});
 		}
 
 		/// <summary>Applies a line break mode to the platform label.</summary>

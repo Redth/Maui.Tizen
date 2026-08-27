@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Controls bridge compile-validation lane.
+
+    Maui.Tizen.Controls targets net11.0-tizen11.0 and cannot be restored until Samsung publishes the
+    11.0.100 workload manifest, so this lane type-checks the bridge against the real TizenFX
+    reference assemblies on a plain net11.0 host - the same arrangement Core and the sample use.
+
+    It is a separate assembly on purpose. Folding these sources into the Core lane would merge a
+    Controls-referencing assembly into one that must never reference Controls, and would hide
+    exactly the dependency-direction mistake this layer exists to avoid.
+  -->
+
+  <Import Project="$(RepositoryRoot)eng/Maui.props" />
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
+
+  <PropertyGroup>
+    <TargetFramework>$(DotNetTfm)</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+
+    <!-- The real product assembly name, so the reference graph matches what ships. -->
+    <AssemblyName>Maui.Tizen.Controls</AssemblyName>
+    <RootNamespace>Microsoft.Maui.Platforms.Tizen.Controls</RootNamespace>
+
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <NoWarn>$(NoWarn);CS1591;NU1701</NoWarn>
+
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+
+    <DefineConstants>$(DefineConstants);TIZEN</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Across the assembly boundary, exactly as the shipped package references Core. -->
+    <ProjectReference Include="$(RepositoryRoot)tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj" />
+
+    <PackageReference Include="Microsoft.Maui.Core" />
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Microsoft.Maui.Graphics" />
+  </ItemGroup>
+
+  <Import Project="$(RepositoryRoot)eng/targets/TizenRefPack.targets" />
+
+  <ItemGroup>
+    <Compile Include="@(MauiTizenControlsCompile)" LinkBase="Controls" />
+  </ItemGroup>
+
+</Project>

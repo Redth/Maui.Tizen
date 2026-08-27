@@ -145,7 +145,14 @@ WORKLOAD_FREE_PROJECTS=(
   #                               never actually exercised - and left PublicAPI ownership
   #                               unverifiable, since either baseline satisfied either assembly.
   "tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj"
+  #
+  #   Maui.Tizen.Controls.RefPackCompile  compiles the Controls-to-Tizen mapper bridge as its own
+  #                               assembly. Separate from the Core lane on purpose: the bridge
+  #                               references Microsoft.Maui.Controls and Core must not, so merging
+  #                               them would hide the dependency-direction mistake this layer
+  #                               exists to avoid.
   "tests/Maui.Tizen.Sample.RefPackCompile/Maui.Tizen.Sample.RefPackCompile.csproj"
+  "tests/Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj"
   "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj"
 
   # Foundation-owned probes.

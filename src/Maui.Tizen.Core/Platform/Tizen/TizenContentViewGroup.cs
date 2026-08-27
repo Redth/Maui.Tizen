@@ -38,11 +38,31 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <summary>Gets or sets the cross-platform arrange callback.</summary>
 		public Func<Rect, Size>? CrossPlatformArrange { get; set; }
 
-		/// <summary>Flags the group as needing a new measure pass.</summary>
+		/// <summary>Reentrancy counter for the layout pass; see <see cref="SetNeedMeasureUpdate"/>.</summary>
+		internal int IsLayoutUpdating { get; set; }
+
+		/// <summary>Flags the group as needing a new measure pass and schedules one.</summary>
+		/// <remarks>
+		/// MarkChanged alone is not enough, and this is easy to miss: UIExtensions' ViewGroup
+		/// implements it as a bare `_markChanged = true`. The flag is only consumed inside
+		/// SendLayoutUpdated, which NUI calls from OnLayout - so with nothing requesting a layout
+		/// pass the dirty flag simply waits for some unrelated pass to come along. Content whose
+		/// intrinsic size changed then keeps its stale measurement until the window resizes.
+		///
+		/// TizenLayoutViewGroup requests the pass; this type did not, which is upstream's shape
+		/// faithfully ported and wrong in both places.
+		/// </remarks>
 		public void SetNeedMeasureUpdate()
 		{
 			_needMeasureUpdate = true;
 			MarkChanged();
+
+			// Guarded, so a measure triggered from inside the layout pass does not schedule
+			// another one on top of the pass already running.
+			if (IsLayoutUpdating == 0)
+			{
+				Layout?.RequestLayout();
+			}
 		}
 
 		/// <summary>Clears the pending measure flag.</summary>
@@ -77,17 +97,25 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (CrossPlatformArrange == null || CrossPlatformMeasure == null)
 				return;
 
-			var platformGeometry = this.GetBounds().ToDP();
-			if (_needMeasureUpdate || _measureCache != platformGeometry.Size)
+			IsLayoutUpdating++;
+			try
 			{
-				InvokeCrossPlatformMeasure(platformGeometry.Width, platformGeometry.Height);
-			}
+				var platformGeometry = this.GetBounds().ToDP();
+				if (_needMeasureUpdate || _measureCache != platformGeometry.Size)
+				{
+					InvokeCrossPlatformMeasure(platformGeometry.Width, platformGeometry.Height);
+				}
 
-			if (platformGeometry.Width > 0 && platformGeometry.Height > 0)
+				if (platformGeometry.Width > 0 && platformGeometry.Height > 0)
+				{
+					platformGeometry.X = 0;
+					platformGeometry.Y = 0;
+					CrossPlatformArrange(platformGeometry);
+				}
+			}
+			finally
 			{
-				platformGeometry.X = 0;
-				platformGeometry.Y = 0;
-				CrossPlatformArrange(platformGeometry);
+				IsLayoutUpdating--;
 			}
 		}
 	}
