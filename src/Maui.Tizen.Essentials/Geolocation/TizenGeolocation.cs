@@ -5,6 +5,7 @@ using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Devices.Sensors;
 using TizenLocationChangedEventArgs = Tizen.Location.LocationChangedEventArgs;
 using TizenLocationType = Tizen.Location.LocationType;
+using TizenLocatorHelper = Tizen.Location.LocatorHelper;
 using TizenLocator = Tizen.Location.Locator;
 
 namespace Microsoft.Maui.Platforms.Tizen.Essentials
@@ -32,9 +33,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		public bool IsListeningForeground => false;
 
 		/// <inheritdoc/>
-		public bool IsEnabled =>
-			TizenSystemInformation.GetFeatureInfo<bool>("location.gps") ||
-			TizenSystemInformation.GetFeatureInfo<bool>("location.wps");
+		public bool IsEnabled => IsLocationEnabled(
+			() => TizenSystemInformation.GetFeatureInfo<bool>("location.gps"),
+			() => TizenSystemInformation.GetFeatureInfo<bool>("location.wps"),
+			TizenLocatorHelper.IsEnabledType);
 
 		/// <inheritdoc/>
 		/// <remarks>Never raised: continuous listening is unsupported on this backend.</remarks>
@@ -142,6 +144,39 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				(false, true) => TizenLocationType.Wps,
 				_ => TizenLocationType.Passive,
 			};
+		}
+
+		internal static bool IsLocationEnabled(
+			Func<bool> hasGps,
+			Func<bool> hasWps,
+			Func<TizenLocationType, bool> isEnabled)
+		{
+			if (hasGps() && IsEnabled(TizenLocationType.Gps))
+				return true;
+			if (hasWps() && IsEnabled(TizenLocationType.Wps))
+				return true;
+
+			return false;
+
+			bool IsEnabled(TizenLocationType type)
+			{
+				try
+				{
+					return isEnabled(type);
+				}
+				catch (NotSupportedException)
+				{
+					return false;
+				}
+				catch (ArgumentException)
+				{
+					return false;
+				}
+				catch (InvalidOperationException)
+				{
+					return false;
+				}
+			}
 		}
 
 		internal static double KilometersPerHourToMetersPerSecond(double kilometersPerHour) =>

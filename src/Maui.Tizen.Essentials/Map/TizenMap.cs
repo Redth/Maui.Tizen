@@ -49,16 +49,25 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		internal static TizenAppControl CreateAppControl(Placemark placemark, MapLaunchOptions options)
 		{
-			ArgumentNullException.ThrowIfNull(placemark);
-			ArgumentNullException.ThrowIfNull(options);
+			var request = CreatePlacemarkRequest(placemark, options);
 
 			TizenPermissions.EnsureDeclared<Permissions.LaunchApp>();
 
 			return new TizenAppControl
 			{
-				Operation = TizenAppControlOperations.Pick,
-				Uri = $"geo:0,0?q={placemark.GetEscapedAddress()}",
+				Operation = request.Operation,
+				Uri = request.Uri,
 			};
+		}
+
+		internal static TizenMapRequest CreatePlacemarkRequest(Placemark placemark, MapLaunchOptions options)
+		{
+			ArgumentNullException.ThrowIfNull(placemark);
+			ArgumentNullException.ThrowIfNull(options);
+
+			return new(
+				TizenAppControlOperations.View,
+				$"geo:0,0?q={placemark.GetEscapedAddress()}");
 		}
 
 		static Task Launch(TizenAppControl appControl)
@@ -76,5 +85,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			return Task.FromResult(canLaunch);
 		}
+
+		internal sealed record TizenMapRequest(string Operation, string Uri);
 	}
 }

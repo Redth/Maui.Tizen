@@ -41,12 +41,12 @@ Profile column values are the Tizen device profiles on which the service is usab
 | `IContacts` | `TizenContacts` | Implemented | Mobile | `Tizen.Pims.Contacts`. `GetAllAsync` requests runtime `contact.read` consent and materialises the result before disposing the native cursor. |
 | `IDeviceDisplay` | `TizenDeviceDisplay` | Implemented | All | Screen metrics from feature keys; `KeepScreenOn` uses `device_power_request_lock` and requires the `display` privilege. |
 | `IDeviceInfo` | `TizenDeviceInfo` | Implemented | All | System / feature information keys. |
-| `IEmail` | `TizenEmail` | Partial | Mobile | Attachments are rejected: the Tizen `compose` AppControl accepts no attachment payload. Gated on the `email` feature key. |
+| `IEmail` | `TizenEmail` | Implemented | Mobile | Tizen `compose` AppControl, including enumerable attachment paths and a compatible MIME filter. Gated on the `email` feature key. |
 | `IFilePicker` | `TizenFilePicker` | Partial | All | Tizen's `pick` operation accepts one MIME filter, so only the first entry of `PickOptions.FileTypes` is applied. |
 | `IFileSystem` | `TizenFileSystem` | Implemented | All | Application `DirectoryInfo` data / cache / resource paths. |
 | `IFlashlight` | `TizenFlashlight` | Implemented | Mobile | `Tizen.System.Led`. Gated on `camera.back.flash`; requires the `led` privilege. |
 | `IGeocoding` | `TizenGeocoding` | Unsupported | – | `Tizen.Maps` (`MapService`) was deprecated in TizenFX API11 and **removed by API15**; there is no replacement. `MapServiceToken` is still accepted so a configured token cannot crash startup, but it is never used. |
-| `IGeolocation` | `TizenGeolocation` | Partial | All | One-shot `GetLocationAsync` works. `StartListeningForegroundAsync` / `StopListeningForeground` throw. |
+| `IGeolocation` | `TizenGeolocation` | Partial | All | One-shot `GetLocationAsync` works. `IsEnabled` checks the enabled state of supported GPS/WPS services, not only hardware presence. `StartListeningForegroundAsync` / `StopListeningForeground` throw. |
 | `IGyroscope` | `TizenGyroscope` | Implemented | All | `Tizen.Sensor.Gyroscope`. |
 | `IHapticFeedback` | `TizenHapticFeedback` | Implemented | Mobile, Wearable | `Tizen.System.Feedback`. Unsupported patterns throw instead of silently doing nothing. |
 | `ILauncher` | `TizenLauncher` | Implemented | All | AppControl launch requests with scheme-based operation selection. `CanOpenAsync`/`TryOpenAsync` query matched application ids, so `TryOpenAsync` returns `false` instead of throwing when nothing handles the URI. |
@@ -61,7 +61,7 @@ Profile column values are the Tizen device profiles on which the service is usab
 | `IScreenshot` | `TizenScreenshot` | Implemented | All | `Tizen.NUI.Capture` plus `Tizen.Multimedia.Util` encoders; native handles disposed, RGBX/BGRX treated as opaque, and a bounded wait for `Capture.Finished`. Also implements `IViewScreenshot`. |
 | `ISecureStorage` | `TizenSecureStorage` | Implemented | All | Tizen key manager. Versioned Base64url aliases are whitespace-free and private to this API; reads migrate earlier namespaced/raw aliases, while tombstones prevent removed raw values from resurfacing. |
 | `ISemanticScreenReader` | `TizenSemanticScreenReader` | Implemented | All | `Tizen.NUI.Accessibility`. |
-| `IShare` | `TizenShare` | Implemented | All | `share` / `share_text` AppControls. |
+| `IShare` | `TizenShare` | Implemented | All | `share_text`, `share`, and `multi_share` AppControls; file paths are sent as one enumerable payload with a compatible MIME filter. |
 | `ISms` | `TizenSms` | Implemented | Mobile | `sms:` compose AppControl, gated on `network.telephony.sms`. |
 | `ITextToSpeech` | `TizenTextToSpeech` | Partial | All | Speech works; every native client operation is serialized and dispatched to Tizen's Ecore/main loop. Cancellation/error retires the generation immediately, then force-posts native teardown so disposal cannot occur inside a callback. `GetLocalesAsync` throws (see API gaps below); use `GetSupportedVoiceLanguagesAsync` with `SpeakWithVoiceAsync`. `SpeechOptions.Pitch` / `Volume` are rejected. |
 | `IVibration` | `TizenVibration` | Implemented | Mobile, Wearable | `Tizen.System.Vibrator`; requires the `haptic` privilege. |
@@ -76,7 +76,7 @@ Profile column values are the Tizen device profiles on which the service is usab
 | Sources type-check against the **API15 reference pack** the product targets | Verified, by `tests/Maui.Tizen.Essentials.RefPackCompile` |
 | The declared public API surface matches `PublicAPI/slice/PublicAPI.Unshipped.txt` | Verified, by the PublicAPI analyzer in that same lane |
 | Sources compile against loadable Tizen implementation assemblies | Verified, by `src/Maui.Tizen.Essentials.HostVerification` |
-| DI registration, facade/`MainThread` ownership, permission privilege mapping, unsupported classification, ported translation logic | Verified, by `tests/Maui.Tizen.Essentials.Tests` (337 tests) |
+| DI registration, facade/`MainThread` ownership, permission privilege mapping, unsupported classification, ported translation logic | Verified, by `tests/Maui.Tizen.Essentials.Tests` (346 tests) |
 | `src/Maui.Tizen.Essentials` builds for `net11.0-tizen11.0` | **Blocked.** Fails with `MAUITIZEN0001`: the Samsung workload manifest `samsung.net.sdk.tizen.manifest-11.0.100` is unpublished. Nobody can build this TFM anywhere yet. |
 | Any behaviour that P/Invokes into Tizen (sensors, AppControl, key manager, NUI capture, TTS, geocoding, ...) | **Blocked.** Requires a Tizen device or emulator, which in turn requires the workload. |
 

@@ -7,13 +7,17 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.ApplicationModel.Communication;
+using Microsoft.Maui.ApplicationModel.DataTransfer;
 using Microsoft.Maui.Devices;
+using Microsoft.Maui.Devices.Sensors;
 using Microsoft.Maui.Networking;
 using Microsoft.Maui.Platforms.Tizen.Essentials;
 using Xunit;
 using TizenBatteryPowerSource = Tizen.System.BatteryPowerSource;
 using TizenColorSpace = Tizen.Multimedia.ColorSpace;
 using TizenConnectionState = Tizen.Network.Connection.ConnectionState;
+using TizenAppControlOperations = Tizen.Applications.AppControlOperations;
+using TizenLocationType = Tizen.Location.LocationType;
 using TizenPixelFormat = Tizen.NUI.PixelFormat;
 
 namespace Maui.Tizen.Essentials.Tests;
@@ -1201,6 +1205,98 @@ public class TizenServiceBehaviorTests
 
 		Assert.True(stopped);
 		Assert.True(reset);
+	}
+
+	[Fact]
+	public void ShareFilePayloadHandlesZeroFiles()
+	{
+		var payload = TizenShare.CreateFilePayload([]);
+
+		Assert.Equal(TizenAppControlOperations.Share, payload.Operation);
+		Assert.Equal(TizenFileMimeTypes.All, payload.Mime);
+		Assert.Empty(payload.Paths);
+	}
+
+	[Fact]
+	public void ShareFilePayloadHandlesOneFile()
+	{
+		var payload = TizenShare.CreateFilePayload(
+			[new ShareFile("/tmp/photo.png", TizenFileMimeTypes.ImagePng)]);
+
+		Assert.Equal(TizenAppControlOperations.Share, payload.Operation);
+		Assert.Equal(TizenFileMimeTypes.ImagePng, payload.Mime);
+		Assert.Equal(["/tmp/photo.png"], payload.Paths);
+	}
+
+	[Fact]
+	public void ShareFilePayloadUsesMultiShareAndAllPathsOnce()
+	{
+		var payload = TizenShare.CreateFilePayload(
+		[
+			new ShareFile("/tmp/photo.png", TizenFileMimeTypes.ImagePng),
+			new ShareFile("/tmp/document.pdf", TizenFileMimeTypes.Pdf),
+		]);
+
+		Assert.Equal(TizenAppControlOperations.MultiShare, payload.Operation);
+		Assert.Equal(TizenFileMimeTypes.All, payload.Mime);
+		Assert.Equal(["/tmp/photo.png", "/tmp/document.pdf"], payload.Paths);
+	}
+
+	[Fact]
+	public void EmailAttachmentPayloadUsesEnumerablePathsAndCompatibleMime()
+	{
+		var payload = TizenEmail.CreateAttachmentPayload(
+		[
+			new EmailAttachment("/tmp/first.png", TizenFileMimeTypes.ImagePng),
+			new EmailAttachment("/tmp/second.png", TizenFileMimeTypes.ImagePng),
+		]);
+
+		Assert.Equal(TizenAppControlOperations.Compose, payload.Operation);
+		Assert.Equal(TizenFileMimeTypes.ImagePng, payload.Mime);
+		Assert.Equal(["/tmp/first.png", "/tmp/second.png"], payload.Paths);
+	}
+
+	[Fact]
+	public void MapPlacemarkUsesViewOperation()
+	{
+		var request = TizenMap.CreatePlacemarkRequest(
+			new Placemark { Locality = "Seattle", CountryName = "USA" },
+			new MapLaunchOptions());
+
+		Assert.Equal(TizenAppControlOperations.View, request.Operation);
+		Assert.StartsWith("geo:0,0?q=", request.Uri, StringComparison.Ordinal);
+	}
+
+	[Theory]
+	[InlineData("geo:47.6,-122.3")]
+	[InlineData("geo:0,0?q=Seattle")]
+	public void LauncherGeoUrisUseViewOperation(string uri) =>
+		Assert.Equal(TizenAppControlOperations.View, TizenLauncher.GetOperation(new Uri(uri)));
+
+	[Fact]
+	public void GeolocationIsEnabledRequiresAnEnabledSupportedService()
+	{
+		Assert.False(TizenGeolocation.IsLocationEnabled(
+			() => true,
+			() => true,
+			_ => false));
+		Assert.True(TizenGeolocation.IsLocationEnabled(
+			() => true,
+			() => false,
+			type => type == TizenLocationType.Gps));
+		Assert.True(TizenGeolocation.IsLocationEnabled(
+			() => false,
+			() => true,
+			type => type == TizenLocationType.Wps));
+	}
+
+	[Fact]
+	public void GeolocationIsEnabledIgnoresUnsupportedServiceQueries()
+	{
+		Assert.False(TizenGeolocation.IsLocationEnabled(
+			() => true,
+			() => false,
+			_ => throw new NotSupportedException()));
 	}
 
 	sealed class FakeTextToSpeechDispatcher : ITizenTextToSpeechDispatcher, IDisposable

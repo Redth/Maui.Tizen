@@ -12,10 +12,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// <summary>
 	/// Tizen implementation of <see cref="IEmail"/>, backed by the <c>mailto:</c> compose <c>AppControl</c>.
 	/// </summary>
-	/// <remarks>
-	/// Tizen's compose operation has no attachment slot, so <see cref="EmailMessage.Attachments"/>
-	/// is rejected rather than silently dropped, and HTML bodies are sent as plain text.
-	/// </remarks>
+	/// <remarks>HTML bodies are sent as plain text.</remarks>
 	public sealed class TizenEmail : IEmail
 	{
 		/// <inheritdoc/>
@@ -38,11 +35,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			if (message is not null)
 			{
-				if (message.Attachments?.Count > 0)
+				var attachments = CreateAttachmentPayload(message.Attachments);
+				if (attachments.Paths.Count > 0)
 				{
-					throw TizenEssentialsSupport.NotSupported(
-						$"{nameof(IEmail)}.{nameof(ComposeAsync)} with attachments",
-						"The Tizen 'compose' AppControl operation accepts no attachment payload.");
+					appControl.Mime = attachments.Mime;
+					appControl.ExtraData.Add(TizenAppControlData.Path, attachments.Paths);
 				}
 
 				if (message.Bcc?.Count > 0)
@@ -60,6 +57,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			TizenAppControl.SendLaunchRequest(appControl);
 
 			return Task.CompletedTask;
+		}
+
+		internal static TizenFilePayload CreateAttachmentPayload(
+			System.Collections.Generic.IEnumerable<EmailAttachment>? attachments)
+		{
+			var validAttachments = (attachments ?? Enumerable.Empty<EmailAttachment>())
+				.Where(attachment => !string.IsNullOrEmpty(attachment?.FullPath))
+				.ToArray();
+
+			return new(
+				TizenAppControlOperations.Compose,
+				TizenShare.ResolveMime(validAttachments.Select(attachment => attachment.ContentType)),
+				validAttachments.Select(attachment => attachment.FullPath).ToArray());
 		}
 
 		/// <summary>

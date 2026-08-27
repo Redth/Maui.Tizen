@@ -115,7 +115,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			var absoluteUri = uri.AbsoluteUri;
 
 			if (absoluteUri.StartsWith("geo:", StringComparison.OrdinalIgnoreCase))
-				return TizenAppControlOperations.Pick;
+				return TizenAppControlOperations.View;
 			if (absoluteUri.StartsWith("http", StringComparison.OrdinalIgnoreCase))
 				return TizenAppControlOperations.View;
 			if (absoluteUri.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase))
