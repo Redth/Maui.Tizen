@@ -223,6 +223,85 @@ public class NativeActivationPolicyTests
         Assert.Null(decision.Reason);
     }
 
+    public class AgentLifecycleStartupTests
+    {
+        sealed class TestApplication;
+
+        [Fact]
+        public void FirstActiveLifecycleEventStartsTheAgent()
+        {
+            var application = new TestApplication();
+            var running = false;
+            var bound = false;
+            var starts = 0;
+            var binds = 0;
+            var startup = new AgentLifecycleStartup<TestApplication>(
+                () => application,
+                () => running,
+                () => bound,
+                _ =>
+                {
+                    starts++;
+                    running = true;
+                    bound = true;
+                },
+                _ =>
+                {
+                    binds++;
+                    bound = true;
+                });
+
+            Assert.True(startup.OnApplicationActive());
+            Assert.Equal(1, starts);
+            Assert.Equal(0, binds);
+        }
+
+        public class NativeTapResultTests
+        {
+            [Fact]
+            public void SuccessfulNativeActivationReturnsTheDevFlowHandledSentinel() =>
+                Assert.Equal("ok", NativeTapResult.FromError(null));
+
+            [Fact]
+            public void NativeActivationErrorsRemainErrors() =>
+                Assert.Equal("not activatable", NativeTapResult.FromError("not activatable"));
+        }
+
+        [Fact]
+        public void ResumeRebindsARunningAppLessAgent()
+        {
+            var application = new TestApplication();
+            var bound = false;
+            var binds = 0;
+            var startup = new AgentLifecycleStartup<TestApplication>(
+                () => application,
+                () => true,
+                () => bound,
+                _ => Assert.Fail("A running agent must not be started twice."),
+                _ =>
+                {
+                    binds++;
+                    bound = true;
+                });
+
+            Assert.True(startup.OnApplicationActive());
+            Assert.Equal(1, binds);
+        }
+
+        [Fact]
+        public void LifecycleWaitsUntilTheApplicationExists()
+        {
+            var startup = new AgentLifecycleStartup<TestApplication>(
+                () => null,
+                () => false,
+                () => false,
+                _ => Assert.Fail("No application is available."),
+                _ => Assert.Fail("No application is available."));
+
+            Assert.False(startup.OnApplicationActive());
+        }
+    }
+
     [Fact]
     public void FocusableNonButton_IsNotActivatable()
     {
@@ -402,7 +481,7 @@ public class ConventionProtocolTests : IDisposable
     {
         // The agent registers with these values and the harness discovers the route by namespace;
         // drift between the two would produce a 404 that looks like a missing app.
-        Assert.Equal("maui-tizen", TizenDevFlowConventions.Namespace);
+        Assert.Equal("org.dotnet.maui.tizen", TizenDevFlowConventions.Namespace);
         Assert.Equal("/conventions/run", TizenDevFlowConventions.RunRoute);
         Assert.Contains(TizenDevFlowConventions.ConventionsFeature, TizenDevFlowConventions.Features);
     }

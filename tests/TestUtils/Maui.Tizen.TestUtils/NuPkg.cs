@@ -47,9 +47,7 @@ public sealed class NuPkg : IDisposable
     /// <summary>Finds the single <c>.nupkg</c> for <paramref name="packageId"/> in a directory.</summary>
     public static NuPkg OpenFromDirectory(string directory, string packageId)
     {
-        var matches = Directory
-            .EnumerateFiles(directory, $"{packageId}.*.nupkg", SearchOption.TopDirectoryOnly)
-            .Where(p => !p.EndsWith(".symbols.nupkg", StringComparison.OrdinalIgnoreCase))
+        var matches = FindPackagePaths(directory, packageId)
             .OrderBy(p => p, StringComparer.Ordinal)
             .ToList();
 
@@ -57,11 +55,45 @@ public sealed class NuPkg : IDisposable
         {
             1 => Open(matches[0]),
             0 => throw new FileNotFoundException(
-                $"No package matching '{packageId}.*.nupkg' was produced in '{directory}'."),
+                $"No package with nuspec id '{packageId}' was produced in '{directory}'."),
             _ => throw new InvalidOperationException(
                 $"Expected exactly one '{packageId}' package in '{directory}' but found {matches.Count}: " +
                 string.Join(", ", matches.Select(System.IO.Path.GetFileName))),
         };
+    }
+
+    /// <summary>Finds packages by their embedded nuspec id, never by a spoofable filename prefix.</summary>
+    public static IReadOnlyList<string> FindPackagePaths(string directory, string packageId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(directory);
+        ArgumentException.ThrowIfNullOrEmpty(packageId);
+
+        if (!Directory.Exists(directory))
+            return [];
+
+        return
+        [
+            .. Directory
+                .EnumerateFiles(directory, "*.nupkg", SearchOption.TopDirectoryOnly)
+                .Where(p => !p.EndsWith(".symbols.nupkg", StringComparison.OrdinalIgnoreCase))
+                .Where(p => string.Equals(ReadPackageId(p), packageId, StringComparison.OrdinalIgnoreCase))
+        ];
+    }
+
+    static string? ReadPackageId(string path)
+    {
+        using var archive = ZipFile.OpenRead(path);
+        var entry = archive.Entries.FirstOrDefault(e =>
+            e.FullName.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase) &&
+            !e.FullName.Contains('/', StringComparison.Ordinal));
+
+        if (entry is null)
+            return null;
+
+        using var stream = entry.Open();
+        var nuspec = XDocument.Load(stream);
+        var metadata = nuspec.Root?.Elements().FirstOrDefault(e => e.Name.LocalName == "metadata");
+        return metadata?.Elements().FirstOrDefault(e => e.Name.LocalName == "id")?.Value;
     }
 
     /// <summary>Reads the embedded <c>.nuspec</c>.</summary>

@@ -147,6 +147,8 @@ jobs:
       TIZEN_TFM: ${{ matrix.tfm }}
       RESULT_FILE: artifacts/device-results/device-result-${{ matrix.profile }}.txt
       TIZEN_DEVICE_SERIAL: ${{ vars[matrix.serial_var] }}
+      TIZEN_MOBILE_SERIAL: ${{ vars.TIZEN_MOBILE_SERIAL }}
+      TIZEN_TV_SERIAL: ${{ vars.TIZEN_TV_SERIAL }}
       # Distinct host ports so a leaked forward from one profile cannot capture the other's traffic.
       DEVFLOW_HOST_PORT: ${{ matrix.host_port }}
     steps:
@@ -202,6 +204,8 @@ jobs:
 
           if [ -z "$project" ] || [ ! -f "$project" ]; then
             echo "available=false" >> "$GITHUB_OUTPUT"
+            printf 'profile=%s\nlane_available=false\nstatus=skipped\nreason=no_app\n' \
+              "${{ matrix.profile }}" > "$RESULT_FILE"
             echo "::warning::No application under test. Set the TIZEN_CATALOG_PROJECT repository"
             echo "::warning::variable to a real project path once the catalog application exists."
             exit 0
@@ -243,6 +247,7 @@ jobs:
           ./eng/validation/scripts/tizen-device-lane.sh forward
           ./eng/validation/scripts/tizen-device-lane.sh wait-for-agent
           ./eng/validation/scripts/tizen-device-lane.sh agent-status
+          ./eng/validation/scripts/tizen-device-lane.sh verify-device-profile
 
       # -------------------------------------------------------------------------------------
       # On-device assertions.
@@ -275,7 +280,7 @@ jobs:
         run: ./eng/validation/scripts/tizen-device-lane.sh baselines
 
       - name: Record the result
-        if: always() && steps.preflight.outputs.lane_available == 'true'
+        if: always() && steps.preflight.outputs.lane_available == 'true' && steps.app.outputs.available == 'true'
         run: |
           set -euo pipefail
           status="$([ "${{ job.status }}" = "success" ] && echo pass || echo fail)"

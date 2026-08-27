@@ -209,9 +209,7 @@ public class ConsumerRestoreTests
         var declared = PackageContentContract.EnumerateDeclaredPackageIds();
 
         var produced = declared
-            .Where(id => Directory.Exists(packagesDirectory) && Directory
-                .EnumerateFiles(packagesDirectory, $"{id}.*.nupkg")
-                .Any(p => !p.EndsWith(".symbols.nupkg", StringComparison.OrdinalIgnoreCase)))
+            .Where(id => NuPkg.FindPackagePaths(packagesDirectory, id).Count > 0)
             .ToList();
 
         ValidationSkip.When(

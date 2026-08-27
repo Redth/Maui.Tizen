@@ -68,7 +68,7 @@ public sealed record ConventionAssertionReport(
 public static class TizenDevFlowConventions
 {
     /// <summary>Extension namespace registered with DevFlow.</summary>
-    public const string Namespace = "maui-tizen";
+    public const string Namespace = "org.dotnet.maui.tizen";
 
     public const string Description = "Maui.Tizen on-device convention assertions.";
 
@@ -83,5 +83,5 @@ public static class TizenDevFlowConventions
     public static IReadOnlyList<string> Features { get; } = [ConventionsFeature];
 
     /// <summary>Capability key reporting whether an application-supplied provider is present.</summary>
-    public const string ProviderCapabilityKey = "maui-tizen.conventions";
+    public const string ProviderCapabilityKey = Namespace + ".conventions";
 }

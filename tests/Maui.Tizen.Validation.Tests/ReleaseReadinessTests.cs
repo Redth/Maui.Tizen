@@ -49,9 +49,7 @@ public partial class ReleaseReadinessTests
             "pack the shipping packages before validation.");
 
         var missing = declared
-            .Where(id => !Directory
-                .EnumerateFiles(PackagesDirectory, $"{id}.*.nupkg")
-                .Any(p => !p.EndsWith(".symbols.nupkg", StringComparison.OrdinalIgnoreCase)))
+            .Where(id => NuPkg.FindPackagePaths(PackagesDirectory, id).Count == 0)
             .ToList();
 
         Assert.True(

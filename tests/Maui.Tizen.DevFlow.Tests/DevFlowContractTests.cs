@@ -64,6 +64,9 @@ public class DevFlowContractTests
         RequireMethod(type, "DescribeScreenshotFailure");
         RequireMethod(type, "GetWindowMetrics", typeof(int?));
         RequireMethod(type, "PopulateCapabilities", typeof(Dictionary<string, object>));
+        RequireMethod(type, "get_PlatformName");
+        RequireMethod(type, "get_DeviceTypeName");
+        RequireMethod(type, "get_IdiomName");
         RequireMethod(type, "IsMainThreadDispatchRequired");
         RequireMethod(type, "GetAppDataBasePath");
         RequireMethod(type, "TryNativeElementTapAsync", typeof(string), typeof(object));
@@ -205,6 +208,30 @@ public class DevFlowContractTests
 
         // The handler shape is what the agent's route implementation must match.
         Assert.StartsWith("Func`2", parameters[1].ParameterType.Name, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TizenExtensionNamespaceUsesThePinnedReverseDomainContract()
+    {
+        var options = new AgentOptions();
+        var extension = options.RegisterExtension(
+            TizenDevFlowConventions.Namespace,
+            TizenDevFlowConventions.Description,
+            TizenDevFlowConventions.Version,
+            TizenDevFlowConventions.Features);
+
+        Assert.Equal("org.dotnet.maui.tizen", extension.Namespace);
+    }
+
+    [Fact]
+    public void NativeIdsUseTheRoutingPrefixRecognizedByDevFlow()
+    {
+        var bridge = new NativeElementDiagnosticsBridge();
+        var id = bridge.Register(new NativeElementDescriptor(
+            new object(), "Button", "button", new NativeElementBounds(0, 0, 1, 1), CanInvoke: true));
+
+        Assert.StartsWith("native:", id, StringComparison.Ordinal);
+        Assert.False(id.StartsWith("native:registered:", StringComparison.Ordinal));
     }
 
     [Fact]

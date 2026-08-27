@@ -40,6 +40,8 @@ public class TizenVisualTreeWalker : VisualTreeWalker
     public TizenVisualTreeWalker(NativeElementDiagnosticsBridge bridge) =>
         _bridge = bridge ?? throw new ArgumentNullException(nameof(bridge));
 
+    public override bool SupportsNativeElements => true;
+
     public override List<ElementInfo> WalkNativeTree(IReadOnlyList<nint> knownWindowHandles, int maxDepth) =>
         [.. _bridge.Snapshot().Select(ToElementInfo)];
 

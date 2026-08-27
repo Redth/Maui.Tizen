@@ -1,5 +1,7 @@
+using Microsoft.Maui.Controls;
 using Microsoft.Maui.Hosting;
 using Microsoft.Maui.DevFlow.Agent.Core;
+using Microsoft.Maui.LifecycleEvents;
 
 namespace Maui.Tizen.DevFlow.Agent;
 
@@ -17,10 +19,8 @@ namespace Maui.Tizen.DevFlow.Agent;
 /// #endif
 /// </code>
 /// <para>
-/// Registration goes through <see cref="DevFlowAgentHost.Configure"/> and
-/// <c>DevFlowAgentHostContext.AttachTo</c>, which is the current path used by the shipped backends.
-/// It deliberately does not re-implement broker registration: <see cref="DevFlowAgentService"/>
-/// already owns that, and duplicating it produces two registrations that race to bind the port.
+/// Registration attaches broker metadata immediately and starts the HTTP agent from the Tizen
+/// application lifecycle, once the MAUI <see cref="Application"/> and dispatcher exist.
 /// </para>
 /// </remarks>
 public static class TizenAgentServiceExtensions
@@ -84,8 +84,34 @@ public static class TizenAgentServiceExtensions
 
         builder.Services.AddSingleton(service);
         builder.Services.AddSingleton<DevFlowAgentService>(service);
+        builder.Services.AddSingleton<MauiDevFlowAgentService>(service);
+
+        var startup = new AgentLifecycleStartup<Application>(
+            ResolveCurrentApplication,
+            () => service.IsRunning,
+            () => service.IsAppBound,
+            app => app.Dispatcher.Dispatch(() => service.Start(app, app.Dispatcher)),
+            app => app.Dispatcher.Dispatch(() => service.BindApp(app)));
+
+        builder.ConfigureLifecycleEvents(events =>
+        {
+            events.AddEvent<TizenLifecycle.OnCreate>(
+                nameof(TizenLifecycle.OnCreate),
+                _ => startup.OnApplicationActive());
+            events.AddEvent<TizenLifecycle.OnResume>(
+                nameof(TizenLifecycle.OnResume),
+                _ => startup.OnApplicationActive());
+        });
 
         return builder;
+    }
+
+    static Application? ResolveCurrentApplication()
+    {
+        if (Application.Current is { } current)
+            return current;
+
+        return IPlatformApplication.Current?.Application as Application;
     }
 
     const string LogTag = "MauiTizenDevFlow";

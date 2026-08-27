@@ -56,6 +56,12 @@ public class TizenAgentService : MauiDevFlowAgentService
     public IReadOnlyDictionary<string, TizenCapability> Capabilities =>
         TizenAgentCapabilityPolicy.Compute(_environment);
 
+    protected override string PlatformName => TizenPlatformIdentity.TizenPlatformName;
+
+    protected override string DeviceTypeName => _identity.Profile;
+
+    protected override string IdiomName => _identity.Idiom;
+
     protected override VisualTreeWalker CreateTreeWalker() =>
         new TizenVisualTreeWalker(NativeElementDiagnosticsBridge.Current);
 
@@ -140,10 +146,11 @@ public class TizenAgentService : MauiDevFlowAgentService
                 .ConfigureAwait(false);
 
             if (error is null)
-                return null;
+                return NativeTapResult.Success;
         }
 
-        return await _nativeInput.TryInvokeAsync(nativeElement).ConfigureAwait(false);
+        var invocationError = await _nativeInput.TryInvokeAsync(nativeElement).ConfigureAwait(false);
+        return NativeTapResult.FromError(invocationError);
     }
 
     static BoundsInfo? TreeWalkerBounds(object nativeElement) =>

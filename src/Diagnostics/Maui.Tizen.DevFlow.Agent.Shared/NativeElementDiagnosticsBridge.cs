@@ -31,7 +31,7 @@ namespace Maui.Tizen.DevFlow.Agent;
 public sealed class NativeElementDiagnosticsBridge
 {
     /// <summary>Prefix applied to generated ids so they are distinguishable in DevFlow payloads.</summary>
-    public const string IdPrefix = "tizen-native:";
+    public const string IdPrefix = "native:tizen:";
 
     readonly Lock _gate = new();
     readonly Dictionary<string, NativeElementRegistration> _byId = new(StringComparer.Ordinal);

@@ -130,7 +130,21 @@ for suite in "${SUITES[@]}"; do
   fi
 
   if "$binary" -result-trx "$RESULTS_DIR/$name.trx" >/tmp/mt-test.$$ 2>&1; then
-    pass "$name"
+    executed="$(python3 - "$RESULTS_DIR/$name.trx" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+
+root = ET.parse(sys.argv[1]).getroot()
+counters = next((e for e in root.iter() if e.tag.rsplit('}', 1)[-1] == 'Counters'), None)
+print((counters.attrib if counters is not None else {}).get('executed', '0'))
+PY
+)"
+    if [[ "$executed" =~ ^[0-9]+$ ]] && [[ "$executed" -gt 0 ]]; then
+      pass "$name ($executed tests executed)"
+    else
+      fail "$name: result file reports zero executed tests"
+      FAILURES=$((FAILURES + 1))
+    fi
     # Surface skips even on success: a suite that quietly skips everything is the failure mode
     # this whole lane is designed to avoid.
     grep -E '\[SKIP\]' -A 1 /tmp/mt-test.$$ | sed 's/^/        /' || true

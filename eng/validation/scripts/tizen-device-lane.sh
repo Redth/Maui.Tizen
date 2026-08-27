@@ -37,6 +37,8 @@
 #   tizen-device-lane.sh launch
 #   tizen-device-lane.sh wait-for-agent
 #   tizen-device-lane.sh agent-status
+#   tizen-device-lane.sh verify-device-profile
+#   tizen-device-lane.sh list-baseline-variants
 #   tizen-device-lane.sh remote-focus
 #   tizen-device-lane.sh lifecycle
 #   tizen-device-lane.sh pack
@@ -55,7 +57,8 @@ TIZEN_DEVICE_SERIAL="${TIZEN_DEVICE_SERIAL:-}"
 DEVFLOW_HOST_PORT="${DEVFLOW_HOST_PORT:-9223}"
 DEVFLOW_DEVICE_PORT="${DEVFLOW_DEVICE_PORT:-9223}"
 APP_ID="${APP_ID:-}"
-DEVFLOW_CONVENTIONS_NAMESPACE="maui-tizen"
+DEVFLOW_CONVENTIONS_NAMESPACE="org.dotnet.maui.tizen"
+DEVFLOW_LEASE_ID=""
 
 pass() { printf '\033[1;32m  PASS\033[0m %s\n' "$*"; }
 fail() { printf '\033[1;31m  FAIL\033[0m %s\n' "$*"; }
@@ -110,13 +113,31 @@ cmd_preflight() {
     gate "Tizen Studio tooling is missing (need both 'sdb' and 'tizen' on PATH)."
   fi
 
-  # 3. Attached target.
-  if [[ "$tools_ok" == true ]] && sdb devices 2>/dev/null | grep -qE 'device\s*$|device\b'; then
-    device_ok=true
-    pass "A Tizen target is attached"
-    sdb devices | sed 's/^/        /'
-  else
-    gate "No Tizen emulator or device is attached."
+  # 3. Both release profiles must be explicitly bound to distinct connected targets. Checking only
+  # the current matrix serial lets two jobs accidentally validate the same handset.
+  local mobile_serial="${TIZEN_MOBILE_SERIAL:-}"
+  local tv_serial="${TIZEN_TV_SERIAL:-}"
+  local expected_serial=""
+  [[ "$TIZEN_PROFILE" == "mobile" ]] && expected_serial="$mobile_serial"
+  [[ "$TIZEN_PROFILE" == "tv" ]] && expected_serial="$tv_serial"
+
+  if [[ -z "$mobile_serial" || -z "$tv_serial" ]]; then
+    gate "Both TIZEN_MOBILE_SERIAL and TIZEN_TV_SERIAL must be configured."
+  elif [[ "$mobile_serial" == "$tv_serial" ]]; then
+    gate "TIZEN_MOBILE_SERIAL and TIZEN_TV_SERIAL must identify distinct targets."
+  elif [[ "$TIZEN_DEVICE_SERIAL" != "$expected_serial" ]]; then
+    gate "TIZEN_DEVICE_SERIAL does not match the configured '$TIZEN_PROFILE' target."
+  elif [[ "$tools_ok" == true ]]; then
+    local devices
+    devices="$(sdb devices 2>/dev/null || true)"
+    if printf '%s\n' "$devices" | awk -v serial="$mobile_serial" '$1 == serial && $2 == "device" { found=1 } END { exit !found }' &&
+       printf '%s\n' "$devices" | awk -v serial="$tv_serial" '$1 == serial && $2 == "device" { found=1 } END { exit !found }'; then
+      device_ok=true
+      pass "Distinct mobile and TV targets are connected"
+      printf '%s\n' "$devices" | sed 's/^/        /'
+    else
+      gate "Both configured Tizen targets must be connected with state 'device'."
+    fi
   fi
 
   emit "workload_available=$workload_ok"
@@ -179,7 +200,56 @@ cmd_unforward() {
 devflow() {
   # --fail is essential: without it curl exits 0 on a 4xx/5xx and happily writes the error body to
   # the output file, so a 501 gets saved as a .png and the capture step reports success.
-  curl -sS --fail --max-time 20 "http://127.0.0.1:$DEVFLOW_HOST_PORT/api/v1/$1" "${@:2}"
+  local path="$1"
+  shift
+  [[ "$path" == /* ]] || path="/api/v1/$path"
+
+  if [[ -n "$DEVFLOW_LEASE_ID" ]]; then
+    curl -sS --fail --max-time 20 "http://127.0.0.1:$DEVFLOW_HOST_PORT$path" \
+      -H "X-DevFlow-Lease: $DEVFLOW_LEASE_ID" "$@"
+  else
+    curl -sS --fail --max-time 20 "http://127.0.0.1:$DEVFLOW_HOST_PORT$path" "$@"
+  fi
+}
+
+claim_mutation_lease() {
+  [[ -n "$DEVFLOW_LEASE_ID" ]] && return 0
+
+  DEVFLOW_LEASE_ID="maui-tizen-$TIZEN_PROFILE-$$"
+  local response
+  response="$(devflow "/api/v1/agent/lease" \
+    -H 'Content-Type: application/json' \
+    -d "{\"action\":\"claim\",\"leaseId\":\"$DEVFLOW_LEASE_ID\",\"holderKind\":\"validation\",\"label\":\"Maui.Tizen $TIZEN_PROFILE lane\"}")"
+
+  if ! printf '%s' "$response" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+raise SystemExit(0 if d.get('ok') and d.get('allowed') and d.get('youHold') else 1)
+"; then
+    DEVFLOW_LEASE_ID=""
+    fail "Could not claim the DevFlow mutation lease."
+    exit 1
+  fi
+}
+
+release_mutation_lease() {
+  [[ -z "$DEVFLOW_LEASE_ID" ]] && return 0
+  local lease="$DEVFLOW_LEASE_ID"
+  DEVFLOW_LEASE_ID=""
+  devflow "/api/v1/agent/lease" \
+    -H 'Content-Type: application/json' \
+    -d "{\"action\":\"release\",\"leaseId\":\"$lease\"}" >/dev/null
+}
+
+list_baseline_variants() {
+  python3 -c "
+import json
+m = json.load(open('$REPO_ROOT/eng/validation/profiles/tizen-profiles.json'))
+profile = next(p for p in m['profiles'] if p['id'] == '$TIZEN_PROFILE')
+for theme in profile['themes']:
+    for density in profile['densities']:
+        print(f'{theme} {density}')
+"
 }
 
 # ---------------------------------------------------------------------------
@@ -238,6 +308,32 @@ cmd_agent_status() {
   echo
 }
 
+cmd_verify_device_profile() {
+  local expected_idiom="phone"
+  [[ "$TIZEN_PROFILE" == "tv" ]] && expected_idiom="tv"
+
+  if ! devflow "agent/status" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+device=d.get('device') or {}
+platform=str((d.get('agent') or {}).get('platform', d.get('platform', ''))).lower()
+actual_type=str(device.get('deviceType', '')).lower()
+actual_idiom=str(device.get('idiom', '')).lower()
+expected_profile='$TIZEN_PROFILE'
+expected_idiom='$expected_idiom'
+if platform != 'tizen' or actual_type != expected_profile or actual_idiom != expected_idiom:
+    print(f'expected platform=tizen deviceType={expected_profile} idiom={expected_idiom}; '
+          f'got platform={platform or \"<empty>\"} deviceType={actual_type or \"<empty>\"} '
+          f'idiom={actual_idiom or \"<empty>\"}', file=sys.stderr)
+    raise SystemExit(1)
+"; then
+    fail "The connected target does not match matrix profile '$TIZEN_PROFILE'."
+    exit 1
+  fi
+
+  pass "Connected target identity matches '$TIZEN_PROFILE'"
+}
+
 # ---------------------------------------------------------------------------
 # TV remote focus traversal.
 #
@@ -252,6 +348,8 @@ cmd_remote_focus() {
   fi
 
   info "Remote focus traversal"
+  claim_mutation_lease
+  trap release_mutation_lease EXIT
 
   local visited=() key
   for key in Down Down Down Right Up Left; do
@@ -260,7 +358,7 @@ cmd_remote_focus() {
       -d "{\"key\":\"$key\"}" >/dev/null
 
     local focused
-    focused="$(devflow "ui/elements?strategy=type&value=*&limit=200" \
+    focused="$(devflow "ui/elements?selector=%2A" \
       | python3 -c "
 import json,sys
 try:
@@ -316,6 +414,8 @@ cmd_lifecycle() {
   fi
 
   info "Lifecycle: launch, background via Home, foreground"
+  claim_mutation_lease
+  trap release_mutation_lease EXIT
 
   sdb_cmd shell app_launcher -s "$app"
   sleep 3
@@ -324,9 +424,9 @@ cmd_lifecycle() {
   # Write a marker into the running app so resume can be distinguished from a cold start:
   # a restarted process would have lost it.
   local marker="lifecycle-$(date +%s)"
-  devflow "storage/preferences" \
+  devflow "storage/preferences/devflow.lifecycle.marker" -X PUT \
     -H 'Content-Type: application/json' \
-    -d "{\"key\":\"devflow.lifecycle.marker\",\"value\":\"$marker\"}" >/dev/null || true
+    -d "{\"value\":\"$marker\",\"type\":\"string\"}" >/dev/null
 
   info "Backgrounding via $home"
   sdb_cmd shell app_launcher -s "$home"
@@ -369,13 +469,13 @@ print(len(roots))
   pass "Visual tree re-attached after resume ($elements root element(s))"
 
   local restored
-  restored="$(devflow "storage/preferences?key=devflow.lifecycle.marker" | python3 -c "
+  restored="$(devflow "storage/preferences/devflow.lifecycle.marker" | python3 -c "
 import json,sys
 try:
     print(json.load(sys.stdin).get('value',''))
 except Exception:
     print('')
-" || true)"
+")"
 
   if [[ "$restored" == "$marker" ]]; then
     pass "In-process state survived the cycle (this was a resume, not a cold start)"
@@ -410,6 +510,8 @@ cmd_pack() {
 # ---------------------------------------------------------------------------
 cmd_device_assertions() {
   info "Running on-device conventions inside the deployed app"
+  claim_mutation_lease
+  trap release_mutation_lease EXIT
 
   # The route is DISCOVERED, not guessed. DevFlow hosts extension routes
   # (AgentOptions.RegisterExtension -> AgentExtension.MapPost), but the URL prefix it composes is
@@ -424,7 +526,7 @@ cmd_device_assertions() {
   endpoint="$(printf '%s' "$capabilities" | python3 -c "
 import json, sys
 
-NAMESPACE = 'maui-tizen'
+NAMESPACE = 'org.dotnet.maui.tizen'
 ROUTE = '/conventions/run'
 
 try:
@@ -447,7 +549,7 @@ def walk(node):
             walk(item)
     elif isinstance(node, str):
         if node.endswith(ROUTE) and NAMESPACE in node:
-            found_route = node.lstrip('/')
+            found_route = node
 
 walk(data)
 
@@ -456,7 +558,7 @@ if found_route:
 elif found_namespace:
     # The extension is advertised but no explicit route was published; compose the conventional
     # path. Only reached after confirming the server knows the extension.
-    print(f'extensions/{NAMESPACE}{ROUTE}')
+    print(f'/api/v1/ext/{NAMESPACE}{ROUTE}')
 else:
     print('')
 ")"
@@ -547,26 +649,11 @@ SIDECAR
 # deterministic comparer in Maui.Tizen.TestUtils; see VisualBaselineComparisonTests.
 # ---------------------------------------------------------------------------
 cmd_baselines() {
-  local api_level theme density out
+  local api_level
   api_level="$(python3 -c "import json;print(json.load(open('$REPO_ROOT/eng/baselines.json'))['target']['tizenFxApiLevel'])")"
 
-  # Theme and density describe how the DEVICE is configured, so they are supplied by the runner
-  # rather than inferred. Defaults come from the profile matrix.
-  theme="${TIZEN_THEME:-$(python3 -c "
-import json
-m = json.load(open('$REPO_ROOT/eng/validation/profiles/tizen-profiles.json'))
-print(next(p['themes'][0] for p in m['profiles'] if p['id'] == '$TIZEN_PROFILE'))
-")}"
-  density="${TIZEN_DENSITY:-$(python3 -c "
-import json
-m = json.load(open('$REPO_ROOT/eng/validation/profiles/tizen-profiles.json'))
-print(next(p['densities'][0] for p in m['profiles'] if p['id'] == '$TIZEN_PROFILE'))
-")}"
-
-  out="$REPO_ROOT/artifacts/screenshots/$TIZEN_PROFILE/$api_level/$theme/$density"
-  mkdir -p "$out"
-
-  info "Capturing baselines for $TIZEN_PROFILE/$api_level/$theme/$density"
+  local variants
+  variants="$(list_baseline_variants)"
 
   local cases
   cases="$(python3 -c "
@@ -581,38 +668,56 @@ print(' '.join(c['id'] for c in m['cases'] if c.get('capturesBaseline') and '$TI
     exit 1
   fi
 
-  local id
-  for id in $cases; do
-    if ! devflow "ui/actions/navigate" \
-        -H 'Content-Type: application/json' \
-        -d "{\"route\":\"$id\"}" >/dev/null; then
-      fail "Could not navigate to '$id'."
-      exit 1
-    fi
+  claim_mutation_lease
+  trap release_mutation_lease EXIT
 
-    # Settle before capturing; an in-flight animation is the classic source of a flaky baseline.
-    sleep 1
+  local theme density out id capture_count=0 variant_count=0
+  while read -r theme density; do
+    [[ -z "$theme" || -z "$density" ]] && continue
+    variant_count=$((variant_count + 1))
+    out="$REPO_ROOT/artifacts/screenshots/$TIZEN_PROFILE/$api_level/$theme/$density"
+    mkdir -p "$out"
+    find "$out" -maxdepth 1 -type f \( -name '*.png' -o -name '*.json' \) -delete
 
-    if ! devflow "ui/screenshot?format=png" --output "$out/$id.png"; then
-      fail "Could not capture '$id'."
-      exit 1
-    fi
+    info "Capturing baselines for $TIZEN_PROFILE/$api_level/$theme/$density"
+    devflow "device/app/theme" -X PUT \
+      -H 'Content-Type: application/json' \
+      -d "{\"theme\":\"$theme\"}" >/dev/null
 
-    # --fail already rejects error responses, but a zero-byte file would still slip through and
-    # then fail much later inside the comparer with a confusing decode error.
-    if [[ ! -s "$out/$id.png" ]]; then
-      fail "Capture of '$id' produced an empty file."
-      exit 1
-    fi
+    for id in $cases; do
+      if ! devflow "ui/actions/navigate" \
+          -H 'Content-Type: application/json' \
+          -d "{\"route\":\"$id\"}" >/dev/null; then
+        fail "Could not navigate to '$id'."
+        exit 1
+      fi
 
-    # Emit the metadata sidecar alongside the capture. Without it a capture cannot be promoted
-    # to a baseline, because provenance is what makes a baseline reviewable later.
-    cmd_baseline_sidecar "$out/$id.png" "$id" "$TIZEN_PROFILE" "$api_level" "$theme" "$density"
+      sleep 1
 
-    echo "        captured $id"
-  done
+      if ! devflow "ui/screenshot?format=png" --output "$out/$id.png"; then
+        fail "Could not capture '$id'."
+        exit 1
+      fi
 
-  pass "Captured $(echo "$cases" | wc -w | tr -d ' ') screenshot(s)"
+      if [[ ! -s "$out/$id.png" ]]; then
+        fail "Capture of '$id' produced an empty file."
+        exit 1
+      fi
+
+      cmd_baseline_sidecar "$out/$id.png" "$id" "$TIZEN_PROFILE" "$api_level" "$theme" "$density"
+      capture_count=$((capture_count + 1))
+      echo "        captured $id"
+    done
+  done <<< "$variants"
+
+  local expected_variants
+  expected_variants="$(printf '%s\n' "$variants" | grep -c . | tr -d ' ')"
+  if [[ "$variant_count" -ne "$expected_variants" || "$variant_count" -eq 0 ]]; then
+    fail "Captured $variant_count of $expected_variants declared visual variants."
+    exit 1
+  fi
+
+  pass "Captured $capture_count fresh screenshot(s) across $variant_count variant(s)"
 
   info "Comparing against checked-in baselines"
 
@@ -633,6 +738,8 @@ case "${1:-}" in
   launch)          shift; cmd_launch "$@" ;;
   wait-for-agent)  shift; cmd_wait_for_agent "$@" ;;
   agent-status)    shift; cmd_agent_status "$@" ;;
+  verify-device-profile) shift; cmd_verify_device_profile "$@" ;;
+  list-baseline-variants) shift; list_baseline_variants "$@" ;;
   remote-focus) shift; cmd_remote_focus "$@" ;;
   lifecycle)    shift; cmd_lifecycle "$@" ;;
   pack)              shift; cmd_pack "$@" ;;

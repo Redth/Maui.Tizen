@@ -176,9 +176,7 @@ public class PackagingTests
         // Maui.Tizen.Internal.PackReadmeProbe), so a non-empty directory does not mean the
         // SHIPPING packages were built. Ask per declared package instead.
         var produced = ids
-            .Where(id => Directory.Exists(packagesDirectory) && Directory
-                .EnumerateFiles(packagesDirectory, $"{id}.*.nupkg")
-                .Any(p => !p.EndsWith(".symbols.nupkg", StringComparison.OrdinalIgnoreCase)))
+            .Where(id => NuPkg.FindPackagePaths(packagesDirectory, id).Count > 0)
             .ToList();
 
         ValidationSkip.When(
@@ -197,6 +195,22 @@ public class PackagingTests
             var evaluation = PackageContentContract.Load(id).Evaluate(package.Entries);
 
             Assert.True(evaluation.Passed, evaluation.Describe(package.Entries));
+        }
+    }
+
+    [Fact]
+    public async Task PackageLookupRejectsFilenamePrefixSpoofing()
+    {
+        var (workspace, output) = await PackProbeAsync().ConfigureAwait(true);
+
+        using (workspace)
+        {
+            var real = Assert.Single(Directory.EnumerateFiles(output, "*.nupkg"));
+            var spoof = Path.Combine(output, "Maui.Tizen.Core.Extra.1.0.0.nupkg");
+            File.Move(real, spoof);
+
+            Assert.Empty(NuPkg.FindPackagePaths(output, "Maui.Tizen.Core"));
+            Assert.Single(NuPkg.FindPackagePaths(output, "maui.tizen.harnessprobe"));
         }
     }
 }

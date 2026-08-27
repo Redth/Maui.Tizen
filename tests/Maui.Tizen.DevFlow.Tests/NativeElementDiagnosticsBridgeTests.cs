@@ -80,7 +80,7 @@ public class NativeElementDiagnosticsBridgeTests
     {
         var bridge = new NativeElementDiagnosticsBridge();
 
-        Assert.False(bridge.Unregister("tizen-native:999"));
+        Assert.False(bridge.Unregister("native:tizen:999"));
     }
 
     [Fact]
