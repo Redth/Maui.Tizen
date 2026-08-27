@@ -276,7 +276,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				return;
 
 			_navigationDrawer.DrawerBehavior = behavior.ToPlatform();
-			UpdateDrawerToggleVisible();
+			RefreshToolbarLeadingIcon();
 
 			if (_navigationDrawer.DrawerBehavior == DrawerBehavior.Drawer)
 				_ = _navigationDrawer.CloseAsync(false);
@@ -424,16 +424,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			// since appearance observer notifies updates
 		}
 
-		void UpdateDrawerToggleVisible()
+		/// <summary>
+		/// Re-renders the toolbar's leading icon after a change that can affect the drawer toggle.
+		/// </summary>
+		/// <remarks>
+		/// This used to WRITE a latched drawer-toggle flag onto the toolbar. The capability is
+		/// read-only upstream (dotnet/maui#37863), so nothing is stored: the value is computed on
+		/// read and this only asks the toolbar to redraw. That also removes the staleness the latch
+		/// had, where a flyout-behaviour change that did not route through here left a stale icon.
+		/// </remarks>
+		void RefreshToolbarLeadingIcon()
 		{
-			if (Shell == null)
-				return;
-
-			var toolbar = ShellElementTree.GetToolbar(Shell);
-			if (toolbar != null)
+			if (Shell == null || MauiContext == null)
 			{
-				var visible = Shell.FlyoutBehavior == FlyoutBehavior.Flyout;
-				ToolbarDrawerToggle.SetDrawerToggleVisible(toolbar, visible);
+				return;
+			}
+
+			if (ShellElementTree.GetToolbar(Shell) is Toolbar toolbar
+				&& _toolbarOwnership.Current is { } platformToolbar)
+			{
+				platformToolbar.UpdateBackButton(toolbar, ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, Shell));
 			}
 		}
 

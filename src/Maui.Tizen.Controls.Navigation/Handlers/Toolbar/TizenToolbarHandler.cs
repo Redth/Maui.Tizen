@@ -41,6 +41,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(Toolbar.IconColor)] = MapIconColor,
 				[nameof(Toolbar.ToolbarItems)] = MapToolbarItems,
 				[nameof(Toolbar.BackButtonTitle)] = MapBackButtonTitle,
+
+				// Upstream dotnet/maui#37863 adds Toolbar.MapDrawerToggleVisible for the additive
+				// IToolbarDrawerToggleVisible capability. A literal rather than a constant reference so
+				// the parity generator can extract the key; the string is identical either way, so this
+				// becomes nameof(IToolbarDrawerToggleVisible.DrawerToggleVisible) on adoption.
+				["DrawerToggleVisible"] = MapDrawerToggleVisible,
 				[nameof(Toolbar.BarBackground)] = MapBarBackground,
 				[nameof(Toolbar.BarTextColor)] = MapBarTextColor,
 				[nameof(Toolbar.BackButtonEnabled)] = MapBackButtonEnabled,
@@ -100,18 +106,30 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			=> handler.PlatformView.UpdateIsVisible(toolbar);
 
 		public static void MapBackButtonVisible(TizenToolbarHandler handler, Toolbar toolbar)
-			=> handler.PlatformView.UpdateBackButton(toolbar);
+			=> handler.PlatformView.UpdateBackButton(toolbar, handler.GetDrawerToggleVisible(toolbar));
 
 		public static void MapBackButtonTitle(TizenToolbarHandler handler, Toolbar toolbar)
-			=> handler.PlatformView.UpdateBackButton(toolbar);
+			=> handler.PlatformView.UpdateBackButton(toolbar, handler.GetDrawerToggleVisible(toolbar));
 
 		public static void MapTitleIcon(TizenToolbarHandler handler, Toolbar toolbar)
 		{
 			if (handler.MauiContext is { } mauiContext)
 			{
-				handler.PlatformView.UpdateTitleIcon(toolbar, mauiContext);
+				handler.PlatformView.UpdateTitleIcon(toolbar, mauiContext, handler.GetDrawerToggleVisible(toolbar));
 			}
 		}
+
+		/// <summary>
+		/// Redraws the leading icon when the drawer-toggle capability changes.
+		/// </summary>
+		/// <remarks>
+		/// The capability is read-only, so this maps a notification rather than applying a value.
+		/// Rendering uses back-precedence: <see cref="IToolbar.BackButtonVisible"/> wins, and the
+		/// drawer toggle is drawn only when no back button is showing. The capability itself stays
+		/// true while a back button is up - the two are not mutually exclusive.
+		/// </remarks>
+		public static void MapDrawerToggleVisible(TizenToolbarHandler handler, Toolbar toolbar)
+			=> handler.PlatformView.UpdateBackButton(toolbar, handler.GetDrawerToggleVisible(toolbar));
 
 		public static void MapTitleView(TizenToolbarHandler handler, Toolbar toolbar)
 			=> handler.UpdateTitleView(toolbar);
@@ -147,6 +165,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public static void MapDynamicOverflowEnabled(TizenToolbarHandler handler, Toolbar toolbar)
 		{
 		}
+
+		/// <summary>
+		/// Reads the drawer-toggle capability for this handler's toolbar.
+		/// </summary>
+		/// <remarks>
+		/// A toolbar hosted directly by this handler has no flyout owner in scope, so it offers no
+		/// drawer toggle. The shell view supplies its own owner - see
+		/// <c>TizenShellView.RefreshToolbarLeadingIcon</c>. On adoption both collapse to a pattern
+		/// match on the toolbar alone.
+		/// </remarks>
+		bool GetDrawerToggleVisible(Toolbar toolbar)
+			=> ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, VirtualView as IFlyoutView);
 
 		void UpdateTitleView(Toolbar toolbar)
 		{

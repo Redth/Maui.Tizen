@@ -68,7 +68,7 @@ Eight now have behaviour-preserving public-API replacements; one has no public e
 | 0006 | `View.IsItemSelected` | Replaced by `ItemSelectionState` driving `VisualStateManager` |
 | 0007 | `DataTemplateExtensions.SelectDataTemplate` | Reimplemented in `ShellTemplateResolver` |
 | 0008 | `Shell.Toolbar` | Accessibility only — `IToolbarElement.Toolbar` is public |
-| 0009 | `Toolbar.DrawerToggleVisible` | **No public equivalent.** Tizen-owned state in `ToolbarDrawerToggle` |
+| 0009 | `Toolbar.DrawerToggleVisible` | Provisional `ToolbarDrawerToggle`; upstream dotnet/maui#37863 adds `IToolbarDrawerToggleVisible` **additively** (open) |
 
 `Adapters/UpstreamApiRequests.cs` carries the same list in machine-readable form, with the concrete
 API being requested upstream in each case. The source tests fail if an adapter exists without a
@@ -215,6 +215,30 @@ pure `Microsoft.Maui.Controls` code with no NUI dependency, and those are compil
   The suite was validated by reintroducing the bug and confirming the parent-level test fails.
 
 - **Toolbar ownership.** See below.
+
+### The drawer toggle is a read-only capability
+
+Upstream settled this as an **additive** interface — `IToolbarDrawerToggleVisible` with a get-only
+`DrawerToggleVisible`; `IToolbar` is unchanged (dotnet/maui#37863, open). Two consequences that are
+behavioural, not cosmetic:
+
+**No write, no latch.** The in-tree backend *wrote* the flag onto the toolbar, and an earlier
+revision here reproduced that with a `ConditionalWeakTable`. Upstream removed the write path, so
+Wave C now computes the value on read. That also deletes a genuine staleness hazard: a stored flag
+is only as fresh as the last code path that remembered to update it, so any state change that did
+not route through that path left the toolbar drawing a stale icon.
+
+**Back-precedence, not mutual exclusivity.** The latch stored `drawerToggle && !backButton`,
+conflating "a drawer toggle is available" with "a drawer toggle is what we draw". Those are
+different questions. The capability stays `true` while a back button is showing; only the renderer
+applies precedence, because only one icon fits. `WaveCToolbarDrawerToggleTests` pins exactly that —
+the test asserting the capability survives `BackButtonVisible = true` fails under the old latch.
+
+One off-tree wrinkle worth recording: `ShellToolbar` is not an `Element`, so there is **no public
+path from a toolbar to its shell**. Rather than re-introduce a latch to bridge that, the caller that
+already knows the owner passes it in, and a caller that does not gets `false`. On adoption every
+call site collapses to `toolbar is IToolbarDrawerToggleVisible { DrawerToggleVisible: true }` and
+the owner parameter disappears with the adapter.
 
 ### Toolbar ownership is a transfer, not a reference
 

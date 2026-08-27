@@ -633,6 +633,11 @@
           "Status": "Supported"
         },
         {
+          "Key": "DrawerToggleVisible",
+          "Method": "MapDrawerToggleVisible",
+          "Status": "Supported"
+        },
+        {
           "Key": "BarBackground",
           "Method": "MapBarBackground",
           "Status": "Supported"

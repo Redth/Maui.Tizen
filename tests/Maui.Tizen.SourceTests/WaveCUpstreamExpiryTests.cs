@@ -34,17 +34,27 @@ public class WaveCUpstreamExpiryTests
 	[Fact]
 	public void ToolbarDrawerToggleAdapterExpiresWhenIToolbarPublishesTheProperty()
 	{
+		// Upstream settled on an ADDITIVE capability interface rather than a new IToolbar member, so
+		// watching IToolbar alone would never fire. Both shapes are checked: the capability
+		// interface that #37863 proposes, and a direct IToolbar member in case review moves again.
+		var capability = NeutralMaui.Core.GetType("Microsoft.Maui.IToolbarDrawerToggleVisible");
+
+		Assert.True(
+			capability is null,
+			"Microsoft.Maui.IToolbarDrawerToggleVisible now exists (dotnet/maui#37863). Replace the "
+				+ "body of ToolbarDrawerToggle.GetDrawerToggleVisible with "
+				+ "'toolbar is IToolbarDrawerToggleVisible { DrawerToggleVisible: true }', switch the "
+				+ "mapper key to nameof(IToolbarDrawerToggleVisible.DrawerToggleVisible), delete "
+				+ "Adapters/ToolbarDrawerToggle.cs and remove MAUI-TIZEN-API-0009.");
+
 		var toolbar = NeutralMaui.Core.GetType("Microsoft.Maui.IToolbar");
 
 		Assert.NotNull(toolbar);
 
-		var published = toolbar!.GetProperty("DrawerToggleVisible", AnyMember);
-
 		Assert.True(
-			published is null,
-			"IToolbar now publishes DrawerToggleVisible. Delete Adapters/ToolbarDrawerToggle.cs, "
-				+ "re-point its call sites at the property, and remove MAUI-TIZEN-API-0009 from "
-				+ "Adapters/UpstreamApiRequests.cs.");
+			toolbar!.GetProperty("DrawerToggleVisible", AnyMember) is null,
+			"IToolbar now publishes DrawerToggleVisible directly. Adopt it and delete "
+				+ "Adapters/ToolbarDrawerToggle.cs.");
 	}
 
 	/// <summary>

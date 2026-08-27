@@ -56,6 +56,8 @@
     -->
     <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls.Navigation/Platform/Toolbar/ToolbarOwnership.cs"
              LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls.Navigation/Adapters/ToolbarDrawerToggle.cs"
+             LinkBase="WaveCAdapters" />
     <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls.Navigation/Adapters/ShellElementTree.cs"
              LinkBase="WaveCAdapters" />
     <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls.Navigation/Adapters/ShellTemplateResolver.cs"

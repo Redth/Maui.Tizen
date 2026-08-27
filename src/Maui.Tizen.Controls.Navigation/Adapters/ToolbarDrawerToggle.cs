@@ -1,53 +1,93 @@
-using System.Runtime.CompilerServices;
 using Microsoft.Maui.Controls;
 
 namespace Microsoft.Maui.Platforms.Tizen.Adapters
 {
 	/// <summary>
-	/// Tizen-owned storage for the "is the flyout/drawer toggle currently shown in the toolbar"
-	/// flag.
+	/// Reads whether a toolbar can offer a drawer (hamburger) toggle.
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// This is the one Wave C dependency with no published equivalent. The in-tree backend wrote
-	/// <c>Microsoft.Maui.Controls.Toolbar.DrawerToggleVisible</c>, which is <c>internal</c>;
-	/// <see cref="IToolbar"/> exposes <see cref="IToolbar.BackButtonVisible"/> and
-	/// <see cref="IToolbar.IsVisible"/> but nothing equivalent.
+	/// Adoption seam for the additive capability proposed by dotnet/maui#37863:
+	/// <c>public interface IToolbarDrawerToggleVisible { bool DrawerToggleVisible { get; } }</c>.
+	/// <see cref="IToolbar"/> itself is unchanged, so this is additive rather than breaking.
 	/// </para>
 	/// <para>
-	/// Rather than reflect onto the internal property, the flag is kept here, attached to the
-	/// toolbar instance. Tizen is the only consumer: the value is written by the shell view when
-	/// flyout behaviour changes, and read by the Tizen toolbar view when it decides whether to draw
-	/// a hamburger icon. Nothing in Controls needs to observe it, so Tizen-side ownership is
-	/// behaviourally equivalent for this backend.
+	/// <b>The capability is READ-ONLY, which is a behavioural correction rather than a detail.</b>
+	/// The in-tree Tizen backend <em>wrote</em> a latched flag onto the toolbar
+	/// (<c>Toolbar.DrawerToggleVisible = ...</c>), and an earlier revision of this backend
+	/// reproduced that faithfully with a <c>ConditionalWeakTable</c>. Upstream has removed the write
+	/// path, so the value is computed by Controls and only observed by a backend.
 	/// </para>
 	/// <para>
-	/// The corresponding upstream request is tracked as
+	/// Dropping the latch removes a real staleness hazard: a stored flag is only as fresh as the last
+	/// code path that remembered to update it, so any state change not routed through that path left
+	/// the toolbar drawing a stale icon. Computing on read cannot go stale.
+	/// </para>
+	/// <para>
+	/// <b>Back-precedence, not mutual exclusivity.</b> The latch stored
+	/// <c>drawerToggle &amp;&amp; !backButton</c>, conflating "a drawer toggle is available" with
+	/// "a drawer toggle is what we draw". Those are different questions. This answers only the
+	/// first, and stays <see langword="true"/> while a back button is showing; choosing the icon is
+	/// the renderer's job and it prefers the back button - see
+	/// <c>TizenToolbarExtensions.UpdateBackButton</c>.
+	/// </para>
+	/// <para>
+	/// Once #37863 merges and reaches the referenced package, the body below becomes a pattern match
+	/// on the real interface and this adapter is deleted - see
 	/// <see cref="UpstreamApiRequests.ToolbarDrawerToggleVisible"/>.
 	/// </para>
 	/// </remarks>
 	public static class ToolbarDrawerToggle
 	{
-		// Weak keys so a discarded toolbar does not pin Tizen state for the life of the process.
-		static readonly ConditionalWeakTable<IToolbar, StrongBox<bool>> s_state = new();
+		/// <summary>
+		/// Mapper key for the capability, matching the proposed
+		/// <c>IToolbarDrawerToggleVisible.DrawerToggleVisible</c>.
+		/// </summary>
+		/// <remarks>
+		/// A constant so the mapper key survives adoption unchanged: the upstream member has the same
+		/// name, so this is later swapped for
+		/// <c>nameof(IToolbarDrawerToggleVisible.DrawerToggleVisible)</c> with an identical string.
+		/// </remarks>
+		public const string DrawerToggleVisiblePropertyName = "DrawerToggleVisible";
 
 		/// <summary>
-		/// Gets whether the drawer toggle should be shown for <paramref name="toolbar"/>.
+		/// Gets whether <paramref name="toolbar"/> can offer a drawer toggle.
 		/// </summary>
-		public static bool GetDrawerToggleVisible(IToolbar? toolbar)
-			=> toolbar is not null && s_state.TryGetValue(toolbar, out StrongBox<bool>? box) && box.Value;
-
-		/// <summary>
-		/// Sets whether the drawer toggle should be shown for <paramref name="toolbar"/>.
-		/// </summary>
-		public static void SetDrawerToggleVisible(IToolbar? toolbar, bool visible)
+		/// <param name="toolbar">The toolbar being rendered.</param>
+		/// <param name="owner">
+		/// The flyout-owning element, when the caller knows it. Required today; ignored once the
+		/// upstream capability ships, because the toolbar will answer for itself.
+		/// </param>
+		/// <remarks>
+		/// <para>
+		/// <b>Why the owner is a parameter.</b> Upstream computes this inside Controls, where the
+		/// shell is in scope, and exposes only <c>toolbar is IToolbarDrawerToggleVisible</c>. Off-tree
+		/// there is no public path from a toolbar to its shell - <c>ShellToolbar</c> is not even an
+		/// <see cref="Element"/>, so there is no parent chain to walk. Rather than latch the answer
+		/// onto the toolbar (which is exactly the write path upstream removed), the caller that
+		/// already knows the owner passes it in.
+		/// </para>
+		/// <para>
+		/// Deliberately independent of <see cref="IToolbar.BackButtonVisible"/>: a shell in flyout
+		/// mode still has a drawer while a pushed page shows a back button. Folding the back button
+		/// in here is what the removed latch did wrong.
+		/// </para>
+		/// <para>
+		/// On adoption every call site collapses to
+		/// <c>toolbar is IToolbarDrawerToggleVisible { DrawerToggleVisible: true }</c> and this
+		/// adapter is deleted, owner parameter and all.
+		/// </para>
+		/// </remarks>
+		public static bool GetDrawerToggleVisible(IToolbar? toolbar, IFlyoutView? owner)
 		{
-			if (toolbar is null)
+			// Adoption replaces this entire body - and the owner parameter - with:
+			//     toolbar is IToolbarDrawerToggleVisible { DrawerToggleVisible: true }
+			if (toolbar is null || owner is null)
 			{
-				return;
+				return false;
 			}
 
-			s_state.GetValue(toolbar, static _ => new StrongBox<bool>(false)).Value = visible;
+			return owner.FlyoutBehavior == FlyoutBehavior.Flyout;
 		}
 	}
 }

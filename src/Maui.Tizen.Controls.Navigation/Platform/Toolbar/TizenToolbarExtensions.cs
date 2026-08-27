@@ -52,7 +52,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			}
 		}
 
-		public static void UpdateTitleIcon(this MauiToolbar platformToolbar, Toolbar toolbar, IMauiContext mauiContext)
+		public static void UpdateTitleIcon(this MauiToolbar platformToolbar, Toolbar toolbar, IMauiContext mauiContext, bool drawerToggleVisible)
 		{
 			ArgumentNullException.ThrowIfNull(mauiContext);
 
@@ -62,7 +62,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			{
 				// Only clear the icon when nothing else owns that slot, otherwise the back button
 				// or drawer toggle would be silently erased.
-				if (!toolbar.BackButtonVisible && !ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar))
+				if (!toolbar.BackButtonVisible && !drawerToggleVisible)
 				{
 					platformToolbar.Icon = null;
 				}
@@ -79,13 +79,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			});
 		}
 
-		public static void UpdateBackButton(this MauiToolbar platformToolbar, Toolbar toolbar)
+		/// <summary>
+		/// Renders the toolbar's leading icon, preferring the back button over the drawer toggle.
+		/// </summary>
+		/// <param name="drawerToggleVisible">
+		/// Whether a drawer toggle is available. Read-only capability, supplied by the caller; see
+		/// <see cref="ToolbarDrawerToggle"/>.
+		/// </param>
+		/// <remarks>
+		/// BACK-PRECEDENCE, NOT MUTUAL EXCLUSIVITY. <paramref name="drawerToggleVisible"/> may be
+		/// true at the same time as <see cref="IToolbar.BackButtonVisible"/> - a shell in flyout mode
+		/// still has a drawer while a pushed page shows a back button. Only one icon fits, so the
+		/// back button wins here; the capability itself is never forced false.
+		/// </remarks>
+		public static void UpdateBackButton(this MauiToolbar platformToolbar, Toolbar toolbar, bool drawerToggleVisible)
 		{
 			if (toolbar.BackButtonVisible)
 			{
 				platformToolbar.Icon = CreateIconButton(platformToolbar, toolbar.IconColor, MaterialIcons.ArrowBack);
 			}
-			else if (ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar))
+			else if (drawerToggleVisible)
 			{
 				platformToolbar.Icon = CreateIconButton(platformToolbar, toolbar.IconColor, MaterialIcons.Menu);
 			}
