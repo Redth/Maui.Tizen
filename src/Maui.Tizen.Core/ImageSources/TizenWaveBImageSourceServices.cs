@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Hosting;
 
 namespace Microsoft.Maui.Platforms.Tizen
@@ -94,7 +95,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (imageSource is not IFontImageSource fontImageSource || fontImageSource.IsEmpty)
 				return Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(null);
 
-			// No rasterisation path exists; see the class remarks.
+			// No rasterisation path exists; see the class remarks. Log it, because a blank image with
+			// no diagnostic is indistinguishable from a broken glyph name.
+			_logger?.LogWarning(
+				"Font image sources are not rasterised on Tizen; '{Glyph}' will render blank.",
+				fontImageSource.Glyph);
+
 			var image = new TizenImageSource();
 
 			return Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(
@@ -116,8 +122,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			ArgumentNullException.ThrowIfNull(services);
 
-			services.AddService<IUriImageSource>(static _ => new TizenUriImageSourceService());
-			services.AddService<IFontImageSource>(static _ => new TizenFontImageSourceService());
+			// Resolve the loggers from DI. The constructors have always accepted an ILogger, but the
+			// previous registration passed none, so the parameter was dead and every diagnostic these
+			// services try to emit went nowhere.
+			services.AddService<IUriImageSource>(static provider =>
+				new TizenUriImageSourceService(provider.GetService<ILogger<TizenUriImageSourceService>>()));
+
+			services.AddService<IFontImageSource>(static provider =>
+				new TizenFontImageSourceService(provider.GetService<ILogger<TizenFontImageSourceService>>()));
 
 			return services;
 		}

@@ -103,6 +103,30 @@ A test asserts that and fails if it ever stops being true.
 
 `CarouselViewHandler` being on that list is a direct warning for Wave C, which owns it.
 
+## Inherited keys that silently do nothing
+
+Dispatching a key proves it does not crash. It does not prove it does anything. `InertMapperTests`
+reads the IL of every mapper target reachable through `ViewMapper` and flags the ones whose body is
+a bare `ret`.
+
+Eleven are, and the cause is structural rather than an oversight in this port: **MAUI 11 ships no
+Tizen target framework**, so this repository consumes the neutral `net11.0` assembly, in which
+`PlatformView` is `object` and the platform half of each mapper does not exist.
+
+| Keys | Status |
+|---|---|
+| `TranslationX`, `TranslationY`, `Scale`, `ScaleX`, `ScaleY`, `Rotation`, `RotationX`, `RotationY`, `AnchorX`, `AnchorY` | **Regression against upstream.** Upstream's Tizen build routed all ten through `TransformationExtensions.UpdateTransformation`, which really did move, scale and rotate the NUI view. Today they do nothing. |
+| `ToolTip` | Not a regression — upstream's own Tizen `UpdateToolTip` is an empty body, so Tizen has never shown tooltips. |
+
+**`ViewMapper` is chained by core, Wave A and Wave B alike, so this is not a Wave B defect and the
+fix does not belong in a single wave.** It belongs in the shared Tizen view handler, where one
+implementation serves every handler in the repository. Raised for core rather than patched here,
+because duplicating it per wave would guarantee a conflict the moment core does it properly.
+
+The test records the current set rather than merely asserting it is empty, so a *new* inert key —
+MAUI moving something else behind a platform guard — fails the build instead of quietly joining the
+list.
+
 ## Intentional no-ops
 
 A mapper with an empty body is treated as a deliberate no-op. `MapperParityTests.EveryNoOpMapperDocumentsWhy`

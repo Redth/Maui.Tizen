@@ -93,88 +93,45 @@ namespace Microsoft.Maui.Platforms.Tizen
 	}
 
 	/// <summary>
-	/// Loads an <see cref="IImageSourcePart"/> onto a native Tizen view.
+	/// Applies a resolved image to a native Tizen view.
 	/// </summary>
+	/// <remarks>
+	/// Cancellation and supersede handling live in <see cref="TizenImageSourceLoader"/>, which has no
+	/// NUI dependency and is therefore executable in tests. This type holds only the part that
+	/// genuinely requires NUI: waiting for the decode.
+	/// </remarks>
 	public static class TizenImageSourcePartExtensions
 	{
 		/// <summary>
-		/// Resolves the part's source and hands the resulting resource URL to <paramref name="setImage"/>.
+		/// Hands <paramref name="platformImage"/> to <paramref name="setImage"/> and, for a native
+		/// image view, waits until NUI reports the resource ready.
 		/// </summary>
 		/// <remarks>
 		/// <para>
-		/// Ported from the upstream Tizen <c>ImageSourcePartExtensions</c>, retargeted onto the
-		/// Tizen-typed image source contract the core slice owns.
+		/// NUI decodes asynchronously. Without this wait, <c>LoadingCompleted</c> fires and
+		/// <c>IsLoading</c> clears while the view is still blank, so a loading spinner disappears
+		/// before there is anything to see.
 		/// </para>
 		/// <para>
-		/// When the destination is a native image view the completion is deferred until NUI raises
-		/// <c>ResourceReady</c>, so <c>LoadingCompleted</c> and <c>IsLoading</c> reflect the decoded
-		/// image rather than merely the resolved URL. Dropping that await makes a loading spinner
-		/// disappear before anything is on screen.
-		/// </para>
-		/// <para>
-		/// Two robustness fixes over upstream, which are bugs rather than behaviour: the completion
-		/// source is linked to <paramref name="cancellationToken"/> so a cancelled or never-raised
-		/// load cannot hang the mapper forever, and <c>TrySetResult</c> replaces <c>SetResult</c>,
-		/// which throws if NUI raises the event more than once.
+		/// Three departures from upstream, each fixing a hang or a crash rather than changing
+		/// behaviour: the wait observes <paramref name="cancellationToken"/> so a superseded or
+		/// disconnected load cannot wait forever on an event that will never arrive;
+		/// <c>TrySetResult</c> replaces <c>SetResult</c>, which throws if NUI raises
+		/// <c>ResourceReady</c> more than once; and the image is not written at all once the token is
+		/// cancelled, so a stale load cannot overwrite a newer one.
 		/// </para>
 		/// </remarks>
-		public static async Task UpdateSourceAsync(
-			this IImageSourcePart image,
-			NView destinationContext,
-			IImageSourceServiceProvider services,
+		public static async Task ApplyImageSourceAsync(
+			this NView destinationContext,
+			TizenImageSource? platformImage,
 			Action<TizenImageSource?> setImage,
 			CancellationToken cancellationToken = default)
 		{
-			image.UpdateIsLoading(false);
+			ArgumentNullException.ThrowIfNull(setImage);
 
-			var imageSource = image.Source;
-			if (imageSource is null)
+			if (platformImage is null || cancellationToken.IsCancellationRequested)
 				return;
 
-			var events = image as IImageSourcePartEvents;
-
-			events?.LoadingStarted();
-			image.UpdateIsLoading(true);
-
-			try
-			{
-				var result = await services.GetTizenImageAsync(imageSource, cancellationToken);
-				var platformImage = result?.Value;
-
-				// Re-check the source: it can change while the load is in flight.
-				var applied = !cancellationToken.IsCancellationRequested
-					&& platformImage is not null
-					&& imageSource == image.Source;
-
-				if (applied)
-				{
-					await ApplyAsync(destinationContext, platformImage, setImage, cancellationToken);
-				}
-
-				events?.LoadingCompleted(applied);
-			}
-			catch (OperationCanceledException)
-			{
-				events?.LoadingCompleted(false);
-			}
-			catch (Exception ex)
-			{
-				events?.LoadingFailed(ex);
-			}
-			finally
-			{
-				// Only clear the flag if we are still working on the same image.
-				if (imageSource == image.Source)
-					image.UpdateIsLoading(false);
-			}
-		}
-
-		static async Task ApplyAsync(
-			NView destinationContext,
-			TizenImageSource? platformImage,
-			Action<TizenImageSource?> setImage,
-			CancellationToken cancellationToken)
-		{
 			if (destinationContext is not TizenNativeImageView imageView)
 			{
 				setImage.Invoke(platformImage);
@@ -193,7 +150,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			{
 				imageView.ResourceReady += OnResourceReady;
 				setImage.Invoke(platformImage);
-				await completion.Task;
+				await completion.Task.ConfigureAwait(false);
 			}
 			finally
 			{

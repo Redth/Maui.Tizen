@@ -43,6 +43,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			{
 			};
 
+		/// <summary>Cancels a superseded or disconnected image load.</summary>
+		readonly TizenImageSourceLoader _sourceLoader = new();
+
 		public TizenSwipeItemMenuItemHandler()
 			: base(Mapper, CommandMapper)
 		{
@@ -56,6 +59,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public TizenSwipeItemMenuItemHandler(IPropertyMapper? mapper, CommandMapper? commandMapper)
 			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
 		{
+		}
+
+		/// <inheritdoc />
+		protected override void DisconnectHandler(Button platformView)
+		{
+			// A pending load must not write to a view that is being released.
+			_sourceLoader.Cancel();
+
+			base.DisconnectHandler(platformView);
 		}
 
 		protected override Button CreatePlatformElement() =>
@@ -148,15 +160,31 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 			var provider = handler.GetRequiredService<IImageSourceServiceProvider>();
 
-			return view.UpdateSourceAsync(
-				handler.PlatformView,
+			// The loader cancels any load still in flight, so a slow earlier source cannot
+			// finish last and overwrite this one.
+			return handler._sourceLoader.LoadAsync(
+				view,
 				provider,
-				platformImage =>
+				(platformImage, cancellationToken) =>
 				{
-					if (platformImage is not null)
+					// The handler may have been disconnected while the source was resolving, in
+					// which case there is no view left to write to.
+					var platformView = handler.PlatformView.Icon;
+					if (platformView is null || cancellationToken.IsCancellationRequested)
 					{
-						handler.PlatformView.Icon.ResourceUrl = platformImage.ResourceUrl;
+						return Task.CompletedTask;
 					}
+
+					return platformView.ApplyImageSourceAsync(
+						platformImage,
+						image =>
+						{
+							if (image is not null)
+							{
+								platformView.ResourceUrl = image.ResourceUrl;
+							}
+						},
+						cancellationToken);
 				});
 		}
 	}

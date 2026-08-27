@@ -33,6 +33,21 @@
 
   <ItemGroup>
     <Compile Include="@(MauiTizenWaveBPortableCompile)" LinkBase="WaveB" />
+
+    <!--
+      The Tizen-typed image source contract is NUI-free and is compiled as-is. The concrete
+      TizenImageSource is not: it wraps Tizen.NUI.ImageUrl, so HostStubs supplies a payload
+      stand-in, exactly as tests/Maui.Tizen.Core.UnitTests does for the platform views.
+    -->
+    <Compile Include="$(MauiTizenCoreDir)ImageSources/ITizenImageSourceService.cs" LinkBase="WaveB" />
+
+    <!--
+      Wave B's URI and font services are free of TizenFX types, so their registration can be
+      composed and resolved here. Wave A's file/stream services are not: they call
+      Tizen.Applications.ResourceManager, so their half of the composition is only verifiable in
+      the ref-pack lane and at integration.
+    -->
+    <Compile Include="$(MauiTizenCoreDir)ImageSources/TizenWaveBImageSourceServices.cs" LinkBase="WaveB" />
   </ItemGroup>
 
   <ItemGroup>

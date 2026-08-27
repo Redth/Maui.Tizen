@@ -45,8 +45,28 @@ public static class ControlsHost
 	/// <param name="Field">The static mapper field name.</param>
 	/// <param name="Key">The property or command key.</param>
 	/// <param name="HandlerType">The handler type the mapping will cast to, when discoverable.</param>
-	public sealed record Mapping(string Owner, string Field, string Key, Type? HandlerType)
+	/// <param name="Target">The method the mapping ultimately invokes, when discoverable.</param>
+	public sealed record Mapping(string Owner, string Field, string Key, Type? HandlerType, MethodInfo? Target)
 	{
+		/// <summary>
+		/// Whether the mapping's target has an empty body, i.e. setting the property does nothing.
+		/// </summary>
+		/// <remarks>
+		/// An empty body compiles to a bare <c>ret</c>. This matters because MAUI 11 ships no Tizen
+		/// target framework, so this repository consumes the NEUTRAL <c>net11.0</c> assembly, in
+		/// which <c>PlatformView</c> is <see cref="object"/> and the platform-specific halves of
+		/// these mappers simply do not exist. A key can therefore be present, dispatch cleanly, and
+		/// still do absolutely nothing.
+		/// </remarks>
+		public bool HasInertBody
+		{
+			get
+			{
+				var il = Target?.GetMethodBody()?.GetILAsByteArray();
+				return il is not null && il.Length <= 2;
+			}
+		}
+
 		/// <summary>
 		/// Whether this mapping hard-casts to a concrete handler class.
 		/// </summary>
@@ -74,7 +94,8 @@ public static class ControlsHost
 		foreach (DictionaryEntry entry in entries)
 		{
 			var key = entry.Key.ToString() ?? string.Empty;
-			results.Add(new Mapping(owner, field, key, HandlerTypeOf(entry.Value as Delegate)));
+			var stored = entry.Value as Delegate;
+			results.Add(new Mapping(owner, field, key, HandlerTypeOf(stored), TargetOf(stored)));
 		}
 
 		return results;
@@ -99,6 +120,24 @@ public static class ControlsHost
 			.FirstOrDefault(f => f.FieldType.IsGenericType && f.FieldType.Name.StartsWith("Action`", StringComparison.Ordinal));
 
 		return captured?.FieldType.GetGenericArguments().FirstOrDefault();
+	}
+
+	/// <summary>Recovers the method a mapping ultimately invokes.</summary>
+	/// <remarks>
+	/// The stored delegate is always the wrapper closure, so its own <c>Method</c> is the wrapper.
+	/// The real target lives on the captured <c>Action&lt;TViewHandler, TVirtualView&gt;</c>.
+	/// </remarks>
+	static MethodInfo? TargetOf(Delegate? del)
+	{
+		var target = del?.Target;
+		if (target is null)
+			return del?.Method;
+
+		var captured = target.GetType()
+			.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+			.FirstOrDefault(f => f.FieldType.IsGenericType && f.FieldType.Name.StartsWith("Action`", StringComparison.Ordinal));
+
+		return (captured?.GetValue(target) as Delegate)?.Method ?? del?.Method;
 	}
 
 	static IReadOnlyList<Mapping> ReadAllMappings()

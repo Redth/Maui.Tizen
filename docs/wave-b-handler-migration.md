@@ -226,6 +226,23 @@ The reproductions that unavoidably touch NUI (`GetParentOfType`, `UpdateVisibili
 overloads and image-source loading) stay in `TizenWaveBInterop` and are verified against upstream
 source plus the ref-pack compile.
 
+### Image loading is cancellation-aware
+
+Each image-bearing handler owns a `TizenImageSourceLoader`. It cancels any load still in flight when
+a new source arrives and when the handler is disconnected, and it refuses to apply a result that has
+been superseded — checked both by token and by re-reading `IImageSourcePart.Source`, because
+honouring a cancellation token is a convention a service may simply not follow.
+
+The loader has no `Tizen.NUI` dependency, so it is compiled into the host test project and executed.
+`ImageSourceLoaderTests` covers rapid source changes, cancellation on disconnect, a service that
+ignores its token, a failing service, and a load whose platform event never arrives.
+
+Two of those tests were initially **vacuous**, and it is worth recording why. The first supersede
+test passed even with the loader's source re-check deleted, because a well-behaved service throws
+from the cancelled token and unwinds before the re-check is reached. Only a service that *ignores*
+its token exercises that guard. Both tests were then verified by deleting the guard and confirming
+the suite goes red.
+
 ### Image loading waits for the decode
 
 `UpdateSourceAsync` defers completion until NUI raises `ResourceReady` when the destination is a
@@ -234,6 +251,22 @@ resolved URL — without that await a loading spinner disappears before anything
 deliberate departures from upstream, both fixing bugs rather than changing behaviour: the completion
 source is linked to the cancellation token so a load that is cancelled or never signalled cannot
 hang the mapper, and `TrySetResult` replaces `SetResult`, which throws if NUI raises the event twice.
+
+### Composition
+
+`AddTizenUriAndFontImageSources` registers the URI and font services and resolves their loggers from
+DI. The constructors always accepted an `ILogger`, but the previous registration passed none, so the
+parameter was dead and every diagnostic these services emit went nowhere.
+
+`ImageSourceCompositionTests` resolves both services through a real `MauiApp` container and asserts
+they implement `ITizenImageSourceService` — without which `GetTizenImageAsync` silently returns null
+and every image renders blank — and that a logger really is supplied.
+
+**Outstanding, and owned by integration:** the final hosting root must call *both*
+`AddTizenImageSources` (core/Wave A: file and stream) and `AddTizenUriAndFontImageSources`
+(Wave B: URI and font). Neither may be left unregistered. Wave A's services call
+`Tizen.Applications.ResourceManager` and so cannot be constructed on a host, which is why the
+four-service composition is verified at integration rather than here.
 
 ### Density conversions
 
