@@ -112,6 +112,53 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 		}
 
 		/// <summary>
+		/// Marks <paramref name="view"/> as selected and not focused, in a single recomputation.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// A view holder moving to the <c>Selected</c> state is selected and <em>not</em> focused, so
+		/// the stored focus flag has to be cleared as part of that move. Doing it with two calls
+		/// would recompute twice and, in between, produce a moment where the view is both selected
+		/// and focused - which resolves to <c>Focused</c> and repaints the row.
+		/// </para>
+		/// <para>
+		/// Upstream got away with clearing nothing here because its transitions were one-shot and
+		/// stored no focus to go stale. Once selection became durable that stale flag started winning
+		/// the recompute, leaving a selected row rendered as focused.
+		/// </para>
+		/// </remarks>
+		public static void SetItemSelectedAndUnfocused(VisualElement? view, bool selected)
+		{
+			if (view is null)
+			{
+				return;
+			}
+
+			view.SetValue(IsItemSelectedProperty, selected);
+			view.SetValue(VisualElement.IsFocusedPropertyKey, false);
+			UpdateVisualState(view);
+		}
+
+		/// <summary>
+		/// Re-applies <paramref name="view"/>'s visual state from the state already stored on it.
+		/// </summary>
+		/// <remarks>
+		/// Used when something outside this adapter changes an input to the precedence chain -
+		/// <see cref="VisualElement.IsEnabled"/> in particular. Enabling a selected row has to bring
+		/// back <c>Selected</c> without the caller having to re-select it, which is only possible
+		/// because the selection is stored rather than inferred from the current visual state.
+		/// </remarks>
+		public static void Refresh(VisualElement? view)
+		{
+			if (view is null)
+			{
+				return;
+			}
+
+			UpdateVisualState(view);
+		}
+
+		/// <summary>
 		/// Clears every state this adapter owns, for a row about to be recycled.
 		/// </summary>
 		/// <remarks>
@@ -129,6 +176,68 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 			view.ClearValue(IsItemPointerOverProperty);
 			view.SetValue(VisualElement.IsFocusedPropertyKey, false);
 			UpdateVisualState(view);
+		}
+
+		/// <summary>
+		/// Starts recomputing <paramref name="view"/>'s visuals whenever its
+		/// <see cref="VisualElement.IsEnabled"/> changes.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// <c>IsEnabled</c> is an input to the precedence chain that nothing else here drives - the
+		/// app can change it at any time - so it has to be observed rather than sampled once.
+		/// </para>
+		/// <para>
+		/// <b>This recovers the disable direction only, and that limit is upstream's, not a
+		/// shortcut.</b> <c>VisualElement.ChangeVisualState</c> runs from the
+		/// <c>IsEnabled</c> property-changed callback, which fires <em>after</em> both
+		/// <c>PropertyChanging</c> and <c>PropertyChanged</c> - measured, not assumed - and it knows
+		/// nothing about selection, so on re-enable it unconditionally applies <c>Normal</c> over
+		/// whatever this adapter just computed. There is no public hook that runs after it.
+		/// </para>
+		/// <para>
+		/// That is exactly why the property this adapter replaced was <c>internal</c>: it was read
+		/// <em>inside</em> <c>ChangeVisualState</c>, so selection took part in the same recompute
+		/// rather than racing it. Reproducing that from outside is not possible with today's public
+		/// API - see <see cref="UpstreamApiRequests"/>. Until it is, the items layer must call
+		/// <see cref="Refresh"/> after re-enabling a row, which
+		/// <c>TizenItemTemplateAdaptor.UpdateViewState</c> does.
+		/// </para>
+		/// <para>
+		/// Idempotent: the handler is detached before being attached, so a recycled row cannot stack
+		/// duplicate subscriptions.
+		/// </para>
+		/// </remarks>
+		public static void TrackEnabledState(VisualElement? view)
+		{
+			if (view is null)
+			{
+				return;
+			}
+
+			view.PropertyChanged -= OnTrackedViewPropertyChanged;
+			view.PropertyChanged += OnTrackedViewPropertyChanged;
+		}
+
+		/// <summary>
+		/// Stops observing <paramref name="view"/>.
+		/// </summary>
+		public static void UntrackEnabledState(VisualElement? view)
+		{
+			if (view is null)
+			{
+				return;
+			}
+
+			view.PropertyChanged -= OnTrackedViewPropertyChanged;
+		}
+
+		static void OnTrackedViewPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+		{
+			if (e.PropertyName == nameof(VisualElement.IsEnabled) && sender is VisualElement view)
+			{
+				UpdateVisualState(view);
+			}
 		}
 
 		/// <summary>

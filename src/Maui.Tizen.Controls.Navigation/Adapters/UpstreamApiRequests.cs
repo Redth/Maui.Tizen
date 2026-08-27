@@ -72,9 +72,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 			new(
 				"MAUI-TIZEN-API-0006",
 				"Microsoft.Maui.Controls.View.IsItemSelected",
-				"(none required)",
+				"a public way for item selection to take part in VisualElement.ChangeVisualState - for example a protected virtual hook, or a public Selected input to the common-state precedence chain",
 				nameof(ItemSelectionState),
-				"The observable effect is a visual state transition, which VisualStateManager.GoToState already expresses publicly."),
+				"CORRECTED. This entry previously read '(none required)', on the grounds that the observable effect was just a visual state transition that VisualStateManager.GoToState already expresses. That was measured and is wrong. The internal property worked because it was read INSIDE ChangeVisualState, so selection took part in the same recompute as Disabled/PointerOver/Normal. From outside it cannot: ChangeVisualState is invoked from the IsEnabled property-changed callback, which runs AFTER both PropertyChanging and PropertyChanged, and it unconditionally applies Normal on re-enable with no knowledge of selection. No public hook runs after it, and VisualStateGroup is sealed with no change notification. Wave C stores selection durably and recomputes on every transition it owns, and the items layer calls ItemSelectionState.Refresh; the residual gap is a re-enable with no other item-state transition, which is device-observable only."),
 			new(
 				"MAUI-TIZEN-API-0007",
 				"Microsoft.Maui.Controls.DataTemplateExtensions.SelectDataTemplate(DataTemplate, object, BindableObject)",
@@ -93,6 +93,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 				"interface IToolbarDrawerToggleVisible { bool DrawerToggleVisible { get; } } (dotnet/maui#37863, exact-head APPROVED at 53b9073, not yet merged or packaged)",
 				nameof(ToolbarDrawerToggle),
 				"Platforms with a drawer cannot render a correct toolbar without knowing whether a drawer toggle is available. Upstream settled on an ADDITIVE capability interface rather than a new IToolbar member, so IToolbar is unchanged and the property is READ-ONLY - the in-tree Tizen write/latch is removed. Wave C therefore computes the value instead of storing it, and renders back-precedence rather than mutual exclusivity."),
+			new(
+				"MAUI-TIZEN-API-0010",
+				"Microsoft.Maui.Controls.Handlers.Items.SelectableItemsView selection synchronisation",
+				"(none required)",
+				nameof(ItemSelectionSynchronizer),
+				"No missing API: SelectedItem, SelectedItems and the native select/unselect requests are all public. The adapter exists because the SYNCHRONISATION RULES - a set difference in both directions, and a guard so the native echo of a push is not applied back - are shared logic that every backend has to get right, and keeping them behind an interface is what makes them executable in a host test instead of device-only."),
+			new(
+				"MAUI-TIZEN-API-0011",
+				"Microsoft.Maui.Controls.ShellSection platform view caching",
+				"(none required)",
+				nameof(ShellSectionViewCache<,>),
+				"No missing API: ShellSection.ToPlatform is public. The helper exists so the lazy-creation and current-section rules are separable from NUI - TizenShellItemView is an NView and cannot be instantiated off-device, so without the split this behaviour could only be asserted about, never executed."),
 		};
 	}
 }

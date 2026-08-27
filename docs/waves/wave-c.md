@@ -396,6 +396,90 @@ so the gap is closed deliberately rather than forgotten.
 Runtime behaviour. There is no Tizen emulator or device here, so item recycling, virtualization
 performance, navigation animation and Shell lazy content are **compile-verified only**.
 
+## Shell content is actually mounted
+
+Several methods survived the port as empty bodies whose only content was a comment claiming some
+other layer did the work. Nothing did. `TizenShellView.UpdateCurrentItem`,
+`TizenShellItemView.UpdateCurrentItem` and `TizenShellSectionView.UpdateCurrentItem` were all no-ops,
+so the Shell hierarchy was never mounted and **the root rendered blank**. They now implement the real
+Shell -> ShellItem -> ShellSection -> current ShellContent chain, disposing the previous item handler
+and mounting the new platform view.
+
+Content is created lazily: a section's platform view is built the first time that section becomes
+current and reused afterwards, because rebuilding it would silently discard that section's navigation
+stack and scroll position. Switching **unmounts without disposing**; disposal happens when a section
+is removed or the shell item goes away.
+
+Those rules live in `ShellSectionViewCache<TSection, TPlatformView>`, deliberately generic so it
+holds no NUI reference. `TizenShellItemView` is an `NView` and cannot be instantiated off-device, so
+without that split lazy creation and content switching could only ever be asserted about - and this
+whole class of defect is precisely what "the method exists, so it must work" produced the first time.
+`WaveCShellSectionViewCacheTests` executes them.
+
+`TabBarIsVisible` had the same shape of bug one level up: the mapper called `UpdateCurrentItem()`,
+which was itself one of the no-ops, so toggling the tab bar at runtime did nothing. It now calls
+`UpdateTabBar`, which shows or hides the bar and respects `ShellItemController.ShowTabs`.
+
+The Shell item adaptors now register created views through the same native-to-MAUI lifecycle the
+items adaptors use, so recycled rows rebind and `UpdateViewState` drives selection through
+`ItemSelectionState`. The default flyout, top and bottom item views author `Normal`/`Selected`
+visual states with appearance bindings - without them every item rendered identically whether or not
+it was current - and active tab bars use `SingleAlways`, so exactly one tab is selected and tapping
+the selected tab cannot empty the selection.
+
+The mounting call sites themselves are NUI and stay device-only; they are pinned by source
+invariants in `WaveCShellContentSourceTests`, each with a negative control.
+
+## Selection synchronisation
+
+Selection is a set held on both sides, and the port had two structural defects in keeping them equal.
+
+**Unguarded feedback.** A native selection change wrote `VirtualView.SelectedItem`, whose property
+change ran the mapper, which pushed back into the native view, which raised the native event again.
+Nothing broke the cycle, so it either recursed until the stack overflowed or churned the collection
+mid-enumeration. `ItemSelectionSynchronizer` records the direction of travel and drops the echo -
+the same `_updateSelection`/`_updateFromUI` pairing upstream uses.
+
+**Add-only synchronisation.** The old code walked `SelectedItems` requesting a select for each.
+Nothing was ever deselected, so removing an item left it selected natively, clearing the selection
+was invisible, and `SelectedItem = null` did nothing at all. Synchronisation is now a set difference
+in both directions using the native `RequestItemUnselect`, which exists and was simply unused.
+
+**Group headers were selectable.** `IsItemSelectableAt` was defined on the grouped adaptor and
+**never called from anywhere** - dead code. Grouped sources interleave headers and footers with real
+items in one flat index space, so a header could be tapped and propagated. The filter is now applied
+on both sides: positions are dropped before a push, and a header selected natively is rejected *and*
+deselected, so the two sides cannot disagree. Rejecting after the event - which is where the unused
+filter would have run - is too late, because the header is already highlighted.
+
+The rules live behind `ITizenNativeSelection` so they execute in host tests; the NUI half
+(`TizenNativeCollectionSelection`) is a thin forwarder with no decisions in it.
+
+## Selected, focused and enabled interact
+
+A view holder moving to `Selected` is selected and *not* focused, so the stored focus has to be
+cleared in the same recomputation. Two calls would recompute twice and, in between, produce a state
+that is both selected and focused - which resolves to `Focused` and repaints the row.
+`SetItemSelectedAndUnfocused` does it atomically. A test pins that plain `SetItemSelected` on a
+focused row really does resolve to `Focused`, so the two cannot be silently swapped back.
+
+`IsEnabled` is observed for tracked views, and here Wave C hit a real upstream limit worth stating
+plainly rather than papering over.
+
+`VisualElement.ChangeVisualState` runs from the `IsEnabled` property-changed callback, which fires
+**after** both `PropertyChanging` and `PropertyChanged` - measured with a probe, not assumed - and it
+applies `Normal` on re-enable with no knowledge of selection. There is no public hook that runs after
+it, and `VisualStateGroup` is sealed with no change notification. **This is exactly why the property
+Wave C replaced was `internal`:** `View.IsItemSelected` was read *inside* `ChangeVisualState`, so
+selection took part in the same recompute instead of racing it.
+
+So the disable direction recovers automatically, and the re-enable direction needs
+`ItemSelectionState.Refresh`, which `UpdateViewState` calls. The residual gap - a re-enable with no
+other item-state transition - is device-observable only. `ReEnablingDoesNotRestoreSelectedWithoutARefresh`
+pins the limitation so it is a recorded fact rather than a surprise, and so it FAILS and tells us to
+delete the workaround if upstream ever closes it. Recorded as **MAUI-TIZEN-API-0006**, whose earlier
+"(none required)" rationale this work disproved and which has been corrected in place.
+
 ## Icon-press routing
 
 The shell view and the toolbar handler both subscribe to the same `IconPressed` event, so exactly one

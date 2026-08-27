@@ -64,12 +64,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapTabBarIsVisible(TizenShellItemHandler handler, ShellItem item)
 		{
-			handler.PlatformView.UpdateCurrentItem();
+			handler.PlatformView.UpdateTabBar(Shell.GetTabBarIsVisible(item));
 		}
 
 		public static void MapCurrentItem(TizenShellItemHandler handler, ShellItem item)
 		{
-			handler.UpdateCurrentItem();
+			if (item.CurrentItem != null)
+				handler.PlatformView.UpdateCurrentItem(item.CurrentItem);
 		}
 
 		public void Dispose()
@@ -104,15 +105,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				}
 
 				_disposedValue = true;
-			}
-		}
-
-		void UpdateCurrentItem()
-		{
-			if (VirtualView.CurrentItem is ShellSection section)
-			{
-				var sectionView = new TizenShellSectionView(section, MauiContext!);
-				PlatformView.CurrentShellSectionView = sectionView;
 			}
 		}
 

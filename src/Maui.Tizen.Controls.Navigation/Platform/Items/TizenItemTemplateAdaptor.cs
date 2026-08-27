@@ -135,7 +135,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 						if (IsSelectable)
 						{
 							// Use the public adapter instead of internal View.IsItemSelected
-							ItemSelectionState.SetItemSelected(formsView, true);
+							// Selected means selected and NOT focused. Clearing the stored focus in
+							// the same call keeps it to one recompute, so the row cannot flash as
+							// Focused on the way.
+							ItemSelectionState.SetItemSelectedAndUnfocused(formsView, true);
+						}
+						else
+						{
+							// Not selectable, but the row may still have been re-enabled since it was
+							// last painted. MAUI's own recompute applies Normal on re-enable with no
+							// knowledge of selection (MAUI-TIZEN-API-0010), so this is the point that
+							// puts the stored state back.
+							ItemSelectionState.Refresh(formsView);
 						}
 						break;
 				}
@@ -179,6 +190,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			}
 			var native = view.ToPlatform(MauiContext);
 			_nativeMauiTable[native] = view;
+
+			// IsEnabled is an input to the selection precedence chain that the app can change at any
+			// time, so it has to be observed rather than sampled once.
+			ItemSelectionState.TrackEnabledState(view);
+
 			return native;
 		}
 
@@ -235,6 +251,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			UnBinding(native);
 			if (_nativeMauiTable.TryGetValue(native, out View? view))
 			{
+				// Detach before disposing: a surviving subscription would keep the view alive and
+				// recompute visuals on a row that is no longer on screen.
+				ItemSelectionState.UntrackEnabledState(view);
+
 				if (view.Handler is ITizenPlatformViewHandler handler)
 				{
 					_nativeMauiTable.Remove(handler.PlatformView!);

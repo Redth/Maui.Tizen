@@ -7,7 +7,8 @@ using NColor = Tizen.NUI.Color;
 using NView = Tizen.NUI.BaseComponents.View;
 using XLabel = Microsoft.Maui.Controls.Label;
 using XImage = Microsoft.Maui.Controls.Image;
-using XColor = Microsoft.Maui.Graphics.Color;
+using GColor = Microsoft.Maui.Graphics.Color;
+using GColors = Microsoft.Maui.Graphics.Colors;
 
 #pragma warning disable CS0618 // Frame is obsolete but still the upstream layout
 
@@ -15,55 +16,157 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 {
 	/// <summary>
 	/// View for a single item in the Shell flyout menu.
+	/// This is a MAUI View with VisualStateGroups for selection state.
 	/// </summary>
-	public class TizenShellFlyoutItemView : NView
+	public class TizenShellFlyoutItemView : Frame
 	{
-		static readonly XColor s_defaultBackgroundColor = XColor.FromRgb(33, 150, 243);
+		static readonly BindableProperty SelectedStateProperty = BindableProperty.Create(nameof(IsSelected), typeof(bool), typeof(TizenShellFlyoutItemView), false, propertyChanged: (b, o, n) => ((TizenShellFlyoutItemView)b).UpdateSelectedState());
 
-		public TizenShellFlyoutItemView()
+		static readonly GColor s_defaultBackgroundColor = GColor.FromRgb(33, 150, 243);
+		static readonly GColor s_selectedBackgroundColor = GColor.FromRgb(21, 101, 192);
+
+		Grid _grid;
+
+		public bool IsSelected
 		{
-			Layout = new global::Tizen.NUI.LinearLayout();
+			get => (bool)GetValue(SelectedStateProperty);
+			set => SetValue(SelectedStateProperty, value);
+		}
+
+#pragma warning disable CS8618
+		public TizenShellFlyoutItemView()
+#pragma warning restore CS8618
+		{
+			InitializeComponent();
+		}
+
+		void InitializeComponent()
+		{
+			Padding = new Thickness(0);
+			HasShadow = false;
+			BackgroundColor = s_defaultBackgroundColor;
+			CornerRadius = 10;
+			HeightRequest = 50;
+			Margin = new Thickness(10);
+
+			var icon = new XImage
+			{
+				Margin = new Thickness(10, 0),
+				HorizontalOptions = LayoutOptions.Center,
+				VerticalOptions = LayoutOptions.Center,
+			};
+
+			var label = new XLabel
+			{
+				Margin = new Thickness(15, 15),
+				FontSize = 16,
+				VerticalTextAlignment = TextAlignment.Center,
+			};
+
+			_grid = new Grid
+			{
+				ColumnDefinitions =
+				{
+					new ColumnDefinition { Width = 50 },
+					new ColumnDefinition { Width = GridLength.Star },
+				},
+				HeightRequest = 50,
+			};
+			_grid.Add(icon, 0, 0);
+			_grid.Add(label, 1, 0);
+
+			Content = _grid;
+
+			var groups = new VisualStateGroupList();
+
+			VisualStateGroup group = new VisualStateGroup()
+			{
+				Name = "CommonStates",
+			};
+
+			VisualState selected = new VisualState()
+			{
+				Name = VisualStateManager.CommonStates.Selected,
+				TargetType = typeof(TizenShellFlyoutItemView),
+				Setters =
+				{
+					new Setter
+					{
+						Property = SelectedStateProperty,
+						Value = true,
+					},
+				},
+			};
+
+			VisualState normal = new VisualState()
+			{
+				Name = VisualStateManager.CommonStates.Normal,
+				TargetType = typeof(TizenShellFlyoutItemView),
+				Setters =
+				{
+					new Setter
+					{
+						Property = SelectedStateProperty,
+						Value = false,
+					},
+				},
+			};
+
+			group.States.Add(selected);
+			group.States.Add(normal);
+			groups.Add(group);
+
+			VisualStateManager.SetVisualStateGroups(this, groups);
+		}
+
+		void UpdateSelectedState()
+		{
+			BackgroundColor = IsSelected ? s_selectedBackgroundColor : s_defaultBackgroundColor;
+		}
+
+		/// <summary>
+		/// Sets up data bindings from a flyout item.
+		/// </summary>
+		public void BindToData(object data)
+		{
+			if (_grid.Children.Count >= 2)
+			{
+				var icon = _grid.Children[0] as XImage;
+				var label = _grid.Children[1] as XLabel;
+
+				if (data is BindableObject bo)
+				{
+					if (icon != null)
+					{
+						if (data is IMenuItemController)
+						{
+							icon.SetBinding(XImage.SourceProperty, new Binding(nameof(MenuItem.IconImageSource), source: bo));
+						}
+						else
+						{
+							icon.SetBinding(XImage.SourceProperty, new Binding(nameof(BaseShellItem.Icon), source: bo));
+						}
+					}
+
+					if (label != null)
+					{
+						if (data is IMenuItemController menuItem)
+						{
+							label.SetBinding(XLabel.TextProperty, new Binding(nameof(MenuItem.Text), source: bo));
+						}
+						else
+						{
+							label.SetBinding(XLabel.TextProperty, new Binding(nameof(BaseShellItem.Title), source: bo));
+						}
+					}
+				}
+			}
 		}
 
 		public static View GetFlyoutItemView(object data, IMauiContext context)
 		{
-			var frame = new Frame
-			{
-				BackgroundColor = s_defaultBackgroundColor,
-				CornerRadius = 10,
-				HasShadow = false,
-				HeightRequest = 50,
-				Margin = new Thickness(10),
-				Padding = new Thickness(5),
-			};
-
-			var contentLayout = new StackLayout
-			{
-				Orientation = StackOrientation.Horizontal,
-				Padding = new Thickness(5),
-				Spacing = 5,
-				VerticalOptions = LayoutOptions.Center,
-			};
-
-			contentLayout.Children.Add(new XImage
-			{
-				Aspect = Aspect.AspectFit,
-				HorizontalOptions = LayoutOptions.Start,
-				HeightRequest = 20,
-				VerticalOptions = LayoutOptions.Center,
-				WidthRequest = 20,
-			}.BindTo(data, TizenShellFlyoutItemView.GetIcon, BindableProperty.Create("Icon", typeof(ImageSource), typeof(XImage)), "Icon", XImage.SourceProperty));
-
-			contentLayout.Children.Add(new XLabel
-			{
-				FontSize = 14,
-				HorizontalOptions = LayoutOptions.StartAndExpand,
-				VerticalOptions = LayoutOptions.Center,
-			}.BindTo(data, TizenShellFlyoutItemView.GetTitle, BindableProperty.Create("Title", typeof(string), typeof(XLabel)), "Title", XLabel.TextProperty));
-
-			frame.Content = contentLayout;
-
-			var view = frame;
+			var view = new TizenShellFlyoutItemView();
+			view.BindToData(data);
 			view.SetBinding(View.BackgroundColorProperty, static (TizenItemAppearance app) => app.BackgroundColor);
 			return view;
 		}
@@ -72,6 +175,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 			if (data is BindableObject bo)
 			{
+				if (data is IMenuItemController)
+				{
+					return (string?)bo.GetValue(MenuItem.TextProperty) ?? string.Empty;
+				}
 				return (string?)bo.GetValue(BaseShellItem.TitleProperty) ?? string.Empty;
 			}
 			return string.Empty;

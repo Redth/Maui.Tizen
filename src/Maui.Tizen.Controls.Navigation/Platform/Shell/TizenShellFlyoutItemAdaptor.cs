@@ -15,6 +15,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 	/// </summary>
 	public class TizenShellFlyoutItemAdaptor : TizenItemTemplateAdaptor
 	{
+		readonly Dictionary<NView, View> _shellNativeMauiTable = new();
 		TizenItemAppearance? _itemAppearance;
 		IMenuItemController? _headerMenu;
 		IMenuItemController? _footerMenu;
@@ -121,10 +122,59 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					view.BindingContext = item;
 				}
 
-				return view.ToPlatform(MauiContext);
+				var native = view.ToPlatform(MauiContext);
+
+				// Register native-to-MAUI mapping for selection state tracking
+				_shellNativeMauiTable[native] = view;
+				ItemSelectionState.TrackEnabledState(view);
+
+				return native;
 			}
 
-			return TizenShellFlyoutItemView.GetFlyoutItemView(item!, MauiContext).ToPlatform(MauiContext);
+			var fallbackView = TizenShellFlyoutItemView.GetFlyoutItemView(item!, MauiContext);
+			var fallbackNative = fallbackView.ToPlatform(MauiContext);
+
+			// Register native-to-MAUI mapping for selection state tracking
+			_shellNativeMauiTable[fallbackNative] = fallbackView;
+			ItemSelectionState.TrackEnabledState(fallbackView);
+
+			return fallbackNative;
+		}
+
+		public override void UpdateViewState(NView view, ViewHolderState state)
+		{
+			base.UpdateViewState(view, state);
+			if (_shellNativeMauiTable.TryGetValue(view, out View? formsView))
+			{
+				switch (state)
+				{
+					case ViewHolderState.Focused:
+						ItemSelectionState.SetItemFocused(formsView, true);
+						break;
+					case ViewHolderState.Normal:
+						ItemSelectionState.Reset(formsView);
+						break;
+					case ViewHolderState.Selected:
+						ItemSelectionState.SetItemSelectedAndUnfocused(formsView, true);
+						break;
+				}
+			}
+		}
+
+		public override void RemoveNativeView(NView native)
+		{
+			if (_shellNativeMauiTable.TryGetValue(native, out View? view))
+			{
+				ItemSelectionState.UntrackEnabledState(view);
+				_shellNativeMauiTable.Remove(native);
+
+				if (view.Handler is ITizenPlatformViewHandler handler)
+				{
+					handler.Dispose();
+					view.Handler = null;
+				}
+			}
+			base.RemoveNativeView(native);
 		}
 
 		static DataTemplate GetFlyoutItemTemplate()

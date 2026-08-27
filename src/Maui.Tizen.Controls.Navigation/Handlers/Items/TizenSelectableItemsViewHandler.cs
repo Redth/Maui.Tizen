@@ -1,6 +1,7 @@
 using System.Linq;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Handlers;
+using Microsoft.Maui.Platforms.Tizen.Adapters;
 using Microsoft.Maui.Platforms.Tizen.Platform;
 using NView = Tizen.NUI.BaseComponents.View;
 
@@ -44,6 +45,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected new TizenSelectableItemsViewControl<TItemsView>? PlatformView
 			=> base.PlatformView as TizenSelectableItemsViewControl<TItemsView>;
 
+		readonly ItemSelectionSynchronizer _selection = new();
+
 		protected override void ConnectHandler(NView platformView)
 		{
 			base.ConnectHandler(platformView);
@@ -57,23 +60,42 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (VirtualView == null || e.SelectedItems == null)
 				return;
 
-			switch (VirtualView.SelectionMode)
+			// Group headers and footers share one flat index space with real items and must never
+			// become selected. Rejecting them here - before anything reaches the virtual view -
+			// deselects them natively too, so the two sides cannot disagree.
+			if (Adaptor is ITizenSelectableItemFilter filter && NativeCollectionView is { } native)
 			{
-				case SelectionMode.Single:
-					VirtualView.SelectedItem = e.SelectedItems.FirstOrDefault();
-					break;
-				case SelectionMode.Multiple:
-					// Clear and re-add to maintain proper selection state
-					VirtualView.SelectedItems.Clear();
-					foreach (var item in e.SelectedItems)
-					{
-						VirtualView.SelectedItems.Add(item);
-					}
-					break;
-				case SelectionMode.None:
-					// Selection is disabled, clear any accidentally selected items
-					break;
+				var kept = _selection.RejectUnselectableIndexes(
+					new TizenNativeCollectionSelection(native, Adaptor.Count),
+					e.SelectedItems.Select(item => Adaptor.GetItemIndex(item)),
+					filter);
+
+				if (kept.Count != e.SelectedItems.Count)
+				{
+					return;
+				}
 			}
+
+			// Guarded: writing the virtual view raises property changes that run the mappers, which
+			// push straight back into the native view. Without recording the direction of travel
+			// that echo re-enters here and recurses until the stack overflows.
+			_selection.ApplyFromNative(() =>
+			{
+				switch (VirtualView.SelectionMode)
+				{
+					case SelectionMode.Single:
+						VirtualView.SelectedItem = e.SelectedItems.FirstOrDefault();
+						break;
+					case SelectionMode.Multiple:
+						// Assign rather than Clear()+Add(): clearing an observable collection that
+						// the virtual view is watching raises a reset its own handlers react to.
+						VirtualView.SelectedItems = e.SelectedItems.ToList();
+						break;
+					case SelectionMode.None:
+						// Selection is disabled; nothing is propagated.
+						break;
+				}
+			});
 		}
 
 		protected virtual void UpdateSelectionMode()
@@ -90,14 +112,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (VirtualView.SelectionMode == SelectionMode.None)
 				return;
 
-			if (VirtualView.SelectedItem != null)
-			{
-				int index = Adaptor.GetItemIndex(VirtualView.SelectedItem);
-				if (index >= 0)
-				{
-					collectionView.RequestItemSelect(index);
-				}
-			}
+			// A null SelectedItem is a real instruction to clear the selection, so it must reach the
+			// synchronizer as an empty set rather than being skipped.
+			int index = VirtualView.SelectedItem is null ? -1 : Adaptor.GetItemIndex(VirtualView.SelectedItem);
+
+			_selection.PushToNative(
+				new TizenNativeCollectionSelection(collectionView, Adaptor.Count),
+				index >= 0 ? new[] { index } : System.Array.Empty<int>(),
+				Adaptor as ITizenSelectableItemFilter);
 		}
 
 		protected virtual void UpdateSelectedItems()
@@ -109,18 +131,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (VirtualView.SelectionMode != SelectionMode.Multiple)
 				return;
 
-			// Clear existing selection first
-			// Note: Tizen.UIExtensions.NUI CollectionView doesn't have a ClearSelection API
-			// Selection updates are handled through individual item requests
-
-			foreach (var item in VirtualView.SelectedItems)
-			{
-				int index = Adaptor.GetItemIndex(item);
-				if (index >= 0)
-				{
-					collectionView.RequestItemSelect(index);
-				}
-			}
+			// Full diff, not add-only. RequestItemUnselect exists on the native view, so items
+			// dropped from the MAUI selection can actually be deselected instead of being left
+			// selected natively forever.
+			_selection.PushToNative(
+				new TizenNativeCollectionSelection(collectionView, Adaptor.Count),
+				(VirtualView.SelectedItems ?? (System.Collections.Generic.IList<object>)System.Array.Empty<object>())
+					.Select(item => Adaptor.GetItemIndex(item)),
+				Adaptor as ITizenSelectableItemFilter);
 		}
 
 		#region Mapper Methods

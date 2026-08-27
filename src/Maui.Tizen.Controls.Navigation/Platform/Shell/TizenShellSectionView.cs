@@ -133,7 +133,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				HeightSpecification = (int)40d.ToScaledPixel(),
 				WidthSpecification = LayoutParamPolicies.MatchParent,
 				LayoutManager = new LinearLayoutManager(true, global::Tizen.UIExtensions.NUI.ItemSizingStrategy.MeasureFirstItem),
-				SelectionMode = CollectionViewSelectionMode.Single,
+				SelectionMode = CollectionViewSelectionMode.SingleAlways,
 			};
 
 			_topTabBar.Adaptor = _tabBarAdaptor;
@@ -152,9 +152,30 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			}
 		}
 
-		public void UpdateCurrentItem()
+		/// <summary>
+		/// Updates the current item by mounting the ShellContent into the content area and syncing tab selection.
+		/// </summary>
+		public void UpdateCurrentItem(ShellContent content)
 		{
-			// Content is updated through handler
+			BuildTopTabBar();
+
+			// Sync tab selection
+			var selectedIdx = _topTabBar?.Adaptor?.GetItemIndex(content) ?? 0;
+			if (selectedIdx >= 0)
+				_topTabBar?.RequestItemSelect(selectedIdx);
+
+			UpdateContent(content);
+		}
+
+		void UpdateContent(ShellContent content)
+		{
+			if (content == null)
+			{
+				CurrentContent = null;
+				return;
+			}
+
+			CurrentContent = content.ToPlatform(MauiContext);
 		}
 
 		public void UpdateAppearance(ShellAppearance appearance)
@@ -197,7 +218,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (_isDisposed)
 				return;
 
-			if (disposing)
+			if (type == DisposeTypes.Explicit)
 			{
 				if (ShellSection.Items is INotifyCollectionChanged ncc)
 				{

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
 
@@ -281,5 +282,182 @@ public class WaveCItemSelectionStateTests
 
 		Assert.True(item.IsFocused);
 		Assert.True(ItemSelectionState.GetItemSelected(item));
+	}
+
+	// -----------------------------------------------------------------
+	// Atomic selected+unfocused (view holder moving to Selected)
+	// -----------------------------------------------------------------
+
+	/// <summary>
+	/// A holder moving to <c>Selected</c> is selected and NOT focused, so a previously stored focus
+	/// must be cleared as part of that move.
+	/// </summary>
+	/// <remarks>
+	/// Without this, a row that was focused and is then selected recomputes to <c>Focused</c>,
+	/// because the stale focus flag outranks selection in the focus pass. Upstream never hit this:
+	/// its transitions were one-shot and stored no focus to go stale.
+	/// </remarks>
+	[Fact]
+	public void SelectingAPreviouslyFocusedHolderClearsFocus()
+	{
+		var item = NewTemplatedItem();
+
+		ItemSelectionState.SetItemFocused(item, focused: true);
+		Assert.Equal(VisualStateManager.CommonStates.Focused, CurrentState(item));
+
+		ItemSelectionState.SetItemSelectedAndUnfocused(item, selected: true);
+
+		Assert.Equal(VisualStateManager.CommonStates.Selected, CurrentState(item));
+		Assert.False(item.IsFocused);
+		Assert.True(ItemSelectionState.GetItemSelected(item));
+	}
+
+	/// <summary>
+	/// The atomic call is not interchangeable with plain <c>SetItemSelected</c>, which is what makes
+	/// it load-bearing rather than a convenience.
+	/// </summary>
+	/// <remarks>
+	/// Selecting a focused row without clearing focus resolves to <c>Focused</c>, because focus is
+	/// applied after the base state and wins. That is the exact defect; this pins the difference so
+	/// the two cannot be swapped back.
+	/// </remarks>
+	[Fact]
+	public void SelectingWithoutClearingFocusResolvesToFocusedInstead()
+	{
+		var focusedThenSelected = NewTemplatedItem();
+		ItemSelectionState.SetItemFocused(focusedThenSelected, focused: true);
+		ItemSelectionState.SetItemSelected(focusedThenSelected, selected: true);
+
+		Assert.Equal(VisualStateManager.CommonStates.Focused, CurrentState(focusedThenSelected));
+
+		var atomic = NewTemplatedItem();
+		ItemSelectionState.SetItemFocused(atomic, focused: true);
+		ItemSelectionState.SetItemSelectedAndUnfocused(atomic, selected: true);
+
+		Assert.Equal(VisualStateManager.CommonStates.Selected, CurrentState(atomic));
+	}
+
+	// -----------------------------------------------------------------
+	// IsEnabled is observed
+	// -----------------------------------------------------------------
+
+	/// <summary>
+	/// Disabling a tracked selected row repaints it as disabled, and the selection is kept.
+	/// </summary>
+	[Fact]
+	public void DisablingATrackedSelectedItemRepaintsItAsDisabled()
+	{
+		var item = NewTemplatedItem();
+		ItemSelectionState.TrackEnabledState(item);
+		ItemSelectionState.SetItemSelected(item, selected: true);
+
+		item.IsEnabled = false;
+
+		Assert.Equal(VisualStateManager.CommonStates.Disabled, CurrentState(item));
+		Assert.True(ItemSelectionState.GetItemSelected(item));
+	}
+
+	/// <summary>
+	/// Re-enabling restores <c>Selected</c> once the items layer refreshes, with no re-selection.
+	/// </summary>
+	/// <remarks>
+	/// The selection is never re-asserted here - only <see cref="ItemSelectionState.Refresh"/> is
+	/// called, which is what <c>TizenItemTemplateAdaptor.UpdateViewState</c> does. That works only
+	/// because the selection is stored rather than inferred from the current visual state.
+	/// </remarks>
+	[Fact]
+	public void ReEnablingASelectedItemRestoresSelectedOnRefreshWithoutReselecting()
+	{
+		var item = NewTemplatedItem();
+		ItemSelectionState.TrackEnabledState(item);
+		ItemSelectionState.SetItemSelected(item, selected: true);
+
+		item.IsEnabled = false;
+		item.IsEnabled = true;
+
+		ItemSelectionState.Refresh(item);
+
+		Assert.Equal(VisualStateManager.CommonStates.Selected, CurrentState(item));
+	}
+
+	/// <summary>
+	/// Pins the upstream gap: on re-enable, MAUI's own recompute wins and selection is not restored
+	/// automatically.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <c>VisualElement.ChangeVisualState</c> runs from the <c>IsEnabled</c> property-changed
+	/// callback, which fires after both <c>PropertyChanging</c> and <c>PropertyChanged</c>, and it
+	/// applies <c>Normal</c> with no knowledge of selection. No public hook runs after it.
+	/// </para>
+	/// <para>
+	/// This test exists so the limitation is a recorded fact rather than a surprise, and so that it
+	/// FAILS - telling us to delete it and the workaround - if upstream ever makes selection part of
+	/// that recompute. See MAUI-TIZEN-API-0010.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void ReEnablingDoesNotRestoreSelectedWithoutARefresh()
+	{
+		var item = NewTemplatedItem();
+		ItemSelectionState.TrackEnabledState(item);
+		ItemSelectionState.SetItemSelected(item, selected: true);
+
+		item.IsEnabled = false;
+		item.IsEnabled = true;
+
+		Assert.Equal(VisualStateManager.CommonStates.Normal, CurrentState(item));
+
+		// The selection itself survives - only the painted state was overwritten.
+		Assert.True(ItemSelectionState.GetItemSelected(item));
+	}
+
+	/// <summary>
+	/// Tracking is idempotent, so a recycled row cannot stack duplicate subscriptions.
+	/// </summary>
+	[Fact]
+	public void TrackingIsIdempotent()
+	{
+		var item = NewTemplatedItem();
+
+		ItemSelectionState.TrackEnabledState(item);
+		ItemSelectionState.TrackEnabledState(item);
+		ItemSelectionState.SetItemSelected(item, selected: true);
+
+		item.IsEnabled = false;
+
+		Assert.Equal(VisualStateManager.CommonStates.Disabled, CurrentState(item));
+	}
+
+	/// <summary>
+	/// An untracked row stops recomputing, so a recycled view does not keep reacting off-screen.
+	/// </summary>
+	[Fact]
+	public void UntrackingStopsRecomputation()
+	{
+		var item = NewTemplatedItem();
+		ItemSelectionState.TrackEnabledState(item);
+		ItemSelectionState.SetItemSelected(item, selected: true);
+		ItemSelectionState.UntrackEnabledState(item);
+
+		// Nothing this adapter owns runs now; only MAUI's own recompute does.
+		item.IsEnabled = false;
+
+		Assert.True(ItemSelectionState.GetItemSelected(item));
+	}
+
+	/// <summary>
+	/// Refresh re-applies the stored state on demand.
+	/// </summary>
+	[Fact]
+	public void RefreshReappliesStoredState()
+	{
+		var item = NewTemplatedItem();
+		ItemSelectionState.SetItemSelected(item, selected: true);
+
+		item.IsEnabled = false;
+		ItemSelectionState.Refresh(item);
+
+		Assert.Equal(VisualStateManager.CommonStates.Disabled, CurrentState(item));
 	}
 }

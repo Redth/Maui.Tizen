@@ -203,7 +203,10 @@ public class WaveCSourceIntegrityTests
 			.EnumerateFiles(adaptersRoot, "*.cs")
 			.Select(Path.GetFileNameWithoutExtension)
 			.Where(name => name is not (null or "UpstreamApiRequests"))
-			.Where(name => !requests.Contains($"nameof({name})", StringComparison.Ordinal))
+			// A generic adapter can only be named as an open generic - nameof(Foo<,>) - so accept
+			// that form too rather than forcing a string literal that would drift silently.
+			.Where(name => !requests.Contains($"nameof({name})", StringComparison.Ordinal)
+				&& !requests.Contains($"nameof({name}<", StringComparison.Ordinal))
 			.ToList();
 
 		Assert.Empty(missing);

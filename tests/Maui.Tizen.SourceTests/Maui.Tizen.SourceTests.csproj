@@ -68,6 +68,10 @@
              LinkBase="WaveCAdapters" />
     <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls.Navigation/Adapters/ItemSelectionState.cs"
              LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls.Navigation/Adapters/ItemSelectionSynchronizer.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls.Navigation/Adapters/ShellSectionViewCache.cs"
+             LinkBase="WaveCAdapters" />
   </ItemGroup>
 
 </Project>

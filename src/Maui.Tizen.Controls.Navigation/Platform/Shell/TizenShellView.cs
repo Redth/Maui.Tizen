@@ -339,7 +339,34 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// </summary>
 		public void UpdateCurrentItem(ShellItem? item)
 		{
-			// Handler handles this through ShellItem handler dispatch
+			// Dispose the previous item's handler to release resources
+			if (_currentShellItemView?.Handler is IDisposable disposableHandler)
+			{
+				disposableHandler.Dispose();
+			}
+
+			if (item != null && MauiContext != null)
+			{
+				var handler = item.ToHandler(MauiContext);
+				if (handler is Handlers.TizenShellItemHandler shellItemHandler)
+				{
+					CurrentShellItemView = shellItemHandler.PlatformView;
+				}
+				UpdateSearchHandler();
+			}
+			else
+			{
+				CurrentShellItemView = null;
+			}
+		}
+
+		/// <summary>
+		/// Updates the search handler based on current content.
+		/// </summary>
+		void UpdateSearchHandler()
+		{
+			// Search handler update based on current navigation state
+			// The search view is managed separately through the shell search handler property
 		}
 
 		/// <summary>
