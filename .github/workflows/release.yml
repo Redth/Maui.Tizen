@@ -339,16 +339,34 @@ jobs:
   # docs/governance/package-metadata-conventions.md section 3). This
   # environment does not exist in the repository yet, so this job cannot
   # currently succeed even when "PUBLISH" is typed - that is intentional.
+  #
+  # Signing must happen before publish, never the reverse: this job
+  # downloads the exact UNSIGNED artifact `pack` produced (not a rebuild),
+  # so what gets signed is what was actually validated, and `publish` below
+  # can only ever download a SIGNED artifact - there is no path from
+  # `pack`'s unsigned output straight to `publish`.
   # -------------------------------------------------------------------------
   sign:
     name: Sign packages (production only)
     runs-on: ubuntu-latest
-    needs: release-gate
+    needs: [release-gate, build]
     if: ${{ inputs.confirm_publish == 'PUBLISH' }}
     environment: nuget-signing
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download the unsigned packages produced by pack
+        # continue-on-error: today pack cannot produce real packages (the Samsung
+        # workload is unpublished - see the pack job), so upload-artifact there
+        # uploads nothing and this download has nothing to find. That must not be
+        # the failure a reviewer sees; the very next step below fails closed with
+        # the real, actionable reason regardless of whether this one succeeds.
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: maui-tizen-packages-unsigned-${{ needs.build.outputs.package_version }}
+          path: artifacts/unsigned
 
       - name: Sign (placeholder - fails closed)
         run: |
@@ -357,6 +375,25 @@ jobs:
           echo "This step fails intentionally so packages cannot be mistaken for signed."
           exit 1
 
+      # The step above always exits 1 today, so nothing below it runs. Left in place,
+      # commented out, to show the intended shape once a real signing credential exists:
+      #
+      # - name: Sign packages and symbols
+      #   run: |
+      #     echo "TODO: Authenticode-sign + NuGet-sign every artifacts/unsigned/*.nupkg and *.snupkg"
+      #     echo "using the organization-owned certificate from the nuget-signing environment."
+      #     echo "Conventions: docs/governance/package-metadata-conventions.md section 3."
+      #     mkdir -p artifacts/signed
+      #     cp artifacts/unsigned/*.nupkg artifacts/unsigned/*.snupkg artifacts/signed/ 2>/dev/null || true
+      #
+      # - name: Upload signed package artifacts
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: maui-tizen-packages-signed-${{ needs.build.outputs.package_version }}
+      #     path: artifacts/signed
+      #     if-no-files-found: error
+      #     retention-days: 90
+
   # -------------------------------------------------------------------------
   # Publish. Double-gated: requires both the `nuget-production` environment
   # (required reviewers) AND the literal "PUBLISH" confirmation input, and
@@ -364,11 +401,16 @@ jobs:
   # does not exist in the repository yet - creating it is itself a
   # transfer-readiness action tracked in
   # docs/governance/samsung-transfer-checklist.md.
+  #
+  # This job can only ever push what `sign` uploaded under the
+  # `maui-tizen-packages-signed-*` artifact name - there is deliberately no
+  # fallback to the `pack` job's `maui-tizen-packages-unsigned-*` artifact,
+  # so an unsigned package can never reach nuget.org through this workflow.
   # -------------------------------------------------------------------------
   publish:
     name: Publish to NuGet (disabled until ownership/signing finalized)
     runs-on: ubuntu-latest
-    needs: sign
+    needs: [sign, build]
     if: ${{ inputs.confirm_publish == 'PUBLISH' }}
     environment: nuget-production
     steps:
@@ -383,10 +425,16 @@ jobs:
           echo "and this guard step must be replaced with a real check, before removing this exit."
           exit 1
 
-      # The guard step above always exits 1 today, so this step never runs
-      # (a failed prior step skips subsequent steps by default). It is left
-      # in place, commented out, to show the intended shape of the real
-      # publish step once the guard is replaced:
+      # The guard step above always exits 1 today, so nothing below it runs (and `sign`
+      # never actually produces a `maui-tizen-packages-signed-*` artifact yet either - see
+      # that job). Left in place, commented out, to show the intended shape once both are
+      # replaced:
+      #
+      # - name: Download the signed packages produced by sign
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: maui-tizen-packages-signed-${{ needs.build.outputs.package_version }}
+      #     path: artifacts/signed
       #
       # - name: Publish via trusted publishing
       #   run: |
