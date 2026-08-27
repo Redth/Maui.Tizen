@@ -395,11 +395,22 @@ discoverable from the diff, so they are recorded here.
    ones for file, stream, URI and font — not merely that a service resolves. Every one of them
    resolves regardless; MAUI's neutral package guarantees it.
 
-4. **Take Wave A's image-source implementations.** Do not carry stale `ConfigureAwait(false)` copies
+4. **Take Wave A's composition root wholesale — it fixes shadowing this branch's base copy still has.**
+   `MauiApp.CreateBuilder` registers defaults for `IFontManager`, `IEmbeddedFontLoader`,
+   `IFontRegistrar`, `IDispatcherProvider`, `IDispatcher`, `ITicker` and `IAnimationManager` before
+   any backend configuration runs, so `TryAdd` for any of them is a guaranteed no-op. The copy of
+   `ConfigureTizen` on this branch predates Wave A's fix and still `TryAdd`s the dispatcher, ticker
+   and animation manager — measured on a real host, `TryAddTransient<ITicker, TizenTicker>()`
+   resolves to MAUI's `PlatformTicker`, so animations would not run on the Tizen ticker at all.
+   Wave A already uses `Replace` for all four; the rebase takes theirs and the problem disappears.
+   Wave B's own edit to that file is only the `ConfigurePlatformContent` hook, which must be
+   preserved.
+
+5. **Take Wave A's image-source implementations.** Do not carry stale `ConfigureAwait(false)` copies
    of `TizenImageSource` or the stream service across the rebase: Wave A's `GenerateUrl` has
    main-loop affinity that those copies would break.
 
-5. **Resolve only additive shared files.** Pre-flight against Wave A shows every other conflicting
+6. **Resolve only additive shared files.** Pre-flight against Wave A shows every other conflicting
    path is byte-identical Wave A content (take theirs). The two genuinely shared files,
    `Maui.Tizen.slnx` and `eng/Maui.Tizen.Core.Sources.props`, are additive on the Wave B side with
    zero deleted lines, so both are keep-both.
@@ -432,3 +443,36 @@ exists to make impossible.
 `RefPackAssembly` now picks the most recently built configuration and then refuses to run at all if
 that assembly is older than any source it claims to describe, reporting which files changed. With
 that fixed, the same mutation correctly fails, and so does touching a source without rebuilding.
+
+
+## Default-service shadowing
+
+`MauiApp.CreateBuilder` registers a default implementation for a number of contracts *before* any
+backend configuration runs. Measured on a real host, those are `IFontManager`,
+`IEmbeddedFontLoader`, `IFontRegistrar`, `IDispatcherProvider`, `IDispatcher`, `ITicker` and
+`IAnimationManager`.
+
+For every one of them, `TryAdd` is a guaranteed no-op — and a silent one. Nothing throws, nothing is
+logged, the service still resolves, and the app runs on MAUI's neutral implementation, which on
+Tizen typically does nothing at all. The rule is therefore:
+
+| Contract kind | Registration | Why |
+|---|---|---|
+| MAUI registers a default | `Replace` | `TryAdd` loses the race and the Tizen implementation is never constructed. |
+| Image source services | `AddService` | Not a `TryAdd` API — it calls plain `AddSingleton`, so the last registration wins. This *is* the intended override mechanism. |
+| Tizen-only contract | `TryAdd` | Nothing shadows it, and `TryAdd` is what lets a host substitute its own. |
+
+Wave B's registrations follow this: `IEmbeddedFontLoader` and `IFontManager` use `Replace`;
+`ITizenFontDirectoryProvider` and `ITizenFontManager` use `TryAdd`; image sources use `AddService`.
+
+`ServiceShadowingTests` pins all three cases by resolving through a real `MauiApp` container and
+asserting the **concrete implementation type** — the only thing that distinguishes a winning
+registration from a shadowed one, since asserting that a service resolves proves nothing. It also
+verifies the premise itself (that MAUI really does pre-register each contract), so the suite cannot
+quietly stop testing anything if MAUI drops a default. A source-level check covers registrations
+added in future, because a `TryAdd` on a shadowed contract leaves no observable symptom to assert
+on.
+
+One case is only provable at integration: Wave A's file and stream image source services sit behind
+`#if TIZEN`, so on a host TFM they are not registered at all. `ImageSourceSeamTests` covers those
+from the ref-pack lane's emitted IL instead.
