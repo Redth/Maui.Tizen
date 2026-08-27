@@ -164,6 +164,15 @@ check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.
 info "Backend source tests"
 check "source tests" "$DOTNET" test tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj --no-build -c Release
 
+# 7. Parity determinism.
+#
+# The full suite above is NOT sufficient evidence that parity generation is deterministic. MAUI's
+# neutral mappers are mutated at runtime by Controls' RemapForControls, so a parity test can pass
+# in the full suite purely because an earlier test already initialized Controls, while failing in a
+# fresh process. This runs each parity-sensitive test alone to catch exactly that.
+info "Parity isolation checks"
+check "parity isolation" ./eng/run-parity-isolation-checks.sh
+
 # ---------------------------------------------------------------------------
 # 6. Report the Tizen gate explicitly.
 #

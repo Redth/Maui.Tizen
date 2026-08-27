@@ -12,8 +12,6 @@ public static class NeutralMaui
 	public static readonly Assembly Core = typeof(Microsoft.Maui.IView).Assembly;
 	public static readonly Assembly Controls = typeof(Microsoft.Maui.Controls.Element).Assembly;
 
-	static NeutralMaui() => EnsureControlsRemapsHaveRun();
-
 	/// <summary>
 	/// Forces the Controls-level mapper remaps to run before any neutral mapper is read.
 	/// </summary>
@@ -38,6 +36,31 @@ public static class NeutralMaui
 	/// </remarks>
 	/// <summary>Why the remap forcing failed, if it did.</summary>
 	public static Exception? RemapFailure { get; private set; }
+
+	static readonly object s_remapGate = new();
+	static bool s_remapAttempted;
+
+	/// <summary>
+	/// Runs the Controls remaps once, before any mapper is read.
+	/// </summary>
+	/// <remarks>
+	/// Called from every entry point that reads a mapper rather than from a static constructor,
+	/// because a static constructor body runs AFTER static field initializers - so any snapshot
+	/// taken in a field initializer would still miss the remaps.
+	/// </remarks>
+	public static void EnsureRemapsBeforeReadingMappers()
+	{
+		lock (s_remapGate)
+		{
+			if (s_remapAttempted)
+			{
+				return;
+			}
+
+			s_remapAttempted = true;
+			EnsureControlsRemapsHaveRun();
+		}
+	}
 
 	static void EnsureControlsRemapsHaveRun()
 	{
@@ -89,14 +112,34 @@ public static class NeutralMaui
 	}
 
 	/// <summary>Every public type name declared by the MAUI assemblies.</summary>
-	public static IReadOnlySet<string> PublicTypeNames { get; } =
+	static readonly Lazy<IReadOnlySet<string>> s_publicTypeNames = new(() =>
 		new[] { Core, Controls }
 			.SelectMany(a => a.GetExportedTypes())
 			.Select(t => t.Name)
-			.ToHashSet(StringComparer.Ordinal);
+			.ToHashSet(StringComparer.Ordinal));
+
+	/// <summary>Every public type name declared by the MAUI assemblies.</summary>
+	public static IReadOnlySet<string> PublicTypeNames => s_publicTypeNames.Value;
 
 	/// <summary>Keys contributed by the shared view mapper, which every view handler chains.</summary>
-	public static IReadOnlySet<string> ViewMapperKeys { get; } = LoadViewMapperKeys();
+	static readonly Lazy<IReadOnlySet<string>> s_viewMapperKeys = new(() =>
+	{
+		EnsureRemapsBeforeReadingMappers();
+		return LoadViewMapperKeys();
+	});
+
+	/// <summary>
+	/// Keys contributed by the shared view mapper, which every view handler chains.
+	/// </summary>
+	/// <remarks>
+	/// LAZY ON PURPOSE. A static field initializer would run BEFORE the static constructor body, so
+	/// this snapshot would be taken before <see cref="EnsureControlsRemapsHaveRun"/> could run and
+	/// would miss every Controls-level key. That is not theoretical: it made this suite pass only
+	/// when some earlier test happened to initialize Controls first, and fail in a fresh process
+	/// with false BackgroundColor gaps. Every mapper-derived snapshot here must stay lazy and go
+	/// through <see cref="EnsureRemapsBeforeReadingMappers"/>.
+	/// </remarks>
+	public static IReadOnlySet<string> ViewMapperKeys => s_viewMapperKeys.Value;
 
 	public static Type? FindHandler(string name) =>
 		Core.GetExportedTypes().FirstOrDefault(t => t.Name == name)
@@ -105,6 +148,8 @@ public static class NeutralMaui
 	/// <summary>Reads <c>GetKeys()</c> off a handler's static <paramref name="fieldName"/> mapper.</summary>
 	public static IReadOnlyList<string> MapperKeys(Type handler, string fieldName)
 	{
+		EnsureRemapsBeforeReadingMappers();
+
 		var field = handler.GetField(fieldName, BindingFlags.Public | BindingFlags.Static);
 		var mapper = field?.GetValue(null);
 

@@ -207,9 +207,28 @@ consequences, both of which bit this wave:
 
 **Parity generation was order-dependent.** Reading a neutral mapper before those remaps ran gave a
 smaller key set than reading it after, so the generated manifest differed between a local run and CI
-on the *same commit and packages* — purely because of test order. `NeutralMaui` now builds a Controls
-host in its static initializer to force the remaps, and `ControlsRemapsAreDeterministic` asserts that
-actually happened rather than letting a swallowed exception leave the key set half-populated.
+on the *same commit and packages* — purely because of test order.
+
+The first fix was **incomplete in a way a green full suite could not reveal**: it forced the remaps
+from a static constructor, but C# runs static *field initializers* before the static constructor
+body, so `ViewMapperKeys` still snapshotted the un-remapped mapper. The suite passed only because
+some earlier test had already initialized Controls; run alone in a fresh process, the parity tests
+failed with false `BackgroundColor` gaps.
+
+Every mapper-derived value is therefore **lazy** and routed through
+`NeutralMaui.EnsureRemapsBeforeReadingMappers()`, which is idempotent and called from each
+mapper-reading entry point rather than from type initialization. Three tests pin it —
+`ControlsRemapsAreDeterministic` (the remaps ran), `TheSharedViewMapperSnapshotIncludesControlsLevelKeys`
+(stated positively, so it cannot pass by both sides being equally stale) and
+`CapturedMapperSnapshotsMatchTheLiveSharedMapper` (snapshot vs. an independent live read).
+
+All three were validated by **removing the guard and confirming each fails** — the first draft of the
+third test passed even with the bug present, because it read the live side through a helper that
+itself forced the remaps, so both sides went stale together.
+
+Because a green full suite is not sufficient evidence here, `eng/run-parity-isolation-checks.sh`
+runs each parity-sensitive test *alone in a fresh process*, and is wired into
+`eng/build-workload-free.sh`.
 
 **Three real behaviours were missing.** Wave C declares its own mappers rather than chaining the
 neutral ones (the `RemapForControls` hook is unreachable out-of-tree), so every key Controls adds at

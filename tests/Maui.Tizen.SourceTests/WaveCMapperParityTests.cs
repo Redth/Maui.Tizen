@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -276,6 +277,78 @@ public class WaveCMapperParityTests
 		var keys = NeutralMaui.MapperKeys(flyout!, "Mapper");
 
 		Assert.Contains("FlyoutLayoutBehavior", keys);
+	}
+
+
+	/// <summary>
+	/// Every captured mapper snapshot must equal the live shared mapper, read independently.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <see cref="ControlsRemapsAreDeterministic"/> proves the remaps ran; this proves the SNAPSHOTS
+	/// were taken afterwards. They are different failures. A static field initializer runs before a
+	/// static constructor body, so a snapshot can be stale even though the remaps later succeeded -
+	/// which is exactly what happened here: the suite passed only because an earlier test had
+	/// already initialized Controls, and failed alone in a fresh process with false BackgroundColor
+	/// gaps.
+	/// </para>
+	/// <para>
+	/// The live side is read through raw reflection rather than through <c>NeutralMaui.MapperKeys</c>
+	/// ON PURPOSE. An earlier version of this test compared the snapshot against a helper that
+	/// itself forces the remaps, so BOTH sides went stale together and the test passed even with the
+	/// guard removed - verified by removing it. Reading the mapper directly keeps the two sides
+	/// genuinely independent.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void CapturedMapperSnapshotsMatchTheLiveSharedMapper()
+	{
+		// Capture the snapshot FIRST, exactly as a consumer would, then force the remaps and read
+		// the mapper again. If the snapshot was taken too early it will now be visibly short.
+		//
+		// Ordering matters: an earlier version read the live side through a helper that itself
+		// forces the remaps, so both sides went stale together and the test passed even with the
+		// guard removed - verified by removing it.
+		var snapshot = NeutralMaui.ViewMapperKeys;
+
+		NeutralMaui.EnsureRemapsBeforeReadingMappers();
+
+		var viewHandler = NeutralMaui.Core.GetExportedTypes()
+			.First(t => t.FullName == "Microsoft.Maui.Handlers.ViewHandler");
+
+		var mapper = viewHandler
+			.GetField("ViewMapper", BindingFlags.Public | BindingFlags.Static)!
+			.GetValue(null)!;
+
+		var live = ((System.Collections.IEnumerable)mapper.GetType()
+				.GetMethod("GetKeys")!
+				.Invoke(mapper, null)!)
+			.Cast<string>()
+			.ToHashSet(StringComparer.Ordinal);
+
+		var missing = live.Where(k => !snapshot.Contains(k))
+			.OrderBy(k => k, StringComparer.Ordinal)
+			.ToList();
+
+		Assert.True(
+			missing.Count == 0,
+			"The cached view-mapper snapshot is missing keys the live mapper has (" + string.Join(", ", missing)
+				+ "), so it was captured before the Controls remaps ran. Make every mapper-derived "
+				+ "value in NeutralMaui lazy and route it through EnsureRemapsBeforeReadingMappers().");
+	}
+
+	/// <summary>
+	/// The shared view-mapper snapshot must contain the Controls-level keys.
+	/// </summary>
+	/// <remarks>
+	/// Stated positively as well as relatively, so the check cannot pass by both sides being
+	/// equally stale.
+	/// </remarks>
+	[Fact]
+	public void TheSharedViewMapperSnapshotIncludesControlsLevelKeys()
+	{
+		Assert.Contains("BackgroundColor", NeutralMaui.ViewMapperKeys);
+		Assert.Contains("IsInAccessibleTree", NeutralMaui.ViewMapperKeys);
 	}
 
 }
