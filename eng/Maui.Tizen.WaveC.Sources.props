@@ -132,6 +132,7 @@
     <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/TizenShellSectionView.cs" />
     <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Shell/TizenShellView.cs" />
     <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Toolbar/IToolbarSecondaryActionPresenter.cs" />
+    <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Toolbar/ToolbarOwnership.cs" />
     <MauiTizenWaveCPlatformCompile Include="$(MauiTizenNavigationDir)Platform/Toolbar/TizenToolbarExtensions.cs" />
   </ItemGroup>
 

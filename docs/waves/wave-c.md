@@ -195,6 +195,41 @@ references to those two types - zero warnings, nothing else outstanding.
 `AcceptanceGateMustBeReopenedOnceCoreLandsThePrimitives` fails as soon as core provides either, so
 the flag cannot be left off once the blocker clears.
 
+### Executable verification, where it is possible
+
+Most of Wave C touches Tizen.NUI and so is source-verified plus API15 type-checked. Two pieces are
+pure `Microsoft.Maui.Controls` code with no NUI dependency, and those are compiled into
+`Maui.Tizen.SourceTests` and **actually executed**:
+
+- **Flyout template resolution.** This is where a real regression lived: a pre-resolved template
+  owner reaching `IShellController.GetFlyoutItemDataTemplate`, which picks between
+  `MenuItemTemplateProperty` and `ItemTemplateProperty` *from its argument's own type*, silently
+  dropping `MenuItemTemplate`. Source analysis cannot catch that class of bug. The tests pin the
+  authored-on-item and authored-on-parent cases, that a Shell-level `ItemTemplate` does **not**
+  capture a menu item, that no authored template returns `null` so Tizen keeps its own flyout item
+  view, that an explicit `null` is a per-item opt-out, and that selectors are returned unresolved.
+  The suite was validated by reintroducing the bug and confirming the parent-level test fails.
+
+- **Toolbar ownership.** See below.
+
+### Toolbar ownership is a transfer, not a reference
+
+Core's `ITizenToolbarContainer.SetToolbar` **disposes the toolbar it replaces**. That makes the
+inherited implementation — a cached `_toolbar` field, unsubscribed during teardown — unsafe: it can
+touch an instance that was already disposed by a later transfer.
+
+`ToolbarOwnership<TToolbar>` centralises the three rules that make it safe: unsubscribe the outgoing
+toolbar *before* the transfer, subscribe exactly once to the incoming one, and release idempotently.
+It is deliberately generic and NUI-free so those rules are executed on a plain host, including the
+disposed-instance case, which a stand-in toolbar reports by throwing `ObjectDisposedException`.
+
+Repeated transfer of the same instance is a no-op rather than a second subscription — a duplicate
+would fire the icon handler twice per press, which on a flyout toggle cancels out and presents as
+"the toolbar button does nothing".
+
+Runtime disposal and visual behaviour remain device-gated; what is pinned here is the bookkeeping
+that decides whether a disposed instance is ever touched.
+
 ### Mapper dispatch — a known, deliberate gap
 
 Wave A hit a crash pattern worth stating plainly here: MAUI's

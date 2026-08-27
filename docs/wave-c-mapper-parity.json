@@ -50,13 +50,6 @@
       ],
       "CommandMappers": [],
       "UncoveredNeutralKeys": [
-        "BackgroundColor",
-        "BackgroundImageSource",
-        "Description",
-        "ExcludedWithChildren",
-        "HeadingLevel",
-        "Hint",
-        "IsInAccessibleTree",
         "IsVisible"
       ]
     },
@@ -68,13 +61,6 @@
       "PropertyMappers": [],
       "CommandMappers": [],
       "UncoveredNeutralKeys": [
-        "BackgroundColor",
-        "BackgroundImageSource",
-        "Description",
-        "ExcludedWithChildren",
-        "HeadingLevel",
-        "Hint",
-        "IsInAccessibleTree",
         "IsVisible"
       ]
     },
@@ -121,15 +107,7 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": [
-        "BackgroundColor",
-        "BackgroundImageSource",
-        "Description",
-        "ExcludedWithChildren",
-        "HeadingLevel",
-        "Hint",
-        "IsInAccessibleTree"
-      ]
+      "UncoveredNeutralKeys": []
     },
     {
       "Handler": "TizenGroupableItemsViewHandler",
@@ -315,15 +293,7 @@
           "Status": "Supported"
         }
       ],
-      "UncoveredNeutralKeys": [
-        "BackgroundColor",
-        "BackgroundImageSource",
-        "Description",
-        "ExcludedWithChildren",
-        "HeadingLevel",
-        "Hint",
-        "IsInAccessibleTree"
-      ]
+      "UncoveredNeutralKeys": []
     },
     {
       "Handler": "TizenReorderableItemsViewHandler",

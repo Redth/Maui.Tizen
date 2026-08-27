@@ -26,7 +26,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		TCollectionView? _flyoutCollectionView;
 		TizenShellFlyoutItemAdaptor? _flyoutAdaptor;
 		TizenShellItemView? _currentShellItemView;
-		MauiToolbar? _toolbar;
+		// Ownership tracker rather than a cached field: Core's ITizenToolbarContainer.SetToolbar
+		// DISPOSES the toolbar it replaces, so a raw cached reference can be observed after disposal.
+		readonly ToolbarOwnership<MauiToolbar> _toolbarOwnership;
 		TizenShellSearchView? _searchView;
 		WrapperView? _backdropView;
 		bool _isDisposed;
@@ -41,6 +43,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// </summary>
 		public TizenShellView()
 		{
+			_toolbarOwnership = new ToolbarOwnership<MauiToolbar>(
+				toolbar => toolbar.IconPressed += OnToolbarIconPressed,
+				toolbar => toolbar.IconPressed -= OnToolbarIconPressed);
+
 			WidthSpecification = LayoutParamPolicies.MatchParent;
 			HeightSpecification = LayoutParamPolicies.MatchParent;
 			Layout = new LinearLayout();
@@ -381,30 +387,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				return;
 
 			var toolbar = ShellElementTree.GetToolbar(Shell);
+
 			if (toolbar == null)
 			{
+				// Release before clearing the slot, never after: the instance may be disposed once
+				// it is no longer owned.
+				_toolbarOwnership.Release();
 				_mainContentView.TitleView = null;
-				_toolbar = null;
 				return;
 			}
 
-			if (toolbar.Handler is not ITizenPlatformViewHandler handler)
-			{
-				_toolbar = (MauiToolbar?)toolbar.ToPlatform(MauiContext);
-			}
-			else
-			{
-				_toolbar = handler.PlatformView as MauiToolbar;
-			}
+			MauiToolbar? platformToolbar = toolbar.Handler is ITizenPlatformViewHandler handler
+				? handler.PlatformView as MauiToolbar
+				: (MauiToolbar?)toolbar.ToPlatform(MauiContext);
 
-			_mainContentView.TitleView = _toolbar;
-
-			// Wire up icon press to toggle flyout
-			if (_toolbar != null)
-			{
-				_toolbar.IconPressed -= OnToolbarIconPressed;
-				_toolbar.IconPressed += OnToolbarIconPressed;
-			}
+			// Transfer handles unsubscribe-old-then-subscribe-new, and is a no-op when the same
+			// instance is set again, so repeated remaps cannot stack duplicate subscriptions.
+			_toolbarOwnership.Transfer(platformToolbar);
+			_mainContentView.TitleView = platformToolbar;
 		}
 
 		void OnToolbarIconPressed(object? sender, EventArgs e)
@@ -479,10 +479,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					_navigationDrawer.Toggled -= OnDrawerToggled;
 				}
 
-				if (_toolbar != null)
-				{
-					_toolbar.IconPressed -= OnToolbarIconPressed;
-				}
+				// Idempotent: a second teardown, or one that runs after SetToolbar already disposed
+				// the instance, sees no owner and does nothing.
+				_toolbarOwnership.Release();
 
 				if (_flyoutCollectionView != null)
 				{
