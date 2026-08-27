@@ -17,25 +17,25 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	/// </remarks>
 	public class SourceLaneCoverageTests
 	{
-		static string RepositoryRoot
-		{
-			get
-			{
-				var dir = new DirectoryInfo(AppContext.BaseDirectory);
-				while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Maui.Tizen.slnx")))
-					dir = dir.Parent;
+		const string ProductProject = "src/Maui.Tizen.Core/Maui.Tizen.Core.csproj";
+		const string CoreLane = "tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj";
+		const string SampleLane = "tests/Maui.Tizen.Sample.RefPackCompile/Maui.Tizen.Sample.RefPackCompile.csproj";
 
-				return dir?.FullName ?? throw new InvalidOperationException("Repository root not found.");
-			}
-		}
+		static string RepositoryRoot => MSBuildEvaluation.RepositoryRoot;
 
-		static string SourcesProps => File.ReadAllText(
-			Path.Combine(RepositoryRoot, "eng/Maui.Tizen.Core.Sources.props"));
+		/// <summary>
+		/// Every file compiled by any lane, as MSBuild EVALUATED it rather than as the props file
+		/// spells it. The props file carries a supersession comment naming files it does not
+		/// compile, so text matching answered a different question than the one being asked.
+		/// </summary>
+		static string[] CompiledFileNames => new[] { ProductProject, CoreLane, SampleLane }
+			.SelectMany(p => MSBuildEvaluation.GetItemFileNames(p, "Compile"))
+			.Distinct(StringComparer.Ordinal)
+			.ToArray();
 
-		/// <summary>Every file named on a compile item, regardless of which item group.</summary>
-		static string[] CompiledFileNames => Regex
-			.Matches(SourcesProps, @"Include=""[^""]*?([A-Za-z0-9_.]+\.cs)""")
-			.Select(m => m.Groups[1].Value)
+		/// <summary>Full paths compiled by any lane.</summary>
+		static string[] CompiledPaths => new[] { ProductProject, CoreLane, SampleLane }
+			.SelectMany(p => MSBuildEvaluation.GetItems(p, "Compile"))
 			.Distinct(StringComparer.Ordinal)
 			.ToArray();
 
@@ -111,11 +111,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				typeof(Microsoft.Maui.Hosting.MauiApp).Assembly,
 			}.Distinct().ToArray();
 
-			var compiledPaths = Regex
-				.Matches(SourcesProps, @"Include=""\$\(MauiTizenCoreDir\)([^""]+\.cs)""")
-				.Select(m => Path.Combine(RepositoryRoot, "src/Maui.Tizen.Core", m.Groups[1].Value))
-				.Where(File.Exists)
-				.ToArray();
+			var compiledPaths = CompiledPaths.Where(File.Exists).ToArray();
 
 			Assert.NotEmpty(compiledPaths);
 
@@ -153,12 +149,19 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var refPack = File.ReadAllText(Path.Combine(
 				RepositoryRoot, "tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj"));
 
-			var defines = Regex.Match(refPack, @"<DefineConstants>([^<]*)</DefineConstants>").Groups[1].Value;
+			_ = refPack;
 
-			var symbols = defines
+			// Evaluated, so it accounts for anything the imports contribute rather than only what
+			// is spelled literally in the csproj.
+			var symbols = MSBuildEvaluation.GetProperty(CoreLane, "DefineConstants")
 				.Split(';', StringSplitOptions.RemoveEmptyEntries)
 				.Select(x => x.Trim())
-				.Where(x => !x.StartsWith("$(", StringComparison.Ordinal))
+				.Where(x => x.Length > 0)
+				.Where(x => !string.Equals(x, "TRACE", StringComparison.Ordinal))
+				.Where(x => !string.Equals(x, "DEBUG", StringComparison.Ordinal))
+				.Where(x => !string.Equals(x, "RELEASE", StringComparison.Ordinal))
+				.Where(x => !x.StartsWith("NET", StringComparison.Ordinal))
+				.Distinct(StringComparer.Ordinal)
 				.ToArray();
 
 			// TIZEN is what the product's own TFM defines via Directory.Build.targets. Anything

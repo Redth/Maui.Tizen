@@ -15,14 +15,32 @@ until Samsung publishes the 11.0.100 workload manifest (see blocker B1). Rather 
 contract with a neutral fallback, verification is split across two **complementary** lanes. They do
 not compile identical sets - that would be impossible, since the platform sources need real TizenFX:
 
-| Lane | Compiles | `TIZEN` defined |
-| --- | --- | --- |
-| `Maui.Tizen.Core.UnitTests` | portable + handler | no |
-| `Maui.Tizen.Core.RefPackCompile` | portable + handler + platform + sample | yes |
-| `Maui.Tizen.Core` (product) | portable + handler + platform | yes |
+| Lane | Compiles | Assembly | `TIZEN` |
+| --- | --- | --- | --- |
+| `Maui.Tizen.Core.UnitTests` | portable + handler | test host | no |
+| `Maui.Tizen.Core.RefPackCompile` | portable + handler + platform | `Maui.Tizen.Core` | yes |
+| `Maui.Tizen.Sample.RefPackCompile` | sample only, references the above | `Maui.Tizen.Sample` | yes |
+| `Maui.Tizen.Core` (product) | portable + handler + platform | `Maui.Tizen.Core` | yes |
 
 Between them every owned source is compiled by at least one lane, and everything the product
 compiles is also compiled by the ref-pack lane. `SourceLaneCoverageTests` pins that invariant.
+
+The sample gets its **own** lane rather than being folded into the backend's, and that separation is
+load-bearing in two ways an MSBuild review had to point out:
+
+* The sample must cross a real assembly boundary. Compiled into the backend lane it produced one
+  merged Core+sample assembly, so a sample that reached for a backend internal - or for anything
+  invisible across a package reference - compiled clean. It now reaches the backend through a
+  `ProjectReference` to an assembly carrying the real product `AssemblyName`.
+* PublicAPI ownership is only meaningful while each compilation is checked against its own baseline.
+  With both pairs attached to one merged surface, moving `TizenFlyoutView` out of the backend
+  baseline and into the *sample's* still built successfully. It now fails RS0016.
+
+The real `samples/Maui.Tizen.Sample` separately evaluated `Compile=[]` - `TizenPackage.props`
+defaults `EnableDefaultCompileItems` to false for the not-yet-ported projects and the sample never
+opted back in, so it was an application head that built successfully while containing no code.
+`PackageBoundaryTests` asserts the evaluated item lists of the real sample and its lane are
+identical, so neither can drift from the other.
 
 | Lane | Command | What it proves |
 | --- | --- | --- |
