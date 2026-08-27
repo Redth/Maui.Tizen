@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Controls;
@@ -92,16 +93,51 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		public void NoParallelTizenHandlerInterfacesRemain()
 		{
 			// ITizenApplicationHandler is the sole survivor, and only because MAUI Core ships no
-			// IApplicationHandler to implement instead.
-			var backendInterfaces = typeof(TizenLabelHandler).Assembly
-				.GetExportedTypes()
-				.Where(t => t.IsInterface && t.Name.StartsWith("ITizen", StringComparison.Ordinal))
+			// IApplicationHandler to implement instead. ITizenPlatformViewHandler is the internal
+			// native-parenting contract, not a handler abstraction apps bind to.
+			var handlerInterfaces = BackendInterfaces()
+				.Where(t => typeof(IElementHandler).IsAssignableFrom(t)
+					|| t.Name.EndsWith("Handler", StringComparison.Ordinal))
 				.Select(t => t.Name)
 				.OrderBy(n => n, StringComparer.Ordinal)
 				.ToArray();
 
-			Assert.Equal(new[] { "ITizenApplicationHandler", "ITizenPlatformViewHandler" }, backendInterfaces);
+			Assert.Equal(new[] { "ITizenApplicationHandler", "ITizenPlatformViewHandler" }, handlerInterfaces);
 		}
+
+		[Fact]
+		public void BackendOwnedInterfacesAreOnlyTheDocumentedSurvivors()
+		{
+			// The handler guard above is deliberately narrow, so this pins the whole ITizen*
+			// inventory as well - a new backend-owned abstraction cannot appear unreviewed just
+			// because it avoided the word "Handler".
+			//
+			// The two non-handler entries are services, not a parallel handler hierarchy:
+			//   ITizenFontManager - MAUI's neutral IFontManager carries only DefaultFontSize; the
+			//     font-resolution members exist solely in each platform's own build of MAUI, which
+			//     this backend does not consume, so the resolution contract is declared here.
+			//   ITizenModalHost   - the seam to the navigation wave's modal stack, which Wave A's
+			//     pickers open through and which that wave later supplies a real implementation for.
+			var backendInterfaces = BackendInterfaces()
+				.Select(t => t.Name)
+				.OrderBy(n => n, StringComparer.Ordinal)
+				.ToArray();
+
+			Assert.Equal(
+				new[]
+				{
+					"ITizenApplicationHandler",
+					"ITizenFontManager",
+					"ITizenModalHost",
+					"ITizenPlatformViewHandler",
+				},
+				backendInterfaces);
+		}
+
+		static IEnumerable<Type> BackendInterfaces()
+			=> typeof(TizenLabelHandler).Assembly
+				.GetExportedTypes()
+				.Where(t => t.IsInterface && t.Name.StartsWith("ITizen", StringComparison.Ordinal));
 
 		[Fact]
 		public void MapperChainsMauisStaticMapperSoControlsRemappingIsReachable()

@@ -72,6 +72,29 @@ Each mapper is then composed in three layers, lowest precedence first:
 `TizenHandlerMapperTests` pins all of it, including that every chained mapping dispatches without
 a cast failure.
 
+### Chaining alone is not enough: every chained key must be overridden
+
+MAUI's static mappers are *declared* as `IPropertyMapper<IView, IXHandler>` but *constructed* as
+`PropertyMapper<IView, XHandler>` - closed over MAUI's **concrete** handler:
+
+```csharp
+public static IPropertyMapper<IPicker, IPickerHandler> Mapper =
+    new PropertyMapper<IPicker, PickerHandler>(ViewMapper) { ... };
+```
+
+`PropertyMapper<TVirtualView, TViewHandler>.Add` dispatches through a hard `(TViewHandler)h` cast,
+so a key that is only reachable *through the chain* throws `InvalidCastException` the moment it is
+dispatched to a handler that is not MAUI's own. Layer 3 is therefore not a stylistic preference:
+**every key a chained mapper contributes has to be overridden here**, or it is worse than missing -
+it is a runtime crash on a property set.
+
+This was found by the per-key dispatch test rather than by reading, and it had actually bitten:
+`Picker.ItemsSource` and `Stepper.Increment`, both added by `RemapForControls`, threw until they
+were given Tizen bodies (each mirrors what Controls does - forwarding to `IPicker.Items` and
+`IStepper.Interval` respectively). `EveryChainedMappingInvokesWithoutCastFailure` enumerates every
+key of every Wave A mapper and invokes it, so a future MAUI package that adds a key fails there
+rather than on a device.
+
 ## Mapper completeness
 
 Every handler's mapper is a **complete** replacement for MAUI's equivalent — see
@@ -223,15 +246,36 @@ workload-free lanes the core slice established:
 | `tests/Maui.Tizen.Core.UnitTests` | Mapper composition and Controls parity, command dispatch, DI registration, the naming/collision rules, and the platform-independent logic extracted from the handlers - stepper bounds, image-load lifecycle, selection normalisation, dispatching - are executed against host stand-ins. | passing |
 
 Parity is measured **against MAUI Controls, not Core alone**. The test project references
-`Microsoft.Maui.Controls.Core` and forces each control's static constructor before reading any
-mapper, because `RemapForControls` mutates MAUI's static mappers in place. Measuring before that
-has happened would report a parity the backend does not actually have.
+`Microsoft.Maui.Controls`, and `ControlsRemap.Force()` performs the remaps before any mapper is
+read, because `RemapForControls` mutates MAUI's static mappers in place. Measuring before that has
+happened would report a parity the backend does not actually have.
 
-`docs/mapper-parity-matrix.md` distinguishes three states rather than two: `tizen` (the backend
-supplies an implementation), `inherited` (the key resolves through MAUI's chain but its body is
-the off-platform no-op, so nothing happens on Tizen) and `excluded`. That distinction is the whole
-point of generating it - chaining makes every key *resolve*, so a table reporting mere presence
-would show total parity while most properties did nothing.
+*How* the remaps are forced matters, and the obvious way is wrong. Only `Label` and `CheckBox` call
+`RemapForControls` from a **static constructor**; the other thirteen Wave A controls are remapped by
+`Microsoft.Maui.Controls.Hosting.AppHostBuilderExtensions.ConfigureControls`, which runs when a
+`MauiApp` is **built**. An earlier version of `ControlsRemap` only ran class constructors, so most
+mappers were never remapped - and because everything shares one process, the numbers silently
+depended on whether some unrelated test had built a Controls app first. `Force()` now builds a real
+Controls host, and `ControlsRemapTests` asserts on keys that only a built host can produce
+(`Picker.ItemsSource`, `Stepper.Increment`) so the regression cannot come back quietly.
+
+`docs/mapper-parity-matrix.md` distinguishes four states rather than two: `tizen` (the backend
+supplies an implementation), `controls` (implemented by the Controls layer, exactly as upstream
+does), `inherited` (the key resolves through MAUI's chain but its body is the off-platform no-op,
+so nothing happens on Tizen) and `excluded`. That distinction is the whole point of generating it -
+chaining makes every key *resolve*, so a table reporting mere presence would show total parity
+while most properties did nothing.
+
+The `controls` state covers `TextTransform`, `ContentLayout` and `Button.LineBreakMode`. These are
+properties of Controls types, not of the `Microsoft.Maui.*` interfaces this package consumes, and
+upstream applies them from `Microsoft.Maui.Controls.Platform` rather than from a Core handler -
+implementing them here would mean referencing Controls from the product package, which this
+repository deliberately does not do. The sources already exist under `src/Maui.Tizen.Controls`,
+awaiting the wave that owns that project, and `MapperParityMatrixTests` verifies each excused key
+is genuinely implemented there so the state cannot be used to wave a gap away.
+
+`RadioButton.TextTransform` is deliberately absent rather than excused: upstream guards that remap
+with `#if ANDROID || WINDOWS`, so the key does not exist on this package at all.
 
 Several pieces of logic were deliberately extracted out of the NUI-typed classes
 (`TizenStepperRange`, `TizenImageLoader<T>`, `TizenTextSelection`, `TizenDispatchExtensions`)

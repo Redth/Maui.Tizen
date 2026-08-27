@@ -13,15 +13,22 @@ Every property MAUI can push at a handler, and what this backend does with it.
 Generated from the real mappers, so it cannot drift from the code.
 
 **Parity is measured against MAUI Controls, not Core alone.** `Microsoft.Maui.Controls`
-calls `RemapForControls` from each control's static constructor, mutating MAUI's static
-handler mappers in place - adding `FormattedText`, `TextType`, `LineBreakMode`,
-`MaxLines`, `TextTransform`, `CheckBox.Color` and the accessibility keys. Those
-constructors are forced before these numbers are taken, so the table reflects what an
-application actually sees rather than a Core-only subset.
+calls `RemapForControls` for each control, mutating MAUI's static handler mappers in
+place - adding `FormattedText`, `TextType`, `LineBreakMode`, `MaxLines`,
+`TextTransform`, `CheckBox.Color`, `Picker.ItemsSource`, `Stepper.Increment` and the
+accessibility keys.
+
+Only `Label` and `CheckBox` remap from a static constructor. Every other control here
+is remapped by `ConfigureControls` when a `MauiApp` is **built**, so these numbers are
+taken after building a real Controls host (`ControlsRemap.Force`). Running class
+constructors alone would leave most mappers un-remapped and quietly report a
+Core-only subset instead of what an application sees.
 
 | Legend | Meaning |
 |---|---|
 | tizen | The backend supplies a Tizen implementation. |
+| controls | Implemented by the Controls layer (`src/Maui.Tizen.Controls`), which is
+| | where upstream implements it too - not by the Core backend. |
 | inherited | The key resolves through MAUI's chained mapper, but its body is the
 | | off-platform no-op - so nothing happens on Tizen. Reachable, not implemented. |
 | excluded | Deliberately not implemented, for a documented reason. |
@@ -41,6 +48,15 @@ Two keys are `excluded` throughout, both inherited from the core slice's base ma
   and states it will be removed; border rendering is driven by the stroke and shape
   properties that replaced it.
 
+The `controls` keys are not backend gaps. `TextTransform` and `ContentLayout` are
+carried on Controls types, not on the `Microsoft.Maui.*` interfaces this package
+consumes, and upstream applies them from `Microsoft.Maui.Controls.Platform` rather than
+from a Core handler. Implementing them here would mean referencing Controls from the
+product package, which this repository deliberately does not do. The sources that
+implement them already exist under `src/Maui.Tizen.Controls`, awaiting the wave that
+owns that project; `MapperParityMatrixTests` verifies each one is really implemented
+there, so this state cannot be used to wave a key away.
+
 ## Common view properties
 
 Inherited by every control below through `TizenViewMappers.ViewMapper`, the
@@ -53,12 +69,21 @@ register every key while doing nothing, because its bodies are the off-platform 
 | `AnchorY` | mapped |
 | `AutomationId` | mapped |
 | `Background` | mapped |
+| `BackgroundColor` | mapped |
+| `BackgroundImageSource` | mapped |
+| `Border` | mapped |
 | `Clip` | mapped |
+| `ContainerView` | mapped |
+| `Description` | mapped |
+| `ExcludedWithChildren` | mapped |
 | `FlowDirection` | mapped |
 | `Frame` | mapped |
+| `HeadingLevel` | mapped |
 | `Height` | mapped |
+| `Hint` | mapped |
 | `InputTransparent` | mapped |
 | `IsEnabled` | mapped |
+| `IsInAccessibleTree` | mapped |
 | `MaximumHeight` | mapped |
 | `MaximumWidth` | mapped |
 | `MinimumHeight` | mapped |
@@ -84,16 +109,7 @@ Serves `IActivityIndicator`; compared against MAUI's `ActivityIndicatorHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
-| `BackgroundColor` | mapped | inherited |
-| `BackgroundImageSource` | mapped | inherited |
-| `Border` | mapped | excluded |
 | `Color` | mapped | tizen |
-| `ContainerView` | mapped | excluded |
-| `Description` | mapped | inherited |
-| `ExcludedWithChildren` | mapped | inherited |
-| `HeadingLevel` | mapped | inherited |
-| `Hint` | mapped | inherited |
-| `IsInAccessibleTree` | mapped | inherited |
 | `IsRunning` | mapped | tizen |
 
 ## TizenButtonHandler
@@ -102,24 +118,18 @@ Serves `IButton`; compared against MAUI's `ButtonHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
-| `BackgroundColor` | mapped | inherited |
-| `BackgroundImageSource` | mapped | inherited |
-| `Border` | mapped | excluded |
 | `CharacterSpacing` | mapped | tizen |
-| `ContainerView` | mapped | excluded |
+| `ContentLayout` | mapped | controls |
 | `CornerRadius` | mapped | tizen |
-| `Description` | mapped | inherited |
-| `ExcludedWithChildren` | mapped | inherited |
 | `Font` | mapped | tizen |
-| `HeadingLevel` | mapped | inherited |
-| `Hint` | mapped | inherited |
-| `IsInAccessibleTree` | mapped | inherited |
+| `LineBreakMode` | mapped | controls |
 | `Padding` | mapped | tizen |
 | `Source` | mapped | tizen |
 | `StrokeColor` | mapped | tizen |
 | `StrokeThickness` | mapped | tizen |
 | `Text` | mapped | tizen |
 | `TextColor` | mapped | tizen |
+| `TextTransform` | mapped | controls |
 
 ## TizenCheckBoxHandler
 
@@ -127,18 +137,9 @@ Serves `ICheckBox`; compared against MAUI's `CheckBoxHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
-| `BackgroundColor` | mapped | inherited |
-| `BackgroundImageSource` | mapped | inherited |
-| `Border` | mapped | excluded |
 | `Color` | mapped | tizen |
-| `ContainerView` | mapped | excluded |
-| `Description` | mapped | inherited |
-| `ExcludedWithChildren` | mapped | inherited |
 | `Foreground` | mapped | tizen |
-| `HeadingLevel` | mapped | inherited |
-| `Hint` | mapped | inherited |
 | `IsChecked` | mapped | tizen |
-| `IsInAccessibleTree` | mapped | inherited |
 
 ## TizenDatePickerHandler
 
@@ -146,19 +147,10 @@ Serves `IDatePicker`; compared against MAUI's `DatePickerHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
-| `BackgroundColor` | mapped | inherited |
-| `BackgroundImageSource` | mapped | inherited |
-| `Border` | mapped | excluded |
 | `CharacterSpacing` | mapped | tizen |
-| `ContainerView` | mapped | excluded |
 | `Date` | mapped | tizen |
-| `Description` | mapped | inherited |
-| `ExcludedWithChildren` | mapped | inherited |
 | `Font` | mapped | tizen |
 | `Format` | mapped | tizen |
-| `HeadingLevel` | mapped | inherited |
-| `Hint` | mapped | inherited |
-| `IsInAccessibleTree` | mapped | inherited |
 | `IsOpen` | mapped | tizen |
 | `MaximumDate` | mapped | tizen |
 | `MinimumDate` | mapped | tizen |
@@ -170,19 +162,10 @@ Serves `IEditor`; compared against MAUI's `EditorHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
-| `BackgroundColor` | mapped | inherited |
-| `BackgroundImageSource` | mapped | inherited |
-| `Border` | mapped | excluded |
 | `CharacterSpacing` | mapped | tizen |
-| `ContainerView` | mapped | excluded |
 | `CursorPosition` | mapped | tizen |
-| `Description` | mapped | inherited |
-| `ExcludedWithChildren` | mapped | inherited |
 | `Font` | mapped | tizen |
-| `HeadingLevel` | mapped | inherited |
-| `Hint` | mapped | inherited |
 | `HorizontalTextAlignment` | mapped | tizen |
-| `IsInAccessibleTree` | mapped | inherited |
 | `IsReadOnly` | mapped | tizen |
 | `IsSpellCheckEnabled` | mapped | tizen |
 | `IsTextPredictionEnabled` | mapped | tizen |
@@ -193,6 +176,7 @@ Serves `IEditor`; compared against MAUI's `EditorHandler`.
 | `SelectionLength` | mapped | tizen |
 | `Text` | mapped | tizen |
 | `TextColor` | mapped | tizen |
+| `TextTransform` | mapped | controls |
 | `VerticalTextAlignment` | mapped | tizen |
 
 ## TizenEntryHandler
@@ -201,20 +185,11 @@ Serves `IEntry`; compared against MAUI's `EntryHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
-| `BackgroundColor` | mapped | inherited |
-| `BackgroundImageSource` | mapped | inherited |
-| `Border` | mapped | excluded |
 | `CharacterSpacing` | mapped | tizen |
 | `ClearButtonVisibility` | mapped | tizen |
-| `ContainerView` | mapped | excluded |
 | `CursorPosition` | mapped | tizen |
-| `Description` | mapped | inherited |
-| `ExcludedWithChildren` | mapped | inherited |
 | `Font` | mapped | tizen |
-| `HeadingLevel` | mapped | inherited |
-| `Hint` | mapped | inherited |
 | `HorizontalTextAlignment` | mapped | tizen |
-| `IsInAccessibleTree` | mapped | inherited |
 | `IsPassword` | mapped | tizen |
 | `IsReadOnly` | mapped | tizen |
 | `IsSpellCheckEnabled` | mapped | tizen |
@@ -227,6 +202,7 @@ Serves `IEntry`; compared against MAUI's `EntryHandler`.
 | `SelectionLength` | mapped | tizen |
 | `Text` | mapped | tizen |
 | `TextColor` | mapped | tizen |
+| `TextTransform` | mapped | controls |
 | `VerticalTextAlignment` | mapped | tizen |
 
 ## TizenPickerHandler
@@ -235,20 +211,12 @@ Serves `IPicker`; compared against MAUI's `PickerHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
-| `BackgroundColor` | mapped | inherited |
-| `BackgroundImageSource` | mapped | inherited |
-| `Border` | mapped | excluded |
 | `CharacterSpacing` | mapped | tizen |
-| `ContainerView` | mapped | excluded |
-| `Description` | mapped | inherited |
-| `ExcludedWithChildren` | mapped | inherited |
 | `Font` | mapped | tizen |
-| `HeadingLevel` | mapped | inherited |
-| `Hint` | mapped | inherited |
 | `HorizontalTextAlignment` | mapped | tizen |
-| `IsInAccessibleTree` | mapped | inherited |
 | `IsOpen` | mapped | tizen |
 | `Items` | mapped | tizen |
+| `ItemsSource` | mapped | tizen |
 | `SelectedIndex` | mapped | tizen |
 | `TextColor` | mapped | tizen |
 | `Title` | mapped | tizen |
@@ -261,15 +229,6 @@ Serves `IProgress`; compared against MAUI's `ProgressBarHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
-| `BackgroundColor` | mapped | inherited |
-| `BackgroundImageSource` | mapped | inherited |
-| `Border` | mapped | excluded |
-| `ContainerView` | mapped | excluded |
-| `Description` | mapped | inherited |
-| `ExcludedWithChildren` | mapped | inherited |
-| `HeadingLevel` | mapped | inherited |
-| `Hint` | mapped | inherited |
-| `IsInAccessibleTree` | mapped | inherited |
 | `Progress` | mapped | tizen |
 | `ProgressColor` | mapped | tizen |
 
@@ -279,20 +238,11 @@ Serves `IRadioButton`; compared against MAUI's `RadioButtonHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
-| `BackgroundColor` | mapped | inherited |
-| `BackgroundImageSource` | mapped | inherited |
-| `Border` | mapped | excluded |
 | `CharacterSpacing` | mapped | tizen |
-| `ContainerView` | mapped | excluded |
 | `Content` | mapped | tizen |
 | `CornerRadius` | mapped | tizen |
-| `Description` | mapped | inherited |
-| `ExcludedWithChildren` | mapped | inherited |
 | `Font` | mapped | tizen |
-| `HeadingLevel` | mapped | inherited |
-| `Hint` | mapped | inherited |
 | `IsChecked` | mapped | tizen |
-| `IsInAccessibleTree` | mapped | inherited |
 | `StrokeColor` | mapped | tizen |
 | `StrokeThickness` | mapped | tizen |
 | `TextColor` | mapped | tizen |
@@ -303,20 +253,11 @@ Serves `ISearchBar`; compared against MAUI's `SearchBarHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
-| `BackgroundColor` | mapped | inherited |
-| `BackgroundImageSource` | mapped | inherited |
-| `Border` | mapped | excluded |
 | `CancelButtonColor` | mapped | tizen |
 | `CharacterSpacing` | mapped | tizen |
-| `ContainerView` | mapped | excluded |
 | `CursorPosition` | mapped | tizen |
-| `Description` | mapped | inherited |
-| `ExcludedWithChildren` | mapped | inherited |
 | `Font` | mapped | tizen |
-| `HeadingLevel` | mapped | inherited |
-| `Hint` | mapped | inherited |
 | `HorizontalTextAlignment` | mapped | tizen |
-| `IsInAccessibleTree` | mapped | inherited |
 | `IsReadOnly` | mapped | tizen |
 | `IsSpellCheckEnabled` | mapped | tizen |
 | `IsTextPredictionEnabled` | mapped | tizen |
@@ -329,6 +270,7 @@ Serves `ISearchBar`; compared against MAUI's `SearchBarHandler`.
 | `SelectionLength` | mapped | tizen |
 | `Text` | mapped | tizen |
 | `TextColor` | mapped | tizen |
+| `TextTransform` | mapped | controls |
 | `VerticalTextAlignment` | mapped | tizen |
 
 ## TizenSliderHandler
@@ -337,15 +279,6 @@ Serves `ISlider`; compared against MAUI's `SliderHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
-| `BackgroundColor` | mapped | inherited |
-| `BackgroundImageSource` | mapped | inherited |
-| `Border` | mapped | excluded |
-| `ContainerView` | mapped | excluded |
-| `Description` | mapped | inherited |
-| `ExcludedWithChildren` | mapped | inherited |
-| `HeadingLevel` | mapped | inherited |
-| `Hint` | mapped | inherited |
-| `IsInAccessibleTree` | mapped | inherited |
 | `Maximum` | mapped | tizen |
 | `MaximumTrackColor` | mapped | tizen |
 | `Minimum` | mapped | tizen |
@@ -360,16 +293,8 @@ Serves `IStepper`; compared against MAUI's `StepperHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
-| `BackgroundColor` | mapped | inherited |
-| `BackgroundImageSource` | mapped | inherited |
-| `Border` | mapped | excluded |
-| `ContainerView` | mapped | excluded |
-| `Description` | mapped | inherited |
-| `ExcludedWithChildren` | mapped | inherited |
-| `HeadingLevel` | mapped | inherited |
-| `Hint` | mapped | inherited |
+| `Increment` | mapped | tizen |
 | `Interval` | mapped | tizen |
-| `IsInAccessibleTree` | mapped | inherited |
 | `Maximum` | mapped | tizen |
 | `Minimum` | mapped | tizen |
 | `Value` | mapped | tizen |
@@ -380,15 +305,6 @@ Serves `ISwitch`; compared against MAUI's `SwitchHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
-| `BackgroundColor` | mapped | inherited |
-| `BackgroundImageSource` | mapped | inherited |
-| `Border` | mapped | excluded |
-| `ContainerView` | mapped | excluded |
-| `Description` | mapped | inherited |
-| `ExcludedWithChildren` | mapped | inherited |
-| `HeadingLevel` | mapped | inherited |
-| `Hint` | mapped | inherited |
-| `IsInAccessibleTree` | mapped | inherited |
 | `IsOn` | mapped | tizen |
 | `ThumbColor` | mapped | tizen |
 | `TrackColor` | mapped | tizen |
@@ -399,18 +315,9 @@ Serves `ITimePicker`; compared against MAUI's `TimePickerHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
-| `BackgroundColor` | mapped | inherited |
-| `BackgroundImageSource` | mapped | inherited |
-| `Border` | mapped | excluded |
 | `CharacterSpacing` | mapped | tizen |
-| `ContainerView` | mapped | excluded |
-| `Description` | mapped | inherited |
-| `ExcludedWithChildren` | mapped | inherited |
 | `Font` | mapped | tizen |
 | `Format` | mapped | tizen |
-| `HeadingLevel` | mapped | inherited |
-| `Hint` | mapped | inherited |
-| `IsInAccessibleTree` | mapped | inherited |
 | `IsOpen` | mapped | tizen |
 | `TextColor` | mapped | tizen |
 | `Time` | mapped | tizen |

@@ -30,6 +30,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			new PropertyMapper<IPicker, IPickerHandler>(TizenHandlerMappers.Chain(PickerHandler.Mapper))
 			{
 				["Items"] = MapItems,
+				["ItemsSource"] = MapItemsSource,
 				[nameof(IPicker.Title)] = MapTitle,
 				[nameof(IPicker.TitleColor)] = MapTitleColor,
 				[nameof(IPicker.SelectedIndex)] = MapSelectedIndex,
@@ -112,6 +113,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			Platform(handler)?.UpdatePicker(picker);
 #endif
 		}
+
+		/// <summary>
+		/// Handles <c>Picker.ItemsSource</c>, the key MAUI Controls' <c>RemapForControls</c> adds to
+		/// <see cref="PickerHandler.Mapper"/>.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// Controls' own implementation only forwards to <c>IPicker.Items</c>, and this mirrors it.
+		/// Overriding the key rather than relying on the chained entry is mandatory, not stylistic:
+		/// <c>PickerHandler.Mapper</c> is constructed as
+		/// <c>PropertyMapper&lt;IPicker, PickerHandler&gt;</c> - bound to MAUI's *concrete* handler
+		/// even though the field is typed as <c>IPropertyMapper&lt;IPicker, IPickerHandler&gt;</c> -
+		/// and <c>PropertyMapper&lt;,&gt;.Add</c> invokes through a hard <c>(TViewHandler)h</c> cast.
+		/// Any chained key this backend does not own therefore throws
+		/// <see cref="InvalidCastException"/> when dispatched to a handler that is not a
+		/// <c>PickerHandler</c>. <c>TizenHandlerMapperTests</c> pins that every chained key is owned.
+		/// </para>
+		/// </remarks>
+		public static void MapItemsSource(IPickerHandler handler, IPicker picker)
+			=> handler.UpdateValue(nameof(IPicker.Items));
 
 		public static void MapTitle(IPickerHandler handler, IPicker picker)
 		{

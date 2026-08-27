@@ -20,6 +20,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(IStepper.Minimum)] = MapMinimum,
 				[nameof(IStepper.Maximum)] = MapMaximum,
 				[nameof(IStepper.Interval)] = MapInterval,
+				["Increment"] = MapIncrement,
 				[nameof(IStepper.Value)] = MapValue,
 			};
 
@@ -141,6 +142,28 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			Platform(handler)?.UpdateRange(stepper);
 #endif
 		}
+
+		/// <summary>
+		/// Handles <c>Stepper.Increment</c>, the key MAUI Controls' <c>RemapForControls</c> appends
+		/// to <see cref="StepperHandler.Mapper"/>.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// <c>Controls.Stepper.Increment</c> is the bindable property behind <c>IStepper.Interval</c>,
+		/// and Controls' own implementation just forwards to it; this mirrors that.
+		/// </para>
+		/// <para>
+		/// Owning the key is mandatory rather than stylistic: <c>StepperHandler.Mapper</c> is
+		/// constructed as <c>PropertyMapper&lt;IStepper, StepperHandler&gt;</c> - bound to MAUI's
+		/// *concrete* handler even though the field is typed
+		/// <c>IPropertyMapper&lt;IStepper, IStepperHandler&gt;</c> - and
+		/// <c>PropertyMapper&lt;,&gt;.Add</c> dispatches through a hard <c>(TViewHandler)h</c> cast.
+		/// A chained key this backend does not override would therefore throw
+		/// <see cref="InvalidCastException"/> here. <c>TizenHandlerMapperTests</c> pins the invariant.
+		/// </para>
+		/// </remarks>
+		public static void MapIncrement(IStepperHandler handler, IStepper stepper)
+			=> handler.UpdateValue(nameof(IStepper.Interval));
 
 		public static void MapValue(IStepperHandler handler, IStepper stepper)
 		{

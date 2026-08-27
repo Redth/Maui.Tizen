@@ -30,6 +30,56 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	{
 		const string EnvUpdate = "MAUI_TIZEN_UPDATE_PARITY_MATRIX";
 
+		/// <summary>
+		/// Keys that resolve through MAUI's chain here, but which the <b>Controls</b> layer
+		/// implements - exactly as upstream does.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// These properties live on Controls types (<c>Button.ContentLayout</c>,
+		/// <c>InputView.TextTransform</c>), not on the <c>Microsoft.Maui.*</c> interfaces this
+		/// package consumes, and upstream applies them from
+		/// <c>Microsoft.Maui.Controls.Platform.TextExtensions</c> / <c>ButtonExtensions</c> rather
+		/// than from a Core handler. Reporting them as plain <c>inherited</c> would read as a Wave A
+		/// defect; reporting them as <c>tizen</c> would be a lie.
+		/// </para>
+		/// <para>
+		/// <see cref="EveryControlsLayerKeyIsImplementedThere"/> checks each entry against the actual
+		/// Controls sources, so this list cannot become an excuse.
+		/// </para>
+		/// </remarks>
+		public static readonly IReadOnlyDictionary<string, string> ControlsLayerImplementations =
+			new Dictionary<string, string>(StringComparer.Ordinal)
+			{
+				["TextTransform"] = "Core/Platform/Tizen/Extensions/TextExtensions.cs",
+				["ContentLayout"] = "Core/Platform/Tizen/Extensions/ButtonExtensions.cs",
+				["LineBreakMode"] = "Core/Button/Button.Tizen.cs",
+			};
+
+		static readonly HashSet<string> ControlsLayerKeys =
+			ControlsLayerImplementations.Keys.ToHashSet(StringComparer.Ordinal);
+
+		/// <summary>
+		/// Every key excused as `controls` really is implemented in the Controls layer.
+		/// </summary>
+		[Fact]
+		public void EveryControlsLayerKeyIsImplementedThere()
+		{
+			var controlsRoot = FindRepositoryDirectory(Path.Combine("src", "Maui.Tizen.Controls"));
+
+			foreach (var (key, relativePath) in ControlsLayerImplementations)
+			{
+				var file = Path.Combine(controlsRoot, relativePath);
+
+				Assert.True(File.Exists(file), $"'{key}' is documented as implemented by {relativePath}, which does not exist.");
+
+				Assert.True(
+					File.ReadAllText(file).Contains(key, StringComparison.Ordinal),
+					$"'{key}' is documented as implemented by {relativePath}, but that file never mentions it. " +
+					"Either the key moved, or the matrix is excusing a gap that is not actually covered anywhere.");
+			}
+		}
+
 		[Fact]
 		public void MatrixIsUpToDate()
 		{
@@ -103,15 +153,22 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			sb.AppendLine("Generated from the real mappers, so it cannot drift from the code.");
 			sb.AppendLine();
 			sb.AppendLine("**Parity is measured against MAUI Controls, not Core alone.** `Microsoft.Maui.Controls`");
-			sb.AppendLine("calls `RemapForControls` from each control's static constructor, mutating MAUI's static");
-			sb.AppendLine("handler mappers in place - adding `FormattedText`, `TextType`, `LineBreakMode`,");
-			sb.AppendLine("`MaxLines`, `TextTransform`, `CheckBox.Color` and the accessibility keys. Those");
-			sb.AppendLine("constructors are forced before these numbers are taken, so the table reflects what an");
-			sb.AppendLine("application actually sees rather than a Core-only subset.");
+			sb.AppendLine("calls `RemapForControls` for each control, mutating MAUI's static handler mappers in");
+			sb.AppendLine("place - adding `FormattedText`, `TextType`, `LineBreakMode`, `MaxLines`,");
+			sb.AppendLine("`TextTransform`, `CheckBox.Color`, `Picker.ItemsSource`, `Stepper.Increment` and the");
+			sb.AppendLine("accessibility keys.");
+			sb.AppendLine();
+			sb.AppendLine("Only `Label` and `CheckBox` remap from a static constructor. Every other control here");
+			sb.AppendLine("is remapped by `ConfigureControls` when a `MauiApp` is **built**, so these numbers are");
+			sb.AppendLine("taken after building a real Controls host (`ControlsRemap.Force`). Running class");
+			sb.AppendLine("constructors alone would leave most mappers un-remapped and quietly report a");
+			sb.AppendLine("Core-only subset instead of what an application sees.");
 			sb.AppendLine();
 			sb.AppendLine("| Legend | Meaning |");
 			sb.AppendLine("|---|---|");
 			sb.AppendLine("| tizen | The backend supplies a Tizen implementation. |");
+			sb.AppendLine("| controls | Implemented by the Controls layer (`src/Maui.Tizen.Controls`), which is");
+			sb.AppendLine("| | where upstream implements it too - not by the Core backend. |");
 			sb.AppendLine("| inherited | The key resolves through MAUI's chained mapper, but its body is the");
 			sb.AppendLine("| | off-platform no-op - so nothing happens on Tizen. Reachable, not implemented. |");
 			sb.AppendLine("| excluded | Deliberately not implemented, for a documented reason. |");
@@ -130,6 +187,15 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			sb.AppendLine("- `Border` - the obsolete `IBorder.Border` mapping. MAUI marks the property `[Obsolete]`");
 			sb.AppendLine("  and states it will be removed; border rendering is driven by the stroke and shape");
 			sb.AppendLine("  properties that replaced it.");
+			sb.AppendLine();
+			sb.AppendLine("The `controls` keys are not backend gaps. `TextTransform` and `ContentLayout` are");
+			sb.AppendLine("carried on Controls types, not on the `Microsoft.Maui.*` interfaces this package");
+			sb.AppendLine("consumes, and upstream applies them from `Microsoft.Maui.Controls.Platform` rather than");
+			sb.AppendLine("from a Core handler. Implementing them here would mean referencing Controls from the");
+			sb.AppendLine("product package, which this repository deliberately does not do. The sources that");
+			sb.AppendLine("implement them already exist under `src/Maui.Tizen.Controls`, awaiting the wave that");
+			sb.AppendLine("owns that project; `MapperParityMatrixTests` verifies each one is really implemented");
+			sb.AppendLine("there, so this state cannot be used to wave a key away.");
 			sb.AppendLine();
 
 			var viewKeys = TizenViewMappers.ViewMapper.GetKeys().ToHashSet(StringComparer.Ordinal);
@@ -177,8 +243,9 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 					var tizenCell =
 						ControlMapperParityTests.IsIntentionallyUnmapped(key) ? "excluded"
 						: !inTizen ? "**MISSING**"
-						: inheritedOnly.Contains(key) ? "inherited"
-						: "tizen";
+						: !inheritedOnly.Contains(key) ? "tizen"
+						: ControlsLayerKeys.Contains(key) ? "controls"
+						: "inherited";
 
 					sb.AppendLine($"| `{key}` | {(inMaui ? "mapped" : "n/a")} | {tizenCell} |");
 				}
@@ -190,6 +257,9 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		static string FindRepositoryFile(string relativePath) =>
+			Path.Combine(TestRepositoryPaths.Root, relativePath);
+
+		static string FindRepositoryDirectory(string relativePath) =>
 			Path.Combine(TestRepositoryPaths.Root, relativePath);
 	}
 }

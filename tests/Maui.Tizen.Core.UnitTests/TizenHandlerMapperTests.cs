@@ -50,9 +50,22 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		/// Every chained mapping runs against the real handler without an invalid cast.
 		/// </summary>
 		/// <remarks>
+		/// <para>
 		/// The direct test of the hard-cast concern: each key MAUI or Controls contributed is
 		/// invoked against a live handler. An <see cref="InvalidCastException"/> here means the
 		/// backend is not actually substitutable for MAUI's own handler.
+		/// </para>
+		/// <para>
+		/// The underlying invariant is stronger than it looks, so it is worth stating precisely.
+		/// MAUI's static mappers are *declared* as <c>IPropertyMapper&lt;IView, IXHandler&gt;</c> but
+		/// *constructed* as <c>PropertyMapper&lt;IView, XHandler&gt;</c>, closed over the concrete
+		/// handler; <c>PropertyMapper&lt;,&gt;.Add</c> then dispatches through a hard
+		/// <c>(TViewHandler)h</c> cast. Chaining alone therefore does not make a chained key usable -
+		/// every key contributed by a chained MAUI/Controls mapper must be *overridden* by this
+		/// backend, or dispatching it to a Tizen handler throws. This test is the guard for that, and
+		/// it is also a drift alarm: a future MAUI package that adds a key will fail here rather than
+		/// on device.
+		/// </para>
 		/// </remarks>
 		[Theory]
 		[MemberData(nameof(TizenControlHandlers.TestData), MemberType = typeof(TizenControlHandlers))]
@@ -85,7 +98,12 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.True(
 				failures.Count == 0,
 				$"{handler.HandlerType.Name} could not dispatch chained mappings:\n  " +
-				string.Join("\n  ", failures));
+				string.Join("\n  ", failures) +
+				"\n\nMAUI's static mappers are constructed as PropertyMapper<TVirtualView, ConcreteHandler>, " +
+				"so PropertyMapper<,>.Add dispatches through a hard (ConcreteHandler)h cast. Chaining a " +
+				"mapper is not enough: this backend must OVERRIDE every key the chained mapper " +
+				"contributes. Add the key above to the handler's own mapper, mirroring what MAUI or " +
+				"Controls does for it.");
 		}
 
 		/// <summary>
