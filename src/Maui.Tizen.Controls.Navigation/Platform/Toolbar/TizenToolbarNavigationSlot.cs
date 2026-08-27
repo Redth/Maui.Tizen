@@ -13,8 +13,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 	/// </remarks>
 	public enum TizenNavigationIconKind
 	{
-		/// <summary>Nothing owns the slot; a title icon may render there.</summary>
+		/// <summary>Nothing owns the slot.</summary>
 		None,
+
+		/// <summary>A title icon owns the slot. Lowest precedence.</summary>
+		TitleIcon,
 
 		/// <summary>A back button owns the slot. Highest precedence.</summary>
 		BackButton,
@@ -71,12 +74,31 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// <param name="toolbar">The toolbar being updated.</param>
 		/// <param name="generation">The generation returned when the update began.</param>
 		/// <param name="source">The image source the load was started for.</param>
+		/// <param name="drawerToggleVisible">Whether a drawer toggle is currently available.</param>
 		/// <remarks>
-		/// Both checks are load-bearing. The generation rejects a callback that a newer update has
-		/// superseded; the source comparison rejects one whose image was swapped for a different one
-		/// at the same generation.
+		/// <para>
+		/// THREE checks, all load-bearing:
+		/// </para>
+		/// <list type="number">
+		/// <item><description>the generation rejects a callback a newer update superseded;</description></item>
+		/// <item><description>the source comparison rejects one whose image was swapped at the same
+		/// generation;</description></item>
+		/// <item><description>the OWNER check rejects one that would paint over a back button or
+		/// drawer toggle.</description></item>
+		/// </list>
+		/// <para>
+		/// The third is not redundant. Setting <c>TitleIcon</c> while a back button is already
+		/// showing legitimately starts a load at the newest generation for the current source - both
+		/// of the first two checks pass - and without the owner check the image would overwrite the
+		/// back button when it arrives. Upstream applies the same guard by requiring
+		/// <c>NavigationIconKind == TitleIcon</c>.
+		/// </para>
 		/// </remarks>
-		public static bool IsCurrentTitleIconUpdate(IToolbar toolbar, int generation, ImageSource? source)
+		public static bool IsCurrentTitleIconUpdate(
+			IToolbar toolbar,
+			int generation,
+			ImageSource? source,
+			bool drawerToggleVisible)
 		{
 			if (toolbar is null)
 			{
@@ -88,7 +110,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				return false;
 			}
 
-			return ReferenceEquals((toolbar as Toolbar)?.TitleIcon, source);
+			if (!ReferenceEquals((toolbar as Toolbar)?.TitleIcon, source))
+			{
+				return false;
+			}
+
+			// Only paint the title icon if it still owns the slot.
+			return GetNavigationIconKind(toolbar, drawerToggleVisible) == TizenNavigationIconKind.TitleIcon;
 		}
 
 		/// <summary>
@@ -112,7 +140,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				return TizenNavigationIconKind.BackButton;
 			}
 
-			return drawerToggleVisible ? TizenNavigationIconKind.DrawerToggle : TizenNavigationIconKind.None;
+			if (drawerToggleVisible)
+			{
+				return TizenNavigationIconKind.DrawerToggle;
+			}
+
+			return (toolbar as Toolbar)?.TitleIcon is not null
+				? TizenNavigationIconKind.TitleIcon
+				: TizenNavigationIconKind.None;
 		}
 	}
 }

@@ -1,5 +1,6 @@
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
+using Microsoft.Maui.Platforms.Tizen.Platform;
 
 namespace Maui.Tizen.SourceTests;
 
@@ -134,5 +135,100 @@ public class WaveCToolbarDrawerToggleTests
 			writers.Count == 0,
 			"The drawer-toggle capability is read-only upstream; found writer(s): "
 				+ string.Join(", ", writers));
+	}
+
+	// -----------------------------------------------------------------
+	// Owner resolution
+	// -----------------------------------------------------------------
+
+	/// <summary>
+	/// The owner must be discovered from the toolbar's own page, not supplied by the caller.
+	/// </summary>
+	/// <remarks>
+	/// The toolbar handler's virtual view IS the toolbar, so deriving the owner from it (an
+	/// <c>as IFlyoutView</c> cast) never matched and left the capability permanently false. The
+	/// visible symptom was a shell popping back to its root and rendering an empty navigation slot
+	/// where the hamburger belongs.
+	/// </remarks>
+	[Fact]
+	public void TheFlyoutOwnerIsResolvedFromTheToolbarsPage()
+	{
+		var shell = new Shell { FlyoutBehavior = FlyoutBehavior.Flyout };
+		var page = new ContentPage();
+		shell.Items.Add(new ShellContent { Content = page });
+
+		var toolbar = new Toolbar(page);
+
+		Assert.Same(shell, ToolbarDrawerToggle.FindFlyoutOwner(toolbar));
+		Assert.True(ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, owner: null));
+	}
+
+	/// <summary>
+	/// A toolbar with no flyout ancestor offers no drawer toggle.
+	/// </summary>
+	[Fact]
+	public void APageOutsideAnyFlyoutHasNoDrawerToggle()
+	{
+		var toolbar = new Toolbar(new ContentPage());
+
+		Assert.Null(ToolbarDrawerToggle.FindFlyoutOwner(toolbar));
+		Assert.False(ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, owner: null));
+	}
+
+	/// <summary>
+	/// Popping back to the root restores the drawer toggle without any flyout-behaviour change.
+	/// </summary>
+	/// <remarks>
+	/// This is the exact regression: push makes the back button win the slot, and popping must hand
+	/// the slot back to the drawer. If the owner cannot be resolved the capability reads false and
+	/// the pop renders an empty slot instead of the hamburger.
+	/// </remarks>
+	[Fact]
+	public void PoppingBackToTheRootRestoresTheDrawerToggle()
+	{
+		var shell = new Shell { FlyoutBehavior = FlyoutBehavior.Flyout };
+		var page = new ContentPage();
+		shell.Items.Add(new ShellContent { Content = page });
+
+		var toolbar = new Toolbar(page);
+
+		// Root: the drawer owns the slot.
+		Assert.Equal(
+			TizenNavigationIconKind.DrawerToggle,
+			TizenToolbarNavigationSlot.GetNavigationIconKind(
+				toolbar,
+				ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, owner: null)));
+
+		// Push: back wins by precedence, while the drawer remains available.
+		toolbar.BackButtonVisible = true;
+		Assert.True(ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, owner: null));
+		Assert.Equal(
+			TizenNavigationIconKind.BackButton,
+			TizenToolbarNavigationSlot.GetNavigationIconKind(
+				toolbar,
+				ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, owner: null)));
+
+		// Pop: the drawer takes the slot back. FlyoutBehavior never changed.
+		toolbar.BackButtonVisible = false;
+		Assert.Equal(
+			TizenNavigationIconKind.DrawerToggle,
+			TizenToolbarNavigationSlot.GetNavigationIconKind(
+				toolbar,
+				ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, owner: null)));
+
+		Assert.Equal(FlyoutBehavior.Flyout, shell.FlyoutBehavior);
+	}
+
+	/// <summary>
+	/// A shell whose flyout is disabled offers no drawer toggle even at the root.
+	/// </summary>
+	[Fact]
+	public void ADisabledFlyoutOffersNoDrawerToggle()
+	{
+		var shell = new Shell { FlyoutBehavior = FlyoutBehavior.Disabled };
+		var page = new ContentPage();
+		shell.Items.Add(new ShellContent { Content = page });
+
+		Assert.False(ToolbarDrawerToggle.GetDrawerToggleVisible(new Toolbar(page), owner: null));
 	}
 }

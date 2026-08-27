@@ -82,12 +82,52 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 		{
 			// Adoption replaces this entire body - and the owner parameter - with:
 			//     toolbar is IToolbarDrawerToggleVisible { DrawerToggleVisible: true }
-			if (toolbar is null || owner is null)
+			if (toolbar is null)
 			{
 				return false;
 			}
 
-			return owner.FlyoutBehavior == FlyoutBehavior.Flyout;
+			return (owner ?? FindFlyoutOwner(toolbar))?.FlyoutBehavior == FlyoutBehavior.Flyout;
+		}
+
+		/// <summary>
+		/// Finds the flyout view that owns <paramref name="toolbar"/>, when the caller did not
+		/// supply one.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// A toolbar is not an <see cref="Element"/> - <c>ShellToolbar</c> in particular is not - so
+		/// there is no parent chain to walk from it. What a handler DOES have is the page the toolbar
+		/// is presenting, and that page can be walked up to its owning <see cref="Shell"/> or
+		/// <see cref="FlyoutPage"/>.
+		/// </para>
+		/// <para>
+		/// This exists because deriving the owner from the toolbar handler's own virtual view is
+		/// silently wrong: the virtual view IS the toolbar, so a cast to <see cref="IFlyoutView"/>
+		/// never succeeds and the capability is permanently false. The visible symptom is a shell
+		/// popping back to its root and showing an empty navigation slot where the hamburger should
+		/// be, with no flyout-behaviour change anywhere to explain it.
+		/// </para>
+		/// </remarks>
+		public static IFlyoutView? FindFlyoutOwner(IToolbar? toolbar)
+		{
+			if (toolbar is not Toolbar concrete)
+			{
+				return null;
+			}
+
+			// Toolbar.Parent is the page whose toolbar this is; walk that page's public parent
+			// chain. Element.Parent is public API - Controls' own FindParentOfType helper is
+			// internal and deliberately not used here.
+			for (IElement? element = concrete.Parent; element is not null; element = element.Parent)
+			{
+				if (element is IFlyoutView flyout and (Shell or FlyoutPage))
+				{
+					return flyout;
+				}
+			}
+
+			return null;
 		}
 	}
 }

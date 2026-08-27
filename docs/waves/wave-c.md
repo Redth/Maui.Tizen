@@ -137,6 +137,33 @@ is the acceptance gate for Wave C. Every Wave C source and catalog page is liste
 [`eng/Maui.Tizen.WaveC.Sources.props`](../../eng/Maui.Tizen.WaveC.Sources.props), and
 `WaveCAcceptanceGateTests` fails if a file is missing from that list.
 
+### What the acceptance gate can and cannot prove
+
+**With `MauiTizenWaveCAcceptance=true` the lane validates syntax and declarations only - it does not
+bind method bodies.** This was established empirically, not assumed:
+
+* injecting a call to a non-existent method into a gated file produced **no** diagnostic;
+* injecting a *syntax* error into the same file at the same time produced CS1519/CS1646 immediately.
+
+The cause is ordinary Roslyn behaviour: `csc` abandons the compilation after the declaration phase
+reports errors, and the gate exists precisely because 50 declaration errors (`MauiToolbar`,
+`StackNavigationManager`) are expected until Core lands. So while the gate is open, "the acceptance
+lane is clean apart from the known CS0246s" means *the declarations are right*, and nothing more.
+
+With the gate **off**, the Wave C sources are not compiled at all, so that state proves even less
+about them.
+
+The `net9.0-tizen7.0` comparison lane does not close the hole either: it currently fails in its own
+declaration phase on `ITizenPlatformViewHandler` and the `PlatformView` shape difference, so it too
+never reaches method bodies.
+
+**Where method bodies actually get executed is `tests/Maui.Tizen.SourceTests`.** The pure-Controls
+adapters - `ToolbarDrawerToggle`, `TizenToolbarNavigationSlot`, `ShellElementTree`,
+`ShellTemplateResolver`, `ShellFlyoutTemplateResolution`, `ToolbarOwnership` - are compiled straight
+into that net11 test assembly and run. Any Wave C logic that must be verified before the Core rebase
+belongs in a file that project can compile; anything else is currently taken on faith, and should be
+described that way.
+
 **A previous revision of this document claimed a `net9.0-tizen7.0` compile as acceptance. That was
 wrong and is worth recording rather than quietly deleting.** MAUI 9.0.120 still ships a Tizen build,
 so that lower-band compile resolved `Microsoft.Maui.Platform.MauiToolbar`, `StackNavigationManager`
@@ -338,6 +365,46 @@ so the gap is closed deliberately rather than forgotten.
 
 Runtime behaviour. There is no Tizen emulator or device here, so item recycling, virtualization
 performance, navigation animation and Shell lazy content are **compile-verified only**.
+
+## The toolbar navigation slot
+
+Back button, drawer toggle and title icon share **one** slot, so choosing between them is a
+precedence decision: back > drawer > title icon > none. `TizenToolbarNavigationSlot` owns that
+decision, and two defects found by review are pinned by tests.
+
+### A late title-icon load must not repaint a slot it no longer owns
+
+Title icons load asynchronously. The generation guard and the image-source comparison are both
+necessary but **not sufficient**: setting `TitleIcon` while a back button is already showing starts a
+load at the newest generation for the current source, so both of those checks pass and the icon
+overwrites the back button when it arrives.
+
+`IsCurrentTitleIconUpdate` therefore takes the drawer-toggle capability as well and applies a third,
+owner check - the result is discarded unless the title icon still owns the slot. This matches the
+`NavigationIconKind == TitleIcon` requirement upstream added in dotnet/maui#37863 (approved head
+`53b9073`).
+
+### The flyout owner comes from the toolbar's page, not the handler's virtual view
+
+`TizenToolbarHandler.VirtualView` **is** the toolbar, so the earlier `VirtualView as IFlyoutView`
+cast could never match and the drawer-toggle capability was permanently `false`. The visible symptom
+was narrow and easy to misread: on a Shell, pushing a page and then popping it set
+`BackButtonVisible = false` and restored an *empty* navigation slot instead of the hamburger, with
+`FlyoutBehavior` unchanged the whole time.
+
+`ToolbarDrawerToggle.FindFlyoutOwner` resolves the owner from `Toolbar.Parent` - the page the toolbar
+presents - and walks that page's **public** `IElement.Parent` chain to the nearest `Shell` or
+`FlyoutPage`. Controls' own `FindParentOfType` helper is `internal` and is deliberately not used;
+Wave C's public replacement lives in `ShellElementTree`. The walk returns the *nearest* flyout
+ancestor of either type rather than preferring `Shell`, so a `FlyoutPage` hosted inside a `Shell`
+resolves to the `FlyoutPage` that actually owns its drawer.
+
+Both fixes have negative controls: reverting the owner check fails two navigation-slot tests, and
+restoring the null-owner short-circuit fails two drawer-toggle tests, including
+`PoppingBackToTheRootRestoresTheDrawerToggle`.
+
+On adoption of `IToolbarDrawerToggleVisible` the whole adapter - owner parameter and resolution
+included - collapses to a pattern match on the toolbar alone.
 
 ## Testing
 

@@ -97,7 +97,7 @@ public class WaveCToolbarNavigationSlotTests
 
 		var generation = TizenToolbarNavigationSlot.BeginNavigationIconUpdate(toolbar);
 
-		Assert.True(TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(toolbar, generation, source));
+		Assert.True(TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(toolbar, generation, source, drawerToggleVisible: false));
 	}
 
 	/// <summary>
@@ -121,7 +121,7 @@ public class WaveCToolbarNavigationSlotTests
 		TizenToolbarNavigationSlot.BeginNavigationIconUpdate(toolbar);
 
 		Assert.False(
-			TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(toolbar, inFlight, source),
+			TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(toolbar, inFlight, source, drawerToggleVisible: false),
 			"A title-icon load that completes after a newer navigation update must not overwrite the "
 				+ "icon that update chose.");
 	}
@@ -142,8 +142,8 @@ public class WaveCToolbarNavigationSlotTests
 		toolbar.TitleIcon = second;
 		var secondGeneration = TizenToolbarNavigationSlot.BeginNavigationIconUpdate(toolbar);
 
-		Assert.False(TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(toolbar, firstGeneration, first));
-		Assert.True(TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(toolbar, secondGeneration, second));
+		Assert.False(TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(toolbar, firstGeneration, first, drawerToggleVisible: false));
+		Assert.True(TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(toolbar, secondGeneration, second, drawerToggleVisible: false));
 	}
 
 	/// <summary>
@@ -166,7 +166,7 @@ public class WaveCToolbarNavigationSlotTests
 		toolbar.TitleIcon = ImageSource.FromFile("replacement.png");
 
 		Assert.False(
-			TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(toolbar, generation, original),
+			TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(toolbar, generation, original, drawerToggleVisible: false),
 			"A load started for a title icon that has since been replaced must not apply its result.");
 	}
 
@@ -188,7 +188,7 @@ public class WaveCToolbarNavigationSlotTests
 		TizenToolbarNavigationSlot.BeginNavigationIconUpdate(second);
 		TizenToolbarNavigationSlot.BeginNavigationIconUpdate(second);
 
-		Assert.True(TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(first, firstGeneration, firstSource));
+		Assert.True(TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(first, firstGeneration, firstSource, drawerToggleVisible: false));
 	}
 
 	[Fact]
@@ -196,5 +196,54 @@ public class WaveCToolbarNavigationSlotTests
 		=> Assert.False(TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(
 			NewToolbar(),
 			generation: 1,
-			ImageSource.FromFile("icon.png")));
+			ImageSource.FromFile("icon.png"), drawerToggleVisible: false));
+
+	// -----------------------------------------------------------------
+	// Owner check: a late title-icon load must not repaint an owned slot
+	// -----------------------------------------------------------------
+
+	[Fact]
+	public void ATitleIconLoadStartedWhileBackIsActiveIsRejected()
+	{
+		var toolbar = NewToolbar();
+		toolbar.BackButtonVisible = true;
+
+		// The load legitimately begins at the newest generation, for the current source.
+		var source = ImageSource.FromFile("icon.png");
+		toolbar.TitleIcon = source;
+		var generation = TizenToolbarNavigationSlot.BeginNavigationIconUpdate(toolbar);
+
+		// Generation and source both still match - only the owner check can reject this.
+		Assert.False(TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(
+			toolbar, generation, source, drawerToggleVisible: false));
+	}
+
+	[Fact]
+	public void ATitleIconLoadStartedWhileTheDrawerIsActiveIsRejected()
+	{
+		var toolbar = NewToolbar();
+		var source = ImageSource.FromFile("icon.png");
+		toolbar.TitleIcon = source;
+		var generation = TizenToolbarNavigationSlot.BeginNavigationIconUpdate(toolbar);
+
+		Assert.False(TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(
+			toolbar, generation, source, drawerToggleVisible: true));
+	}
+
+	[Fact]
+	public void ATitleIconLoadCompletingAfterBackIsDismissedIsApplied()
+	{
+		var toolbar = NewToolbar();
+		toolbar.BackButtonVisible = true;
+
+		var source = ImageSource.FromFile("icon.png");
+		toolbar.TitleIcon = source;
+		var generation = TizenToolbarNavigationSlot.BeginNavigationIconUpdate(toolbar);
+
+		// The back button goes away while the load is in flight, handing the slot back.
+		toolbar.BackButtonVisible = false;
+
+		Assert.True(TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(
+			toolbar, generation, source, drawerToggleVisible: false));
+	}
 }

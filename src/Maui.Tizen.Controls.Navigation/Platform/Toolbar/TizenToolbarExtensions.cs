@@ -87,7 +87,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				// Only clear the slot when nothing else owns it, otherwise the back button or drawer
 				// toggle would be silently erased.
 				if (TizenToolbarNavigationSlot.GetNavigationIconKind(toolbar, drawerToggleVisible)
-					== TizenNavigationIconKind.None)
+					is TizenNavigationIconKind.None or TizenNavigationIconKind.TitleIcon)
 				{
 					platformToolbar.Icon = null;
 				}
@@ -98,7 +98,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			source.LoadImage(mauiContext, result =>
 			{
 				if (result?.Value is not null
-					&& TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(toolbar, generation, source))
+					&& TizenToolbarNavigationSlot.IsCurrentTitleIconUpdate(toolbar, generation, source, drawerToggleVisible))
 				{
 					platformToolbar.Icon = new TImage { ResourceUrl = result.Value.ResourceUrl };
 				}

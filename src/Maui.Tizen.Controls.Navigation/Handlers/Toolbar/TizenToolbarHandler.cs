@@ -170,13 +170,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// Reads the drawer-toggle capability for this handler's toolbar.
 		/// </summary>
 		/// <remarks>
-		/// A toolbar hosted directly by this handler has no flyout owner in scope, so it offers no
-		/// drawer toggle. The shell view supplies its own owner - see
-		/// <c>TizenShellView.RefreshToolbarLeadingIcon</c>. On adoption both collapse to a pattern
-		/// match on the toolbar alone.
+		/// <para>
+		/// Resolved from the toolbar's owning page, NOT from this handler's virtual view. The
+		/// virtual view IS the toolbar, so an earlier <c>VirtualView as IFlyoutView</c> never
+		/// matched and the capability was permanently false - which showed up as a shell popping
+		/// back to its root and rendering an empty navigation slot instead of the hamburger, with no
+		/// flyout-behaviour change to explain it.
+		/// </para>
+		/// <para>
+		/// On adoption this collapses to a pattern match on the toolbar alone.
+		/// </para>
 		/// </remarks>
 		bool GetDrawerToggleVisible(Toolbar toolbar)
-			=> ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, VirtualView as IFlyoutView);
+			=> ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, owner: null);
 
 		void UpdateTitleView(Toolbar toolbar)
 		{
