@@ -214,14 +214,42 @@ easiest thing in the port to get quietly wrong — and the first revision did:
 - **`ToPlatformVisibility` compared against `Visible`.** Upstream switches on `Hidden`/`Collapsed`
   and defaults to visible, so a future enum member would diverge.
 
-`TizenSwipeMetrics` has no `Tizen.NUI` dependency, so it is kept in its own file and compiled into
-the host-side test project as well as the product. `SwipeMetricsTests` (25 cases) executes it and
-pins the upstream angle boundaries, rather than trusting that it type-checks. That test also caught
-an incorrect assumption in its own first draft: a zero-length gesture resolves to `Right`, not
-`Left`, because `Atan2(0, 0)` normalises to 0 degrees.
+Reproductions with no `Tizen.NUI` dependency live in their own files — `TizenSwipeMetrics` and
+`TizenPortableExtensions` — and are compiled into the host-side test project as well as the product,
+so they are **executed** rather than merely type-checked. `SwipeMetricsTests` and
+`PortableExtensionsTests` pin the upstream angle boundaries, the visibility fall-through and the
+`ContainsAny` boundary behaviour. `SwipeMetricsTests` caught an incorrect assumption in its own
+first draft: a zero-length gesture resolves to `Right`, not `Left`, because `Atan2(0, 0)` normalises
+to 0 degrees.
 
-The remaining helpers in `TizenWaveBViewExtensions` (`ContainsAny`, the `float` density overloads,
-image-source loading) are verified against upstream source and type-checked by the ref-pack lane.
+The reproductions that unavoidably touch NUI (`GetParentOfType`, `UpdateVisibility`, the density
+overloads and image-source loading) stay in `TizenWaveBInterop` and are verified against upstream
+source plus the ref-pack compile.
+
+### Image loading waits for the decode
+
+`UpdateSourceAsync` defers completion until NUI raises `ResourceReady` when the destination is a
+native image view, so `LoadingCompleted` and `IsLoading` describe a decoded image rather than a
+resolved URL — without that await a loading spinner disappears before anything is on screen. Two
+deliberate departures from upstream, both fixing bugs rather than changing behaviour: the completion
+source is linked to the cancellation token so a load that is cancelled or never signalled cannot
+hang the mapper, and `TrySetResult` replaces `SetResult`, which throws if NUI raises the event twice.
+
+### Density conversions
+
+Upstream `ToPixel(double)` is `dp * DPI / 160`, while its `ToScaledPixel` uses
+`DeviceInfo.ScalingFactor`. This backend does not depend on `Tizen.UIExtensions.Common.DeviceInfo`;
+the core slice defines `TizenDisplayDensity.Current` as `DPI / 160`, so routing `ToPixel` through
+`ToScaledPixel` reproduces the upstream `ToPixel` formula exactly. The two are only interchangeable
+because of that definition, which is why it is stated here rather than left to be rediscovered.
+
+### Shape handlers and `MapShape`
+
+`TizenPathHandler`, `TizenPolygonHandler` and `TizenPolylineHandler` do not re-declare `MapShape`.
+Upstream must, because each neutral handler's mapper names its own method; here they chain
+`TizenShapeViewHandler.Mapper`, whose `MapShape` calls `UpdateShape(shapeView)` on the same
+`IShapeView` instance. The behaviour is identical, so a redundant override would only be noise. The
+parity manifest accounts for keys inherited this way.
 
 ### Not compiled, and why
 

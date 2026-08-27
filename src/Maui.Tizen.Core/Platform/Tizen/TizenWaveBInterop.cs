@@ -14,6 +14,8 @@ using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Platforms.Tizen.Handlers;
 using Tizen.UIExtensions.Common;
 using NView = Tizen.NUI.BaseComponents.View;
+// NUI defers decode, so the image view type is needed to await ResourceReady.
+using TizenNativeImageView = Tizen.NUI.BaseComponents.ImageView;
 using Point = Microsoft.Maui.Graphics.Point;
 
 namespace Microsoft.Maui.Platforms.Tizen
@@ -23,18 +25,6 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// </summary>
 	public static class TizenWaveBViewExtensions
 	{
-		/// <summary>Converts a MAUI <see cref="Visibility"/> to a native shown/hidden flag.</summary>
-		/// <remarks>
-		/// Written as an explicit switch to match upstream, so a future <c>Visibility</c> member
-		/// defaults to visible here exactly as it does there.
-		/// </remarks>
-		public static bool ToPlatformVisibility(this Visibility visibility) =>
-			visibility switch
-			{
-				Visibility.Hidden => false,
-				Visibility.Collapsed => false,
-				_ => true,
-			};
 
 		/// <summary>Applies <see cref="IView.Visibility"/> to the native view.</summary>
 		public static void UpdateVisibility(this NView platformView, IView view)
@@ -88,10 +78,6 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_ = view;
 		}
 
-		/// <summary>Returns whether any of <paramref name="points"/> falls inside the rectangle.</summary>
-		/// <remarks>Upstream used an internal <c>RectF.ContainsAny</c> helper.</remarks>
-		public static bool ContainsAny(this RectF rect, PointF[] points) => points.Any(rect.Contains);
-
 		/// <summary>Converts device-independent units to scaled pixels.</summary>
 		public static float ToPixel(this double dp) => dp.ToScaledPixel();
 
@@ -115,8 +101,22 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// Resolves the part's source and hands the resulting resource URL to <paramref name="setImage"/>.
 		/// </summary>
 		/// <remarks>
+		/// <para>
 		/// Ported from the upstream Tizen <c>ImageSourcePartExtensions</c>, retargeted onto the
 		/// Tizen-typed image source contract the core slice owns.
+		/// </para>
+		/// <para>
+		/// When the destination is a native image view the completion is deferred until NUI raises
+		/// <c>ResourceReady</c>, so <c>LoadingCompleted</c> and <c>IsLoading</c> reflect the decoded
+		/// image rather than merely the resolved URL. Dropping that await makes a loading spinner
+		/// disappear before anything is on screen.
+		/// </para>
+		/// <para>
+		/// Two robustness fixes over upstream, which are bugs rather than behaviour: the completion
+		/// source is linked to <paramref name="cancellationToken"/> so a cancelled or never-raised
+		/// load cannot hang the mapper forever, and <c>TrySetResult</c> replaces <c>SetResult</c>,
+		/// which throws if NUI raises the event more than once.
+		/// </para>
 		/// </remarks>
 		public static async Task UpdateSourceAsync(
 			this IImageSourcePart image,
@@ -147,7 +147,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 					&& imageSource == image.Source;
 
 				if (applied)
-					setImage.Invoke(platformImage);
+				{
+					await ApplyAsync(destinationContext, platformImage, setImage, cancellationToken);
+				}
 
 				events?.LoadingCompleted(applied);
 			}
@@ -164,6 +166,38 @@ namespace Microsoft.Maui.Platforms.Tizen
 				// Only clear the flag if we are still working on the same image.
 				if (imageSource == image.Source)
 					image.UpdateIsLoading(false);
+			}
+		}
+
+		static async Task ApplyAsync(
+			NView destinationContext,
+			TizenImageSource? platformImage,
+			Action<TizenImageSource?> setImage,
+			CancellationToken cancellationToken)
+		{
+			if (destinationContext is not TizenNativeImageView imageView)
+			{
+				setImage.Invoke(platformImage);
+				return;
+			}
+
+			var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+			void OnResourceReady(object? sender, EventArgs args) =>
+				completion.TrySetResult(imageView.LoadingStatus == TizenNativeImageView.LoadingStatusType.Ready);
+
+			using var registration = cancellationToken.Register(static state =>
+				((TaskCompletionSource<bool>)state!).TrySetResult(false), completion);
+
+			try
+			{
+				imageView.ResourceReady += OnResourceReady;
+				setImage.Invoke(platformImage);
+				await completion.Task;
+			}
+			finally
+			{
+				imageView.ResourceReady -= OnResourceReady;
 			}
 		}
 	}

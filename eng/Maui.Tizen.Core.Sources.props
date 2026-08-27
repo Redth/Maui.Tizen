@@ -146,6 +146,7 @@
   -->
   <ItemGroup Label="Wave B portable sources">
     <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenSwipeMetrics.cs" />
+    <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenPortableExtensions.cs" />
   </ItemGroup>
 
   <ItemGroup Label="Wave B platform sources">
