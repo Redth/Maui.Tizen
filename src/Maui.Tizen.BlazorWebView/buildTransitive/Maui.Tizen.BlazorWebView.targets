@@ -31,6 +31,23 @@
     "wwwroot/index.html" requires res/wwwroot/index.html on device.
   -->
 
+  <!--
+    Registration, via the asset-provider contract Maui.Tizen.Build.Tasks publishes. That property is
+    expanded at execution time, so this works regardless of which package is imported first, and it
+    avoids naming any Resizetizer-internal target.
+
+    The BeforeTargets list on the target below is kept as a fallback for the case where
+    Maui.Tizen.Build.Tasks is not in the graph at all - the conversion still has to happen for
+    anything else that consumes MauiAsset. MSBuild runs a target at most once per build, so being
+    reached through both routes is harmless.
+  -->
+  <PropertyGroup Condition=" '$(TizenBlazorWebViewConvertStaticWebAssets)' == 'true' ">
+    <MauiTizenAssetProviderTargets>
+      $(MauiTizenAssetProviderTargets);
+      ConvertStaticWebAssetsToTizenMauiAssets;
+    </MauiTizenAssetProviderTargets>
+  </PropertyGroup>
+
   <Target Name="ConvertStaticWebAssetsToTizenMauiAssets"
           Condition=" '$(TizenBlazorWebViewConvertStaticWebAssets)' == 'true' "
           BeforeTargets="GetMauiItems;ProcessMauiAssets;ResizetizeCollectItems;_CheckForContent"

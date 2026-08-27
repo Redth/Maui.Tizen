@@ -85,10 +85,38 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			// The one asset nobody authors and everybody needs: without it Blazor.start() never runs.
 			// It arrives as a StaticWebAsset from the Microsoft.AspNetCore.Components.WebView package,
 			// which proves the conversion covers framework-provided assets and not just wwwroot/.
-			var asset = FindByTargetPath("wwwroot/_framework/blazor.webview.js");
+			//
+			// Matched by prefix and extension rather than by exact name, because the SDK fingerprints
+			// static web assets in some configurations (blazor.webview.<hash>.js). The conversion is
+			// agnostic to that - it packages whatever target path the SDK computes - so pinning the
+			// unfingerprinted spelling would make this test assert an SDK default rather than our
+			// behavior, and break the day that default changes.
+			var asset = _assets.Value.FirstOrDefault(a =>
+			{
+				var path = a.TargetPath.Replace('\\', '/');
+				return path.StartsWith("wwwroot/_framework/blazor.webview", StringComparison.OrdinalIgnoreCase)
+					&& path.EndsWith(".js", StringComparison.OrdinalIgnoreCase);
+			});
 
-			Assert.NotNull(asset);
+			Assert.True(
+				asset is not null,
+				"The Blazor WebView script was not converted. Without it Blazor never starts. Saw: "
+					+ string.Join(", ", _assets.Value.Select(a => a.TargetPath)));
 			Assert.True(File.Exists(asset!.Identity), $"MauiAsset points at a missing file: '{asset.Identity}'.");
+		}
+
+		[Fact]
+		public void FrameworkAssetsArePackagedUnderTheContentRoot()
+		{
+			// Everything must sit under the wwwroot content root, fingerprinted or not: that prefix is
+			// the contentRootDir the handler derives from BlazorWebView.HostPage, so an asset outside it
+			// is unreachable at runtime even though it shipped.
+			Assert.NotEmpty(_assets.Value);
+
+			foreach (var asset in _assets.Value)
+			{
+				Assert.StartsWith("wwwroot/", asset.TargetPath.Replace('\\', '/'), StringComparison.Ordinal);
+			}
 		}
 
 		[Fact]
@@ -131,6 +159,26 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 				.ToArray();
 
 			Assert.Empty(compressed);
+		}
+
+		[Fact]
+		public void ConversionRegistersWithThePublishedAssetProviderContract()
+		{
+			// Maui.Tizen.Build.Tasks runs providers listed in MauiTizenAssetProviderTargets, expanded at
+			// execution time so import order does not matter. Registering there rather than only hooking
+			// Resizetizer target names by name is what keeps the two packages decoupled.
+			var targets = File.ReadAllText(Path.Combine(
+				FindRepositoryRoot(), "src", "Maui.Tizen.BlazorWebView", "buildTransitive",
+				"Maui.Tizen.BlazorWebView.targets"));
+
+			Assert.Contains("<MauiTizenAssetProviderTargets>", targets, StringComparison.Ordinal);
+			Assert.Contains("$(MauiTizenAssetProviderTargets);", targets, StringComparison.Ordinal);
+			Assert.Contains(TargetName, targets, StringComparison.Ordinal);
+
+			// The direct BeforeTargets hook stays as a fallback for graphs without Maui.Tizen.Build.Tasks.
+			// This test is what proves the conversion still runs there - it is how the other six tests
+			// in this class get their assets, since the fixture imports only this package.
+			Assert.Contains("BeforeTargets=", targets, StringComparison.Ordinal);
 		}
 
 		private MauiAssetItem? FindByTargetPath(string targetPath) =>
@@ -198,10 +246,19 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 				WorkingDirectory = Path.GetDirectoryName(project)!,
 			};
 
+			// Same reasoning as -nodeReuse:false; the build server is a separate long-lived process.
+			startInfo.Environment["DOTNET_CLI_USE_MSBUILD_SERVER"] = "0";
+
 			startInfo.ArgumentList.Add("msbuild");
 			startInfo.ArgumentList.Add(project);
 			startInfo.ArgumentList.Add("-restore");
 			startInfo.ArgumentList.Add("-nologo");
+			// Node reuse must be off. A test that shells out to MSBuild otherwise joins the machine's
+			// shared worker-node pool, where it can block indefinitely behind an unrelated build, and
+			// leaves long-lived nodes behind on the agent afterwards. Single-node for the same reason:
+			// this build is tiny, so parallelism buys nothing and only widens the contention window.
+			startInfo.ArgumentList.Add("-nodeReuse:false");
+			startInfo.ArgumentList.Add("-m:1");
 			startInfo.ArgumentList.Add($"-t:{TargetName}");
 			startInfo.ArgumentList.Add("-getItem:MauiAsset");
 			// Central Package Management lives at the repository root and would otherwise reject the
