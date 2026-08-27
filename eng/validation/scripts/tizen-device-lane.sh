@@ -22,6 +22,7 @@
 #
 #   TIZEN_PROFILE        mobile | tv                       (default: mobile)
 #   TIZEN_DEVICE_SERIAL  sdb serial; empty = sole target    (default: empty)
+#   TIZEN_DEVICE_IMAGE   device/emulator image identifier   (default: unspecified)
 #   TIZEN_TFM            target framework                   (default: from eng/baselines.json)
 #   DEVFLOW_HOST_PORT    host side of the sdb tunnel        (default: 9223)
 #   DEVFLOW_DEVICE_PORT  in-app agent port                  (default: 9223)
@@ -41,6 +42,7 @@
 #   tizen-device-lane.sh pack
 #   tizen-device-lane.sh device-assertions
 #   tizen-device-lane.sh baselines
+#   tizen-device-lane.sh baseline-sidecar <png> <case> <profile> <api> <theme> <density>
 
 set -euo pipefail
 
@@ -495,6 +497,44 @@ raise SystemExit(1 if failed or total == 0 else 0)
   pass "On-device conventions passed"
 }
 
+cmd_baseline_sidecar() {
+  local png="${1:?usage: baseline-sidecar <png> <case> <profile> <api> <theme> <density>}"
+  local case_id="${2:?usage: baseline-sidecar <png> <case> <profile> <api> <theme> <density>}"
+  local profile="${3:?usage: baseline-sidecar <png> <case> <profile> <api> <theme> <density>}"
+  local api_level="${4:?usage: baseline-sidecar <png> <case> <profile> <api> <theme> <density>}"
+  local theme="${5:?usage: baseline-sidecar <png> <case> <profile> <api> <theme> <density>}"
+  local density="${6:?usage: baseline-sidecar <png> <case> <profile> <api> <theme> <density>}"
+
+  python3 - "$png" "$case_id" "$profile" "$api_level" "$theme" "$density" \
+    "$TIZEN_TFM" "${TIZEN_DEVICE_IMAGE:-unspecified}" <<'SIDECAR'
+import json, struct, sys, subprocess, datetime, pathlib
+
+png, case_id, profile, api_level, theme, density, target_framework, device_image = sys.argv[1:9]
+data = pathlib.Path(png).read_bytes()
+# IHDR width/height live at fixed offsets in every PNG.
+width, height = struct.unpack('>II', data[16:24])
+
+try:
+    commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+except Exception:
+    commit = ''
+
+pathlib.Path(png).with_suffix('.json').write_text(json.dumps({
+    'caseId': case_id,
+    'profile': profile,
+    'apiLevel': api_level,
+    'theme': theme,
+    'density': density,
+    'targetFramework': target_framework,
+    'deviceImage': device_image,
+    'width': width,
+    'height': height,
+    'commit': commit,
+    'capturedUtc': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z'),
+}, indent=2) + '\n')
+SIDECAR
+}
+
 # ---------------------------------------------------------------------------
 # Visual baselines: capture AND compare.
 #
@@ -567,33 +607,7 @@ print(' '.join(c['id'] for c in m['cases'] if c.get('capturesBaseline') and '$TI
 
     # Emit the metadata sidecar alongside the capture. Without it a capture cannot be promoted
     # to a baseline, because provenance is what makes a baseline reviewable later.
-    python3 - "$out/$id.png" "$id" "$TIZEN_PROFILE" "$api_level" "$theme" "$density" <<'SIDECAR'
-import json, struct, sys, subprocess, datetime, pathlib
-
-png, case_id, profile, api_level, theme, density = sys.argv[1:7]
-data = pathlib.Path(png).read_bytes()
-# IHDR width/height live at fixed offsets in every PNG.
-width, height = struct.unpack('>II', data[16:24])
-
-try:
-    commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
-except Exception:
-    commit = ''
-
-pathlib.Path(png).with_suffix('.json').write_text(json.dumps({
-    'caseId': case_id,
-    'profile': profile,
-    'apiLevel': api_level,
-    'theme': theme,
-    'density': density,
-    'targetFramework': $TIZEN_TFM,
-    'deviceImage': ${TIZEN_DEVICE_IMAGE:-unspecified},
-    'width': width,
-    'height': height,
-    'commit': commit,
-    'capturedUtc': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z'),
-}, indent=2) + '\n')
-SIDECAR
+    cmd_baseline_sidecar "$out/$id.png" "$id" "$TIZEN_PROFILE" "$api_level" "$theme" "$density"
 
     echo "        captured $id"
   done
@@ -624,6 +638,7 @@ case "${1:-}" in
   pack)              shift; cmd_pack "$@" ;;
   device-assertions) shift; cmd_device_assertions "$@" ;;
   baselines)         shift; cmd_baselines "$@" ;;
+  baseline-sidecar)  shift; cmd_baseline_sidecar "$@" ;;
   *)
     sed -n '2,40p' "$0"
     exit 2

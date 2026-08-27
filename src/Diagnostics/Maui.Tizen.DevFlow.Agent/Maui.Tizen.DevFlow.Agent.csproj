@@ -9,10 +9,9 @@
     NETSDK1139. It is excluded from the workload-free lane and built only when the Tizen gate
     lifts.
 
-    The consequence is deliberate and worth stating plainly: the code in this project has NOT
-    been verified by a compiler. Everything that could be moved somewhere compilable was moved
-    into Maui.Tizen.DevFlow.Agent.Shared, and the DevFlow override signatures used here are
-    pinned by DevFlowContractTests, which fails on the hosted lane if maui-labs changes them.
+    The project itself cannot be restored, but its Tizen source files are compiled against the API15
+    reference assemblies by eng/tests/Api15CompileProbe on the hosted lane. Runtime behaviour still
+    belongs to the device lane.
 
     See docs/validation/devflow.md and docs/validation/blockers.md.
   -->

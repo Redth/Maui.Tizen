@@ -28,7 +28,9 @@ public class ReleaseGateTests
         string labEnabled,
         string matrixResult,
         string requiredProfiles,
-        string resultsDirectory)
+        string resultsDirectory,
+        string? releaseValidation = null,
+        string? githubOutput = null)
     {
         var psi = new ProcessStartInfo("bash")
         {
@@ -41,6 +43,8 @@ public class ReleaseGateTests
         psi.ArgumentList.Add(ScriptPath);
         psi.ArgumentList.Add("--required");
         psi.ArgumentList.Add(required);
+        psi.ArgumentList.Add("--release-validation");
+        psi.ArgumentList.Add(releaseValidation ?? string.Empty);
         psi.ArgumentList.Add("--lab-enabled");
         psi.ArgumentList.Add(labEnabled);
         psi.ArgumentList.Add("--matrix-result");
@@ -49,6 +53,9 @@ public class ReleaseGateTests
         psi.ArgumentList.Add(requiredProfiles);
         psi.ArgumentList.Add("--results-dir");
         psi.ArgumentList.Add(resultsDirectory);
+
+        if (githubOutput is not null)
+            psi.Environment["GITHUB_OUTPUT"] = githubOutput;
 
         using var process = Process.Start(psi)!;
         var output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
@@ -221,6 +228,54 @@ public class ReleaseGateTests
 
         Assert.Equal(0, exitCode);
         Assert.Contains("release may proceed", output, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("false")]
+    public void GateOutput_IsFalseWhenReleaseValidationIsOmittedOrFalse(string? releaseValidation)
+    {
+        using var workspace = TempWorkspace.Create("gate-output-informational");
+        var outputFile = workspace.Combine("github-output.txt");
+
+        var (exitCode, _) = Evaluate(
+            "false", "false", "success", "mobile tv", workspace.Path, releaseValidation, outputFile);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("gate_passed=false", File.ReadAllText(outputFile).Trim());
+    }
+
+    [Fact]
+    public void GateOutput_IsTrueOnlyForAPassingExplicitReleaseValidationCall()
+    {
+        using var workspace = TempWorkspace.Create("gate-output-release");
+        WriteResult(workspace, "mobile", laneAvailable: "true", status: "pass");
+        WriteResult(workspace, "tv", laneAvailable: "true", status: "pass");
+        var outputFile = workspace.Combine("github-output.txt");
+
+        var (exitCode, _) = Evaluate(
+            "true", "true", "success", "mobile tv", workspace.Path, "true", outputFile);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(
+            ["gate_passed=false", "gate_passed=true"],
+            File.ReadAllLines(outputFile));
+    }
+
+    [Fact]
+    public void PassingRequiredTagGateStillOutputsFalseWithoutReleaseValidationInput()
+    {
+        using var workspace = TempWorkspace.Create("gate-output-tag");
+        WriteResult(workspace, "mobile", laneAvailable: "true", status: "pass");
+        WriteResult(workspace, "tv", laneAvailable: "true", status: "pass");
+        var outputFile = workspace.Combine("github-output.txt");
+
+        var (exitCode, _) = Evaluate(
+            "true", "true", "success", "mobile tv", workspace.Path, "false", outputFile);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("gate_passed=false", File.ReadAllText(outputFile).Trim());
     }
 
     [Fact]

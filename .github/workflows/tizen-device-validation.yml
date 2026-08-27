@@ -372,17 +372,13 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/device-results
 
-          # gate_passed is written only on success, so any failure or early exit leaves it unset.
-          echo "gate_passed=false" >> "$GITHUB_OUTPUT"
-
           ./eng/validation/scripts/evaluate-release-gate.sh \
             --required "${{ needs.availability.outputs.required }}" \
+            --release-validation "${{ inputs.release_validation }}" \
             --lab-enabled "${{ needs.availability.outputs.enabled }}" \
             --matrix-result "${{ needs.device-matrix.result }}" \
             --required-profiles "${{ needs.availability.outputs.required_profiles }}" \
             --results-dir artifacts/device-results | tee gate.log
-
-          echo "gate_passed=true" >> "$GITHUB_OUTPUT"
 
       - name: Summarise
         if: always()

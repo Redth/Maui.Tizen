@@ -54,6 +54,7 @@
 
     <!-- Matches the diagnostics projects; DevFlow resolves its own SkiaSharp line. -->
     <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
+    <Api15AgentSourceRoot Condition="'$(Api15AgentSourceRoot)' == ''">$(RepositoryRoot)src/Diagnostics/Maui.Tizen.DevFlow.Agent/</Api15AgentSourceRoot>
   </PropertyGroup>
 
   <ItemGroup>
@@ -71,8 +72,15 @@
     compiles, so the two cannot drift.
   -->
   <ItemGroup>
-    <Compile Include="$(RepositoryRoot)src/Diagnostics/Maui.Tizen.DevFlow.Agent/**/*.cs" />
+    <Api15AgentSource Include="$(Api15AgentSourceRoot)**/*.cs" />
+    <Compile Include="@(Api15AgentSource)" />
   </ItemGroup>
+
+  <Target Name="ValidateApi15AgentSources" BeforeTargets="CoreCompile">
+    <Error
+      Condition="'@(Api15AgentSource)' == ''"
+      Text="API15 compile probe found no Tizen DevFlow agent sources under '$(Api15AgentSourceRoot)'." />
+  </Target>
 
   <!--
     Reference assemblies are added by path rather than through a framework reference, because
