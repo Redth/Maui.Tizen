@@ -88,18 +88,43 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			Assert.Equal("http://0.0.0.0/app.css", source.LastRequestedUri);
 		}
 
-		[Fact]
-		public void AllowsHostPageFallbackOnlyForTrailingSlashRequests()
+		[Theory]
+		// Root, with and without a query. The query must not change the classification: Blazor
+		// navigates with query strings, and testing the raw URL would classify "/?x=1" as an asset.
+		[InlineData("http://0.0.0.0/", true)]
+		[InlineData("http://0.0.0.0/?returnUrl=%2Fcounter", true)]
+		// Extensionless routes are client-side Blazor routes with no file behind them. They must be
+		// answered with the host page or the router never gets a chance to resolve them.
+		[InlineData("http://0.0.0.0/counter", true)]
+		[InlineData("http://0.0.0.0/CustomStart/SomeData", true)]
+		[InlineData("http://0.0.0.0/CustomStart/SomeData?id=7", true)]
+		// Real assets must not fall back, or a missing file would silently return HTML.
+		[InlineData("http://0.0.0.0/css/app.css", false)]
+		[InlineData("http://0.0.0.0/css/app.css?v=2", false)]
+		[InlineData("http://0.0.0.0/_framework/blazor.webview.js", false)]
+		public void ClassifiesDocumentRoutesIndependentlyOfTheQueryString(string url, bool expectFallback)
 		{
 			var processor = CreateProcessor(out var source, out _);
-			source.Add("http://0.0.0.0/", "<html/>", "text/html");
-			source.Add("http://0.0.0.0/counter", "<html/>", "text/html");
+			source.Add(QueryStringHelper.RemovePossibleQueryString(url), "<html/>", "text/html");
 
-			processor.Process(new FakeRequest("http://0.0.0.0/"));
-			Assert.True(source.LastAllowFallbackOnHostPage);
+			processor.Process(new FakeRequest(url));
 
-			processor.Process(new FakeRequest("http://0.0.0.0/counter"));
-			Assert.False(source.LastAllowFallbackOnHostPage);
+			Assert.Equal(expectFallback, source.LastAllowFallbackOnHostPage);
+		}
+
+		[Fact]
+		public void NonRootStartPathReceivesTheHostPage()
+		{
+			// The StartPath scenario end to end: a non-root document route resolves to the host page,
+			// which is what lets Blazor boot. Before the fix this 404'd and the app never initialized.
+			var processor = CreateProcessor(out var source, out _);
+			source.Add("http://0.0.0.0/CustomStart/SomeData", "<html>host</html>", "text/html");
+
+			var request = new FakeRequest("http://0.0.0.0/CustomStart/SomeData");
+			processor.Process(request);
+
+			Assert.False(request.Ignored);
+			Assert.Equal("<html>host</html>", Encoding.UTF8.GetString(request.ResponseBody!));
 		}
 
 		[Fact]

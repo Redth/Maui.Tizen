@@ -24,6 +24,19 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			return XDocument.Load(path);
 		}
 
+		/// <summary>Walks up from the test output directory to the repository root.</summary>
+		private static string FindRepositoryRoot()
+		{
+			var directory = new DirectoryInfo(AppContext.BaseDirectory);
+			while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Directory.Packages.props")))
+			{
+				directory = directory.Parent;
+			}
+
+			Assert.True(directory is not null, "Could not locate the repository root from the test output directory.");
+			return directory!.FullName;
+		}
+
 		private static XDocument LoadBuildConfiguration(string fileName)
 		{
 			var path = Path.Combine(AppContext.BaseDirectory, "ProductProject", fileName);
@@ -75,6 +88,64 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			// .targets is imported after the SDK has already parsed $(TargetFramework), so assigning it
 			// there makes inference fall back to identifier "_" / version "v0.0".
 			Assert.Equal("$(MauiTizenTargetFramework)", GetProperty(LoadBuildConfiguration("TizenPackage.props"), "TargetFramework"));
+		}
+
+		[Fact]
+		public void PackageOptsBackIntoPacking()
+		{
+			// TizenPackage.props defaults IsPackable to false. This project must opt back in explicitly:
+			// the buildTransitive targets that carry the StaticWebAsset -> MauiAsset conversion only
+			// reach consumers through the produced package, so an unpackable project ships nothing and
+			// silently breaks the asset pipeline for everyone downstream.
+			Assert.Equal("true", GetProperty(LoadProductProject(), "IsPackable"));
+			Assert.Equal("false", GetProperty(LoadBuildConfiguration("TizenPackage.props"), "IsPackable"));
+		}
+
+		[Fact]
+		public void BuildTransitiveTargetsArePackedWhereNuGetWillImportThem()
+		{
+			// build/ is applied only to the project that references a package DIRECTLY; buildTransitive/
+			// is what reaches a transitive consumer. Packing these to the wrong folder is exactly the
+			// defect this package exists to work around, so the pack path is asserted rather than assumed.
+			var packed = LoadProductProject().Descendants("None")
+				.Where(e => (string?)e.Attribute("Pack") == "true")
+				.Select(e => ((string?)e.Attribute("Include"), (string?)e.Attribute("PackagePath")))
+				.ToArray();
+
+			Assert.Contains(packed, p => p.Item1 == "buildTransitive/Maui.Tizen.BlazorWebView.props" && p.Item2 == "buildTransitive/");
+			Assert.Contains(packed, p => p.Item1 == "buildTransitive/Maui.Tizen.BlazorWebView.targets" && p.Item2 == "buildTransitive/");
+			Assert.DoesNotContain(packed, p => (p.Item2 ?? string.Empty).StartsWith("build/", StringComparison.Ordinal));
+		}
+
+		[Fact]
+		public void SourceBuildsImportTheProviderTargetsExplicitly()
+		{
+			// A ProjectReference does not import a referenced project's build/ or buildTransitive/
+			// assets - only a PackageReference does. So the sample, which consumes this package by
+			// project reference, has to import the provider targets itself or its wwwroot and
+			// _framework assets never become Tizen resources and the app launches blank.
+			var sample = File.ReadAllText(Path.Combine(
+				FindRepositoryRoot(), "samples", "BlazorWebView", "Maui.Tizen.BlazorWebView.Sample",
+				"Maui.Tizen.BlazorWebView.Sample.csproj"));
+
+			Assert.Contains("buildTransitive/Maui.Tizen.BlazorWebView.props", sample, StringComparison.Ordinal);
+			Assert.Contains("buildTransitive/Maui.Tizen.BlazorWebView.targets", sample, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void SampleUsesTheTizenHostAndEntryPoint()
+		{
+			// UseMauiApp/MauiApplication would bind the sample to a MAUI backend that no longer ships
+			// for Tizen, leaving no handler for any view - including the BlazorWebView it exists to show.
+			var root = FindRepositoryRoot();
+			var program = File.ReadAllText(Path.Combine(
+				root, "samples", "BlazorWebView", "Maui.Tizen.BlazorWebView.Sample", "MauiProgram.cs"));
+			var entry = File.ReadAllText(Path.Combine(
+				root, "samples", "BlazorWebView", "Maui.Tizen.BlazorWebView.Sample", "Platforms", "Tizen", "Main.cs"));
+
+			Assert.Contains("UseMauiAppTizen<App>()", program, StringComparison.Ordinal);
+			Assert.DoesNotContain("UseMauiApp<App>()", program, StringComparison.Ordinal);
+			Assert.Contains(": TizenMauiApplication", entry, StringComparison.Ordinal);
 		}
 
 		[Fact]

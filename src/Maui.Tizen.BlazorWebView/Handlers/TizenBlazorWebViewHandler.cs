@@ -52,7 +52,8 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 	/// propagation and disposal.
 	/// </para>
 	/// </remarks>
-	public class TizenBlazorWebViewHandler : TizenViewHandler<IBlazorWebView, NWebView>, IBlazorWebViewHandler
+	public class TizenBlazorWebViewHandler : TizenViewHandler<IBlazorWebView, NWebView>, IBlazorWebViewHandler,
+		ITizenInterceptedRequestRouter
 	{
 		private const string UseBlockingDisposalSwitch = "BlazorWebView.UseBlockingDisposal";
 		private const string JavaScriptMessageHandlerName = "BlazorHandler";
@@ -91,8 +92,6 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 		/// Tizen registers the HTTP request interception callback on the shared <c>WebContext</c>, so a single
 		/// static callback must route each request back to the handler that owns the requesting WebView.
 		/// </summary>
-		private static readonly Dictionary<string, WeakReference<TizenBlazorWebViewHandler>> s_handlers = new(StringComparer.Ordinal);
-
 		/// <summary>
 		/// Source of <see cref="HandlerKey"/> values.
 		/// </summary>
@@ -122,12 +121,31 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 		private ILogger? _logger;
 		private string? _hostPage;
 		private RootComponentsCollection? _rootComponents;
+
+		/// <summary>
+		/// The components currently mounted in the web view manager.
+		/// </summary>
+		/// <remarks>
+		/// Needed because <see cref="NotifyCollectionChangedAction.Reset"/> - which is what
+		/// <c>Clear()</c> raises - carries neither <c>OldItems</c> nor <c>NewItems</c>. Without a
+		/// snapshot of what is mounted there is nothing to unmount, so the components stay rendered in a
+		/// collection the application believes it emptied. Only ever touched on the Blazor dispatcher.
+		/// </remarks>
+		private readonly List<RootComponent> _mountedRootComponents = new();
 		private string? _userAgentBeforeConnect;
 
 		/// <summary>
 		/// This field is part of MAUI infrastructure and is not intended for use by application code.
 		/// </summary>
-		public static readonly PropertyMapper<IBlazorWebView, TizenBlazorWebViewHandler> TizenBlazorWebViewMapper = new(ViewMapper)
+		/// <remarks>
+		/// Chains <see cref="TizenViewMappers.ViewMapper"/>, not MAUI's neutral
+		/// <c>ViewHandler.ViewMapper</c>. The neutral mapper's bodies are no-ops on a non-platform TFM,
+		/// so chaining it would leave every inherited <see cref="IView"/> property - background, clip,
+		/// shadow, visibility, opacity, input transparency - silently unapplied on a BlazorWebView while
+		/// working on every other Tizen view. Core's mapper carries the real Tizen bodies and itself
+		/// chains MAUI's, so Controls' runtime <c>RemapForControls</c> additions are still observed.
+		/// </remarks>
+		public static readonly PropertyMapper<IBlazorWebView, TizenBlazorWebViewHandler> TizenBlazorWebViewMapper = new(TizenViewMappers.ViewMapper)
 		{
 			[nameof(IBlazorWebView.HostPage)] = MapHostPage,
 			[nameof(IBlazorWebView.RootComponents)] = MapRootComponents,
@@ -137,14 +155,14 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 		/// Command mapper for <see cref="IBlazorWebView"/> on Tizen.
 		/// </summary>
 		/// <remarks>
-		/// Chains <see cref="ViewHandler.ViewCommandMapper"/> so the standard view commands - focus and
-		/// unfocus, invalidate measure, frame updates and z-index ordering - reach the platform view.
-		/// Without a command mapper the handler is constructed with a null one and every
-		/// <c>IView.Invoke</c> is silently dropped, so a BlazorWebView could not be focused
-		/// programmatically and would not re-order correctly inside a layout.
+		/// Chains <see cref="TizenViewMappers.ViewCommandMapper"/> so the standard view commands - focus
+		/// and unfocus, invalidate measure, frame updates and z-index ordering - reach the platform view
+		/// through the Tizen implementations rather than MAUI's neutral no-ops. Without a command mapper
+		/// at all the handler is constructed with a null one and every <c>IView.Invoke</c> is silently
+		/// dropped; with the neutral one the call is dispatched but does nothing on Tizen.
 		/// </remarks>
 		public static readonly CommandMapper<IBlazorWebView, TizenBlazorWebViewHandler> TizenBlazorWebViewCommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+			new(TizenViewMappers.ViewCommandMapper);
 
 		/// <summary>
 		/// Initializes a new instance of <see cref="TizenBlazorWebViewHandler"/> with the default mappings.
@@ -222,17 +240,12 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			base.ConnectHandler(platformView);
 
 			// Register the routing entry before anything can produce a request for it.
-			lock (s_handlers)
-			{
-				s_handlers[HandlerKey] = new WeakReference<TizenBlazorWebViewHandler>(this);
-			}
-
 			platformView.PageLoadFinished += OnLoadFinished;
 
-			// Interception is registered on the shared WebContext and has no unregister counterpart, so
-			// it is deliberately process-wide and permanent. OnRequestInterceptStaticCallback ignores
-			// anything it cannot route, which is what keeps that safe.
-			platformView.Context.RegisterHttpRequestInterceptedCallback(OnRequestInterceptStaticCallback);
+			// Interception is process-wide, registered once per WebContext, with the delegate rooted for
+			// the process lifetime. Registering here directly would install a fresh unrooted delegate on
+			// every connect - see WebRequestInterceptionCoordinator for why that silently breaks.
+			WebRequestInterceptionCoordinator.Register(platformView.Context, HandlerKey, this);
 
 			// AddJavaScriptMessageHandler also has no remove counterpart. Installing it twice on the
 			// same NUI WebView - which happens on disconnect/reconnect - would leave a duplicate bridge
@@ -268,10 +281,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 				_userAgentBeforeConnect = null;
 			}
 
-			lock (s_handlers)
-			{
-				s_handlers.Remove(HandlerKey);
-			}
+			WebRequestInterceptionCoordinator.Unregister(HandlerKey);
 
 			SetRootComponents(null, clearPrevious: false);
 
@@ -299,6 +309,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			}
 
 			_requestProcessor = null;
+			_mountedRootComponents.Clear();
 			_staticContentResponseCache.Clear();
 
 			Logger.TizenHandlerDisconnected(HandlerKey);
@@ -357,30 +368,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			}
 		}
 
-		private static void OnRequestInterceptStaticCallback(WebHttpRequestInterceptor interceptor)
-		{
-			if (BlazorWebViewUserAgent.TryGetHandlerKey(interceptor?.Headers, out var handlerKey))
-			{
-				TizenBlazorWebViewHandler? handler = null;
-				lock (s_handlers)
-				{
-					if (s_handlers.TryGetValue(handlerKey, out var weakHandler) && !weakHandler.TryGetTarget(out handler))
-					{
-						s_handlers.Remove(handlerKey);
-					}
-				}
-
-				if (handler is not null)
-				{
-					handler.HandleInterceptedRequest(interceptor!);
-					return;
-				}
-			}
-
-			interceptor?.Ignore();
-		}
-
-		private void HandleInterceptedRequest(WebHttpRequestInterceptor interceptor)
+		void ITizenInterceptedRequestRouter.HandleInterceptedRequest(WebHttpRequestInterceptor interceptor)
 		{
 			var processor = _requestProcessor;
 			if (processor is null)
@@ -427,6 +415,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 				foreach (var component in _rootComponents)
 				{
 					_ = AddRootComponentAsync(component, _webviewManager);
+					_mountedRootComponents.Add(component);
 				}
 			}
 
@@ -441,19 +430,42 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 				return;
 			}
 
+			var isReset = eventArgs.Action == NotifyCollectionChangedAction.Reset;
 			var newItems = eventArgs.NewItems?.Cast<RootComponent>().ToList() ?? new List<RootComponent>();
 			var oldItems = eventArgs.OldItems?.Cast<RootComponent>().ToList() ?? new List<RootComponent>();
 
+			// Reset (raised by Clear()) reports no items at all, so the components to unmount can only
+			// come from what this handler previously mounted. The surviving set is whatever the
+			// collection holds now.
+			var current = isReset
+				? _rootComponents?.ToList() ?? new List<RootComponent>()
+				: new List<RootComponent>();
+
+			// No ConfigureAwait(false) anywhere below. The continuation must stay on the Blazor
+			// dispatcher: both the web view manager's component registry and _mountedRootComponents are
+			// single-threaded state, and resuming on a pool thread would mutate them off-dispatcher.
 			_ = webviewManager.Dispatcher.InvokeAsync(async () =>
 			{
-				foreach (var item in newItems.Except(oldItems))
+				var toRemove = isReset
+					? _mountedRootComponents.Except(current).ToList()
+					: oldItems.Except(newItems).ToList();
+
+				var toAdd = isReset
+					? current.Except(_mountedRootComponents).ToList()
+					: newItems.Except(oldItems).ToList();
+
+				// Removal precedes addition. A Replace that added first would register a second component
+				// against a selector the outgoing one still occupies, which the renderer rejects.
+				foreach (var item in toRemove)
 				{
-					await AddRootComponentAsync(item, webviewManager).ConfigureAwait(false);
+					await RemoveRootComponentAsync(item, webviewManager);
+					_mountedRootComponents.Remove(item);
 				}
 
-				foreach (var item in oldItems.Except(newItems))
+				foreach (var item in toAdd)
 				{
-					await RemoveRootComponentAsync(item, webviewManager).ConfigureAwait(false);
+					await AddRootComponentAsync(item, webviewManager);
+					_mountedRootComponents.Add(item);
 				}
 			});
 		}
@@ -549,6 +561,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 				{
 					// Since the page isn't loaded yet, this always completes synchronously.
 					_ = AddRootComponentAsync(rootComponent, _webviewManager);
+					_mountedRootComponents.Add(rootComponent);
 				}
 			}
 

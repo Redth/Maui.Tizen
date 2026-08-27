@@ -31,6 +31,16 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
     <!--
+      TizenPackage.props defaults IsPackable to false, because most projects here still hold raw
+      imported sources that do not build. This one compiles and ships public API, so it opts back in
+      explicitly. Without this the project produces no nupkg at all - and since the whole point of the
+      buildTransitive targets below is that they reach consumers through the package, a silently
+      unpackable project would ship nothing and break the asset pipeline for every consumer.
+      PackageContentTests asserts the produced nupkg layout so this cannot regress unnoticed again.
+    -->
+    <IsPackable>true</IsPackable>
+
+    <!--
       This project compiles and ships public API, so it opts into the analyzer per the contract in
       eng/targets/TizenPackage.props. The baseline below describes THIS assembly - not the imported
       PublicAPI/net-tizen fixture, which records the unsplit upstream

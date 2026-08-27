@@ -22,6 +22,19 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 	public class HandlerLifecycleTests
 	{
 		[Fact]
+		public void PropertyMapperChainsTheTizenViewMapper()
+		{
+			// Same reasoning as the command mapper: chaining MAUI's neutral ViewMapper would leave
+			// background, clip, shadow, visibility and opacity unapplied on a BlazorWebView while
+			// working on every other Tizen view.
+			// PropertyMapper.Chained is a collection, unlike CommandMapper.Chained.
+			var chained = TizenBlazorWebViewHandler.TizenBlazorWebViewMapper.Chained;
+
+			Assert.NotNull(chained);
+			Assert.Contains(chained!, m => ReferenceEquals(m, TizenViewMappers.ViewMapper));
+		}
+
+		[Fact]
 		public void HandlerDerivesFromTheTizenBackendHandlerBase()
 		{
 			// Not cosmetic: TizenLayoutHandler and TizenContentViewHandler reach a child through
@@ -156,12 +169,16 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		}
 
 		[Fact]
-		public void HandlerUsesACommandMapperChainedToTheViewCommandMapper()
+		public void HandlerUsesACommandMapperChainedToTheTizenViewCommandMapper()
 		{
 			// Without a command mapper the base handler receives null and every IView.Invoke is dropped,
 			// so focus/unfocus, invalidate, frame and z-index commands never reach the platform view.
+			// Chains the TIZEN command mapper, not MAUI's neutral one. The neutral bodies are no-ops off
+			// a platform TFM, so chaining it would dispatch the command and then do nothing on device.
 			Assert.NotNull(TizenBlazorWebViewHandler.TizenBlazorWebViewCommandMapper);
-			Assert.Same(ViewHandler.ViewCommandMapper, TizenBlazorWebViewHandler.TizenBlazorWebViewCommandMapper.Chained);
+			Assert.Same(
+				TizenViewMappers.ViewCommandMapper,
+				TizenBlazorWebViewHandler.TizenBlazorWebViewCommandMapper.Chained);
 		}
 
 		[Theory]

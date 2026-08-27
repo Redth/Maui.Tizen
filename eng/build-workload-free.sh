@@ -284,8 +284,17 @@ fi
 # the asset file provider, request mapping and the static content cache. They can run
 # because none of that code needs the native NUI WebView.
 # ---------------------------------------------------------------------------
+#
+# Gated on BUILD_OK for the same reason as the invariant tests above: `--no-build` after a
+# failed build silently runs whatever assemblies happen to be on disk from an earlier run,
+# so a green result here could reflect stale artifacts rather than the current tree.
 info "BlazorWebView host-side tests"
-check "blazorwebview tests" "$DOTNET" test tests/Maui.Tizen.BlazorWebView.Tests/Maui.Tizen.BlazorWebView.Tests.csproj --no-build -c Release
+if [[ $BUILD_OK -eq 1 ]]; then
+  check "blazorwebview tests" "$DOTNET" test tests/Maui.Tizen.BlazorWebView.Tests/Maui.Tizen.BlazorWebView.Tests.csproj --no-build -c Release
+else
+  fail "blazorwebview tests skipped - a preceding build failed (running --no-build now could pass against stale assemblies)"
+  FAILURES=$((FAILURES + 1))
+fi
 
 # ---------------------------------------------------------------------------
 # 6. Report the Tizen gate explicitly.

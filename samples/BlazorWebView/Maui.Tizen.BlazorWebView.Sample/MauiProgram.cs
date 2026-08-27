@@ -5,6 +5,7 @@ using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Hosting;
 using Microsoft.Maui.Platforms.Tizen.BlazorWebView;
+using Microsoft.Maui.Platforms.Tizen.Hosting;
 
 namespace Maui.Tizen.BlazorWebView.Sample
 {
@@ -19,7 +20,12 @@ namespace Maui.Tizen.BlazorWebView.Sample
 		public static MauiApp CreateMauiApp()
 		{
 			var builder = MauiApp.CreateBuilder();
-			builder.UseMauiApp<App>();
+
+			// UseMauiAppTizen, not MAUI Controls' UseMauiApp. This is what registers the Tizen
+			// handlers, the dispatcher provider and the platform services this backend supplies;
+			// UseMauiApp alone would register the app class against a backend that no longer ships
+			// for Tizen, leaving no handler for any view - including the BlazorWebView.
+			builder.UseMauiAppTizen<App>();
 
 			// AddTizenBlazorWebView() is the one-call form of:
 			//

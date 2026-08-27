@@ -220,10 +220,18 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 					.Replace("__WEBVIEW_VERSION__", ReadPinnedWebViewVersion(repoRoot))
 					.Replace("__TARGETS_PROPS__", Path.Combine(buildTransitive, "Maui.Tizen.BlazorWebView.props"))
 					.Replace("__TARGETS_FILE__", Path.Combine(buildTransitive, "Maui.Tizen.BlazorWebView.targets")));
-			File.Delete(Path.Combine(_workDirectory, "AssetPipelineFixture.csproj.fixture"));
 
-			// A NuGet.config is not copied in: the fixture must resolve packages the same way the
-			// repository does, so it relies on the repo-level nuget.config found by directory walk.
+			// The fixture builds in a temp directory outside the repository, so the repo-level
+			// nuget.config is NOT found by NuGet's directory walk - it would fall back to the
+			// machine-global config and whatever that has enabled or disabled. Copy the repository's
+			// config in so the fixture restores from the same approved feeds as everything else, and
+			// point the package cache at a directory under the fixture so a machine-cached copy cannot
+			// stand in for a package the approved feeds do not actually serve.
+			// overwrite: both entry points are materialized into the same work directory.
+			File.Copy(
+				Path.Combine(repoRoot, "nuget.config"),
+				Path.Combine(_workDirectory, "nuget.config"),
+				overwrite: true);
 			var output = RunMSBuild(project, target);
 
 			using var document = JsonDocument.Parse(output);
@@ -267,6 +275,16 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 
 			// Same reasoning as -nodeReuse:false; the build server is a separate long-lived process.
 			startInfo.Environment["DOTNET_CLI_USE_MSBUILD_SERVER"] = "0";
+
+			// Restore into a cache private to this fixture. Without it a package already present in the
+			// developer's global cache satisfies the restore even if the approved feeds could not serve
+			// it, so the test would pass on a machine where a real consumer's build fails.
+			//
+			// Sited as a SIBLING of the project directory, never inside it: the Razor SDK globs the
+			// project folder for content and static web assets, so a package cache under it would be
+			// swept into the very item groups this test asserts on.
+			startInfo.Environment["NUGET_PACKAGES"] =
+				Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(project)!)!, "packages-cache");
 
 			startInfo.ArgumentList.Add("msbuild");
 			startInfo.ArgumentList.Add(project);

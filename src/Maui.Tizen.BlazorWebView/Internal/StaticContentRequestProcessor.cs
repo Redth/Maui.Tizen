@@ -95,9 +95,12 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 				}
 			}
 
-			var allowFallbackOnHostPage = url.EndsWith('/');
+			// Strip the query BEFORE classifying. Doing it in the other order lets a query string decide
+			// whether a request is a document or an asset, which is never correct - see IsDocumentRequest.
 			var originalUrl = url;
 			var requestUri = QueryStringHelper.RemovePossibleQueryString(url);
+			var allowFallbackOnHostPage = QueryStringHelper.IsDocumentRequest(
+				requestUri.Length >= _appOrigin.Length ? requestUri.Substring(_appOrigin.Length - 1) : "/");
 			_logger.HandlingWebRequest(requestUri);
 
 			if (!_contentLookup(requestUri, allowFallbackOnHostPage, out var statusCode, out var statusMessage, out var content, out var headers))
