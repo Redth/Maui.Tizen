@@ -8,6 +8,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Maui;
 using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Hosting;
@@ -298,6 +299,142 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.NotNull(app.Services.GetService<ITizenFontManager>());
 			Assert.NotNull(app.Services.GetService<IFontManager>());
 			Assert.NotNull(app.Services.GetService<ITizenModalHost>());
+		}
+
+		/// <summary>
+		/// The Tizen font manager wins over MAUI's neutral one.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// This was a live defect. <c>AddTizenControlServices</c> registered
+		/// <see cref="IFontManager"/> with <c>TryAdd</c>, but <c>MauiApp.CreateBuilder()</c> defaults
+		/// to <c>useDefaults: true</c> and MAUI's <c>ConfigureFonts</c> had already registered
+		/// <c>Microsoft.Maui.FontManager</c> - so the <c>TryAdd</c> was a silent no-op and the
+		/// neutral manager answered every resolution.
+		/// </para>
+		/// <para>
+		/// Asserting the concrete type rather than "an IFontManager is registered", because the
+		/// latter passed throughout the defect's lifetime.
+		/// </para>
+		/// </remarks>
+		[Fact]
+		public void TheTizenFontManagerReplacesMauisNeutralOne()
+		{
+			using var app = BuildTizenApp();
+
+			var fontManager = app.Services.GetRequiredService<IFontManager>();
+
+			Assert.True(
+				fontManager is ITizenFontManager,
+				$"IFontManager resolved to {fontManager.GetType().FullName}, not the Tizen one. " +
+				"MAUI's ConfigureFonts registers a neutral FontManager during Build, so this " +
+				"registration must use Replace rather than TryAdd - and the failure is silent: " +
+				"GetTizenFontFamily falls back to the raw family name, so every font alias reaches " +
+				"NUI unresolved and text renders in the wrong font with nothing thrown.");
+
+			// The alias-resolving instance and the interface registration must be the same object,
+			// or the registrar state they cache diverges.
+			Assert.Same(app.Services.GetRequiredService<ITizenFontManager>(), fontManager);
+		}
+
+		/// <summary>
+		/// A font alias resolves end to end through the composed container.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// The integration test the review asked for, and the one that exercises the defect above: it
+		/// resolves <see cref="IFontManager"/> from a container built by <c>ConfigureTizen()</c> and
+		/// pushes an alias through the same decision the handlers' font mappings make.
+		/// </para>
+		/// <para>
+		/// The <see cref="IFontRegistrar"/> is substituted rather than relying on a real
+		/// <c>ConfigureFonts</c> registration, and that is a deliberate correction. MAUI's registrar
+		/// resolves an alias by actually locating the embedded font asset, so with no real <c>.ttf</c>
+		/// in this test assembly it returns <see langword="null"/> for every name and the manager
+		/// legitimately falls back to the alias string - measured, not guessed. A test written that way
+		/// fails for a reason that has nothing to do with the wiring. Injecting a registrar isolates the
+		/// property actually under test: <b>does the font manager the container hands out consult the
+		/// registrar at all?</b>
+		/// </para>
+		/// </remarks>
+		[Fact]
+		public void AFontAliasResolvesThroughTheComposedContainer()
+		{
+			var builder = MauiApp.CreateBuilder();
+			builder.UseMauiApp<HostApp>();
+			builder.ConfigureTizen();
+			builder.Services.Replace(ServiceDescriptor.Singleton<IFontRegistrar>(
+				new StubFontRegistrar("OpenSansAlias", "OpenSans-Regular.ttf")));
+
+			using var app = builder.Build();
+
+			var fontManager = app.Services.GetRequiredService<IFontManager>();
+
+			// Mirrors TizenTextExtensions.GetTizenFontFamily exactly. That file is in the Tizen-only
+			// compile group (it touches NUI types), so it cannot be called from the host lane - but the
+			// branch that matters is this pattern match, and reproducing it tests the same decision:
+			// match, resolve through the registrar; no match, fall back to the raw alias.
+			var resolved = fontManager is ITizenFontManager tizenFontManager
+				? tizenFontManager.GetFontFamily("OpenSansAlias")
+				: "OpenSansAlias";
+
+			// The registrar maps the alias to "OpenSans-Regular.ttf"; the manager then strips the style
+			// suffix, because NUI wants a family name rather than a PostScript name.
+			Assert.Equal("OpenSans", resolved);
+		}
+
+		/// <summary>
+		/// An unregistered family still yields a usable name rather than nothing.
+		/// </summary>
+		/// <remarks>
+		/// The complement of the test above: text must keep rendering when a font was never registered,
+		/// instead of throwing from inside a property mapper or blanking the label.
+		/// </remarks>
+		[Fact]
+		public void AnUnregisteredFontFamilyFallsBackRatherThanFailing()
+		{
+			using var app = BuildTizenApp();
+
+			var fontManager = (ITizenFontManager)app.Services.GetRequiredService<IFontManager>();
+
+			Assert.Equal("NotRegistered", fontManager.GetFontFamily("NotRegistered"));
+			Assert.Equal(string.Empty, fontManager.GetFontFamily(null));
+		}
+
+		/// <summary>
+		/// An <see cref="IFontRegistrar"/> with one known alias and no filesystem dependency.
+		/// </summary>
+		sealed class StubFontRegistrar(string alias, string fontFile) : IFontRegistrar
+		{
+			public string? GetFont(string font) =>
+				string.Equals(font, alias, StringComparison.Ordinal) ? fontFile : null;
+
+			public void Register(string filename, string? alias) { }
+
+			public void Register(string filename, string? alias, System.Reflection.Assembly assembly) { }
+		}
+
+		/// <summary>
+		/// <c>IEmbeddedFontLoader</c> is still MAUI's, and that is deliberate for now.
+		/// </summary>
+		/// <remarks>
+		/// The Tizen loader (<c>Fonts/EmbeddedFontLoader.Tizen.cs</c>) is raw imported source in no
+		/// compile group, so this package cannot register it yet. Recorded rather than assumed
+		/// closed - and when that wave lands it must use <c>Replace</c>, because MAUI registers a
+		/// default here too and a <c>TryAdd</c> would be the same silent no-op.
+		/// </remarks>
+		[Fact]
+		public void TheEmbeddedFontLoaderIsNotYetTizenOwned()
+		{
+			using var app = BuildTizenApp();
+
+			var loader = app.Services.GetService<IEmbeddedFontLoader>();
+
+			Assert.True(
+				loader?.GetType().Name.StartsWith("Tizen", StringComparison.Ordinal) != true,
+				$"IEmbeddedFontLoader now resolves to {loader?.GetType().Name}. If that wave has " +
+				"landed, verify it used Replace rather than TryAdd, fold this into the font " +
+				"assertions above, and delete this case.");
 		}
 
 		/// <summary>

@@ -60,9 +60,55 @@ load-bearing assumption behind the whole design, and is pinned by
 - [ ] `AddTizenImageSources` registers file, stream, URI and font services.
 - [ ] `FontAndUriSourcesAreNotYetTizenOwned` deleted, its cases folded into
       `TizenSourcesAreRegisteredOnTheTizenLane`.
+- [ ] **Wave B's handlers are registered in `ConfigureTizen` too**, not left as an
+      `AddTizenXHandlers()` a host must call. `EveryControlHandlerResolvesFromTheCompositionRoot`
+      should be extended to cover them.
 - [ ] `EveryTizenRegistrationExtensionHasACaller` still passes — it fails on any public
       `AddTizen*` extension that no compiled source calls, which is how the missing
       `AddTizenControlHandlers` and `AddTizenControlServices` calls were found.
+
+## 1a. Font services must REPLACE MAUI's, never TryAdd
+
+Registered separately from image sources, and the failure mode is different and nastier.
+
+**This was a live Wave A defect, found by Wave B's review and fixed while this plan was being written.**
+`AddTizenControlServices` registered `IFontManager` with `TryAdd`. `MauiApp.CreateBuilder()`
+defaults to `useDefaults: true`, so MAUI's `ConfigureFonts` had already registered
+`Microsoft.Maui.FontManager` — making the `TryAdd` a **silent no-op**. Measured, not inferred:
+`IFontManager` resolved to `Microsoft.Maui.FontManager` while `ITizenFontManager` resolved to
+`TizenFontManager`, two different objects.
+
+The consequence was quiet. `TizenTextExtensions.GetTizenFontFamily` pattern matches the resolved
+`IFontManager` to `ITizenFontManager` and falls back to the raw family name when it does not
+match — so **every font alias registered through `ConfigureFonts` reached NUI unresolved**. Text
+still rendered, in the wrong font, with nothing thrown and nothing logged.
+
+This is the third service to hit the same trap, after `IDispatcherProvider`/`IDispatcher` and
+`ITicker`/`IAnimationManager` in `ConfigureTizen`. **The rule: any service MAUI registers by
+default must be `Replace`d.** `TryAdd` is correct only for contracts MAUI does not know about —
+`ITizenFontManager`, `ITizenModalHost` — where nothing can shadow them and a host substituting its
+own should win.
+
+**`IEmbeddedFontLoader` is Wave B's, and it has the same hazard.** MAUI registers a default for it,
+so Wave B must use `Replace`. Wave A deliberately leaves it alone: the Tizen loader
+(`Fonts/EmbeddedFontLoader.Tizen.cs`) is still raw imported source in no compile group, so
+registering it here would bind to a type this package does not build.
+`TheEmbeddedFontLoaderIsNotYetTizenOwned` records the gap and fails when Wave B lands, with a
+reminder about `Replace`.
+
+Covered by `TheTizenFontManagerReplacesMauisNeutralOne`,
+`AFontAliasResolvesThroughTheComposedContainer` and
+`AnUnregisteredFontFamilyFallsBackRatherThanFailing` — all verified non-vacuous by reverting the
+fix to `TryAdd` and watching three tests fail with the diagnostic that names the cause.
+
+> A note on how that alias test is built, because the obvious version is wrong. Registering a font
+> via `ConfigureFonts(f => f.AddFont("OpenSans-Regular.ttf", "OpenSansAlias"))` does **not** make
+> the alias resolvable in a unit test: MAUI's registrar resolves an alias by locating the real
+> embedded font asset, and with no `.ttf` in the test assembly it returns `null` for every name, so
+> the manager legitimately falls back to the alias string. A test written that way fails for a
+> reason unrelated to the wiring. The `IFontRegistrar` is therefore substituted, which isolates the
+> property actually under test: *does the font manager the container hands out consult the
+> registrar at all?*
 
 ## 2. Removing the Core-owned test delta
 
@@ -216,12 +262,27 @@ Everything past that needs the device lane the unpublished Samsung workload stil
 1. Confirm Core's head is **declared stable and reviewed**, not merely green.
 2. `git rebase <core-head>`; expect conflicts in `eng/Maui.Tizen.Core.Sources.props` (both waves
    add compile items) and possibly `ControlsRegistrationTests.cs` (see §2 — take Core's).
-3. Regenerate the PublicAPI baseline:
+3. **Verify these behaviour-carrying fixes survived the rebase.** Each is a small edit inside a
+   file another wave may also touch, so a conflict resolved in the wrong direction reverts it
+   silently — and in every case the reverted code still compiles and still passes any test that
+   only checks registration or presence.
+
+   | Fix | Where | Reverted symptom |
+   |---|---|---|
+   | `GenerateUrl` on the main loop | `TizenImageSource.LoadSource` | NUI buffer registered from a thread-pool thread. Only the decode belongs in `Task.Run`; the previous code awaited with `ConfigureAwait(false)` and then called `GenerateUrl` on the continuation. |
+   | `IFontManager` via `Replace` | `AddTizenControlServices` | Neutral font manager wins; every font alias reaches NUI unresolved. |
+   | Background mappings pass the view | `TizenEntryHandler`/`TizenEditorHandler` `MapBackground` | Image backgrounds can never resolve, because the service provider is reached through `view.Handler`. |
+   | Chained keys overridden | `TizenPickerHandler.MapItemsSource`, `TizenStepperHandler.MapIncrement` | `InvalidCastException` on a property set. |
+
+   The last three have guard tests. `GenerateUrl` does **not** — it is inside `#if TIZEN` and
+   cannot be executed on the host lane — so it needs a human diff check. `git diff <core-head> --
+   src/Maui.Tizen.Core/ImageSources/TizenImageSource.cs` is the fastest confirmation.
+4. Regenerate the PublicAPI baseline:
    `dotnet format analyzers tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj --diagnostics RS0016 --severity warn`.
    Review the diff; an unexpected entry is the signal that baseline exists to give.
-4. Regenerate the parity matrix.
-5. Run `eng/build-workload-free.sh` — host, API15 ref-pack, PublicAPI and parity lanes.
-6. Push, dispatch CI explicitly (`gh workflow run CI --ref …`; a force-push does not trigger
+5. Regenerate the parity matrix.
+6. Run `eng/build-workload-free.sh` — host, API15 ref-pack, PublicAPI and parity lanes.
+7. Push, dispatch CI explicitly (`gh workflow run CI --ref …`; a force-push does not trigger
    `pull_request`), and confirm all three jobs.
 
 Local timing is not a signal on a loaded machine: this worktree has shown a ~2m15s `dotnet test`

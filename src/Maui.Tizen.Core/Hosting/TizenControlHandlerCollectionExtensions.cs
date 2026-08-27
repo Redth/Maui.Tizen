@@ -54,13 +54,36 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 		/// </summary>
 		/// <remarks>
 		/// <para>
-		/// Everything is registered with <c>TryAdd</c>, so a host or a later migration wave can
-		/// substitute its own implementation by registering first.
+		/// <b><see cref="IFontManager"/> is registered with <c>Replace</c>, not <c>TryAdd</c>, and
+		/// the distinction is load-bearing.</b> <see cref="MauiApp.CreateBuilder(bool)"/> defaults
+		/// to <c>useDefaults: true</c>, which runs MAUI's <c>ConfigureFonts</c> and registers
+		/// <c>Microsoft.Maui.FontManager</c> before this ever runs. A <c>TryAdd</c> here is
+		/// therefore a silent no-op and the neutral manager keeps answering.
 		/// </para>
 		/// <para>
-		/// <see cref="ITizenModalHost"/> is expected to be replaced by the navigation wave with one
-		/// that pushes onto the window's modal stack; the default opens popups directly and so does
-		/// not participate in back navigation. See <see cref="TizenDirectModalHost"/>.
+		/// The consequence is subtle rather than loud, which is why it survived review.
+		/// <see cref="TizenTextExtensions.GetTizenFontFamily"/> pattern matches the resolved
+		/// <see cref="IFontManager"/> to <see cref="ITizenFontManager"/> and falls back to the raw
+		/// family name when it does not match - so with the neutral manager winning, every font
+		/// alias registered through <c>ConfigureFonts</c> (<c>"OpenSansRegular"</c> and friends)
+		/// reached NUI unresolved. Text still rendered, in the wrong font, with nothing thrown and
+		/// nothing logged. This mirrors the dispatcher and ticker registrations in
+		/// <c>ConfigureTizen</c>, which are replaced for exactly the same reason.
+		/// </para>
+		/// <para>
+		/// <see cref="ITizenFontManager"/> and <see cref="ITizenModalHost"/> keep <c>TryAdd</c>:
+		/// MAUI registers neither, so nothing shadows them, and a host or later wave can substitute
+		/// its own by registering first. <see cref="ITizenModalHost"/> is expected to be replaced by
+		/// the navigation wave with one that pushes onto the window's modal stack; the default opens
+		/// popups directly and so does not participate in back navigation. See
+		/// <see cref="TizenDirectModalHost"/>.
+		/// </para>
+		/// <para>
+		/// <c>IEmbeddedFontLoader</c> is deliberately left on MAUI's neutral implementation. The
+		/// Tizen loader (<c>Fonts/EmbeddedFontLoader.Tizen.cs</c>) is still raw imported source in
+		/// no compile group, so replacing the registration here would bind to a type this package
+		/// does not build. That is the image workstream's to land, and it must use <c>Replace</c>
+		/// too - MAUI registers a default for it as well.
 		/// </para>
 		/// </remarks>
 		/// <param name="services">The service collection.</param>
@@ -70,7 +93,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 			ArgumentNullException.ThrowIfNull(services);
 
 			services.TryAddSingleton<ITizenFontManager, TizenFontManager>();
-			services.TryAddSingleton<IFontManager>(static sp => sp.GetRequiredService<ITizenFontManager>());
+
+			// Replace, not TryAdd - see the remarks. MAUI's ConfigureFonts got here first.
+			services.Replace(ServiceDescriptor.Singleton<IFontManager>(
+				static sp => sp.GetRequiredService<ITizenFontManager>()));
+
 			services.TryAddSingleton<ITizenModalHost, TizenDirectModalHost>();
 
 			return services;

@@ -322,7 +322,17 @@ objection to implementing MAUI's handler interfaces does **not** - see "Handler 
 Also worth recording: `IFontManager` and `IImageSourceService` are marker-only in the neutral
 assembly — the members that actually resolve a font or load an image exist solely in each
 platform's own build of MAUI. Wave A declares `ITizenFontManager` and `ITizenImageSourceService`
-to fill that in, which is why a host must call `AddTizenControlServices`.
+to fill that in, and `ConfigureTizen` registers them.
+
+`IFontManager` is registered with **`Replace`**, not `TryAdd`, and that matters. `useDefaults: true`
+means MAUI's `ConfigureFonts` has already registered `Microsoft.Maui.FontManager` by the time this
+runs, so a `TryAdd` is a silent no-op — and the failure is invisible rather than loud, because
+`GetTizenFontFamily` pattern matches the resolved manager to `ITizenFontManager` and falls back to
+the raw family name when it does not match. Every font alias then reaches NUI unresolved and text
+renders in the wrong font with nothing thrown. This is the same trap that governs the dispatcher,
+ticker and animation manager: **any service MAUI registers by default must be replaced**; `TryAdd`
+is correct only for contracts MAUI does not know about, where a host substituting its own should
+win.
 
 ## Validation
 
