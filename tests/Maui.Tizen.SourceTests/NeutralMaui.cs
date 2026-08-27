@@ -7,6 +7,13 @@ namespace Maui.Tizen.SourceTests;
 /// Reflection over the real MAUI assemblies, which are the authority for what a handler's mapper
 /// is supposed to cover. Nothing here is hand-transcribed from upstream source.
 /// </summary>
+/// <remarks>
+/// Every read happens after a real Controls host has been built. Mapper state is process-global and
+/// <c>ConfigureControls</c> mutates it: <c>ViewHandler.ViewMapper</c> exposes 29 keys before the
+/// host is built and 36 after. Without forcing the host first, the answer would depend on whether
+/// some other test happened to build it earlier in the run — which is exactly the flake this guards
+/// against, and how the parity manifest first came to be generated from an incomplete key set.
+/// </remarks>
 public static class NeutralMaui
 {
 	public static readonly Assembly Core = typeof(Microsoft.Maui.IView).Assembly;
@@ -14,7 +21,7 @@ public static class NeutralMaui
 
 	/// <summary>Every public type name declared by the MAUI assemblies.</summary>
 	public static IReadOnlySet<string> PublicTypeNames { get; } =
-		new[] { Core, Controls }
+		Hosted(new[] { Core, Controls })
 			.SelectMany(a => a.GetExportedTypes())
 			.Select(t => t.Name)
 			.ToHashSet(StringComparer.Ordinal);
@@ -22,8 +29,15 @@ public static class NeutralMaui
 	/// <summary>Keys contributed by the shared view mapper, which every view handler chains.</summary>
 	public static IReadOnlySet<string> ViewMapperKeys { get; } = LoadViewMapperKeys();
 
+	/// <summary>Forces the Controls host before any mapper state is read.</summary>
+	static T Hosted<T>(T value)
+	{
+		ControlsHost.EnsureBuilt();
+		return value;
+	}
+
 	public static Type? FindHandler(string name) =>
-		Core.GetExportedTypes().FirstOrDefault(t => t.Name == name)
+		Hosted(Core).GetExportedTypes().FirstOrDefault(t => t.Name == name)
 		?? Controls.GetExportedTypes().FirstOrDefault(t => t.Name == name);
 
 	/// <summary>Reads <c>GetKeys()</c> off a handler's static <paramref name="fieldName"/> mapper.</summary>
@@ -54,6 +68,8 @@ public static class NeutralMaui
 
 	static IReadOnlySet<string> LoadViewMapperKeys()
 	{
+		ControlsHost.EnsureBuilt();
+
 		var viewHandler = Core.GetExportedTypes().First(t => t.FullName == "Microsoft.Maui.Handlers.ViewHandler");
 		var keys = MapperKeys(viewHandler, "ViewMapper").ToHashSet(StringComparer.Ordinal);
 

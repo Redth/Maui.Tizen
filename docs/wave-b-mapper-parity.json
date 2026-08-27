@@ -535,6 +535,11 @@
           "Key": "StrokeMiterLimit",
           "Method": "MapStrokeMiterLimit",
           "Status": "Supported"
+        },
+        {
+          "Key": "StrokeDashArray",
+          "Method": "MapStrokeDashArray",
+          "Status": "Supported"
         }
       ],
       "CommandMappers": [],
@@ -590,12 +595,16 @@
           "Key": "Source",
           "Method": "MapSource",
           "Status": "Supported"
+        },
+        {
+          "Key": "IconColor",
+          "Method": "MapIconColor",
+          "Status": "NoOp",
+          "Reason": "Intentional no-op. The Tizen swipe menu button renders its icon through a plain image view with no tint or colour-filter API, so the Controls-level \u003Cc\u003EIconColor\u003C/c\u003E cannot be applied natively. Upstream\u0027s Tizen backend likewise supplies no implementation. Mapped explicitly rather than left absent so the property is a documented gap instead of a silent one. See docs/wave-b-mapper-parity.md."
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": [
-        "IconColor"
-      ]
+      "UncoveredNeutralKeys": []
     },
     {
       "Handler": "TizenSwipeItemViewHandler",

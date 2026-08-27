@@ -28,6 +28,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(ISwipeItemMenuItem.Background)] = MapBackground,
 				[nameof(ISwipeItemMenuItem.Visibility)] = MapVisibility,
 				[nameof(IImageSourcePart.Source)] = MapSource,
+
+				// Controls-contributed key. Microsoft.Maui.Controls adds IconColor to the NEUTRAL
+				// SwipeItemMenuItemHandler.Mapper, which this handler does not chain. The name is a
+				// literal because ISwipeItemMenuItem has no IconColor property to take nameof from --
+				// an earlier revision used nameof(ISwipeItemMenuItem.IconColor) and did not compile,
+				// which is easily misread as "the key does not exist". It does; only the Core
+				// interface member does not.
+				[IconColorKey] = MapIconColor,
 			};
 
 		public static CommandMapper<ISwipeItemMenuItem, TizenSwipeItemMenuItemHandler> CommandMapper =
@@ -112,6 +120,23 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapSource(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view) =>
 			_ = MapSourceAsync(handler, view);
+
+		/// <summary>
+		/// The <c>IconColor</c> mapper key, contributed by Microsoft.Maui.Controls rather than
+		/// declared on <see cref="ISwipeItemMenuItem"/>.
+		/// </summary>
+		public const string IconColorKey = "IconColor";
+
+		/// <summary>
+		/// Intentional no-op. The Tizen swipe menu button renders its icon through a plain image view
+		/// with no tint or colour-filter API, so the Controls-level <c>IconColor</c> cannot be applied
+		/// natively. Upstream's Tizen backend likewise supplies no implementation. Mapped explicitly
+		/// rather than left absent so the property is a documented gap instead of a silent one.
+		/// See docs/wave-b-mapper-parity.md.
+		/// </summary>
+		public static void MapIconColor(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view)
+		{
+		}
 
 
 		public static Task MapSourceAsync(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view)

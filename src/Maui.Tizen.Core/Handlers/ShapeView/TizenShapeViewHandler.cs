@@ -32,6 +32,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(IShapeView.StrokeLineCap)] = MapStrokeLineCap,
 				[nameof(IShapeView.StrokeLineJoin)] = MapStrokeLineJoin,
 				[nameof(IShapeView.StrokeMiterLimit)] = MapStrokeMiterLimit,
+
+				// Controls-contributed key. Microsoft.Maui.Controls.Shapes.Shape.RemapForControls()
+				// adds StrokeDashArray to the NEUTRAL ShapeViewHandler.Mapper, which this handler does
+				// not chain, so without re-declaring it here the property would silently do nothing.
+				// The name is a literal because StrokeDashArray is a Controls concept and this
+				// assembly deliberately does not reference Microsoft.Maui.Controls; there is no
+				// StrokeDashArray on IShapeView to take nameof from.
+				[StrokeDashArrayKey] = MapStrokeDashArray,
 			};
 
 		public static CommandMapper<IShapeView, TizenShapeViewHandler> CommandMapper =
@@ -79,5 +87,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public static void MapStrokeLineJoin(TizenShapeViewHandler handler, IShapeView shapeView) => handler.PlatformView?.InvalidateShape(shapeView);
 
 		public static void MapStrokeMiterLimit(TizenShapeViewHandler handler, IShapeView shapeView) => handler.PlatformView?.InvalidateShape(shapeView);
+
+		/// <summary>
+		/// The <c>StrokeDashArray</c> mapper key, contributed by Microsoft.Maui.Controls rather than
+		/// declared on <see cref="IShapeView"/>.
+		/// </summary>
+		public const string StrokeDashArrayKey = "StrokeDashArray";
+
+		/// <summary>
+		/// Redraws the shape when the Controls-level <c>StrokeDashArray</c> changes.
+		/// </summary>
+		/// <remarks>
+		/// Mirrors upstream <c>Shape.Tizen.cs</c>, which invalidates the shape. The dash array feeds
+		/// <see cref="IShapeView.StrokeDashPattern"/>, so a redraw is all that is required.
+		/// </remarks>
+		public static void MapStrokeDashArray(TizenShapeViewHandler handler, IShapeView shapeView) => handler.PlatformView?.InvalidateShape(shapeView);
 	}
 }

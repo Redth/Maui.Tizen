@@ -29,6 +29,10 @@ public class MapperParityTests
 	/// <summary>Builds the parity view from source plus reflection over the real MAUI assemblies.</summary>
 	static ParityDocument Build()
 	{
+		// Mapper state is process-global and Controls mutates it; read it in its realistic,
+		// fully-remapped form so the manifest cannot depend on test execution order.
+		ControlsHost.EnsureBuilt();
+
 		var handlers = new List<ParityHandler>();
 
 		foreach (var handler in WaveBSource.Handlers)
