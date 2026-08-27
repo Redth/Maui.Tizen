@@ -12,7 +12,9 @@ normalized copies under `src/**/PublicAPI/net-tizen/`. The manifest pins the ups
 and `eng/manifests/source-disposition.json` maps each upstream path to its imported target path.
 The workload-free tests join those two manifests and require every target file to remain
 byte-identical. They also reject deletion, extra files, and path or case drift without network
-access or a writable hash sidecar.
+access or a writable hash sidecar. Every repository path component is resolved from the physical
+workspace root with exact casing; unresolved reparse points, symbolic links, and targets escaping
+their declared imported/trust-anchor directory fail closed.
 
 ## Imported provenance versus package baselines
 

@@ -7,6 +7,7 @@ internal sealed record ImportedPublicApiFile(string TargetPath, string Sha256);
 internal static class ImportedPublicApiBaselineVerifier
 {
     private const string BaselineDirectory = "eng/api-baselines/net11.0-publicapi";
+    private const int MaximumLinkDepth = 40;
 
     private static readonly (string FileName, string HashProperty)[] BaselineFiles =
     [
@@ -14,11 +15,23 @@ internal static class ImportedPublicApiBaselineVerifier
         ("PublicAPI.Unshipped.txt", "unshippedSha256"),
     ];
 
+    private static readonly EnumerationOptions DirectoryEnumerationOptions = new()
+    {
+        AttributesToSkip = 0,
+        IgnoreInaccessible = false,
+        RecurseSubdirectories = false,
+        ReturnSpecialDirectories = false,
+    };
+
+    private static StringComparer FileSystemPathComparer =>
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
     public static IReadOnlyList<ImportedPublicApiFile> LoadTrustedInventory(string repoRoot)
     {
-        using var baselines = LoadJson(repoRoot, "eng/baselines.json");
-        using var manifest = LoadJson(repoRoot, $"{BaselineDirectory}/manifest.json");
-        using var disposition = LoadJson(repoRoot, "eng/manifests/source-disposition.json");
+        var canonicalRepoRoot = ResolvePhysicalExistingPath(repoRoot);
+        using var baselines = LoadJson(canonicalRepoRoot, "eng/baselines.json");
+        using var manifest = LoadJson(canonicalRepoRoot, $"{BaselineDirectory}/manifest.json");
+        using var disposition = LoadJson(canonicalRepoRoot, "eng/manifests/source-disposition.json");
 
         var baselineSource = baselines.RootElement.GetProperty("source");
         var expectedRepository = baselineSource.GetProperty("repository").GetString()!;
@@ -54,16 +67,16 @@ internal static class ImportedPublicApiBaselineVerifier
             {
                 var sourcePath = $"{sourceDirectory}/{fileName}";
                 var sha256 = project.GetProperty(hashProperty).GetString()!;
-                var trustedArtifact = Path.Combine(repoRoot, BaselineDirectory, projectName, fileName);
+                var trustedArtifactPath = $"{BaselineDirectory}/{projectName}/{fileName}";
 
                 Require(IsSha256(sha256), $"Invalid SHA-256 for {sourcePath}: {sha256}");
-                Require(File.Exists(trustedArtifact), $"Missing trusted PublicAPI artifact: {trustedArtifact}");
-                Require(
-                    !TryFindReparsePoint(repoRoot, trustedArtifact, out var trustedLink),
-                    $"Trusted PublicAPI artifact path contains a symbolic link: {trustedLink}");
+                var trustedArtifact = ResolveContainedRegularFile(
+                    canonicalRepoRoot,
+                    BaselineDirectory,
+                    trustedArtifactPath);
                 Require(
                     TestPaths.Sha256Hex(trustedArtifact) == sha256,
-                    $"Trusted PublicAPI artifact does not match its pinned hash: {trustedArtifact}");
+                    $"Trusted PublicAPI artifact does not match its pinned hash: {trustedArtifactPath}");
                 Require(
                     trustedSources.TryAdd(sourcePath, new TrustedSourceFile(sourcePath, fileName, sha256)),
                     $"Duplicate trusted PublicAPI source path: {sourcePath}");
@@ -129,6 +142,16 @@ internal static class ImportedPublicApiBaselineVerifier
         IReadOnlyCollection<ImportedPublicApiFile> expectedFiles)
     {
         var errors = new SortedSet<string>(StringComparer.Ordinal);
+        string canonicalRepoRoot;
+        try
+        {
+            canonicalRepoRoot = ResolvePhysicalExistingPath(repoRoot);
+        }
+        catch (InvalidDataException exception)
+        {
+            return [$"Repository root could not be resolved safely: {exception.Message}"];
+        }
+
         var expectedByPath = new Dictionary<string, ImportedPublicApiFile>(StringComparer.Ordinal);
 
         foreach (var expected in expectedFiles.OrderBy(file => file.TargetPath, StringComparer.Ordinal))
@@ -149,7 +172,7 @@ internal static class ImportedPublicApiBaselineVerifier
                 + string.Join(", ", collision.Select(file => file.TargetPath).OrderBy(path => path, StringComparer.Ordinal)));
         }
 
-        var scan = ScanSourceTree(repoRoot);
+        var scan = ScanSourceTree(canonicalRepoRoot);
         var actualPaths = scan.ImportedFiles;
 
         foreach (var path in scan.NonPortablePaths)
@@ -170,37 +193,59 @@ internal static class ImportedPublicApiBaselineVerifier
 
         foreach (var reparsePoint in scan.ReparsePoints)
         {
-            var reparsePrefix = reparsePoint.TrimEnd('/') + "/";
+            var reparsePrefix = reparsePoint.Path.TrimEnd('/') + "/";
             var affectedExpectedPath = expectedPaths.FirstOrDefault(
-                expectedPath => expectedPath.Equals(reparsePoint, StringComparison.OrdinalIgnoreCase)
+                expectedPath => expectedPath.Equals(reparsePoint.Path, StringComparison.OrdinalIgnoreCase)
                     || expectedPath.StartsWith(reparsePrefix, StringComparison.OrdinalIgnoreCase));
 
-            if (affectedExpectedPath is not null)
+            if (reparsePoint.ResolutionError is not null)
             {
-                errors.Add($"Imported baseline path contains a symbolic link: {reparsePoint} (affects {affectedExpectedPath})");
+                errors.Add(
+                    $"Source tree reparse point could not be resolved: {reparsePoint.Path} "
+                    + $"({reparsePoint.ResolutionError})");
                 continue;
             }
 
-            errors.Add(
-                $"Source tree symbolic links are not allowed because they can alias imported baselines: {reparsePoint}");
+            if (reparsePoint.EscapesTrustedRoot)
+            {
+                errors.Add(
+                    $"Source tree symbolic link escapes the trusted src root: "
+                    + $"{reparsePoint.Path} -> {reparsePoint.ResolvedPath}");
+                continue;
+            }
+
+            errors.Add(affectedExpectedPath is null
+                ? $"Source tree symbolic links are not allowed because they can alias imported baselines: {reparsePoint.Path}"
+                : $"Imported baseline path contains a symbolic link: {reparsePoint.Path} (affects {affectedExpectedPath})");
         }
 
         foreach (var expected in expectedByPath.Values.OrderBy(file => file.TargetPath, StringComparer.Ordinal))
         {
+            string? resolvedFile = null;
+            try
+            {
+                resolvedFile = ResolveContainedRegularFile(
+                    canonicalRepoRoot,
+                    GetParentPath(expected.TargetPath),
+                    expected.TargetPath);
+            }
+            catch (InvalidDataException exception)
+            {
+                errors.Add(exception.Message);
+            }
+
             if (!actualSet.Contains(expected.TargetPath))
             {
                 errors.Add($"Missing imported baseline: {expected.TargetPath}");
                 continue;
             }
 
-            var actualPath = Path.Combine(repoRoot, expected.TargetPath.Replace('/', Path.DirectorySeparatorChar));
-            if ((File.GetAttributes(actualPath) & FileAttributes.ReparsePoint) != 0)
+            if (resolvedFile is null)
             {
-                errors.Add($"Imported baseline must be a regular file, not a symbolic link: {expected.TargetPath}");
                 continue;
             }
 
-            var actualHash = TestPaths.Sha256Hex(actualPath);
+            var actualHash = TestPaths.Sha256Hex(resolvedFile);
             if (actualHash != expected.Sha256)
             {
                 errors.Add(
@@ -225,19 +270,11 @@ internal static class ImportedPublicApiBaselineVerifier
     private static SourceTreeScan ScanSourceTree(string repoRoot)
     {
         var importedFiles = new List<string>();
-        var reparsePoints = new List<string>();
+        var reparsePoints = new List<SourceTreeReparsePoint>();
         var nonPortablePaths = new List<string>();
-        var options = new EnumerationOptions
-        {
-            AttributesToSkip = 0,
-            IgnoreInaccessible = false,
-            RecurseSubdirectories = false,
-            ReturnSpecialDirectories = false,
-        };
-
         var pending = new Stack<DirectoryInfo>();
         var rootEntries = new DirectoryInfo(repoRoot)
-            .EnumerateFileSystemInfos("*", options)
+            .EnumerateFileSystemInfos("*", DirectoryEnumerationOptions)
             .OrderBy(entry => entry.Name, StringComparer.Ordinal)
             .ToList();
 
@@ -256,7 +293,11 @@ internal static class ImportedPublicApiBaselineVerifier
         {
             if ((sourceRoot.Attributes & FileAttributes.ReparsePoint) != 0)
             {
-                reparsePoints.Add(sourceRoot.Name);
+                reparsePoints.Add(InspectSourceTreeReparsePoint(
+                    repoRoot,
+                    Path.Combine(repoRoot, "src"),
+                    sourceRoot,
+                    sourceRoot.Name));
             }
             else if (sourceRoot is DirectoryInfo sourceDirectory)
             {
@@ -267,7 +308,7 @@ internal static class ImportedPublicApiBaselineVerifier
         while (pending.Count > 0)
         {
             var directory = pending.Pop();
-            foreach (var entry in directory.EnumerateFileSystemInfos("*", options)
+            foreach (var entry in directory.EnumerateFileSystemInfos("*", DirectoryEnumerationOptions)
                 .OrderBy(entry => entry.Name, StringComparer.Ordinal))
             {
                 var rawRelativePath = Path.GetRelativePath(repoRoot, entry.FullName);
@@ -279,7 +320,11 @@ internal static class ImportedPublicApiBaselineVerifier
 
                 if ((entry.Attributes & FileAttributes.ReparsePoint) != 0)
                 {
-                    reparsePoints.Add(relativePath);
+                    reparsePoints.Add(InspectSourceTreeReparsePoint(
+                        repoRoot,
+                        Path.Combine(repoRoot, "src"),
+                        entry,
+                        relativePath));
                     continue;
                 }
 
@@ -295,29 +340,277 @@ internal static class ImportedPublicApiBaselineVerifier
         }
 
         importedFiles.Sort(StringComparer.Ordinal);
-        reparsePoints.Sort(StringComparer.Ordinal);
+        reparsePoints.Sort((left, right) => StringComparer.Ordinal.Compare(left.Path, right.Path));
         nonPortablePaths.Sort(StringComparer.Ordinal);
         return new SourceTreeScan(importedFiles, reparsePoints, nonPortablePaths);
     }
 
-    private static bool TryFindReparsePoint(string root, string path, out string? reparsePoint)
+    private static SourceTreeReparsePoint InspectSourceTreeReparsePoint(
+        string repoRoot,
+        string trustedSourceRoot,
+        FileSystemInfo reparsePoint,
+        string relativePath)
     {
-        var relativePath = Path.GetRelativePath(root, path);
-        var currentPath = root;
-
-        foreach (var segment in relativePath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+        try
         {
-            currentPath = Path.Combine(currentPath, segment);
-            if ((File.GetAttributes(currentPath) & FileAttributes.ReparsePoint) != 0)
+            var resolvedPath = ResolveReparsePoint(reparsePoint, relativePath);
+            var displayPath = IsPathContained(repoRoot, resolvedPath)
+                ? NormalizePath(Path.GetRelativePath(repoRoot, resolvedPath))
+                : resolvedPath;
+
+            return new SourceTreeReparsePoint(
+                relativePath,
+                displayPath,
+                EscapesTrustedRoot: !IsPathContained(trustedSourceRoot, resolvedPath),
+                ResolutionError: null);
+        }
+        catch (InvalidDataException exception)
+        {
+            return new SourceTreeReparsePoint(
+                relativePath,
+                ResolvedPath: null,
+                EscapesTrustedRoot: false,
+                ResolutionError: exception.Message);
+        }
+    }
+
+    private static string ResolveContainedRegularFile(
+        string canonicalRepoRoot,
+        string trustedRootRelativePath,
+        string fileRelativePath)
+    {
+        ValidateRepositoryRelativePath(trustedRootRelativePath, "trusted root");
+        ValidateRepositoryRelativePath(fileRelativePath, "file");
+
+        var trustedRoot = Path.GetFullPath(
+            Path.Combine(canonicalRepoRoot, ToPlatformPath(trustedRootRelativePath)));
+        var intendedFile = Path.GetFullPath(
+            Path.Combine(canonicalRepoRoot, ToPlatformPath(fileRelativePath)));
+
+        Require(
+            IsPathContained(trustedRoot, intendedFile),
+            $"Repository file is outside its trusted root: {fileRelativePath} (root {trustedRootRelativePath})");
+
+        var currentDirectory = new DirectoryInfo(canonicalRepoRoot);
+        var segments = fileRelativePath.Split('/');
+
+        for (var index = 0; index < segments.Length; index++)
+        {
+            var segment = segments[index];
+            var entry = FindExactEntry(canonicalRepoRoot, currentDirectory, segment, fileRelativePath);
+            var entryRelativePath = NormalizePath(Path.GetRelativePath(canonicalRepoRoot, entry.FullName));
+
+            if ((entry.Attributes & FileAttributes.ReparsePoint) != 0)
             {
-                reparsePoint = NormalizePath(Path.GetRelativePath(root, currentPath));
-                return true;
+                var resolvedPath = ResolveReparsePoint(entry, entryRelativePath);
+                Require(
+                    IsPathContained(trustedRoot, resolvedPath),
+                    $"Repository path component resolves outside its trusted root: "
+                        + $"{entryRelativePath} -> {resolvedPath} (root {trustedRootRelativePath})");
+                throw new InvalidDataException(
+                    $"Repository path component is a symbolic link: {entryRelativePath} -> {resolvedPath}");
             }
+
+            var isFinalSegment = index == segments.Length - 1;
+            if (!isFinalSegment)
+            {
+                Require(
+                    entry is DirectoryInfo,
+                    $"Repository path component is not a directory: {entryRelativePath}");
+                currentDirectory = (DirectoryInfo)entry;
+                continue;
+            }
+
+            Require(entry is FileInfo, $"Expected a regular repository file: {fileRelativePath}");
+            var resolvedFile = ResolvePhysicalExistingPath(entry.FullName);
+            Require(
+                IsPathContained(trustedRoot, resolvedFile),
+                $"Repository file resolves outside its trusted root: "
+                    + $"{fileRelativePath} -> {resolvedFile} (root {trustedRootRelativePath})");
+            return resolvedFile;
         }
 
-        reparsePoint = null;
-        return false;
+        throw new InvalidDataException($"Repository file has no path segments: {fileRelativePath}");
     }
+
+    private static FileSystemInfo FindExactEntry(
+        string canonicalRepoRoot,
+        DirectoryInfo directory,
+        string expectedName,
+        string expectedPath)
+    {
+        var matches = directory
+            .EnumerateFileSystemInfos("*", DirectoryEnumerationOptions)
+            .Where(entry => entry.Name.Equals(expectedName, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(entry => entry.Name, StringComparer.Ordinal)
+            .ToList();
+        var exactMatches = matches
+            .Where(entry => entry.Name.Equals(expectedName, StringComparison.Ordinal))
+            .ToList();
+
+        if (exactMatches.Count == 0)
+        {
+            if (matches.Count > 0)
+            {
+                throw new InvalidDataException(
+                    $"Repository path/case drift: expected '{expectedName}' in "
+                    + $"'{NormalizePath(Path.GetRelativePath(canonicalRepoRoot, directory.FullName))}', "
+                    + $"found {string.Join(", ", matches.Select(entry => $"'{entry.Name}'"))} while resolving {expectedPath}");
+            }
+
+            throw new InvalidDataException($"Missing repository file or directory while resolving {expectedPath}: {expectedName}");
+        }
+
+        Require(
+            matches.Count == 1,
+            $"Repository path component collides by case while resolving {expectedPath}: "
+                + string.Join(", ", matches.Select(entry => entry.Name)));
+        return exactMatches[0];
+    }
+
+    private static string ResolvePhysicalExistingPath(string path)
+    {
+        var visitedLinks = new HashSet<string>(FileSystemPathComparer);
+        return ResolvePhysicalExistingPath(path, visitedLinks, linkDepth: 0);
+    }
+
+    private static string ResolvePhysicalExistingPath(
+        string path,
+        HashSet<string> visitedLinks,
+        int linkDepth)
+    {
+        Require(linkDepth <= MaximumLinkDepth, $"Too many symbolic links while resolving {path}");
+
+        var fullPath = Path.GetFullPath(path);
+        var pathRoot = Path.GetPathRoot(fullPath);
+        Require(!string.IsNullOrEmpty(pathRoot), $"Path has no filesystem root: {path}");
+
+        var currentPath = pathRoot!;
+        var remainingPath = fullPath[pathRoot!.Length..];
+        var segments = remainingPath.Split(
+            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+            StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var segment in segments)
+        {
+            var candidatePath = Path.Combine(currentPath, segment);
+            FileAttributes attributes;
+            try
+            {
+                attributes = File.GetAttributes(candidatePath);
+            }
+            catch (FileNotFoundException exception)
+            {
+                throw new InvalidDataException($"Path component does not exist: {candidatePath}", exception);
+            }
+            catch (DirectoryNotFoundException exception)
+            {
+                throw new InvalidDataException($"Path component does not exist: {candidatePath}", exception);
+            }
+            catch (UnauthorizedAccessException exception)
+            {
+                throw new InvalidDataException($"Path component cannot be inspected: {candidatePath}", exception);
+            }
+            catch (IOException exception)
+            {
+                throw new InvalidDataException($"Path component cannot be inspected: {candidatePath}", exception);
+            }
+
+            FileSystemInfo entry = (attributes & FileAttributes.Directory) != 0
+                ? new DirectoryInfo(candidatePath)
+                : new FileInfo(candidatePath);
+
+            if ((attributes & FileAttributes.ReparsePoint) == 0)
+            {
+                currentPath = Path.GetFullPath(entry.FullName);
+                continue;
+            }
+
+            var linkPath = Path.GetFullPath(entry.FullName);
+            Require(visitedLinks.Add(linkPath), $"Symbolic link cycle detected at {linkPath}");
+            var resolvedTarget = ResolveLinkTarget(entry, linkPath);
+            currentPath = ResolvePhysicalExistingPath(
+                resolvedTarget.FullName,
+                visitedLinks,
+                linkDepth + 1);
+        }
+
+        return Path.TrimEndingDirectorySeparator(currentPath);
+    }
+
+    private static string ResolveReparsePoint(FileSystemInfo reparsePoint, string displayPath)
+    {
+        var resolvedTarget = ResolveLinkTarget(reparsePoint, displayPath);
+        try
+        {
+            return ResolvePhysicalExistingPath(resolvedTarget.FullName);
+        }
+        catch (InvalidDataException exception)
+        {
+            throw new InvalidDataException(
+                $"Reparse point target could not be resolved: {displayPath} ({exception.Message})",
+                exception);
+        }
+    }
+
+    private static FileSystemInfo ResolveLinkTarget(FileSystemInfo reparsePoint, string displayPath)
+    {
+        try
+        {
+            return reparsePoint.ResolveLinkTarget(returnFinalTarget: true)
+                ?? throw new InvalidDataException($"Unresolved reparse point: {displayPath}");
+        }
+        catch (FileNotFoundException exception)
+        {
+            throw new InvalidDataException($"Unresolved reparse point: {displayPath}", exception);
+        }
+        catch (DirectoryNotFoundException exception)
+        {
+            throw new InvalidDataException($"Unresolved reparse point: {displayPath}", exception);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            throw new InvalidDataException($"Reparse point cannot be resolved: {displayPath}", exception);
+        }
+        catch (IOException exception)
+        {
+            throw new InvalidDataException($"Reparse point cannot be resolved: {displayPath}", exception);
+        }
+    }
+
+    private static bool IsPathContained(string trustedRoot, string candidatePath)
+    {
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(trustedRoot));
+        var candidate = Path.TrimEndingDirectorySeparator(Path.GetFullPath(candidatePath));
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        return candidate.Equals(root, comparison)
+            || candidate.StartsWith(root + Path.DirectorySeparatorChar, comparison);
+    }
+
+    private static void ValidateRepositoryRelativePath(string path, string role)
+    {
+        Require(!Path.IsPathRooted(path), $"Repository {role} path must be relative: {path}");
+        Require(!path.Contains('\\'), $"Repository {role} path must use '/' separators: {path}");
+
+        var segments = path.Split('/');
+        Require(
+            segments.Length > 0
+                && segments.All(segment => segment.Length > 0 && segment is not "." and not ".."),
+            $"Repository {role} path is not canonical: {path}");
+    }
+
+    private static string GetParentPath(string path)
+    {
+        var separator = path.LastIndexOf('/');
+        Require(separator > 0, $"Repository file path has no parent directory: {path}");
+        return path[..separator];
+    }
+
+    private static string ToPlatformPath(string path) =>
+        path.Replace('/', Path.DirectorySeparatorChar);
 
     private static bool IsCanonicalImportedDirectory(string path)
     {
@@ -381,11 +674,10 @@ internal static class ImportedPublicApiBaselineVerifier
 
     private static JsonDocument LoadJson(string repoRoot, string relativePath)
     {
-        var path = Path.Combine(repoRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
-        Require(File.Exists(path), $"Missing trusted provenance file: {relativePath}");
-        Require(
-            !TryFindReparsePoint(repoRoot, path, out var reparsePoint),
-            $"Trusted provenance path contains a symbolic link: {reparsePoint}");
+        var path = ResolveContainedRegularFile(
+            repoRoot,
+            GetParentPath(relativePath),
+            relativePath);
         return JsonDocument.Parse(File.ReadAllText(path));
     }
 
@@ -403,7 +695,12 @@ internal static class ImportedPublicApiBaselineVerifier
 
     private sealed record SourceTreeScan(
         List<string> ImportedFiles,
-        List<string> ReparsePoints,
+        List<SourceTreeReparsePoint> ReparsePoints,
         List<string> NonPortablePaths);
+    private sealed record SourceTreeReparsePoint(
+        string Path,
+        string? ResolvedPath,
+        bool EscapesTrustedRoot,
+        string? ResolutionError);
     private sealed record TrustedSourceFile(string SourcePath, string FileName, string Sha256);
 }

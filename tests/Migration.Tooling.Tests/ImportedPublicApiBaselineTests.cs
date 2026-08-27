@@ -127,7 +127,37 @@ public class ImportedPublicApiBaselineTests
 
         Assert.Contains(
             errors,
-            error => error.Contains("Imported baseline path contains a symbolic link:", StringComparison.Ordinal));
+            error => error.Contains("Repository path component resolves outside its trusted root:", StringComparison.Ordinal)
+                && error.Contains("src/Example/PublicAPI/net-tizen", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Unresolved_imported_directory_symlink_fails_closed()
+    {
+        using var fixture = CreateValidFixture();
+        var canonicalDirectory = fixture.Path_("src/Example/PublicAPI/net-tizen");
+        var missingDirectory = fixture.Path_("missing/net-tizen");
+        Directory.Delete(canonicalDirectory, recursive: true);
+
+        try
+        {
+            Directory.CreateSymbolicLink(canonicalDirectory, missingDirectory);
+        }
+        catch (PlatformNotSupportedException)
+        {
+            return;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return;
+        }
+
+        var errors = ImportedPublicApiBaselineVerifier.VerifyTree(fixture.Root, fixture.Expected);
+
+        Assert.Contains(
+            errors,
+            error => error.Contains("could not be resolved:", StringComparison.Ordinal)
+                && error.Contains("src/Example/PublicAPI/net-tizen", StringComparison.Ordinal));
     }
 
     [Fact]

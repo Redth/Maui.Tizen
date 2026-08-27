@@ -156,7 +156,9 @@ Their upstream paths and normalized target paths are recorded in
 SHA-256 values are generated from a provenance-verified snapshot and pinned in
 [`eng/api-baselines/net11.0-publicapi/manifest.json`](eng/api-baselines/net11.0-publicapi/manifest.json).
 The workload-free CI lane joins those manifests and rejects content changes, deletion, extra
-files, and path or case drift entirely offline.
+files, path or case drift, unresolved reparse points, and symbolic-link escapes entirely offline.
+Every protected file is resolved component-by-component and must remain a regular file inside its
+declared imported baseline directory.
 
 Generated package baselines belong under `src/**/PublicAPI/slice/` and describe the standalone
 Maui.Tizen assembly that consumes them. Generating a slice baseline into `net-tizen` would replace
