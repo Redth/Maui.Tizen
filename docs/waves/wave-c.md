@@ -167,7 +167,11 @@ Wave C consumes two Tizen platform primitives that the net11 MAUI surface does n
 | `DrawerView` update extensions (6) | 6 | Core |
 | `FlyoutBehavior` → drawer behaviour mapping | 1 | Core |
 
-Ownership was confirmed on 2026-08-26. Wave C owns the Flyout/Shell/navigation **handlers** and two
+Ownership was confirmed on 2026-08-26. The integration check behind it ran against Core head
+`4e256f1271`; live Core is now `2f19d872f74e` (19 commits on), so that check is **stale** and will
+be re-run against stable reviewed Core -> Wave A -> Wave B heads before the acceptance gate opens.
+The three-extension collision it found is confirmed and assigned: Core owns those members, Wave B
+deletes its duplicates during the final rebase. Wave C owns the Flyout/Shell/navigation **handlers** and two
 pieces of its own cleanup: re-pointing at existing Core/Wave B names (`ToTizenNativeColor`,
 `ToTizenCommonColor`, `TizenWrapperView`, `TizenPlatformExtensions.UpdateBackground`) and inlining
 the handler-specific toolbar attach, since `ViewHandler.MapToolbar` never existed outside MAUI's

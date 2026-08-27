@@ -159,4 +159,37 @@ public class WaveCAcceptanceGateTests
 			"These would create a second authoritative copy of a Core-owned primitive: "
 				+ string.Join(", ", offenders));
 	}
+
+	/// <summary>
+	/// The head Wave C's integration check was last actually run against.
+	/// </summary>
+	/// <remarks>
+	/// Recorded so that "Core is complete for Wave C" is always attributable to a specific commit.
+	/// It was reported once against a head that had already moved on by 19 commits, which is an easy
+	/// mistake to make and a hard one to notice.
+	/// </remarks>
+	public const string LastVerifiedCoreHead = "4e256f1271";
+
+	/// <summary>
+	/// Keeps the recorded verification honest about which head it applies to.
+	/// </summary>
+	/// <remarks>
+	/// This does not try to detect drift - the test host has no reliable view of other branches, and
+	/// a test that silently no-ops is worse than none. It pins the claim to a commit so a reviewer
+	/// can compare it against the live head, and so the acceptance gate cannot be opened on the
+	/// strength of a verification whose subject is no longer identifiable.
+	/// </remarks>
+	[Fact]
+	public void TheRecordedIntegrationVerificationNamesTheHeadItWasRunAgainst()
+	{
+		var props = File.ReadAllText(
+			RepoPaths.Combine("eng", "Maui.Tizen.WaveC.Sources.props"));
+
+		Assert.Contains(LastVerifiedCoreHead, props, StringComparison.Ordinal);
+
+		// And it must be described as stale rather than as standing approval, because the gate is
+		// still closed and the predecessor heads have moved.
+		Assert.Contains("STALE", props, StringComparison.Ordinal);
+	}
+
 }

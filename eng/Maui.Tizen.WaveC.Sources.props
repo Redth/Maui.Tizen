@@ -53,8 +53,11 @@
     UpdateIsGestureEnabled) and the FlyoutBehavior mapping, which Core named
     ToTizenDrawerBehavior(this FlyoutBehavior) rather than ToPlatform.
 
-    A throwaway trial merge against that head confirmed Core is COMPLETE for Wave C: after the four
-    renames, every remaining diagnostic was Wave C's own section C/D cleanup.
+    A throwaway trial merge against Core head 4e256f1271 confirmed Core was complete for Wave C at
+    that point. That result is now STALE: live Core is 2f19d872f74e, 19 commits further on. The
+    integration must be re-run against stable reviewed Core -> Wave A -> Wave B heads before the
+    gate is opened. WaveCAcceptanceGateTests pins the last-verified head so this cannot silently
+    drift again.
 
     Wave C waits for Core's FINAL REVIEWED head before rebasing, so none of this is adopted yet.
     Until then, Wave C
