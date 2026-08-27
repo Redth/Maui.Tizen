@@ -12,7 +12,7 @@
 
     eng/tools/ApiDump and eng/tools/SourceInventory are also workload-free: they are the
     migration inventory / public API baseline generators, targeting net11.0 (the repository
-    floor -- see eng/baselines.json policy.minimumDotNet) though they need no Tizen workload.
+    floor - see eng/baselines.json policy.minimumDotNet) though they need no Tizen workload.
   -->
 
   <Folder Name="/src/">
