@@ -58,6 +58,8 @@ load-bearing assumption behind the whole design, and is pinned by
 ### Integration check
 
 - [ ] `AddTizenImageSources` registers file, stream, URI and font services.
+- [ ] `TheSeamRegistersTheDocumentedSourceTypes` updated to expect all four — it pins current truth,
+      so Wave B's additions land as a reviewed change rather than a silent one.
 - [ ] `FontAndUriSourcesAreNotYetTizenOwned` deleted, its cases folded into
       `TizenSourcesAreRegisteredOnTheTizenLane`.
 - [ ] **Wave B's handlers are registered in `ConfigureTizen` too**, not left as an
@@ -66,6 +68,31 @@ load-bearing assumption behind the whole design, and is pinned by
 - [ ] `EveryTizenRegistrationExtensionHasACaller` still passes — it fails on any public
       `AddTizen*` extension that no compiled source calls, which is how the missing
       `AddTizenControlHandlers` and `AddTizenControlServices` calls were found.
+
+### Assert implementation types, and know where that can actually be enforced
+
+Every image source test must assert **which implementation answers**, never that a service is
+registered. MAUI's neutral defaults resolve perfectly well and then render nothing, so a
+non-null assertion passes on an app that can never display an image.
+
+There is a trap in enforcing that, worth stating because it is invisible: **the runtime assertion
+cannot run anywhere today.** The Tizen services touch NUI, so they compile only under `TIZEN`; the
+ref-pack lane defines `TIZEN` but only compiles, and the Tizen test lane cannot execute at all
+while the Samsung workload is unpublished. A test guarded by `#if TIZEN` is therefore an *empty
+method body* on the only lane that runs — reporting a pass while asserting nothing.
+`TizenSourcesAreRegisteredOnTheTizenLane` was in exactly that state.
+
+So the enforceable guard is source-level:
+`EveryImageSourceTheSeamRegistersUsesATizenImplementation` reads the seam and fails if **any**
+`AddService<...>` maps to a non-`Tizen*` implementation. It asserts over every registration rather
+than a fixed list, so Wave B's URI and font services are covered automatically. Verified by
+simulating Wave B registering `IUriImageSource -> UriImageSourceService`: three tests fail and name
+the offending pair.
+
+`TizenSourcesAreRegisteredOnTheTizenLane` now delegates to that guard on the host lane instead of
+being empty, and `RegisteringTheTizenSourcesTwiceIsIdempotent` compares the resolved implementation
+type against the single-registration case rather than asserting non-null — which would have passed
+with the neutral default answering.
 
 ## 1a. Font services must REPLACE MAUI's, never TryAdd
 

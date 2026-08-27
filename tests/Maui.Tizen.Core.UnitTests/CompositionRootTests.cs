@@ -194,12 +194,102 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			Assert.IsType<TizenFileImageSourceService>(provider.GetImageSourceService(typeof(IFileImageSource)));
 			Assert.IsType<TizenStreamImageSourceService>(provider.GetImageSourceService(typeof(IStreamImageSource)));
+#else
+			// This lane cannot resolve the Tizen services - they are compiled out. Rather than
+			// leaving an empty body that reports a pass while asserting nothing, fall back to the
+			// strongest equivalent that IS checkable here: the seam really does register Tizen
+			// implementations for every source type it owns.
+			EveryImageSourceTheSeamRegistersUsesATizenImplementation();
+			TheSeamRegistersTheDocumentedSourceTypes();
 #endif
 		}
 
 		/// <summary>
-		/// Font and URI sources are still MAUI's neutral defaults, and that is the current truth.
+		/// Every image source the seam registers is a Tizen implementation.
 		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// This is the enforceable half of "assert Tizen implementation types", and it exists
+		/// because the runtime assertion below <b>cannot run anywhere</b>. The Tizen services touch
+		/// NUI, so they compile only under <c>TIZEN</c>; the ref-pack lane defines <c>TIZEN</c> but
+		/// only compiles, and the Tizen test lane cannot execute at all while the Samsung workload
+		/// is unpublished. A test guarded by <c>#if TIZEN</c> is therefore an empty method body on
+		/// the only lane that actually runs - it passes while asserting nothing.
+		/// </para>
+		/// <para>
+		/// Reading the seam's source is what can be checked today, and it catches the failure that
+		/// matters: a registration added for a new source type that quietly maps to a neutral or
+		/// stub implementation. Since it asserts over <i>every</i> registration in the seam rather
+		/// than a fixed list, it covers Wave B's URI and font services automatically.
+		/// </para>
+		/// </remarks>
+		[Fact]
+		public void EveryImageSourceTheSeamRegistersUsesATizenImplementation()
+		{
+			var registrations = SeamRegistrations();
+
+			Assert.True(
+				registrations.Count > 0,
+				"No AddService<...> registrations were found in AddTizenImageSources. Either the " +
+				"seam was emptied, or this test's parser no longer matches its shape - both are " +
+				"worth failing on, because a silently empty seam registers nothing and MAUI's " +
+				"neutral defaults answer instead.");
+
+			var neutral = registrations
+				.Where(r => !r.Implementation.StartsWith("Tizen", StringComparison.Ordinal))
+				.Select(r => $"{r.SourceType} -> {r.Implementation}")
+				.ToList();
+
+			Assert.True(
+				neutral.Count == 0,
+				"These image source registrations do not use a Tizen implementation:\n  " +
+				string.Join("\n  ", neutral) +
+				"\n\nA neutral or stub service resolves perfectly well and then renders nothing, so " +
+				"this cannot be caught by asserting that a service is registered.");
+		}
+
+		/// <summary>
+		/// The seam owns exactly the source types Wave A claims, no more.
+		/// </summary>
+		/// <remarks>
+		/// Pins current truth so Wave B's additions are a deliberate, reviewed change rather than a
+		/// silent one. When URI and font land, add them here and to the runtime assertion below.
+		/// </remarks>
+		[Fact]
+		public void TheSeamRegistersTheDocumentedSourceTypes()
+		{
+			var registered = SeamRegistrations()
+				.Select(r => r.SourceType)
+				.OrderBy(n => n, StringComparer.Ordinal)
+				.ToArray();
+
+			Assert.Equal(new[] { "IFileImageSource", "IStreamImageSource" }, registered);
+		}
+
+		/// <summary>
+		/// Parses the <c>AddService</c> registrations out of the seam's source.
+		/// </summary>
+		/// <remarks>
+		/// Source inspection rather than reflection, because on this lane the seam's body is
+		/// compiled out entirely - there is nothing to reflect over.
+		/// </remarks>
+		static IReadOnlyList<(string SourceType, string Implementation)> SeamRegistrations()
+		{
+			var seam = Path.Combine(
+				TestRepositoryPaths.Root,
+				"src", "Maui.Tizen.Core", "ImageSources", "TizenImageSourceServiceCollectionExtensions.cs");
+
+			Assert.True(File.Exists(seam), $"The image source seam is missing: {seam}");
+
+			return System.Text.RegularExpressions.Regex
+				.Matches(
+					File.ReadAllText(seam),
+					@"AddService<(?<source>\w+)>\s*\(\s*static\s+_\s*=>\s*new\s+(?<impl>\w+)")
+				.Select(m => (m.Groups["source"].Value, m.Groups["impl"].Value))
+				.ToList();
+		}
+
+
 		/// <remarks>
 		/// <para>
 		/// Wave A owns file and stream only. This records the gap so it is visible rather than
@@ -236,17 +326,27 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[Fact]
 		public void RegisteringTheTizenSourcesTwiceIsIdempotent()
 		{
-			var builder = MauiApp.CreateBuilder();
-			builder.UseMauiApp<HostApp>();
-			builder.ConfigureTizen();
-			builder.ConfigureImageSources(static sources => sources.AddTizenImageSources());
+			static Type? Resolve(bool registerTwice)
+			{
+				var builder = MauiApp.CreateBuilder();
+				builder.UseMauiApp<HostApp>();
+				builder.ConfigureTizen();
 
-			using var app = builder.Build();
+				if (registerTwice)
+					builder.ConfigureImageSources(static sources => sources.AddTizenImageSources());
 
-			var provider = app.Services.GetRequiredService<IImageSourceServiceProvider>();
+				using var app = builder.Build();
 
-			Assert.NotNull(provider.GetImageSourceService(typeof(IFileImageSource)));
-			Assert.NotNull(provider.GetImageSourceService(typeof(IStreamImageSource)));
+				return app.Services
+					.GetRequiredService<IImageSourceServiceProvider>()
+					.GetImageSourceService(typeof(IFileImageSource))
+					?.GetType();
+			}
+
+			// Comparing the resolved implementation against the single-registration case, rather
+			// than asserting non-null. A non-null assertion passes even when MAUI's neutral default
+			// is answering, which is precisely the failure this suite exists to detect.
+			Assert.Equal(Resolve(registerTwice: false), Resolve(registerTwice: true));
 		}
 
 		/// <summary>

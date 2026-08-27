@@ -43,10 +43,20 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// bug to find.
 		/// </para>
 		/// <para>
-		/// <b>Extending this is the supported path for the image workstream.</b> Add the font and
-		/// URI registrations here so they are picked up by the single call in <c>ConfigureTizen</c>,
-		/// rather than introducing a second entry point that a host has to remember to call - that
-		/// is the mistake this method's own missing call site demonstrated.
+		/// <b>Extending this method is the supported path for the image workstream</b>, and is the
+		/// agreed integration shape - add the font and URI registrations here so they are picked up
+		/// by the single call in <c>ConfigureTizen</c>, rather than introducing a second entry point
+		/// a host has to remember to call. That is not a style preference: this method's own missing
+		/// call site is what left every Tizen image service inactive in a real app.
+		/// </para>
+		/// <para>
+		/// <b>Register a Tizen implementation for every source type added here.</b> MAUI's neutral
+		/// services resolve perfectly well and then render nothing, so a registration that maps to
+		/// one cannot be caught by asserting that a service exists.
+		/// <c>CompositionRootTests.EveryImageSourceTheSeamRegistersUsesATizenImplementation</c>
+		/// reads this method and fails on any <c>AddService</c> whose implementation is not a
+		/// <c>Tizen*</c> type - it covers new source types automatically, so it will see Wave B's
+		/// additions without being updated.
 		/// </para>
 		/// </remarks>
 		/// <param name="services">The image source service collection.</param>
