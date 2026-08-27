@@ -89,5 +89,32 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.All(compiled, p => Assert.StartsWith("src/Maui.Tizen.Core/", p, StringComparison.Ordinal));
 		}
 
+
+		[Fact]
+		public void TheSampleDeclaresTizenManifestFileAsAProperty()
+		{
+			// Samsung's targets read $(TizenManifestFile) to locate the manifest when building the
+			// .tpk. It was declared as an ItemGroup entry instead - which looks plausible, is never
+			// read, and produces no warning, so the manifest would simply have been absent from the
+			// package.
+			var manifest = MSBuildEvaluation.GetProperty(
+				"samples/Maui.Tizen.Sample/Maui.Tizen.Sample.csproj",
+				"TizenManifestFile");
+
+			Assert.Equal("Platforms/Tizen/tizen-manifest.xml", manifest);
+		}
+
+		[Fact]
+		public void TheDeclaredManifestFileExists()
+		{
+			// A property pointing at nothing is no better than an unread item.
+			var manifest = MSBuildEvaluation.GetProperty(
+				"samples/Maui.Tizen.Sample/Maui.Tizen.Sample.csproj",
+				"TizenManifestFile");
+
+			Assert.True(
+				File.Exists(Path.Combine(RepositoryRoot, "samples/Maui.Tizen.Sample", manifest)),
+				$"The manifest '{manifest}' does not exist.");
+		}
 	}
 }

@@ -183,6 +183,28 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public static bool ShouldScheduleLayout(int layoutDepth, bool needMeasureUpdate) =>
 			layoutDepth == 0 && needMeasureUpdate;
 
+		/// <summary>
+		/// Converts a device-independent size to a font point size.
+		/// </summary>
+		/// <remarks>
+		/// Upstream is <c>dp.ToScaledPixel() * 72 / DeviceInfo.DPI</c>. The divisor is the PHYSICAL
+		/// dpi, not the display scaling factor: those are equal only in DP mode, and using the
+		/// scaling factor cancels exactly the scaling that ToScaledPixel just applied, so text
+		/// rendered at its unscaled point size while every other dimension scaled.
+		///
+		/// Extracted so the arithmetic executes on the host - the caller needs a native label and
+		/// can only ever be compile-checked.
+		/// </remarks>
+		/// <param name="dp">The device-independent size.</param>
+		/// <param name="displayScale">The display scaling factor, as applied by ToScaledPixel.</param>
+		/// <param name="physicalScale">The physical scale, dpi / 160.</param>
+		public static double ResolveFontPoint(double dp, double displayScale, double physicalScale)
+		{
+			var scaledPixels = Math.Round(dp * displayScale);
+
+			return scaledPixels * 72 / (physicalScale * TizenScalingPolicy.BaselineDpi);
+		}
+
 		/// <summary>Native <c>Tizen.NUI.EllipsisPosition</c> values, read from API15 metadata.</summary>
 		public const int EllipsisAtEnd = 0;
 

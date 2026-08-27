@@ -61,8 +61,17 @@
     <ProjectReference Include="$(RepositoryRoot)src/Maui.Tizen.Core/Maui.Tizen.Core.csproj" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <!--
+      A PROPERTY, not an item. Samsung's targets read $(TizenManifestFile) to locate the manifest
+      when building the .tpk; declaring it as an ItemGroup entry looked plausible and was simply
+      never read, so the manifest was silently ignored and the package would have been built
+      without it. Nothing warns about an item type nobody consumes.
+    -->
+    <TizenManifestFile>Platforms/Tizen/tizen-manifest.xml</TizenManifestFile>
+  </PropertyGroup>
+
   <ItemGroup>
-    <TizenManifestFile Include="Platforms/Tizen/tizen-manifest.xml" />
     <None Include="Platforms/Tizen/tizen-manifest.xml" />
   </ItemGroup>
 

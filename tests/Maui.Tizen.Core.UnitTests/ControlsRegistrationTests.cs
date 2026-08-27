@@ -6,6 +6,7 @@ using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Hosting;
 using Microsoft.Maui.Platforms.Tizen.Handlers;
+using Microsoft.Maui.Platforms.Tizen.Controls;
 using Microsoft.Maui.Platforms.Tizen.Hosting;
 using Xunit;
 
@@ -34,18 +35,24 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	[Collection(StaticMapperCollection.Name)]
 	public class ControlsRegistrationTests
 	{
+		/// <summary>
+		/// Builds an app through the PRODUCTION path only.
+		/// </summary>
+		/// <remarks>
+		/// This used to register the Tizen handlers by hand, which made every assertion below
+		/// vacuous: it proved the handlers work when someone wires them up, not that anything
+		/// wires them up. Under ConfigureTizenControls alone, Label resolved to MAUI's neutral
+		/// LabelHandler - the whole backend was unreachable from a real app and these tests were
+		/// green throughout.
+		///
+		/// Nothing is registered here that an application would not get from the two calls.
+		/// </remarks>
 		static MauiApp BuildControlsApp()
 		{
 			var builder = MauiApp.CreateBuilder();
 			builder.UseMauiApp<ControlsApp>();
 			builder.ConfigureTizen();
-			builder.ConfigureMauiHandlers(handlers =>
-			{
-				handlers.AddHandler<Label, TizenLabelHandler>();
-				handlers.AddHandler<ContentPage, TizenPageHandler>();
-				handlers.AddHandler<Microsoft.Maui.Controls.Layout, TizenLayoutHandler>();
-				handlers.AddHandler<Window, TizenWindowHandler>();
-			});
+			builder.ConfigureTizenControls();
 
 			return builder.Build();
 		}

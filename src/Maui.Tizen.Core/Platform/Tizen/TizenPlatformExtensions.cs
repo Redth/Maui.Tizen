@@ -83,8 +83,19 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <summary>Converts a device-independent value to a scaled font point size.</summary>
 		/// <param name="dp">The device-independent value.</param>
 		/// <returns>The value in points.</returns>
+		/// <remarks>
+		/// Divides by the PHYSICAL dpi, not by the display scaling factor.
+		///
+		/// Upstream is <c>dp.ToScaledPixel() * 72 / DeviceInfo.DPI</c>. Using
+		/// <c>Current * BaselineDpi</c> instead happens to equal that in DP mode, where the scaling
+		/// factor IS dpi/160 - but in every other display resolution unit the two differ, and the
+		/// division then cancels exactly the scaling that ToScaledPixel just applied. Text came out
+		/// at its unscaled point size while every other dimension scaled, so fonts were wrong
+		/// precisely on the devices where scaling matters most.
+		/// </remarks>
 		public static double ToScaledPoint(this double dp) =>
-			dp.ToScaledPixel() * 72 / (TizenDisplayDensity.Current * TizenDisplayDensity.BaselineDpi);
+			TizenPropertyResolvers.ResolveFontPoint(
+				dp, TizenDisplayDensity.Current, TizenDisplayDensity.PhysicalScale);
 
 		// ---------------------------------------------------------------------------------------
 		// Colors (ported from ColorExtensions).
@@ -643,13 +654,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 			var (hidden, highlightable) = TizenPropertyResolvers.ResolveAccessibility(
 				isInAccessibleTree, excludedWithChildren);
 
-			// Only written when the corresponding annotation is set, so an unannotated element
-			// keeps whatever the control or the platform configured.
-			if (hidden is bool hide)
-				platformView.AccessibilityHidden = hide;
+			// Remember what the view looked like BEFORE this backend first overrode it, so
+			// clearing an annotation can put it back.
+			//
+			// Skipping the write on null was not enough: once an annotation had been applied, the
+			// override stayed on the native view forever. Setting IsInAccessibleTree=false and then
+			// clearing it left the element permanently unreachable, with nothing in the tree to
+			// explain why. Null now means "restore the default", not "leave whatever is there".
+			var defaults = AccessibilityDefaults.GetValue(platformView, static view =>
+				new AccessibilityState(view.AccessibilityHidden, view.AccessibilityHighlightable));
 
-			if (highlightable is bool highlight)
-				platformView.AccessibilityHighlightable = highlight;
+			platformView.AccessibilityHidden = hidden ?? defaults.Hidden;
+			platformView.AccessibilityHighlightable = highlightable ?? defaults.Highlightable;
 		}
 
 
@@ -757,6 +773,31 @@ namespace Microsoft.Maui.Platforms.Tizen
 			{
 				Enable = (resolved & TizenPropertyResolvers.StrikethroughDecoration) != 0,
 			});
+		}
+
+		/// <summary>
+		/// The accessibility state a view had before this backend first overrode it.
+		/// </summary>
+		/// <remarks>
+		/// Captured lazily on the first write and keyed weakly, so a discarded view takes its
+		/// entry with it. Without this there is nothing to restore TO: NUI exposes no "unset" for
+		/// these flags, and assuming a fixed default would stamp over whatever a control had
+		/// configured for itself.
+		/// </remarks>
+		static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TizenNativeView, AccessibilityState>
+			AccessibilityDefaults = new();
+
+		sealed class AccessibilityState
+		{
+			public AccessibilityState(bool hidden, bool highlightable)
+			{
+				Hidden = hidden;
+				Highlightable = highlightable;
+			}
+
+			public bool Hidden { get; }
+
+			public bool Highlightable { get; }
 		}
 
 		/// <summary>Applies a line break mode to the platform label.</summary>

@@ -165,22 +165,36 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			_ = MauiContext ?? throw new InvalidOperationException(
 				$"{nameof(MauiContext)} should have been set by base class.");
 
-#if TIZEN
-			if (index >= 0 && index < PlatformView.Children.Count)
+			// `index` is a LOGICAL position in the layout's child collection. It is NOT a position
+			// in PlatformView.Children, which is ordered by z-index, and it is not a position in
+			// _children either once any child carries a non-zero ZIndex.
+			//
+			// Indexing the native collection with it therefore disposed whichever native view
+			// happened to sit at that z-order slot - a different child entirely - while the one
+			// being replaced stayed on screen with its handler intact. Nothing threw; the layout
+			// simply showed the wrong thing and leaked.
+			//
+			// The outgoing child is identified by IDENTITY instead, which is how Remove has always
+			// done it, and its native view is located through its own handler rather than by
+			// position.
+			var outgoing = index >= 0 && index < _children.Count ? _children[index] : null;
+
+			if (outgoing is not null && !ReferenceEquals(outgoing, child))
 			{
-				var toBeRemoved = PlatformView.Children[index];
-				PlatformView.Children.RemoveAt(index);
-				toBeRemoved.Dispose();
-			}
+#if TIZEN
+				if (outgoing.Handler.ToPlatformView() is TizenNativeView outgoingView)
+					PlatformView.Children.Remove(outgoingView);
 #endif
 
-			if (index >= 0 && index < _children.Count)
-			{
-				var childToBeRemoved = _children[index];
-				_children.RemoveAt(index);
-				(childToBeRemoved.Handler as ITizenPlatformViewHandler)?.Dispose();
+				_children.Remove(outgoing);
+
+				// Disposing the handler disposes the native view it owns, so the native view is
+				// only unparented above - never disposed twice.
+				(outgoing.Handler as ITizenPlatformViewHandler)?.Dispose();
 			}
 
+			// Add re-derives the z-ordered insertion point from the virtual view, so the incoming
+			// child lands in the right native slot regardless of where the outgoing one was.
 			Add(child);
 		}
 

@@ -146,6 +146,19 @@ namespace Microsoft.Maui.Platforms.Tizen
 		readonly ITimer _timer;
 		volatile bool _disposed;
 
+		/// <summary>
+		/// Incremented by every <see cref="Start"/> and <see cref="Stop"/>, and captured in each
+		/// posted tick.
+		/// </summary>
+		/// <remarks>
+		/// Ticks are POSTED to the main loop, so one can still be sitting in the queue when the
+		/// timer is stopped and started again. Checking IsRunning alone is not enough: by the time
+		/// the stale tick is delivered the timer is running again, so it passes the check, raises a
+		/// Tick that belongs to the previous run, and - for a one-shot - then disarms the NEW run.
+		/// A callback is only honoured when the arming it was queued under is still current.
+		/// </remarks>
+		int _generation;
+
 		/// <summary>Initializes a new instance of the <see cref="TizenDispatcherTimer"/> class.</summary>
 		/// <param name="context">The synchronization context of the Tizen main loop.</param>
 		public TizenDispatcherTimer(SynchronizationContext context)
@@ -162,8 +175,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_context = context ?? throw new ArgumentNullException(nameof(context));
 			ArgumentNullException.ThrowIfNull(timeProvider);
 
+			// The arming generation is captured when the tick is POSTED, not when it is delivered,
+			// so a callback carries the identity of the run that scheduled it.
 			_timer = timeProvider.CreateTimer(
-				_ => _context.Post(OnTimerTick, null), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+				_ => _context.Post(OnTimerTick, Volatile.Read(ref _generation)),
+				null,
+				Timeout.InfiniteTimeSpan,
+				Timeout.InfiniteTimeSpan);
 		}
 
 		/// <inheritdoc />
@@ -188,6 +206,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			IsRunning = true;
 
+			// New arming: anything queued under the previous one is now stale.
+			Interlocked.Increment(ref _generation);
+
 			// A non-repeating timer is armed with an infinite PERIOD rather than being armed to
 			// repeat and then disarmed after the first tick. The latter leaves a real window in
 			// which the underlying timer can queue a second tick before the disarm lands.
@@ -201,6 +222,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 
 			IsRunning = false;
+
+			// Invalidate anything already queued, so a tick delivered after this Stop cannot be
+			// honoured even if the timer is restarted before the loop pumps.
+			Interlocked.Increment(ref _generation);
 
 			if (!_disposed)
 				_timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
@@ -217,6 +242,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 			// thread, since Dispose clears both; it is kept for the concurrent case and is
 			// deliberately NOT claimed as test-covered - no deterministic test can distinguish it.
 			if (_disposed || !IsRunning)
+				return;
+
+			// Queued under a previous arming - Stop, or Stop followed by Start - so it belongs to
+			// a run that is over. Honouring it would raise a spurious Tick and, for a one-shot,
+			// disarm the run currently in progress.
+			if (state is int queuedGeneration && queuedGeneration != Volatile.Read(ref _generation))
 				return;
 
 			// The shot has been fired, so a one-shot is no longer running BEFORE the handler sees

@@ -1,7 +1,10 @@
 using System;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Maui.Controls;
+using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Hosting;
+using Microsoft.Maui.Platforms.Tizen.Handlers;
 
 namespace Microsoft.Maui.Platforms.Tizen.Controls
 {
@@ -27,6 +30,27 @@ namespace Microsoft.Maui.Platforms.Tizen.Controls
 
 			builder.Services.TryAddEnumerable(
 				ServiceDescriptor.Singleton<IMauiInitializeService, TizenControlsMappingsInitializer>());
+
+			// Register the CONCRETE Controls types, not just the mappers.
+			//
+			// Core registers its handlers against Core INTERFACES - ILabel, ILayout, IWindow and so
+			// on - which is right for a Core-only app. But UseMauiApp registers MAUI's neutral
+			// handlers against Controls' CONCRETE types, and a concrete registration always beats
+			// an interface one in the handler lookup.
+			//
+			// So a real Controls app resolved Label to Microsoft.Maui.Handlers.LabelHandler rather
+			// than TizenLabelHandler - verified by resolving through IMauiHandlersFactory, which
+			// returned the neutral handler for Label, ContentPage, VerticalStackLayout and Window.
+			// Every backend handler was unreachable from an actual app while every unit test that
+			// registered them by hand passed.
+			builder.ConfigureMauiHandlers(handlers =>
+			{
+				handlers.AddHandler<Label, TizenLabelHandler>();
+				handlers.AddHandler<Microsoft.Maui.Controls.Layout, TizenLayoutHandler>();
+				handlers.AddHandler<Page, TizenPageHandler>();
+				handlers.AddHandler<Microsoft.Maui.Controls.Window, TizenWindowHandler>();
+				handlers.AddHandler<Microsoft.Maui.Controls.Application, TizenApplicationHandler>();
+			});
 
 			return builder;
 		}

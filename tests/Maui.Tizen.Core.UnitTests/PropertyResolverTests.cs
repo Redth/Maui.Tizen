@@ -233,5 +233,44 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			// A pass that invalidated nothing must not schedule another, or layout never settles.
 			Assert.False(TizenPropertyResolvers.ShouldScheduleLayout(layoutDepth: 0, needMeasureUpdate: false));
 		}
+
+		[Fact]
+		public void FontPointConversionUsesPhysicalDpiNotTheDisplayScale()
+		{
+			// The two scales are equal ONLY in DP mode. Dividing by the display scaling factor
+			// cancels exactly the scaling ToScaledPixel applied, so text rendered at its unscaled
+			// point size while every other dimension scaled - wrong precisely on the devices where
+			// scaling matters.
+			//
+			const double dp = 14;
+			const double physicalScale = 2.0;   // 320 dpi
+			const double displayScale = 5.0;    // DeviceScaledDP on a large panel
+
+			// The real conversion, not a model of it: ToScaledPoint now delegates here.
+			var actual = TizenPropertyResolvers.ResolveFontPoint(dp, displayScale, physicalScale);
+
+			var wrong = Math.Round(dp * displayScale) * 72 / (displayScale * TizenScalingPolicy.BaselineDpi);
+
+			// The wrong form is independent of the display scale - the scaling cancels out.
+			Assert.Equal(dp * 72 / TizenScalingPolicy.BaselineDpi, wrong);
+
+			Assert.NotEqual(wrong, actual);
+			Assert.True(actual > wrong);
+
+			// 14dp at display scale 5 is 70px; at 320dpi that is 70 * 72 / 320 = 15.75pt.
+			Assert.Equal(15.75, actual, 3);
+		}
+
+		[Fact]
+		public void PhysicalAndDisplayScaleDifferOutsideDpMode()
+		{
+			// Guards the premise of the test above: if these were always equal, the distinction
+			// would be academic and the fix unnecessary.
+			var metrics = new TizenDisplayMetrics(160, 1600, 2000, TizenDisplayResolutionUnit.DeviceScaledDP);
+
+			Assert.NotEqual(
+				TizenScalingPolicy.PhysicalScale(metrics.Dpi),
+				TizenScalingPolicy.ComputeScalingFactor(metrics));
+		}
 	}
 }

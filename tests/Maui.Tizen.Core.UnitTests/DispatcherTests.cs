@@ -795,5 +795,96 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.NotNull(b);
 			Assert.NotSame(a, b);
 		}
+
+		[Fact]
+		public void ATickQueuedBeforeStopIsRejectedAfterRestart()
+		{
+			// The ordering that IsRunning alone cannot catch. Ticks are POSTED to the main loop, so
+			// one can sit in the queue across Stop and a subsequent Start. By the time it is
+			// delivered IsRunning is true again, so it passes that check and raises a Tick
+			// belonging to the previous run - and for a one-shot it then disarms the NEW run.
+			var context = new LoopContext();
+			var time = new ManualTimeProvider();
+			using var timer = new TizenDispatcherTimer(context, time)
+			{
+				Interval = TimeSpan.FromMilliseconds(10),
+			};
+
+			var ticks = 0;
+			timer.Tick += (_, _) => ticks++;
+
+			timer.Start();
+
+			// Queue a tick without pumping.
+			time.Advance(TimeSpan.FromMilliseconds(10));
+
+			timer.Stop();
+			timer.Start();
+
+			// The stale callback is delivered now; it belongs to the previous arming.
+			context.DrainAvailable();
+
+			Assert.Equal(0, ticks);
+
+			// And the new run still works - the stale tick must not have consumed it.
+			time.Advance(TimeSpan.FromMilliseconds(10));
+			context.DrainAvailable();
+
+			Assert.Equal(1, ticks);
+		}
+
+		[Fact]
+		public void AStaleTickCannotDisarmARepeatingTimer()
+		{
+			var context = new LoopContext();
+			var time = new ManualTimeProvider();
+			using var timer = new TizenDispatcherTimer(context, time)
+			{
+				Interval = TimeSpan.FromMilliseconds(10),
+				IsRepeating = true,
+			};
+
+			var ticks = 0;
+			timer.Tick += (_, _) => ticks++;
+
+			timer.Start();
+			time.Advance(TimeSpan.FromMilliseconds(10));
+			timer.Stop();
+			timer.Start();
+
+			context.DrainAvailable();
+			Assert.Equal(0, ticks);
+
+			// Three fresh intervals under the new arming.
+			time.Advance(TimeSpan.FromMilliseconds(30));
+			context.DrainAvailable();
+
+			Assert.Equal(3, ticks);
+			Assert.True(timer.IsRunning);
+		}
+
+		[Fact]
+		public void ATickQueuedBeforeAPlainStopStaysRejected()
+		{
+			var context = new LoopContext();
+			var time = new ManualTimeProvider();
+			using var timer = new TizenDispatcherTimer(context, time)
+			{
+				Interval = TimeSpan.FromMilliseconds(10),
+				IsRepeating = true,
+			};
+
+			var ticks = 0;
+			timer.Tick += (_, _) => ticks++;
+
+			timer.Start();
+			time.Advance(TimeSpan.FromMilliseconds(10));
+			timer.Stop();
+
+			context.DrainAvailable();
+
+			Assert.Equal(0, ticks);
+			Assert.False(timer.IsRunning);
+		}
 	}
 }
