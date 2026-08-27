@@ -186,12 +186,12 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Build Tizen projects
+      - name: First real Tizen build and surface review gate
         if: steps.probe.outputs.available == 'true'
         # Installation goes through Samsung's supported side-load path rather than public
-        # workload search; this step is a placeholder that will fail loudly and visibly
-        # the first time the gate lifts, which is the point at which a human should wire
-        # up the real installer.
+        # workload search. This deliberately remains a blocking first-build gate: API15 and
+        # neutral-host compilation cannot prove which MAUI assets net11.0-tizen11.0 selects.
         run: |
-          echo "::notice::Samsung manifest is published. Wire up the supported Samsung installer / local manifest path, then build."
+          echo "::error::Samsung manifest is published. Install it through Samsung's supported path, build the shipping Core and Essentials projects, and complete the surface checklist in docs/net11-status.md."
+          echo "::error::The review must explicitly recheck IPlatformScreenshot, IPlatformGeocoding, Microsoft.Maui.Media.Locale visibility, and regenerated API baselines."
           exit 1

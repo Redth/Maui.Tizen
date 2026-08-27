@@ -130,10 +130,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				_utterance = utterance;
 
 				using var registration = cancelToken.Register(() =>
-				{
-					StopQuietly(client);
-					utterance.TrySetResult(false);
-				});
+					CancelUtterance(utterance, cancelToken, () => StopQuietly(client)));
 
 				var (resolvedLanguage, voiceType) = ResolveVoice(client, language);
 
@@ -152,6 +149,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				_utterance = null;
 				_speakLock.Release();
 			}
+		}
+
+		internal static void CancelUtterance(
+			TaskCompletionSource<bool> utterance,
+			CancellationToken cancelToken,
+			Action stop)
+		{
+			utterance.TrySetCanceled(cancelToken);
+			stop();
 		}
 
 		static void StopQuietly(TtsClient client)

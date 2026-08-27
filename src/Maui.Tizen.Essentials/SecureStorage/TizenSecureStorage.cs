@@ -26,6 +26,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// </remarks>
 	public sealed class TizenSecureStorage : ISecureStorage
 	{
+		readonly ITizenSecureRepository _repository;
+
 		/// <summary>
 		/// Prefix identifying aliases owned by this API.
 		/// </summary>
@@ -35,6 +37,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// </remarks>
 		internal const string AliasPrefix = "maui.tizen.securestorage:";
 
+		/// <summary>
+		/// Creates a secure-storage service backed by Tizen's secure repository.
+		/// </summary>
+		public TizenSecureStorage()
+			: this(TizenSecureRepository.Instance)
+		{
+		}
+
+		internal TizenSecureStorage(ITizenSecureRepository repository)
+		{
+			_repository = repository;
+		}
+
 		/// <inheritdoc/>
 		public Task<string?> GetAsync(string key)
 		{
@@ -43,18 +58,45 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			try
 			{
 				// The second parameter is the data password, not a default value.
-				return Task.FromResult<string?>(Encoding.UTF8.GetString(DataManager.Get(ToAlias(key), null)));
+				return Task.FromResult<string?>(Encoding.UTF8.GetString(_repository.Get(ToAlias(key))));
 			}
 			catch (InvalidOperationException)
 			{
-				// DataManager.Get throws when the alias does not exist. That is expected and normal.
-				return Task.FromResult<string?>(null);
+				// The namespaced alias does not exist. Try the exact raw alias used by the in-box
+				// backend, then migrate it one-way before returning it.
 			}
 			catch
 			{
 				global::Tizen.Log.Error(TizenPlatform.CurrentPackageLogTag, "Failed to load data.");
 				throw;
 			}
+
+			byte[] legacyValue;
+
+			try
+			{
+				legacyValue = _repository.Get(key);
+			}
+			catch (InvalidOperationException)
+			{
+				return Task.FromResult<string?>(null);
+			}
+
+			// Save before deleting so a migration failure cannot remove the only readable copy.
+			_repository.Save(ToAlias(key), legacyValue);
+
+			try
+			{
+				_repository.RemoveAlias(key);
+			}
+			catch
+			{
+				// The namespaced copy is now authoritative. A stale legacy alias is safe to leave
+				// behind and can be cleaned up by a later explicit application migration.
+				global::Tizen.Log.Info(TizenPlatform.CurrentPackageLogTag, "Failed to remove migrated legacy data.");
+			}
+
+			return Task.FromResult<string?>(Encoding.UTF8.GetString(legacyValue));
 		}
 
 		/// <inheritdoc/>
@@ -71,14 +113,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				{
 					// DataManager.Save throws when the alias already exists, and Tizen offers no
 					// existence probe that does not throw, so remove unconditionally first.
-					DataManager.RemoveAlias(alias);
+					_repository.RemoveAlias(alias);
 				}
 				catch
 				{
 					// Expected when the alias did not exist.
 				}
 
-				DataManager.Save(alias, Encoding.UTF8.GetBytes(value), new Policy());
+				_repository.Save(alias, Encoding.UTF8.GetBytes(value));
 
 				return Task.CompletedTask;
 			}
@@ -96,7 +138,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			try
 			{
-				DataManager.RemoveAlias(ToAlias(key));
+				_repository.RemoveAlias(ToAlias(key));
 				return true;
 			}
 			catch
@@ -117,7 +159,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			try
 			{
-				aliases = DataManager.GetAliases();
+				aliases = _repository.GetAliases();
 			}
 			catch
 			{
@@ -132,7 +174,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 				try
 				{
-					DataManager.RemoveAlias(alias);
+					_repository.RemoveAlias(alias);
 				}
 				catch
 				{
@@ -171,5 +213,37 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			return separator >= 0 &&
 				alias.AsSpan(separator + 1).StartsWith(AliasPrefix, StringComparison.Ordinal);
 		}
+	}
+
+	internal interface ITizenSecureRepository
+	{
+		byte[] Get(string alias);
+
+		void Save(string alias, byte[] value);
+
+		void RemoveAlias(string alias);
+
+		IEnumerable<string> GetAliases();
+	}
+
+	sealed class TizenSecureRepository : ITizenSecureRepository
+	{
+		public static TizenSecureRepository Instance { get; } = new();
+
+		TizenSecureRepository()
+		{
+		}
+
+		public byte[] Get(string alias) =>
+			DataManager.Get(alias, null);
+
+		public void Save(string alias, byte[] value) =>
+			DataManager.Save(alias, value, new Policy());
+
+		public void RemoveAlias(string alias) =>
+			DataManager.RemoveAlias(alias);
+
+		public IEnumerable<string> GetAliases() =>
+			DataManager.GetAliases();
 	}
 }

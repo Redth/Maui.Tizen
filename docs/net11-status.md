@@ -31,6 +31,25 @@ exists so `#if TIZEN` code is checked by a compiler rather than by inspection.
 > Note: a device build has **not** been performed and must not be claimed. Nothing here validates
 > runtime behaviour on Tizen.
 
+### First-real `net11.0-tizen11.0` surface gate
+
+The first build after Samsung's workload becomes available is a migration gate, not a routine green
+CI run. The conditional `tizen-workload-gate` job must build the shipping projects against the
+genuine `net11.0-tizen11.0` asset graph and remain non-required until the following review is
+recorded:
+
+1. Verify `IPlatformScreenshot` resolves from the real Tizen-flavoured MAUI framework surface and
+   that `TizenScreenshot` still implements the selected contract without a neutral-host assumption.
+2. Verify `IPlatformGeocoding` the same way for `TizenGeocoding`.
+3. Reinspect `Microsoft.Maui.Media.Locale` in the selected `Microsoft.Maui.Essentials` asset. If its
+   constructor is public, replace the temporary Tizen voice-language API with the public
+   `ITextToSpeech.GetLocalesAsync` implementation before promoting the lane.
+4. Regenerate and review the package's API baseline from that real build.
+
+The API15 reference-pack lane proves TizenFX compatibility, and the host lane proves the neutral
+MAUI facade bridge. Neither lane proves which MAUI compile assets the Tizen TFM will select, so they
+cannot satisfy or waive this gate.
+
 ---
 
 ## 2. External blockers

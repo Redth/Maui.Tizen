@@ -1,5 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Devices;
 using Microsoft.Maui.Platforms.Tizen.Essentials;
@@ -164,6 +168,111 @@ public class TizenServiceBehaviorTests
 		Assert.All(foreign, alias => Assert.False(TizenSecureStorage.IsOwnedAlias(alias)));
 	}
 
+	[Fact]
+	public async Task SecureStorageReadsAndMigratesAnExactLegacyAlias()
+	{
+		var repository = new FakeSecureRepository
+		{
+			["token"] = "legacy-value",
+			["unrelated"] = "leave-me",
+		};
+		var storage = new TizenSecureStorage(repository);
+
+		var value = await storage.GetAsync("token");
+
+		Assert.Equal("legacy-value", value);
+		Assert.False(repository.Contains("token"));
+		Assert.Equal("legacy-value", repository[TizenSecureStorage.ToAlias("token")]);
+		Assert.Equal("leave-me", repository["unrelated"]);
+	}
+
+	[Fact]
+	public async Task SecureStoragePrefersTheNamespacedAliasOverLegacyData()
+	{
+		var repository = new FakeSecureRepository
+		{
+			["token"] = "legacy-value",
+			[TizenSecureStorage.ToAlias("token")] = "new-value",
+		};
+		var storage = new TizenSecureStorage(repository);
+
+		Assert.Equal("new-value", await storage.GetAsync("token"));
+		Assert.Equal("legacy-value", repository["token"]);
+	}
+
+	[Fact]
+	public void SecureStorageRemoveAllDeletesOnlyNamespacedAliases()
+	{
+		var repository = new FakeSecureRepository
+		{
+			["legacy-token"] = "legacy-value",
+			["unrelated"] = "leave-me",
+			[TizenSecureStorage.ToAlias("owned")] = "delete-me",
+		};
+		var storage = new TizenSecureStorage(repository);
+
+		storage.RemoveAll();
+
+		Assert.False(repository.Contains(TizenSecureStorage.ToAlias("owned")));
+		Assert.Equal("legacy-value", repository["legacy-token"]);
+		Assert.Equal("leave-me", repository["unrelated"]);
+	}
+
+	[Fact]
+	public async Task SecureStorageMigrationFailureLeavesLegacyDataIntact()
+	{
+		var repository = new FakeSecureRepository
+		{
+			["token"] = "legacy-value",
+			SaveException = new InvalidOperationException("save failed"),
+		};
+		var storage = new TizenSecureStorage(repository);
+
+		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => storage.GetAsync("token"));
+
+		Assert.Equal("save failed", exception.Message);
+		Assert.Equal("legacy-value", repository["token"]);
+		Assert.False(repository.Contains(TizenSecureStorage.ToAlias("token")));
+	}
+
+	// -------------------------------------------------------------------------------------------
+	// TextToSpeech cancellation.
+	// -------------------------------------------------------------------------------------------
+
+	[Fact]
+	public async Task TextToSpeechPreCancellationUsesTheCallerToken()
+	{
+		using var source = new CancellationTokenSource();
+		source.Cancel();
+		using var textToSpeech = new TizenTextToSpeech();
+
+		var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+			() => textToSpeech.SpeakAsync("cancelled", cancelToken: source.Token));
+
+		Assert.Equal(source.Token, exception.CancellationToken);
+	}
+
+	[Fact]
+	public async Task TextToSpeechInFlightCancellationUsesTheCallerToken()
+	{
+		using var source = new CancellationTokenSource();
+		var utterance = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var stopped = false;
+		var cancellationWonBeforeStop = false;
+
+		TizenTextToSpeech.CancelUtterance(utterance, source.Token, () =>
+		{
+			cancellationWonBeforeStop = utterance.Task.IsCanceled;
+			stopped = true;
+		});
+
+		var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => utterance.Task);
+
+		Assert.True(stopped);
+		Assert.True(cancellationWonBeforeStop);
+		Assert.Equal(source.Token, exception.CancellationToken);
+	}
+
 	// -------------------------------------------------------------------------------------------
 	// Screenshot pixel-format handling.
 	// -------------------------------------------------------------------------------------------
@@ -281,5 +390,49 @@ public class TizenServiceBehaviorTests
 		Assert.True(TizenConnectivity.IsConnected(TizenConnectionState.Connected));
 		Assert.False(TizenConnectivity.IsConnected(TizenConnectionState.Disconnected));
 		Assert.False(TizenConnectivity.IsConnected(TizenConnectionState.Deactivated));
+	}
+
+	sealed class FakeSecureRepository : ITizenSecureRepository
+	{
+		readonly Dictionary<string, byte[]> _values = new(StringComparer.Ordinal);
+
+		public Exception? SaveException { get; init; }
+
+		public string this[string alias]
+		{
+			get => Encoding.UTF8.GetString(_values[alias]);
+			set => _values[alias] = Encoding.UTF8.GetBytes(value);
+		}
+
+		public void Add(string alias, string value) =>
+			_values.Add(alias, Encoding.UTF8.GetBytes(value));
+
+		public bool Contains(string alias) =>
+			_values.ContainsKey(alias);
+
+		public byte[] Get(string alias) =>
+			_values.TryGetValue(alias, out var value)
+				? value
+				: throw new InvalidOperationException("alias not found");
+
+		public void Save(string alias, byte[] value)
+		{
+			if (SaveException is not null)
+				throw SaveException;
+
+			if (_values.ContainsKey(alias))
+				throw new InvalidOperationException("alias already exists");
+
+			_values.Add(alias, value);
+		}
+
+		public void RemoveAlias(string alias)
+		{
+			if (!_values.Remove(alias))
+				throw new InvalidOperationException("alias not found");
+		}
+
+		public IEnumerable<string> GetAliases() =>
+			_values.Keys.ToArray();
 	}
 }

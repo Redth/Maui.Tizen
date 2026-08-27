@@ -55,8 +55,28 @@ working.
    workload search. The Samsung manifest is third-party and side-loaded, so
    `dotnet workload install tizen` cannot discover it on a clean runner.
 3. Promote that job to a required check and build the Tizen projects for real.
-4. Regenerate API baselines against a real Tizen build.
-5. Begin Phase 2.
+4. Complete the mandatory first-real-build surface review in
+   [`net11-status.md`](net11-status.md#first-real-net110-tizen110-surface-gate). The API15 and
+   host-verification lanes cannot prove which MAUI assets a genuine Tizen TFM selects.
+5. Regenerate API baselines against a real Tizen build.
+6. Begin Phase 2.
+
+### SecureStorage data migration
+
+The standalone Essentials package stores secure values under
+`maui.tizen.securestorage:<encoded-key>`. The in-box Tizen backend stored the caller's raw key in
+the application-wide secure-repository alias space.
+
+`GetAsync` performs a one-way, per-key compatibility migration: it reads the namespaced alias first;
+only when that alias is absent does it read the exact legacy raw alias, save the value under the
+namespaced alias, and remove that exact raw alias. A migration save failure is surfaced and leaves
+the legacy value intact. If cleanup of the raw alias fails after the namespaced save succeeds, the
+namespaced value remains authoritative.
+
+`RemoveAll` deliberately does **not** delete raw aliases. There is no safe way to distinguish an
+old SecureStorage raw alias from certificates, keys, or another component's data in the shared
+repository. Applications that need eager migration must enumerate their own known SecureStorage
+keys and call `GetAsync` for each one before calling `RemoveAll`.
 
 ### Target contract provenance
 
