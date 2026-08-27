@@ -50,6 +50,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 		private readonly StaticContentResponseCache _cache;
 		private readonly TryGetStaticContent _contentLookup;
 		private readonly Func<string, string, string?> _resolveCacheControlOverride;
+		private readonly Action<string>? _onHostPageDocumentServed;
 		private readonly ILogger _logger;
 
 		public StaticContentRequestProcessor(
@@ -57,12 +58,14 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 			StaticContentResponseCache cache,
 			TryGetStaticContent contentLookup,
 			Func<string, string, string?> resolveCacheControlOverride,
-			ILogger? logger = null)
+			ILogger? logger = null,
+			Action<string>? onHostPageDocumentServed = null)
 		{
 			_appOrigin = appOrigin ?? throw new ArgumentNullException(nameof(appOrigin));
 			_cache = cache ?? throw new ArgumentNullException(nameof(cache));
 			_contentLookup = contentLookup ?? throw new ArgumentNullException(nameof(contentLookup));
 			_resolveCacheControlOverride = resolveCacheControlOverride ?? throw new ArgumentNullException(nameof(resolveCacheControlOverride));
+			_onHostPageDocumentServed = onHostPageDocumentServed;
 			_logger = logger ?? NullLogger.Instance;
 		}
 
@@ -85,6 +88,11 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 					var cachedRequestUri = QueryStringHelper.RemovePossibleQueryString(url);
 					_logger.HandlingWebRequest(cachedRequestUri);
 					_logger.ResponseContentBeingSent(cachedRequestUri, cachedResponse.StatusCode);
+					if (QueryStringHelper.IsDocumentRequest(PathOf(cachedRequestUri)))
+					{
+						_onHostPageDocumentServed?.Invoke(url);
+					}
+
 					request.SetResponse(BuildHeaderBlock(cachedResponse), cachedResponse.Content);
 					return;
 				}
@@ -147,11 +155,23 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 					StaticContentResponseCachePolicy.GetExpiration(cacheLifetime)));
 			}
 
+			// Record document routes that were answered with the host page. The web view will finish
+			// loading at that URL, not at the app origin, and the Blazor bootstrap script has to be
+			// injected there or the application never starts. See TizenBlazorWebViewHandler.OnLoadFinished.
+			if (allowFallbackOnHostPage && statusCode == 200)
+			{
+				_onHostPageDocumentServed?.Invoke(originalUrl);
+			}
+
 			_logger.ResponseContentBeingSent(requestUri, statusCode);
 			request.SetResponse(BuildHeaderBlock(statusCode, statusMessage, headers), contentBytes);
 		}
 
 		public void ClearCache() => _cache.Clear();
+
+		/// <summary>Returns the path portion of an absolute app-origin URL.</summary>
+		private string PathOf(string absoluteUrl) =>
+			absoluteUrl.Length >= _appOrigin.Length ? absoluteUrl.Substring(_appOrigin.Length - 1) : "/";
 
 		internal static string BuildHeaderBlock(StaticContentResponse response)
 			=> BuildHeaderBlock(response.StatusCode, response.StatusMessage, response.Headers);

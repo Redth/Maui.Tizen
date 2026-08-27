@@ -131,6 +131,25 @@ Everything above the native boundary was ported as-is from `dotnet/maui` `net11.
   default, blocking when the `BlazorWebView.UseBlockingDisposal` `AppContext` switch is set), unsubscribes
   the root-component collection, drops the handler from the routing table and clears the response cache.
   The upstream Tizen handler leaked the manager.
+- **Every host-page route is bootstrapped, not just `/`.** Blazor's `Blazor.start()` is injected on any
+  document load the request processor answered with the host page — so deep client-side routes
+  (`/CustomStart/SomeData`) and URLs carrying a query string (`/?returnUrl=…`) initialize correctly.
+  Routes are classified on the *path*, with the query stripped first, so a query string can neither make
+  a document look like an asset nor the reverse. Injecting only at the exact origin — the previous
+  behavior — left every non-root start path with a blank page.
+- **The interception registration is rooted for the process lifetime.** Registering an interception
+  callback stores it on a `WebContext` and hands native a pointer to a proxy *owned by that context*, so
+  rooting only our own callback is not enough: if the context is collected the proxy dies with it and
+  every request silently 404s under GC pressure. Both the context and the callback are held strongly and
+  permanently — the platform offers no way to unregister, and a process has only a handful of contexts.
+  Individual handlers are still routed weakly, so a disconnected BlazorWebView is collected normally.
+- **Root-component changes are reconciled, not applied as deltas.** Each change previously started its
+  own asynchronous pass carrying a snapshot taken when the event was raised; because those passes await,
+  they interleaved, and `Add` immediately followed by `Clear` could leave a component mounted in a
+  collection the application had emptied. Passes are now serialized and coalesced by
+  `CoalescingReconciler`, and each pass re-reads the desired collection, so the last pass always observes
+  the final state. Reconciliation stays on the Blazor dispatcher throughout.
+
 
 ## Repository layout
 
@@ -219,9 +238,48 @@ assertions reach the conversion through the fallback — so the fixture also def
 both entry points yield identical assets, since an application gets one or the other depending on
 whether `Maui.Tizen.Build.Tasks` is in the graph.
 
+#### Pre-compressed variants
+
+Assets are served from local storage by the request interceptor, which performs no content negotiation,
+so SDK-generated `.gz`/`.br` copies are never requested and are pure TPK bloat. The conversion drops any
+asset with `AssetRole='Alternative'`.
+
+The filter deliberately keys on `AssetRole` **alone**, not on the file extension:
+
+- a user file that merely ends in `.gz` is a `Primary` asset and is kept, and
+- a compressed variant is dropped even when its `Identity` is an SDK-generated temp file whose name does
+  not end in `.gz` or `.br`.
+
+Testing this required care, and the first version of the test was worthless. A plain Razor build emits
+**no** compressed assets at all — compression is a Blazor WebAssembly publish-time concern, and the
+fixture is deliberately a plain Razor app so it runs without the Samsung workload. So "no `.gz` survived"
+held trivially, and the exclusion was in fact completely broken (its condition was OR-ed with
+`'$(CompressionEnabled)' != 'false'`, which is true whenever the property is unset — i.e. almost always —
+short-circuiting the entire filter) while the suite stayed green.
+
+The fixture therefore seeds `Alternative` variants shaped like the SDK's behind
+`-p:SeedCompressedAssets=true`, and three tests hold the line: one asserts the variants really are
+present in the conversion's *input*, one asserts they are absent from its output, and one asserts that
+`wwwroot/data/archive.gz` — a genuine user file discovered as `Primary` — still ships. That last one is
+what pins the `AssetRole` semantics; without it a filter keyed on the extension would pass.
+
 Asset file names must not be hard-coded: the SDK fingerprints static web assets in some configurations
 (`blazor.webview.<hash>.js`), so the tests match by prefix and extension and assert on the `wwwroot`
 content-root prefix, which is the property that actually determines runtime reachability.
+
+### Release gates
+
+Two things are **not** proven by the host-side suite and must be verified before this package ships.
+They are recorded here as gates rather than described as existing coverage:
+
+1. **Real end-to-end asset flow.** The tests above stop at `MauiAsset`, which is exactly where
+   `Maui.Tizen.Build.Tasks` takes over. The full `StaticWebAsset → MauiAsset → MauiProcessedAsset →
+   TizenResource → res/wwwroot` chain can only be exercised once that package is in the base branch;
+   until then the fixture supplies the provider contract itself, so it proves this package's half only.
+2. **Produced package layout.** No test installs an actual `.nupkg` from an isolated cache and verifies
+   the `buildTransitive/` layout and dependency closure a real consumer resolves. Doing so needs the
+   Samsung workload, since the package's own TFM cannot be restored without it.
+
 
 ### The Tizen workload gate
 

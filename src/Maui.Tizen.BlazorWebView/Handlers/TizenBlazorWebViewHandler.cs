@@ -7,6 +7,7 @@
 // `IMauiBlazorWebViewBuilder.UsePlatformHandler`.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Globalization;
@@ -132,7 +133,29 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 		/// collection the application believes it emptied. Only ever touched on the Blazor dispatcher.
 		/// </remarks>
 		private readonly List<RootComponent> _mountedRootComponents = new();
+
+		/// <summary>Set when a reconciliation pass is outstanding. Accessed with <see cref="Interlocked"/>.</summary>
+		private CoalescingReconciler? _rootComponentReconciler;
+
+		/// <summary>Whether a pass is in flight. Only ever touched on the Blazor dispatcher.</summary>
 		private string? _userAgentBeforeConnect;
+
+		/// <summary>
+		/// App-origin URLs that were answered with the host page and are awaiting a page-load callback.
+		/// </summary>
+		/// <remarks>
+		/// The Blazor bootstrap script must be evaluated once per host-page document load, and the web
+		/// view finishes loading at the requested URL - <c>/CustomStart/SomeData</c>, <c>/?returnUrl=x</c>
+		/// - not at the app origin. Comparing the finished URL to the origin therefore starts Blazor only
+		/// for a bare root navigation and silently leaves every deep link or query-bearing route rendering
+		/// a static host page that never boots.
+		/// <para>
+		/// Populated from the interception callback (a background thread) and drained on the UI thread, so
+		/// it must be concurrent. Entries are removed when consumed: a repeat navigation to the same route
+		/// serves the host page again and re-adds it.
+		/// </para>
+		/// </remarks>
+		private readonly ConcurrentDictionary<string, byte> _pendingHostPageLoads = new(StringComparer.Ordinal);
 
 		/// <summary>
 		/// This field is part of MAUI infrastructure and is not intended for use by application code.
@@ -309,6 +332,11 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			}
 
 			_requestProcessor = null;
+
+			// Dropped rather than drained: the manager it reconciles against is already gone, so a pass
+			// scheduled after this point has nothing to reconcile. A reconnect builds a fresh one.
+			_rootComponentReconciler = null;
+			_pendingHostPageLoads.Clear();
 			_mountedRootComponents.Clear();
 			_staticContentResponseCache.Clear();
 
@@ -362,11 +390,57 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 		private void OnLoadFinished(object? sender, WebViewPageLoadEventArgs e)
 		{
-			if (PlatformView.Url == AppOrigin)
+			if (ShouldInjectBlazorStart(PlatformView.Url))
 			{
 				PlatformView.EvaluateJavaScript(BlazorInitScript);
 			}
 		}
+
+		/// <summary>
+		/// Decides whether the document that just finished loading at <paramref name="url"/> is one we
+		/// answered with the host page and therefore needs the Blazor bootstrap.
+		/// </summary>
+		/// <remarks>
+		/// Kept free of platform state so the classification can be tested at the exact URL the web view
+		/// reports, which is the value that actually drives injection.
+		/// </remarks>
+		internal bool ShouldInjectBlazorStart(string? url)
+		{
+			if (string.IsNullOrEmpty(url))
+			{
+				return false;
+			}
+
+			// Recorded by the request processor when we served the host page. Consume it so one served
+			// document produces exactly one bootstrap.
+			if (_pendingHostPageLoads.TryRemove(url, out _))
+			{
+				return true;
+			}
+
+			// Not recorded: either the response was served before this handler observed anything (the
+			// very first navigation), or the web view normalized the URL between request and load-finished
+			// so it no longer matches byte for byte. Both are still host-page loads, so classify from the
+			// URL itself using the same rule the request processor applies.
+			return IsAppOriginDocumentRoute(url);
+		}
+
+		private bool IsAppOriginDocumentRoute(string url)
+		{
+			if (!url.StartsWith(AppOrigin, StringComparison.OrdinalIgnoreCase))
+			{
+				return false;
+			}
+
+			// Classify on the path alone: a query string never makes a route an asset, and never
+			// prevents one from being the host page.
+			return QueryStringHelper.IsDocumentRequest(QueryStringHelper.RemovePossibleQueryString(url));
+		}
+
+		/// <summary>Records that <paramref name="url"/> was answered with the host page.</summary>
+		internal void OnHostPageDocumentServed(string url) => _pendingHostPageLoads[url] = 0;
+
+		internal bool IsHostPageLoadPending(string url) => _pendingHostPageLoads.ContainsKey(url);
 
 		void ITizenInterceptedRequestRouter.HandleInterceptedRequest(WebHttpRequestInterceptor interceptor)
 		{
@@ -424,50 +498,71 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 		private void OnRootComponentsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs)
 		{
+			// The event arguments are deliberately ignored. Reconciliation is against the collection's
+			// CURRENT contents, not against a per-event delta - see ReconcileRootComponentsAsync.
+			ScheduleRootComponentReconciliation();
+		}
+
+		/// <summary>
+		/// Requests a reconciliation pass, coalescing with any already pending.
+		/// </summary>
+		/// <remarks>
+		/// Each change previously started its own <c>InvokeAsync</c> carrying a delta snapshotted when the
+		/// event was raised. Those passes then interleaved: with <c>Add</c> immediately followed by
+		/// <c>Clear</c>, the Clear pass computed what to unmount before the Add pass had recorded the new
+		/// component, so the component was mounted and never removed - it stayed rendered in a collection
+		/// the application had emptied. Rapid <c>Replace</c> could similarly leave the outgoing component
+		/// mounted. Passes are therefore serialized, and each one re-reads the desired state instead of
+		/// trusting a snapshot that may already be stale.
+		/// </remarks>
+		private void ScheduleRootComponentReconciliation()
+		{
 			var webviewManager = _webviewManager;
 			if (webviewManager is null)
 			{
 				return;
 			}
 
-			var isReset = eventArgs.Action == NotifyCollectionChangedAction.Reset;
-			var newItems = eventArgs.NewItems?.Cast<RootComponent>().ToList() ?? new List<RootComponent>();
-			var oldItems = eventArgs.OldItems?.Cast<RootComponent>().ToList() ?? new List<RootComponent>();
-
-			// Reset (raised by Clear()) reports no items at all, so the components to unmount can only
-			// come from what this handler previously mounted. The surviving set is whatever the
-			// collection holds now.
-			var current = isReset
-				? _rootComponents?.ToList() ?? new List<RootComponent>()
-				: new List<RootComponent>();
-
-			// No ConfigureAwait(false) anywhere below. The continuation must stay on the Blazor
-			// dispatcher: both the web view manager's component registry and _mountedRootComponents are
-			// single-threaded state, and resuming on a pool thread would mutate them off-dispatcher.
-			_ = webviewManager.Dispatcher.InvokeAsync(async () =>
+			var reconciler = _rootComponentReconciler;
+			if (reconciler is null)
 			{
-				var toRemove = isReset
-					? _mountedRootComponents.Except(current).ToList()
-					: oldItems.Except(newItems).ToList();
+				reconciler = new CoalescingReconciler(
+					() => ReconcileRootComponentsAsync(webviewManager),
+					work => webviewManager.Dispatcher.InvokeAsync(work));
 
-				var toAdd = isReset
-					? current.Except(_mountedRootComponents).ToList()
-					: newItems.Except(oldItems).ToList();
+				// First writer wins, so concurrent change notifications share one reconciler and therefore
+				// one serialization queue.
+				reconciler = Interlocked.CompareExchange(ref _rootComponentReconciler, reconciler, null) ?? reconciler;
+			}
 
-				// Removal precedes addition. A Replace that added first would register a second component
-				// against a selector the outgoing one still occupies, which the renderer rejects.
-				foreach (var item in toRemove)
-				{
-					await RemoveRootComponentAsync(item, webviewManager);
-					_mountedRootComponents.Remove(item);
-				}
+			reconciler.Request();
+		}
 
-				foreach (var item in toAdd)
-				{
-					await AddRootComponentAsync(item, webviewManager);
-					_mountedRootComponents.Add(item);
-				}
-			});
+		/// <summary>
+		/// Brings the mounted components in line with the collection's current contents.
+		/// </summary>
+		/// <remarks>
+		/// No <c>ConfigureAwait(false)</c>: the continuation must stay on the Blazor dispatcher, because
+		/// both the web view manager's component registry and <see cref="_mountedRootComponents"/> are
+		/// single-threaded state.
+		/// </remarks>
+		private async Task ReconcileRootComponentsAsync(TizenWebViewManager webviewManager)
+		{
+			var desired = _rootComponents?.ToList() ?? new List<RootComponent>();
+
+			// Removal precedes addition. A Replace that added first would register a second component
+			// against a selector the outgoing one still occupies, which the renderer rejects.
+			foreach (var item in _mountedRootComponents.Except(desired).ToList())
+			{
+				await RemoveRootComponentAsync(item, webviewManager);
+				_mountedRootComponents.Remove(item);
+			}
+
+			foreach (var item in desired.Except(_mountedRootComponents).ToList())
+			{
+				await AddRootComponentAsync(item, webviewManager);
+				_mountedRootComponents.Add(item);
+			}
 		}
 
 		/// <summary>
@@ -576,7 +671,8 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 				_staticContentResponseCache,
 				webViewManager.TryGetResponseContentInternal,
 				(requestUri, contentType) => StaticContentCacheControl.ResolveOverride(VirtualView, requestUri, contentType, Logger),
-				Logger);
+				Logger,
+				OnHostPageDocumentServed);
 
 		private sealed class TizenInterceptedRequest : IInterceptedRequest
 		{

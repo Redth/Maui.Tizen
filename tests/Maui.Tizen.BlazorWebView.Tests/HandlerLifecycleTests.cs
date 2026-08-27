@@ -543,5 +543,71 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 				}
 			}
 		}
+
+		[Theory]
+		// These are the URLs the web view reports at load-finished. Every one of them was answered with
+		// the host page, so every one of them must be bootstrapped - not just the bare origin.
+		[InlineData("http://0.0.0.0/")]
+		[InlineData("http://0.0.0.0/?returnUrl=%2Fcounter")]
+		[InlineData("http://0.0.0.0/counter")]
+		[InlineData("http://0.0.0.0/CustomStart/SomeData")]
+		[InlineData("http://0.0.0.0/CustomStart/SomeData?id=7")]
+		public void BlazorStartIsInjectedForEveryHostPageDocumentUrl(string loadFinishedUrl)
+		{
+			var handler = new TizenBlazorWebViewHandler();
+
+			Assert.True(handler.ShouldInjectBlazorStart(loadFinishedUrl));
+		}
+
+		[Theory]
+		[InlineData("http://0.0.0.0/_framework/blazor.webview.js")]
+		[InlineData("http://0.0.0.0/css/app.css")]
+		[InlineData("http://0.0.0.0/css/app.css?v=2")]
+		public void BlazorStartIsNotInjectedForAssetUrls(string loadFinishedUrl)
+		{
+			var handler = new TizenBlazorWebViewHandler();
+
+			Assert.False(handler.ShouldInjectBlazorStart(loadFinishedUrl));
+		}
+
+		[Theory]
+		[InlineData(null)]
+		[InlineData("")]
+		[InlineData("https://example.com/")]
+		[InlineData("https://example.com/counter")]
+		public void BlazorStartIsNotInjectedForForeignOrMissingUrls(string? loadFinishedUrl)
+		{
+			// Injecting into a third-party document would leak the bootstrap outside the app origin.
+			var handler = new TizenBlazorWebViewHandler();
+
+			Assert.False(handler.ShouldInjectBlazorStart(loadFinishedUrl));
+		}
+
+		[Fact]
+		public void ServedHostPageUrlIsBootstrappedExactlyOncePerLoad()
+		{
+			const string Url = "http://0.0.0.0/CustomStart/SomeData?id=7";
+			var handler = new TizenBlazorWebViewHandler();
+			handler.OnHostPageDocumentServed(Url);
+
+			Assert.True(handler.ShouldInjectBlazorStart(Url));
+
+			// The recorded load is consumed. A second load-finished for a deep route still bootstraps via
+			// classification, so assert on the record instead of re-classification.
+			Assert.False(handler.IsHostPageLoadPending(Url));
+		}
+
+		[Fact]
+		public void RecordedHostPageUrlWithUnusualShapeIsStillBootstrapped()
+		{
+			// A recorded URL is authoritative even when its own shape would not classify as a document,
+			// which is what protects routes carrying a dot (e.g. /orders/v1.2).
+			const string Url = "http://0.0.0.0/orders/v1.2";
+			var handler = new TizenBlazorWebViewHandler();
+			handler.OnHostPageDocumentServed(Url);
+
+			Assert.True(handler.ShouldInjectBlazorStart(Url));
+		}
+
 	}
 }

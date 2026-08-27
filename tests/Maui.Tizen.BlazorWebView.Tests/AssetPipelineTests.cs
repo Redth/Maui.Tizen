@@ -37,6 +37,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		private readonly string _workDirectory;
 		private readonly Lazy<IReadOnlyList<MauiAssetItem>> _assets;
 		private readonly Lazy<IReadOnlyList<MauiAssetItem>> _assetsViaProviderContract;
+		private readonly Lazy<IReadOnlyList<MauiAssetItem>> _assetsWithCompressedVariants;
 
 		public AssetPipelineTests()
 		{
@@ -44,6 +45,8 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			_assets = new Lazy<IReadOnlyList<MauiAssetItem>>(() => BuildAndReadMauiAssets(TargetName));
 			_assetsViaProviderContract = new Lazy<IReadOnlyList<MauiAssetItem>>(
 				() => BuildAndReadMauiAssets("SimulateAssetProviderContract"));
+			_assetsWithCompressedVariants = new Lazy<IReadOnlyList<MauiAssetItem>>(
+				() => BuildAndReadMauiAssets(TargetName, seedCompressedAssets: true));
 		}
 
 		public void Dispose()
@@ -153,15 +156,80 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		[Fact]
 		public void PrecompressedVariantsAreNotPackaged()
 		{
-			// Assets are served from local storage by the request interceptor, so .gz/.br copies are
-			// pure TPK bloat.
-			var compressed = _assets.Value
+			// Assets are served from local storage by the request interceptor, which does no content
+			// negotiation, so .gz/.br copies are pure TPK bloat.
+			//
+			// This drives the fixture's SeedCompressedAssets switch, which injects Alternative variants
+			// shaped like the SDK's. Without it the assertion was vacuous: a plain Razor build produces
+			// no compressed assets at all, so "no .gz survived" held trivially and the exclusion could
+			// have been - and in fact was - completely broken without failing.
+			var compressed = _assetsWithCompressedVariants.Value
 				.Where(a => a.TargetPath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase)
 					|| a.TargetPath.EndsWith(".br", StringComparison.OrdinalIgnoreCase))
-				.Select(a => a.TargetPath)
+				.Select(a => a.TargetPath.Replace('\\', '/'))
+				.Where(p => !p.Equals("wwwroot/data/archive.gz", StringComparison.OrdinalIgnoreCase))
 				.ToArray();
 
 			Assert.Empty(compressed);
+		}
+
+		[Fact]
+		public void CompressedVariantsAreActuallyPresentBeforeExclusion()
+		{
+			// Guards the guard. PrecompressedVariantsAreNotPackaged can only mean anything if compressed
+			// variants really reach the conversion, so this inspects the conversion's INPUT rather than
+			// its output. Without it, a fixture that quietly stopped seeding would leave the exclusion
+			// test passing vacuously - which is exactly how a completely broken filter went unnoticed.
+			var roles = ReadStaticWebAssetRoles(seedCompressedAssets: true);
+
+			Assert.Contains("Alternative", roles);
+			Assert.Contains("Primary", roles);
+
+			// And they must be gone afterwards: same build, filtered output.
+			Assert.DoesNotContain(
+				_assetsWithCompressedVariants.Value,
+				a => a.TargetPath.Replace('\\', '/').EndsWith("/blazor.webview.js.gz", StringComparison.OrdinalIgnoreCase));
+		}
+
+		[Fact]
+		public void UnseededBuildProducesNoCompressedVariants()
+		{
+			// Documents WHY seeding is necessary: a plain Razor build emits no Alternative assets at all,
+			// because compression is a Blazor WebAssembly publish-time concern and this fixture is
+			// deliberately a plain Razor app so it runs without the Samsung workload.
+			var roles = ReadStaticWebAssetRoles(seedCompressedAssets: false);
+
+			Assert.DoesNotContain("Alternative", roles);
+		}
+
+		private IReadOnlyList<string> ReadStaticWebAssetRoles(bool seedCompressedAssets)
+		{
+			var output = BuildAndReadItem(TargetName, "StaticWebAsset", seedCompressedAssets);
+
+			using var document = JsonDocument.Parse(output);
+			if (!document.RootElement.TryGetProperty("Items", out var items) ||
+				!items.TryGetProperty("StaticWebAsset", out var assets))
+			{
+				return Array.Empty<string>();
+			}
+
+			return assets.EnumerateArray()
+				.Select(e => e.TryGetProperty("AssetRole", out var role) ? role.GetString() ?? string.Empty : string.Empty)
+				.ToArray();
+		}
+
+		[Fact]
+		public void UserFilesEndingInGzAreStillPackaged()
+		{
+			// The discriminating case. wwwroot/data/archive.gz is an ordinary user file that the Razor
+			// SDK discovers as a Primary asset; only its name resembles a compressed variant. Dropping
+			// it would mean the filter keys on the file extension instead of AssetRole, and would
+			// silently delete real application content.
+			var asset = _assetsWithCompressedVariants.Value.FirstOrDefault(a =>
+				a.TargetPath.Replace('\\', '/').Equals("wwwroot/data/archive.gz", StringComparison.OrdinalIgnoreCase));
+
+			Assert.NotNull(asset);
+			Assert.True(File.Exists(asset!.Identity), $"MauiAsset points at a missing file: '{asset.Identity}'.");
 		}
 
 		[Fact]
@@ -204,7 +272,13 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			_assets.Value.FirstOrDefault(a =>
 				string.Equals(a.TargetPath.Replace('\\', '/'), targetPath, StringComparison.OrdinalIgnoreCase));
 
-		private IReadOnlyList<MauiAssetItem> BuildAndReadMauiAssets(string target)
+		private IReadOnlyList<MauiAssetItem> BuildAndReadMauiAssets(string target, bool seedCompressedAssets = false)
+		{
+			var output = BuildAndReadItem(target, "MauiAsset", seedCompressedAssets);
+			return ParseMauiAssets(output);
+		}
+
+		private string BuildAndReadItem(string target, string itemName, bool seedCompressedAssets)
 		{
 			var repoRoot = FindRepositoryRoot();
 			var fixtureSource = Path.Combine(repoRoot, "tests", "Maui.Tizen.BlazorWebView.Tests", "AssetPipelineFixture");
@@ -232,8 +306,11 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 				Path.Combine(repoRoot, "nuget.config"),
 				Path.Combine(_workDirectory, "nuget.config"),
 				overwrite: true);
-			var output = RunMSBuild(project, target);
+			return RunMSBuild(project, target, seedCompressedAssets, itemName);
+		}
 
+		private static IReadOnlyList<MauiAssetItem> ParseMauiAssets(string output)
+		{
 			using var document = JsonDocument.Parse(output);
 			if (!document.RootElement.TryGetProperty("Items", out var items) ||
 				!items.TryGetProperty("MauiAsset", out var mauiAssets))
@@ -263,7 +340,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			return version!;
 		}
 
-		private static string RunMSBuild(string project, string target)
+		private static string RunMSBuild(string project, string target, bool seedCompressedAssets = false, string itemName = "MauiAsset")
 		{
 			var startInfo = new ProcessStartInfo
 			{
@@ -297,10 +374,14 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			startInfo.ArgumentList.Add("-nodeReuse:false");
 			startInfo.ArgumentList.Add("-m:1");
 			startInfo.ArgumentList.Add($"-t:{target}");
-			startInfo.ArgumentList.Add("-getItem:MauiAsset");
+			startInfo.ArgumentList.Add($"-getItem:{itemName}");
 			// Central Package Management lives at the repository root and would otherwise reject the
 			// fixture's explicit Version attribute.
 			startInfo.ArgumentList.Add("-p:ManagePackageVersionsCentrally=false");
+			if (seedCompressedAssets)
+			{
+				startInfo.ArgumentList.Add("-p:SeedCompressedAssets=true");
+			}
 
 			using var process = Process.Start(startInfo)
 				?? throw new InvalidOperationException("Failed to start MSBuild.");

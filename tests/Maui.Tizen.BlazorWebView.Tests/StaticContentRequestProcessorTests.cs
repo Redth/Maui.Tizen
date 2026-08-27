@@ -21,7 +21,8 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		private static StaticContentRequestProcessor CreateProcessor(
 			out FakeContentSource source,
 			out StaticContentResponseCache cache,
-			Func<string, string, string?>? cacheControlOverride = null)
+			Func<string, string, string?>? cacheControlOverride = null,
+			List<string>? hostPageDocumentsServed = null)
 		{
 			source = new FakeContentSource();
 			cache = new StaticContentResponseCache();
@@ -31,7 +32,59 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 				AppOrigin,
 				cache,
 				capturedSource.TryGetContent,
-				cacheControlOverride ?? ((_, _) => null));
+				cacheControlOverride ?? ((_, _) => null),
+				logger: null,
+				onHostPageDocumentServed: hostPageDocumentsServed is null ? null : hostPageDocumentsServed.Add);
+		}
+
+		[Theory]
+		// Every route answered with the host page must be reported, because the web view finishes
+		// loading at THAT url and the Blazor bootstrap has to be injected there.
+		[InlineData("http://0.0.0.0/")]
+		[InlineData("http://0.0.0.0/?returnUrl=%2Fcounter")]
+		[InlineData("http://0.0.0.0/counter")]
+		[InlineData("http://0.0.0.0/CustomStart/SomeData")]
+		[InlineData("http://0.0.0.0/CustomStart/SomeData?id=7")]
+		public void HostPageDocumentRoutesAreReportedForBootstrapInjection(string url)
+		{
+			var served = new List<string>();
+			var processor = CreateProcessor(out var source, out _, hostPageDocumentsServed: served);
+			source.Add(QueryStringHelper.RemovePossibleQueryString(url), "<html/>", "text/html");
+
+			processor.Process(new FakeRequest(url));
+
+			// Reported under the ORIGINAL url, query included: that is what PlatformView.Url will report.
+			Assert.Equal(new[] { url }, served);
+		}
+
+		[Theory]
+		[InlineData("http://0.0.0.0/css/app.css")]
+		[InlineData("http://0.0.0.0/_framework/blazor.webview.js")]
+		public void AssetRoutesAreNotReportedForBootstrapInjection(string url)
+		{
+			// Injecting on an asset response would re-run Blazor.start against a non-document load.
+			var served = new List<string>();
+			var processor = CreateProcessor(out var source, out _, hostPageDocumentsServed: served);
+			source.Add(url, "body{}", "text/css");
+
+			processor.Process(new FakeRequest(url));
+
+			Assert.Empty(served);
+		}
+
+		[Fact]
+		public void CachedHostPageDocumentsAreStillReported()
+		{
+			// A cached document still produces a page load, so it still needs the bootstrap.
+			var served = new List<string>();
+			var processor = CreateProcessor(out var source, out _, (_, _) => "max-age=600", served);
+			source.Add("http://0.0.0.0/counter", "<html/>", "text/html");
+
+			processor.Process(new FakeRequest("http://0.0.0.0/counter"));
+			processor.Process(new FakeRequest("http://0.0.0.0/counter"));
+
+			Assert.Equal(2, served.Count);
+			Assert.Equal(1, source.LookupCount);
 		}
 
 		[Fact]

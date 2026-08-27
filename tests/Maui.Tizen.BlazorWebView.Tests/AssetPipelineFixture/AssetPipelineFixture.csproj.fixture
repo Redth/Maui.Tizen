@@ -40,4 +40,49 @@
   -->
   <Target Name="SimulateAssetProviderContract" DependsOnTargets="$(MauiTizenAssetProviderTargets)" />
 
+  <!--
+    Seeds pre-compressed variants so the conversion's AssetRole='Alternative' filter is exercised
+    against real input.
+
+    Why seeded rather than SDK-produced: compressed variants are emitted by the Blazor WebAssembly
+    SDK's publish-time compression targets, which do not exist in a plain Razor app - this fixture
+    is deliberately not a MAUI/Tizen/WASM project so it can run without the Samsung workload. A
+    build of this fixture therefore produces ZERO compressed assets, which previously made the
+    exclusion test vacuous: it asserted that no .gz survived when none had ever been present.
+
+    The metadata below mirrors what the SDK actually emits for a compressed variant (AssetRole,
+    RelatedAsset, and the Content-Encoding trait), so the filter is tested against the shape it
+    will really meet.
+
+    The discriminating case is NOT seeded: wwwroot/data/archive.gz is a genuine user file that the
+    Razor SDK discovers as an ordinary Primary asset. It must survive, which is what proves the
+    filter keys on AssetRole rather than on the file extension.
+  -->
+  <Target Name="SeedCompressedStaticWebAssets"
+          BeforeTargets="ConvertStaticWebAssetsToTizenMauiAssets"
+          DependsOnTargets="StaticWebAssetsPrepareForRun"
+          Condition=" '$(SeedCompressedAssets)' == 'true' ">
+    <ItemGroup>
+      <_SeedPrimary Include="@(StaticWebAsset)" Condition=" '%(StaticWebAsset.AssetRole)' == 'Primary' " />
+
+      <StaticWebAsset Include="@(_SeedPrimary->'%(Identity)')"
+                      Condition=" '@(_SeedPrimary)' != '' ">
+        <RelativePath>%(_SeedPrimary.RelativePath).gz</RelativePath>
+        <AssetRole>Alternative</AssetRole>
+        <RelatedAsset>%(_SeedPrimary.Identity)</RelatedAsset>
+        <AssetTraitName>Content-Encoding</AssetTraitName>
+        <AssetTraitValue>gzip</AssetTraitValue>
+      </StaticWebAsset>
+
+      <StaticWebAsset Include="@(_SeedPrimary->'%(Identity)')"
+                      Condition=" '@(_SeedPrimary)' != '' ">
+        <RelativePath>%(_SeedPrimary.RelativePath).br</RelativePath>
+        <AssetRole>Alternative</AssetRole>
+        <RelatedAsset>%(_SeedPrimary.Identity)</RelatedAsset>
+        <AssetTraitName>Content-Encoding</AssetTraitName>
+        <AssetTraitValue>br</AssetTraitValue>
+      </StaticWebAsset>
+    </ItemGroup>
+  </Target>
+
 </Project>

@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal;
@@ -118,5 +119,82 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			// about the handler type.
 			Assert.True(typeof(ITizenInterceptedRequestRouter).IsAssignableFrom(typeof(TizenBlazorWebViewHandler)));
 		}
+
+		// ---- Rooting of the native registration owner ----------------------------------------------
+		//
+		// Native retains a pointer to a proxy callback OWNED BY the WebContext. Rooting only our own
+		// callback is not enough: if the context is collected the proxy dies with it and interception
+		// silently stops. These tests pin that invariant.
+
+		private sealed class FakeWebContext
+		{
+			public string Name { get; init; } = string.Empty;
+		}
+
+		[Fact]
+		public void RootedContextSurvivesCollectionAfterCallerDropsIt()
+		{
+			var weak = RootAndForgetContext();
+
+			GC.Collect();
+			GC.WaitForPendingFinalizers();
+			GC.Collect();
+
+			// The caller holds nothing. Only the coordinator's root can be keeping it alive.
+			Assert.True(weak.IsAlive);
+			Assert.True(WebRequestInterceptionCoordinator.IsContextRooted(weak.Target!));
+		}
+
+		[MethodImpl(MethodImplOptions.NoInlining)]
+		private static WeakReference RootAndForgetContext()
+		{
+			var context = new FakeWebContext { Name = "rooted" };
+			WebRequestInterceptionCoordinator.RootRegistrationForTesting(context, new Action(() => { }));
+			return new WeakReference(context);
+		}
+
+		[Fact]
+		public void CollectingTheLastConnectedHandlerLeavesOtherHandlersRoutable()
+		{
+			// The scenario the review called out: one handler goes away under GC while another is still
+			// live. The survivor must keep receiving requests, and the platform rooting must not shrink.
+			var survivor = new FakeRouter();
+			WebRequestInterceptionCoordinator.RegisterRouteForTesting("1", survivor);
+
+			var rootedBefore = WebRequestInterceptionCoordinator.RootedRegistrationCount;
+			var weakDeparted = RegisterCollectableRoute("2");
+
+			GC.Collect();
+			GC.WaitForPendingFinalizers();
+			GC.Collect();
+
+			Assert.False(weakDeparted.IsAlive);
+
+			// Survivor still resolves...
+			Assert.Same(survivor, ResolveFor("1"));
+			// ...the collected one resolves to nothing rather than throwing or returning a dead router...
+			Assert.Null(ResolveFor("2"));
+			// ...and nothing about the collection released the native registration.
+			Assert.Equal(rootedBefore, WebRequestInterceptionCoordinator.RootedRegistrationCount);
+
+			WebRequestInterceptionCoordinator.Unregister("1");
+			WebRequestInterceptionCoordinator.Unregister("2");
+		}
+
+		[MethodImpl(MethodImplOptions.NoInlining)]
+		private static WeakReference RegisterCollectableRoute(string key)
+		{
+			var router = new FakeRouter();
+			WebRequestInterceptionCoordinator.RegisterRouteForTesting(key, router);
+			return new WeakReference(router);
+		}
+
+		private static ITizenInterceptedRequestRouter? ResolveFor(string key) =>
+			WebRequestInterceptionCoordinator.ResolveRouter(
+				new Dictionary<string, string>
+				{
+					["User-Agent"] = "Mozilla/5.0 (Tizen)" + BlazorWebViewUserAgent.BuildUserAgentSuffix(key),
+				});
+
 	}
 }

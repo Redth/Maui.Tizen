@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
+using System.Linq;
 using Tizen.NUI;
 using NWebContext = Tizen.NUI.WebContext;
 
@@ -40,26 +40,35 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 		private static readonly object s_gate = new();
 
 		/// <summary>
-		/// Contexts already carrying a registration. Keyed weakly so a context that goes away does not
-		/// keep this table growing, but see <see cref="s_rootedCallbacks"/> for the delegate lifetime.
-		/// </summary>
-		private static readonly ConditionalWeakTable<NWebContext, object> s_registeredContexts = new();
-
-		/// <summary>
-		/// The delegates handed to native code, rooted for the process lifetime.
+		/// Everything native holds a pointer into, rooted for the process lifetime.
 		/// </summary>
 		/// <remarks>
-		/// This is the whole point of the type. Native holds an unmanaged pointer to the callback with no
-		/// managed reference of its own, so if this list did not exist the delegate would be collected
-		/// and interception would silently stop.
+		/// <para>
+		/// Rooting the callback alone is not sufficient, and that mistake is invisible until it isn't.
+		/// <c>WebContext.RegisterHttpRequestInterceptedCallback</c> does not hand our delegate to native
+		/// directly: it stores it on the <c>WebContext</c> and registers an intermediate proxy
+		/// (<c>WebContextHttpRequestInterceptedProxyCallback</c>) owned by that same <c>WebContext</c>
+		/// instance. Native retains a function pointer to the <b>proxy</b>. So if the <c>WebContext</c>
+		/// is collected, the proxy dies with it and interception stops even though our callback is still
+		/// perfectly alive and rooted - every request then 404s, intermittently, under GC pressure.
+		/// </para>
+		/// <para>
+		/// Both the context and the callback are therefore held strongly and permanently. There are at
+		/// most a handful of web contexts in a process, and the platform offers no way to unregister, so
+		/// there is nothing to release: keeping them alive costs a few references and is the only way the
+		/// registration can be relied upon.
+		/// </para>
 		/// </remarks>
-		private static readonly List<NWebContext.HttpRequestInterceptedCallback> s_rootedCallbacks = new();
+		/// <para>
+		/// Typed as <see cref="object"/> so the rooting invariant - the part with the actual correctness
+		/// risk - can be exercised on the host, where no real <c>WebContext</c> can be constructed. The
+		/// public <see cref="Register"/> entry point remains strongly typed.
+		/// </para>
+		private static readonly List<(object Context, object Callback)> s_rootedRegistrations = new();
 
 		/// <summary>Handlers eligible to receive routed requests, by routing key.</summary>
 		private static readonly Dictionary<string, WeakReference<ITizenInterceptedRequestRouter>> s_routes =
 			new(StringComparer.Ordinal);
-
-		private static readonly object RegisteredMarker = new();
 
 		/// <summary>
 		/// Ensures <paramref name="context"/> has interception installed, and routes its requests to
@@ -74,16 +83,21 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 			{
 				s_routes[routingKey] = new WeakReference<ITizenInterceptedRequestRouter>(router);
 
-				if (s_registeredContexts.TryGetValue(context, out _))
+				foreach (var registration in s_rootedRegistrations)
 				{
-					return;
+					if (ReferenceEquals(registration.Context, context))
+					{
+						// Already registered. Re-registering would replace the previous callback and
+						// abandon the proxy native currently points at.
+						return;
+					}
 				}
 
 				NWebContext.HttpRequestInterceptedCallback callback = OnRequestIntercepted;
 
-				// Root before registering: native takes the pointer immediately.
-				s_rootedCallbacks.Add(callback);
-				s_registeredContexts.Add(context, RegisteredMarker);
+				// Root the context AND the callback before registering: native takes the pointer to the
+				// context-owned proxy immediately.
+				s_rootedRegistrations.Add((context, callback));
 				context.RegisterHttpRequestInterceptedCallback(callback);
 			}
 		}
@@ -129,14 +143,34 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 			}
 		}
 
-		internal static int RootedCallbackCount
+		internal static int RootedRegistrationCount
 		{
 			get
 			{
 				lock (s_gate)
 				{
-					return s_rootedCallbacks.Count;
+					return s_rootedRegistrations.Count;
 				}
+			}
+		}
+
+		/// <summary>
+		/// Roots a stand-in context/callback pair without touching the platform, for tests.
+		/// </summary>
+		internal static void RootRegistrationForTesting(object context, object callback)
+		{
+			lock (s_gate)
+			{
+				s_rootedRegistrations.Add((context, callback));
+			}
+		}
+
+		/// <summary>Whether <paramref name="context"/> is strongly rooted by a live registration.</summary>
+		internal static bool IsContextRooted(object context)
+		{
+			lock (s_gate)
+			{
+				return s_rootedRegistrations.Any(r => ReferenceEquals(r.Context, context));
 			}
 		}
 

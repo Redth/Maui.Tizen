@@ -64,16 +64,23 @@
 
     <ItemGroup Condition=" '@(_TizenBlazorStaticWebAssetWithTargetPath)' != '' ">
       <!--
-        Drop SDK-generated pre-compressed variants (.gz/.br). Assets are served from local storage
-        by the request interceptor, so they are pure bloat in the TPK. AssetRole='Alternative'
-        distinguishes them from a user file that happens to end in .gz. Mirrors dotnet/maui#33773.
+        Drop SDK-generated pre-compressed variants. Assets are served from local storage by the
+        request interceptor, which does no content negotiation, so a compressed alternative is never
+        requested and is pure TPK bloat. Mirrors dotnet/maui#33773.
+
+        Filtering on AssetRole alone is deliberate. 'Alternative' means "another encoding of a
+        Primary asset", which is exactly and only the set we want gone, so:
+          - a user file that merely ends in .gz is Primary and survives, and
+          - a compressed variant is dropped even though its Identity is an SDK-generated temp file
+            whose name does not necessarily end in .gz or .br.
+        An earlier version also tested %(Extension), which made the rule depend on the shape of a
+        path the SDK is free to choose, and OR-ed in '$(CompressionEnabled)' != 'false' - a term that
+        is true whenever the property is unset, i.e. almost always, which short-circuited the whole
+        condition and silently included every compressed variant.
       -->
       <_TizenBlazorMauiAssetCandidate
           Include="%(_TizenBlazorStaticWebAssetWithTargetPath.Identity)"
-          Condition=" '$(CompressionEnabled)' != 'false'
-                      or '%(_TizenBlazorStaticWebAssetWithTargetPath.AssetRole)' != 'Alternative'
-                      or ('%(_TizenBlazorStaticWebAssetWithTargetPath.Extension)' != '.gz'
-                          and '%(_TizenBlazorStaticWebAssetWithTargetPath.Extension)' != '.br') ">
+          Condition=" '%(_TizenBlazorStaticWebAssetWithTargetPath.AssetRole)' != 'Alternative' ">
         <TargetPath>%(_TizenBlazorStaticWebAssetWithTargetPath.TargetPath)</TargetPath>
       </_TizenBlazorMauiAssetCandidate>
 
