@@ -1,0 +1,60 @@
+# Path specification for the dotnet/maui -> Maui.Tizen filtered history import.
+#
+# Consumed by `git-filter-repo --paths-from-file`. Every path in dotnet/maui history
+# that matches one of these entries is RETAINED; everything else is dropped.
+#
+# Syntax:
+#   literal      -> exact path or directory prefix match
+#   glob:...     -> shell-style glob
+#   regex:...    -> Python regular expression (inline flags such as (?i) are supported)
+#   # comment    -> ignored
+#
+# NOTE: this file intentionally over-matches rather than under-matches. It is far
+# cheaper to exclude a stray file during the *normalization* commit than to discover
+# a missing file after history has been rewritten. Normalization is a separate,
+# reviewable commit precisely so the raw import can stay mechanical and auditable.
+
+# ---------------------------------------------------------------------------
+# Everything whose path mentions Tizen, in any casing.
+#
+# This single rule covers every historical layout the backend has lived under,
+# which is why it is preferred over enumerating today's paths:
+#
+#   Xamarin.Forms era   Xamarin.Forms.Platform.Tizen/**
+#                       Stubs/Xamarin.Forms.Platform.Tizen/**
+#                       Samples/Samples.Tizen/**
+#                       PagesGallery/PagesGallery.Tizen/**
+#                       EmbeddingTestBeds/Embedding.Tizen/**
+#                       Xamarin.Essentials/**/*.tizen.cs
+#   MAUI era            src/Core/src/Platform/Tizen/**
+#                       src/Core/src/LifecycleEvents/Tizen/**
+#                       src/Core/maps/src/**/Tizen/**
+#                       src/Controls/src/Core/Platform/Tizen/**
+#                       src/Controls/src/Core/Handlers/**/Tizen/**
+#                       src/Compatibility/**/Tizen/**          (removed on net11.0)
+#                       src/Platform.Renderers/**Tizen**
+#                       src/Essentials/src/**/*.tizen.cs
+#                       src/BlazorWebView/src/Maui/Tizen/**
+#                       src/Graphics/samples/GraphicsTester.Skia.Tizen/**
+#                       src/Templates/**/Tizen/**
+#                       **/tizen-manifest.xml
+#                       eng/common/cross/*/tizen/**
+regex:(?i)tizen
+
+# ---------------------------------------------------------------------------
+# Licence and notice files.
+#
+# Retained so the imported history carries dotnet/maui's licensing lineage rather
+# than presenting the Tizen sources as if they were newly authored here.
+#
+# Matching is CASE-SENSITIVE, and dotnet/maui has used several spellings over time
+# (LICENSE.txt today, LICENSE / LICENSE.TXT in the Xamarin.Forms era), so all known
+# variants are listed rather than assuming the current one.
+LICENSE
+LICENSE.txt
+LICENSE.TXT
+LICENSE.md
+License.txt
+THIRD-PARTY-NOTICES.TXT
+THIRD-PARTY-NOTICES.txt
+THIRD-PARTY-NOTICES.md

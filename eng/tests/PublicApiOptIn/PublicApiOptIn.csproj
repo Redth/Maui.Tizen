@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    PublicAPI analyzer opt-in smoke test.
+
+    This project exists to prove, by compiling, that the analyzer wiring actually works:
+    a project with real public API plus a baseline that describes THAT assembly builds
+    clean under TreatWarningsAsErrors, with RS0016/RS0017 at error severity.
+
+    It is the worked example referenced by eng/targets/TizenPackage.props, and it is the
+    reason the automatic `PublicAPI/**` glob was removed there. That glob attached
+    upstream's monolithic per-assembly baselines to our split assemblies (3,268 entries
+    against ~447 real ones) and silently matched nothing at all for the three packages
+    whose imported baselines are nested a level deeper. This project demonstrates the
+    replacement: explicit, project-owned, and describing the assembly it is attached to.
+
+    Deliberately NOT a Tizen project - it must compile in the workload-free lane, which is
+    the only lane that can run today. The wiring under test is identical either way.
+
+    Two negative cases are covered by RepositoryInvariantTests rather than here, because
+    they assert about the repository rather than about a compilation:
+      - no project consumes the monolithic upstream baselines
+      - RS0016/RS0017 are not globally suppressed
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <EnablePublicApiAnalyzer>true</EnablePublicApiAnalyzer>
+
+    <!--
+      Documentation is not what this project is testing, and CS1591 under
+      TreatWarningsAsErrors would drown the signal it exists to produce.
+    -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);NETSDK1057</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Explicit, and describing THIS assembly. The path is project-owned; nothing globs it
+      in from elsewhere.
+    -->
+    <AdditionalFiles Include="PublicAPI/tizen/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/tizen/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,96 @@
+<Project>
+
+  <!--
+    Central Package Management. Versions live here only; project files reference
+    packages without a Version attribute.
+  -->
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup Label="MAUI (neutral assemblies consumed from the published feed)">
+    <!--
+      Pinned to eng/baselines.json > developmentPackageBaseline: the first coherent
+      public-feed net11 MAUI package set, whose nuspec repository commits all resolve to
+      0b3bb76d2d (PR #36657). Bumping this without regenerating the API baselines will
+      produce misleading diffs.
+    -->
+    <PackageVersion Include="Microsoft.Maui.Core" Version="11.0.0-preview.7.26426.4" />
+    <PackageVersion Include="Microsoft.Maui.Controls" Version="11.0.0-preview.7.26426.4" />
+    <PackageVersion Include="Microsoft.Maui.Controls.Core" Version="11.0.0-preview.7.26426.4" />
+    <PackageVersion Include="Microsoft.Maui.Essentials" Version="11.0.0-preview.7.26426.4" />
+    <PackageVersion Include="Microsoft.Maui.Graphics" Version="11.0.0-preview.7.26426.4" />
+    <PackageVersion Include="Microsoft.Maui.Maps" Version="11.0.0-preview.7.26426.4" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="11.0.0-preview.7.26426.4" />
+  </ItemGroup>
+
+  <ItemGroup Label="ASP.NET Core (BlazorWebView dependencies)">
+    <!--
+      DIFFERENT VERSION LINE FROM MAUI, deliberately.
+
+      These are ASP.NET Core packages, not MAUI packages, and they do not share MAUI's
+      version stamp. Pinning them to it produced NU1102/NU1603 for the whole BlazorWebView
+      graph, because no ASP.NET Core package exists at a MAUI build number.
+
+      11.0.0-preview.7.26381.103 is not a guess: it is what
+      Microsoft.AspNetCore.Components.WebView.Maui declares in its own nuspec, and it
+      matches the SDK build pinned in global.json (11.0.100-preview.7.26381.103), so the
+      whole graph stays on one ASP.NET Core build.
+
+      NOTE: this floor did NOT move when the MAUI baseline was bumped from
+      11.0.0-preview.7.26418.3 to 11.0.0-preview.7.26426.4 - the newer WebView.Maui nuspec
+      declares the same 26381.103 dependencies. Verify against the nuspec before changing
+      it; do not assume it tracks the MAUI stamp.
+
+      A higher version resolves but silently upgrades past what MAUI asked for and mixes
+      version lines. Matching the declared dependency is the coherent choice.
+
+      Verified by eng/tests/PackageGraphProbe.
+    -->
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView" Version="11.0.0-preview.7.26381.103" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authorization" Version="11.0.0-preview.7.26381.103" />
+    <PackageVersion Include="Microsoft.JSInterop" Version="11.0.0-preview.7.26381.103" />
+  </ItemGroup>
+
+  <ItemGroup Label="Samsung / Tizen">
+    <!--
+      Apache-2.0, consumed as a package only; no Samsung source is vendored here.
+      See THIRD-PARTY-NOTICES.md.
+
+      NOTE: this version still carries .NET 6-era Microsoft.Maui.Graphics dependencies.
+      Samsung republishing Tizen.UIExtensions to drop them is a tracked prerequisite; no
+      API surface change is expected from that republish.
+    -->
+    <PackageVersion Include="Tizen.UIExtensions.NUI" Version="0.9.2" />
+  </ItemGroup>
+
+  <ItemGroup Label="Build tasks">
+    <!--
+      17.14.x rather than 17.11.x: Microsoft.Build.Utilities.Core 17.11.4 carries a known
+      high-severity advisory (GHSA-w3q9-fxm7-j8fq), which NuGet audit correctly turns into
+      NU1903. Since CI builds with TreatWarningsAsErrors, that is a hard failure - and it
+      should be. Do not downgrade to silence it.
+    -->
+    <PackageVersion Include="Microsoft.Build.Framework" Version="17.14.28" />
+    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="17.14.28" />
+    <PackageVersion Include="SkiaSharp" Version="3.116.1" />
+  </ItemGroup>
+
+  <ItemGroup Label="Analyzers">
+    <!--
+      SourceLink is NOT pinned here: the .NET SDK has included it since .NET 8, so an
+      explicit Microsoft.SourceLink.GitHub reference is redundant and only risks pinning
+      an older version than the SDK provides.
+    -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.4" />
+  </ItemGroup>
+
+  <ItemGroup Label="Testing">
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageVersion Include="xunit" Version="2.9.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+</Project>

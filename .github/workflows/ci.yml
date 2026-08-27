@@ -1,0 +1,197 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  # Deliberately unrestricted: stacked PRs target the foundation branch rather than
+  # main, and a `branches: [ main ]` filter here silently gives them zero checks -
+  # which is worse than a failing check, because nothing signals that anything is wrong.
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # The lane that must stay green.
+  #
+  # It builds and tests everything that does not depend on the Samsung Tizen workload,
+  # which is what stops the repository's build configuration from sitting untested
+  # while we wait on an external dependency.
+  # ---------------------------------------------------------------------------
+  workload-free:
+    name: Build and test (no Tizen workload)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Full history: the provenance tests and any history verification need the
+          # imported commits, not a shallow tip.
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Build and validate
+        run: ./eng/build-workload-free.sh
+        env:
+          ContinuousIntegrationBuild: true
+
+  # ---------------------------------------------------------------------------
+  # Provenance integrity.
+  #
+  # The import's value is entirely in the history it preserves. If a future rebase or
+  # force-push flattens it, everything still compiles and nothing else notices - so it
+  # is checked explicitly.
+  # ---------------------------------------------------------------------------
+  provenance:
+    name: Verify imported history
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Verify provenance commits are still reachable
+        run: |
+          set -euo pipefail
+          fail=0
+
+          check_pr() {
+            local pr="$1" desc="$2" matches
+            # NOTE: deliberately NOT `git log ... | grep -q .`. Under `set -o pipefail`,
+            # `grep -q` exits on the first match and closes the pipe, so `git log` can die
+            # with SIGPIPE and poison the pipeline's exit status - nondeterministically,
+            # depending on how much it had already written. That is exactly how this check
+            # first failed in CI: #2360 passed and #9619 "went missing" in the same run.
+            # `wc -l` consumes all input, so there is no early close and no race.
+            matches="$(git log --all --format='%H' --grep="#${pr})" | wc -l)"
+            if [ "$matches" -gt 0 ]; then
+              echo "  OK   PR #${pr} (${desc}) is present in history"
+            else
+              echo "  FAIL PR #${pr} (${desc}) is missing - imported history has been flattened or rewritten"
+              fail=1
+            fi
+          }
+
+          check_pr 2360 "Adds Tizen backend"
+          check_pr 9619 "Replace Tizen Backend engine"
+
+          # The import should carry well over a thousand commits. A shallow or squashed
+          # history is the failure this guards against.
+          commits=$(git rev-list --count HEAD)
+          echo "  INFO $commits commits reachable from HEAD"
+          if [ "$commits" -lt 1000 ]; then
+            echo "  FAIL history looks truncated (expected >1000 commits from the Tizen import)"
+            fail=1
+          fi
+
+          # Attribution is the point of a history-preserving import.
+          authors=$(git log --format='%aN' | sort -u | wc -l)
+          echo "  INFO $authors distinct authors preserved"
+          if [ "$authors" -lt 50 ]; then
+            echo "  FAIL author attribution looks lost (expected >50 distinct authors)"
+            fail=1
+          fi
+
+          exit $fail
+
+  # ---------------------------------------------------------------------------
+  # The external gate.
+  #
+  # This job does NOT silently skip. It runs on every build and reports, in the job
+  # summary, whether the Samsung .NET 11 workload has shipped yet. The moment it starts
+  # succeeding, this job should be promoted to a required check and the Tizen projects
+  # built for real.
+  #
+  # continue-on-error is used rather than `if:` so the gate stays visible in the checks
+  # list instead of disappearing.
+  # ---------------------------------------------------------------------------
+  tizen-workload-gate:
+    name: Tizen workload availability (external gate)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Probe for the Samsung Tizen workload manifest
+        id: probe
+        run: |
+          set -euo pipefail
+
+          # Deliberately NOT `dotnet workload install tizen`.
+          #
+          # The Samsung workload is third-party and side-loaded: its manifest is not
+          # discoverable through the SDK's public workload search on a clean runner, so
+          # `dotnet workload install tizen` cannot succeed here regardless of whether
+          # Samsung has shipped. And `--skip-manifest-update` guarantees failure outright,
+          # because the manifest is precisely what the runner does not yet have.
+          #
+          # A probe that can never succeed is worse than no probe: it reports "blocked"
+          # forever and would keep reporting it for weeks after the gate actually lifts.
+          #
+          # So we ask the question that has a real answer — has Samsung published a
+          # manifest package for this SDK band?
+          #
+          # Two IDs are probed, both DERIVED from eng/baselines.json rather than hardcoded:
+          # the full band (11.0.100-preview.7) and the feature band with the preview
+          # segment stripped (11.0.100), since Samsung may publish against either. NuGet
+          # IDs are case-insensitive, so the lowercase flat-container form covers both
+          # spellings.
+          BAND="$(python3 -c "import json;print(json.load(open('eng/baselines.json'))['target']['sdkBand'])")"
+          FEATURE_BAND="${BAND%%-*}"
+
+          FOUND=false
+          for id in "samsung.net.sdk.tizen.manifest-${BAND}" "samsung.net.sdk.tizen.manifest-${FEATURE_BAND}"; do
+            code="$(curl -s -o /dev/null -w '%{http_code}' "https://api.nuget.org/v3-flatcontainer/${id}/index.json")"
+            echo "  ${id} -> HTTP ${code}"
+            if [ "$code" = "200" ]; then FOUND=true; PUBLISHED_ID="$id"; fi
+          done
+
+          { echo "## Tizen workload gate"; echo; } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$FOUND" = "true" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            {
+              echo ":white_check_mark: **Samsung has published \`${PUBLISHED_ID}\` — the gate has lifted.**"
+              echo
+              echo "Next steps:"
+              echo "1. Install the workload through Samsung's supported installer / local manifest path."
+              echo "2. Promote this job to a required check and build the \`net11.0-tizen11.0\` projects."
+              echo "3. Regenerate the API baselines against a real Tizen build."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            {
+              echo ":hourglass: **Blocked on an external dependency — this is expected.**"
+              echo
+              echo "No \`11.0.100\`-band Samsung workload manifest is published. Only the"
+              echo "\`9.0.100\` and \`10.0.100\` bands exist on nuget.org."
+              echo
+              echo "Until then, \`net11.0-tizen11.0\` cannot be restored or built by anyone."
+              echo "See \`docs/migration.md\` and \`eng/baselines.json\`."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Build Tizen projects
+        if: steps.probe.outputs.available == 'true'
+        # Installation goes through Samsung's supported side-load path rather than public
+        # workload search; this step is a placeholder that will fail loudly and visibly
+        # the first time the gate lifts, which is the point at which a human should wire
+        # up the real installer.
+        run: |
+          echo "::notice::Samsung manifest is published. Wire up the supported Samsung installer / local manifest path, then build."
+          exit 1

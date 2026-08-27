@@ -1,0 +1,29 @@
+root = true
+
+# Matches dotnet/maui's conventions so that imported sources do not reformat wholesale
+# on first edit. Diverging here would turn every future upstream port into a noisy diff.
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = tab
+indent_size = 4
+
+[*.{csproj,props,targets,slnx,json,yml,yaml,xml}]
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+indent_style = tab
+csharp_new_line_before_open_brace = all
+csharp_prefer_braces = false:suggestion
+dotnet_sort_system_directives_first = true
+
+# Public API analyzer: unshipped entries must be promoted deliberately, not silently.
+dotnet_diagnostic.RS0016.severity = error
+dotnet_diagnostic.RS0017.severity = error

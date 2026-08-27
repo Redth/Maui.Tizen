@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="$(MSBuildThisFileDirectory)../../eng/targets/TizenPackage.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Microsoft.Maui.ApplicationModel</RootNamespace>
+    <Description>Tizen platform implementation for .NET MAUI Essentials: sensors, device info, connectivity, storage, media, and application model APIs.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      The net11 Essentials extensibility work (PR #36657, commit 0b3bb76d2d) is the
+      minimum API floor for this project: it bridges DI implementations to the static
+      facades, which is what makes an out-of-tree platform implementation possible at
+      all. See eng/baselines.json > requiredAncestor.
+    -->
+    <PackageReference Include="Microsoft.Maui.Essentials" />
+  </ItemGroup>
+
+</Project>

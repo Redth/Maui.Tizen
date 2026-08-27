@@ -1,0 +1,148 @@
+{
+  "$comment": [
+    "Frozen baselines for the dotnet/maui -> Maui.Tizen extraction.",
+    "",
+    "Every ref here is a pinned commit SHA or an exact version string, never a branch",
+    "name. origin/net11.0 advanced from ee4d06cde6 to bedd1b18b7 during the few hours",
+    "the initial import was prepared, which is exactly why branch names are unusable",
+    "as baselines.",
+    "",
+    "Consumed by eng/import/filter-maui-tizen.sh and by the inventory/API baseline",
+    "tooling. Changing any value here invalidates the generated baselines and should",
+    "be accompanied by regenerating them."
+  ],
+  "schemaVersion": 1,
+  "source": {
+    "repository": "https://github.com/dotnet/maui",
+    "sourceBaseline": {
+      "commit": "ee4d06cde6b49e297631b08426a33fb34f3152ef",
+      "branch": "net11.0",
+      "date": "2026-08-18",
+      "role": "Forward source baseline. All net11-era Tizen sources are taken from here.",
+      "commitsAheadOfRequiredAncestor": 4,
+      "knownGapAfterThisPin": {
+        "$comment": [
+          "net11.0 continued past this pin. The commits below touch Tizen paths and are",
+          "therefore NOT represented in the import or in any baseline generated from it.",
+          "",
+          "All three touch ONLY src/Controls/src/Core/PublicAPI/net-tizen/PublicAPI.Unshipped.txt",
+          "- they are API surface declarations, not implementation - so the practical gap is",
+          "that the Controls net-tizen Unshipped baseline is three API additions behind",
+          "current net11.0. This matters for API baseline diffing, not for source migration.",
+          "",
+          "Recorded because 'we pinned a SHA' is only reproducible if what the pin EXCLUDES",
+          "is also written down."
+        ],
+        "observedAgainst": "bedd1b18b7682193e05b47267509cec8c49c6853",
+        "$note": "bedd1b18b7 is also developmentPackageBaseline.nuspecRepositoryCommit, so the Microsoft.Maui.* packages this repository compiles against DO contain these three API additions while the imported source baseline does not. The gap therefore applies to imported source only.",
+        "commits": [
+          { "commit": "62418a4ec4", "pullRequest": 37420, "title": "Expose gesture recognizer dispatch APIs" },
+          { "commit": "78502a5325", "pullRequest": 37671, "title": "Harden gesture recognizer dispatch API contracts" },
+          { "commit": "4695c95801", "pullRequest": 37755, "title": "Add badge support to TabbedPage" }
+        ]
+      }
+    },
+    "requiredAncestor": {
+      "commit": "0b3bb76d2dd68d76b7c1302f43a76270d5949564",
+      "pullRequest": 36657,
+      "title": "[Extensibility] Essentials: Bridge DI implementations to static facades",
+      "role": "Minimum API floor. The import script hard-fails if this is not an ancestor of sourceBaseline.",
+      "note": "This commit is NOT on dotnet/maui main. It lives on net11.0 and release/11.0.1xx-rc1."
+    },
+    "behaviorBaseline": {
+      "commit": "c1f4f7d879f6126029009902289efd6a4bb1bda9",
+      "tag": "9.0.120",
+      "localTag": "upstream/9.0.120",
+      "targetFramework": "net9.0-tizen7.0",
+      "role": "Last published Tizen behaviour/API baseline.",
+      "note": "This is the ONLY ref that still carries src/Compatibility Tizen sources (70 files). They were deleted upstream on net11.0, so a net11.0-only baseline loses them silently."
+    },
+    "developmentPackageBaseline": {
+      "version": "11.0.0-preview.7.26426.4",
+      "feed": "https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet11/nuget/v3/index.json",
+      "nuspecRepositoryCommit": "bedd1b18b7682193e05b47267509cec8c49c6853",
+      "role": "Coherent public-feed MAUI package set for net11. Used when building against published MAUI packages rather than source.",
+      "$comment": [
+        "IMPORTANT: this is a DIFFERENT commit from sourceBaseline, and deliberately so.",
+        "",
+        "  sourceBaseline               ee4d06cde6   what the history import is pinned to",
+        "  nuspecRepositoryCommit       bedd1b18b7   what these packages were built from",
+        "",
+        "bedd1b18b7 is 46 commits ahead of ee4d06cde6 and INCLUDES the three Tizen-touching",
+        "commits recorded in sourceBaseline.knownGapAfterThisPin (#37420, #37671, #37755).",
+        "",
+        "So the gap is one-directional and applies only to imported SOURCE, not to the",
+        "packages we compile against: the referenced Microsoft.Maui.* assemblies already",
+        "carry those three API additions, while the imported PublicAPI.Unshipped.txt",
+        "baseline does not. Anyone diffing our API baselines against these packages should",
+        "expect exactly that delta and should not read it as drift."
+      ],
+      "aspNetCoreDependencyFloor": {
+        "version": "11.0.0-preview.7.26381.103",
+        "note": "Declared by Microsoft.AspNetCore.Components.WebView.Maui's own nuspec at this package version, and unchanged by the MAUI bump. ASP.NET Core packages are on their own version line and must NOT be moved to the MAUI stamp - that version does not exist for them."
+      }
+    },
+    "provenancePullRequests": [
+      { "number": 2360, "title": "Adds Tizen backend", "upstreamCommit": "438aef2e5d" },
+      { "number": 9619, "title": "[main][Tizen] Replace Tizen Backend engine", "upstreamCommit": "9ee62c1b12" }
+    ]
+  },
+  "target": {
+    "$comment": "The workload contract this repository builds against.",
+    "dotNetVersion": "11.0",
+    "targetFramework": "net11.0-tizen11.0",
+    "tizenPlatformVersion": "11.0",
+    "sdkBand": "11.0.100-preview.7",
+    "tizenManifestApiVersion": "11",
+    "tizenFxApiLevel": "API15",
+    "referencePack": {
+      "id": "Samsung.Tizen.Ref.API15",
+      "version": "15.0.0.19396"
+    },
+    "workloadManifest": {
+      "$comment": [
+        "Naming matters here and is easy to get wrong. NuGet package IDs are",
+        "case-insensitive, so this appears in both spellings in the wild:",
+        "  Samsung.NET.Sdk.Tizen.Manifest-<band>   (Samsung's own casing)",
+        "  samsung.net.sdk.tizen.manifest-<band>   (nuget.org flat-container form)",
+        "The <band> suffix is the SDK feature band, and for previews it carries the",
+        "preview segment too - so what to watch for is the -preview.7 form, not a bare",
+        "11.0.100. Both were probed; neither exists."
+      ],
+      "id": "Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7",
+      "lowercaseId": "samsung.net.sdk.tizen.manifest-11.0.100-preview.7",
+      "status": "unavailable",
+      "probedUtc": "2026-08-26",
+      "publishedBands": [
+        { "id": "samsung.net.sdk.tizen.manifest-9.0.100", "latest": "10.0.104" },
+        { "id": "samsung.net.sdk.tizen.manifest-10.0.100", "latest": "10.0.123" }
+      ],
+      "note": "Neither the '-11.0.100' nor the '-11.0.100-preview.7' form exists on nuget.org (both 404). Only the 9.0.100 and 10.0.100 bands publish, and the newest Samsung.Tizen.Sdk is 10.0.128. Explicit external gate: net11.0-tizen11.0 cannot be restored or built anywhere until Samsung publishes an 11.0.100-band manifest. See docs/migration.md."
+    },
+    "provenance": {
+      "$comment": [
+        "The tizen11.0 / API15 contract is verified from Samsung's own workload PR, not",
+        "inferred. This is what makes API15 sufficient and rules out needing a new",
+        "reference pack."
+      ],
+      "source": "Samsung workload PR #310",
+      "establishes": [
+        "net11.0-tizen11.0 as the target framework",
+        "TizenFX API15 / Samsung.Tizen.Ref.API15 15.0.0.19396 as the reference pack",
+        "tizen-manifest.xml api-version 11",
+        "SDK band 11.0.100-preview.7"
+      ]
+    },
+    "notes": [
+      "No API16 or new reference pack is required; API15 is sufficient.",
+      "Tizen.UIExtensions requires republishing solely to drop its .NET 6-era Microsoft.Maui.Graphics dependencies. No API surface change is expected."
+    ]
+  },
+  "policy": {
+    "minimumDotNet": "11.0",
+    "supportsDotNet10": false,
+    "preservedNamespacePrefix": "Microsoft.Maui",
+    "newImplementationNamespacePrefix": "Microsoft.Maui.Platforms.Tizen",
+    "packageIdPrefix": "Maui.Tizen"
+  }
+}

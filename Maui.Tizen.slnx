@@ -1,0 +1,58 @@
+<Solution>
+
+  <!--
+    Maui.Tizen solution.
+
+    Most projects here cannot build until the Samsung .NET 11 workload ships (see
+    docs/migration.md). They are still listed so the solution documents the intended
+    shape of the repository and so IDE navigation works across the imported sources.
+
+    Maui.Tizen.Build.Tasks is the exception: it targets netstandard2.0, needs no
+    workload, and is what the workload-free CI lane actually compiles.
+  -->
+
+  <Folder Name="/src/">
+    <Project Path="src/Maui.Tizen.Core/Maui.Tizen.Core.csproj" />
+    <Project Path="src/Maui.Tizen.Controls/Maui.Tizen.Controls.csproj" />
+    <Project Path="src/Maui.Tizen.Essentials/Maui.Tizen.Essentials.csproj" />
+    <Project Path="src/Maui.Tizen.BlazorWebView/Maui.Tizen.BlazorWebView.csproj" />
+    <Project Path="src/Maui.Tizen.Maps/Maui.Tizen.Maps.csproj" />
+    <Project Path="src/Maui.Tizen.Graphics/Maui.Tizen.Graphics.csproj" />
+    <Project Path="src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj" />
+    <Project Path="src/Maui.Tizen.Templates/Maui.Tizen.Templates.csproj" />
+  </Folder>
+
+  <Folder Name="/tests/">
+    <Project Path="tests/UnitTests/Maui.Tizen.UnitTests.csproj" />
+    <Project Path="eng/tests/PackageGraphProbe/PackageGraphProbe.csproj" />
+    <Project Path="eng/tests/PublicApiOptIn/PublicApiOptIn.csproj" />
+    <Project Path="eng/tests/PackReadmeProbe/PackReadmeProbe.csproj" />
+  </Folder>
+
+  <Folder Name="/eng/">
+    <File Path="eng/baselines.json" />
+    <File Path="eng/build-workload-free.sh" />
+    <File Path="eng/import/tizen-paths.txt" />
+    <File Path="eng/import/filter-maui-tizen.sh" />
+    <File Path="eng/import/normalize-layout.sh" />
+    <File Path="eng/manifests/source-disposition.schema.json" />
+    <File Path="eng/targets/TizenPackage.props" />
+  </Folder>
+
+  <Folder Name="/docs/">
+    <File Path="README.md" />
+    <File Path="PROVENANCE.md" />
+    <File Path="THIRD-PARTY-NOTICES.md" />
+    <File Path="docs/architecture.md" />
+    <File Path="docs/migration.md" />
+  </Folder>
+
+  <Folder Name="/solution items/">
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="nuget.config" />
+  </Folder>
+
+</Solution>

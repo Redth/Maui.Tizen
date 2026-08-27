@@ -1,2 +1,117 @@
 # Maui.Tizen
-Tizen backend for .NET MAUI extracted from the dotnet/maui repo
+
+The Tizen backend for [.NET MAUI](https://github.com/dotnet/maui), extracted into a
+standalone, externally maintained repository.
+
+> **Status: foundation only.** The imported sources do not compile yet, and no packages
+> are published. See [Current state](#current-state) before filing issues.
+
+## Why this exists
+
+The Tizen backend shipped inside `dotnet/maui` for years, compiled directly into the
+`Microsoft.Maui.*` assemblies. Maintaining it there ties Tizen's release cadence to
+.NET MAUI's and puts platform-specific work in a repository whose maintainers do not own
+the platform. This repository separates the two.
+
+## Current state
+
+| | |
+|---|---|
+| Imported history | 1,236 commits, 121 authors, back to 2016 |
+| Files imported | 316 |
+| Repository scaffolding | Complete |
+| Package projects | Skeletons — identity and dependencies declared, sources not yet compiled |
+| Published packages | None |
+| **Buildable** | **Not yet — blocked on an external dependency** |
+
+### The blocker
+
+`net11.0-tizen11.0` cannot be restored or built by anyone right now. The workload manifest
+`Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7` has not been published to nuget.org — only the
+`9.0.100` and `10.0.100` bands exist.
+
+This is deliberately surfaced rather than worked around. There is no neutral `net11.0`
+fallback: it would make CI green while producing assemblies that cannot run on Tizen.
+Building a Tizen project without the workload fails with a `MAUITIZEN0001` error
+explaining exactly this.
+
+Details in [`docs/migration.md`](docs/migration.md).
+
+## What you can build today
+
+```bash
+./eng/build-workload-free.sh
+```
+
+This runs everything that does not need the Tizen workload — SDK and package
+configuration, baseline consistency, import tooling integrity, and 20 repository
+invariant tests. It is the required CI lane, so that when the workload ships, the
+workload is the only thing that has to start working.
+
+Requires the .NET SDK pinned in [`global.json`](global.json) (11.0.100-preview.7).
+
+## Layout
+
+```
+src/
+  Maui.Tizen.Core/           Handlers, platform views, lifecycle, fonts, image sources
+  Maui.Tizen.Controls/       Shell, CollectionView, shapes, gesture and modal managers
+  Maui.Tizen.Essentials/     Sensors, device info, connectivity, storage, media
+  Maui.Tizen.BlazorWebView/  BlazorWebView platform implementation
+  Maui.Tizen.Maps/           Map handlers and controls
+  Maui.Tizen.Graphics/       Skia view (provisional)
+  Maui.Tizen.Compatibility/  Provisional; see its README
+  Maui.Tizen.Build.Tasks/    Manifest, resource and splash MSBuild tasks
+  Maui.Tizen.Templates/      dotnet new templates (not yet authored)
+samples/                     Imported sample applications
+tests/UnitTests/             Repository invariant tests
+eng/
+  baselines.json             Pinned upstream baselines
+  import/                    Reproducible history import tooling
+  manifests/                 Source disposition schema and data
+  api-baselines/             Public API baselines
+docs/                        Architecture and migration documentation
+```
+
+## Naming policy
+
+Three identities, decided independently — this trips people up, so it is stated plainly:
+
+| | Value | Reason |
+|---|---|---|
+| Package IDs | `Maui.Tizen.*` | Externally owned; must not squat Microsoft-owned IDs |
+| Assembly names | `Maui.Tizen.*` | Two assemblies cannot share a simple name |
+| Namespaces | `Microsoft.Maui.*` **preserved** | Compile-time only; keeps imported code and consumer `using` directives unchanged |
+
+New implementation-only types use `Microsoft.Maui.Platforms.Tizen.*`, a prefix unused
+throughout `dotnet/maui`, so it cannot collide.
+
+Full rules in [`docs/architecture.md`](docs/architecture.md).
+
+## Provenance
+
+This is a history-preserving extraction, not a copy. Original commits, authors and dates
+were carried across, reaching back to the Xamarin.Forms era — the backend predates .NET
+MAUI by years.
+
+```bash
+git shortlog -sne --no-merges
+git log --follow src/Maui.Tizen.Core/Platform/Tizen/ViewExtensions.cs
+```
+
+The import is reproducible from [`eng/import/`](eng/import/). See
+[`PROVENANCE.md`](PROVENANCE.md).
+
+## Licence
+
+MIT — see [`LICENSE`](LICENSE).
+
+Samsung's TizenFX and `Tizen.UIExtensions` are Apache-2.0 and are consumed only as
+published NuGet packages; no Samsung source is included here. See
+[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+
+## Documentation
+
+- [`docs/architecture.md`](docs/architecture.md) — how this composes with .NET MAUI, type collision rules
+- [`docs/migration.md`](docs/migration.md) — phases, status, and the external gate
+- [`PROVENANCE.md`](PROVENANCE.md) — what was imported and how to reproduce it

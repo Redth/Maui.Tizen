@@ -1,0 +1,156 @@
+<Project>
+
+  <!--
+    Root build configuration for Maui.Tizen.
+
+    Two things here are load-bearing and deliberately different from dotnet/maui:
+
+    1. This repository targets a SINGLE framework: net11.0-tizen11.0. There is no
+       multi-targeting, no neutral net11.0 fallback, and no .NET 10 support. A neutral
+       fallback would let the build go green while producing assemblies that cannot
+       actually run on Tizen, which is worse than not building at all.
+
+    2. The Samsung .NET 11 workload does not exist yet (see eng/baselines.json). That is
+       modelled as an EXPLICIT GATE: projects that need it fail with an actionable error
+       rather than silently degrading. Never "fix" a red build here by adding a neutral
+       TFM fallback.
+  -->
+
+  <PropertyGroup Label="Repository layout">
+    <RepositoryRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)'))</RepositoryRoot>
+    <ArtifactsDir>$(RepositoryRoot)artifacts/</ArtifactsDir>
+    <BaseIntermediateOutputPath>$(ArtifactsDir)obj/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(ArtifactsDir)bin/$(MSBuildProjectName)/</BaseOutputPath>
+    <PackageOutputPath>$(ArtifactsDir)packages/</PackageOutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Target framework contract">
+    <!--
+      Values mirror eng/baselines.json > target. Keep them in sync; the CI validation
+      lane checks that they match.
+    -->
+    <DotNetVersion>11.0</DotNetVersion>
+    <DotNetTfm>net$(DotNetVersion)</DotNetTfm>
+
+    <!--
+      Tizen platform version 11.0, i.e. TizenFX API15 (Samsung.Tizen.Ref.API15).
+      NOTE: dotnet/maui still pins tizen7.0, a version the modern Samsung SDK no longer
+      lists as supported. Do not copy that value back in.
+    -->
+    <TizenPlatformVersion>11.0</TizenPlatformVersion>
+    <MauiTizenTargetFramework>$(DotNetTfm)-tizen$(TizenPlatformVersion)</MauiTizenTargetFramework>
+
+    <!-- Floor for the generated tizen-manifest.xml api-version attribute. -->
+    <TizenManifestApiVersion>11</TizenManifestApiVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Workload detection">
+    <!--
+      `TizenWorkloadAvailable` may be forced from the command line or environment, which is
+      how CI pins behaviour rather than depending on whatever happens to be installed:
+
+        dotnet build -p:TizenWorkloadAvailable=true
+
+      When not forced, it is detected at TARGET time by _DetectTizenWorkload in
+      Directory.Build.targets. Detection cannot happen here, during evaluation, because
+      every available mechanism is either wrong or unavailable:
+
+        * A constructed path is wrong. The real layout is
+          sdk-manifests/<feature-band>/<manifest-id>/<manifest-version>/WorkloadManifest.json,
+          and the band is NOT $(NETCoreSdkVersion) - an 11.0.100-preview.7.26381.103 SDK
+          installs manifests under band 11.0.100-preview.6.
+        * An item glob is unavailable: during evaluation, item references expand neither in
+          property conditions (MSB4099) nor in property values (`@(x)` stays the literal
+          string "@(x)", which is silently truthy and reports "installed" everywhere).
+        * Directory.GetDirectories with SearchOption is not on MSBuild's property-function
+          allowlist (MSB4186).
+
+      Item globs DO work inside a target, so that is where detection lives.
+
+      BAND RESTRICTION. The glob is scoped to $(TizenWorkloadBandPattern) rather than
+      matching any band, because an unrestricted `sdk-manifests/*/samsung.net.sdk.tizen/`
+      treats a Samsung workload installed for .NET 9 or .NET 10 as satisfying net11 - the
+      build would then proceed past the gate and fail much later with an unrelated-looking
+      error about missing Tizen reference packs.
+
+      The pattern is `11.0.*` rather than the exact band from eng/baselines.json
+      (11.0.100-preview.7), and that looseness is deliberate: this very SDK
+      (11.0.100-preview.7.26381.103) ships manifests under BOTH 11.0.100-preview.6 and
+      11.0.100-preview.7, so band directories demonstrably drift within a feature line.
+      Pinning the exact preview segment would report "workload missing" on a machine where
+      it is correctly installed - the same false-negative class this detection has already
+      been fixed for once. Matching the .NET 11 line excludes the wrong-major case the
+      review identified while tolerating preview drift.
+    -->
+    <_TizenWorkloadManifestRoot>$(NetCoreRoot)sdk-manifests/</_TizenWorkloadManifestRoot>
+    <TizenWorkloadBandPattern Condition="'$(TizenWorkloadBandPattern)' == ''">$(DotNetVersion).*</TizenWorkloadBandPattern>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Language and analysis">
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors Condition="'$(TreatWarningsAsErrors)' == '' AND '$(ContinuousIntegrationBuild)' == 'true'">true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
+    <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
+    <DebugType>portable</DebugType>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <DeterministicSourcePaths Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</DeterministicSourcePaths>
+
+    <!--
+      Dependency advisories are failures, not noise. This repository will ship into
+      Tizen devices, where patching is slow, so a known-vulnerable transitive package is
+      not something to carry.
+    -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Package metadata">
+    <!--
+      Package IDs are Maui.Tizen.* because this repository is externally owned and must
+      not publish under the Microsoft.Maui.* IDs. The ASSEMBLY names and NAMESPACES are a
+      separate question and intentionally answered differently - see docs/architecture.md.
+    -->
+    <Authors>Maui.Tizen Contributors</Authors>
+    <Product>Maui.Tizen</Product>
+    <Copyright>Copyright (c) .NET Foundation and Contributors, Maui.Tizen Contributors</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Redth/Maui.Tizen</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Redth/Maui.Tizen</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>maui;tizen;samsung</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+    <!--
+      Nothing publishes from this repository yet. Individual projects opt in explicitly
+      once their disposition is settled; see eng/manifests/.
+    -->
+    <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Versioning">
+    <VersionPrefix Condition="'$(VersionPrefix)' == ''">11.0.0</VersionPrefix>
+    <VersionSuffix Condition="'$(VersionSuffix)' == ''">alpha</VersionSuffix>
+  </PropertyGroup>
+
+  <!--
+    NOTE: the README <None Pack="true"> item lives in Directory.Build.targets, not here.
+
+    It works in either location - MSBuild evaluates properties across all imports AND the
+    project body in an earlier pass than any item, so an ItemGroup condition here already
+    observes a project-body <IsPackable>true</IsPackable>, and a shipping-shaped project
+    packs with README.md present (verified; see eng/tests/PackReadmeProbe).
+
+    It lives in .targets anyway because correctness that depends on knowing MSBuild's
+    multi-pass evaluation order is correctness nobody can review at a glance. Two separate
+    readers independently expected NU5039 here. Placing it after the project body makes it
+    obviously right instead of subtly right.
+  -->
+
+</Project>

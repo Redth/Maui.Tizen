@@ -1,0 +1,173 @@
+<Project>
+
+  <!--
+    Shared configuration for the Tizen package projects.
+
+    IMPORTANT - why these projects do not compile the imported sources yet.
+
+    The sources under src/Maui.Tizen.* were imported verbatim from dotnet/maui, where
+    they were compiled *into* the MAUI assemblies. Many of them are `partial` halves of
+    types whose other half lives in Microsoft.Maui.Core, or they touch `internal` members
+    of those assemblies. C# cannot complete a partial type across an assembly boundary, so
+    those files genuinely cannot compile from here without being reworked.
+
+    Reworking them is the handler/Essentials implementation workstream, not this
+    foundation. Until then, every package project below declares its shape - identity,
+    packing metadata, dependencies - but compiles nothing.
+
+    This is deliberate honesty rather than an oversight. The alternatives were worse:
+
+      * Globbing the sources anyway would give a red build with hundreds of errors that
+        say nothing useful about the migration's actual state.
+      * Deleting the sources until they are needed would throw away the imported history
+        we just went to some trouble to preserve.
+
+    Sources are still listed as <None> so they remain visible and navigable in the IDE.
+
+    To enable a project, a later PR sets <EnableDefaultCompileItems>true</...> in that
+    project and works through its compile errors. Do not flip this globally.
+  -->
+
+  <PropertyGroup>
+    <IsTizenProject>true</IsTizenProject>
+
+    <!--
+      TargetFramework MUST be assigned here, in a .props file imported from the project
+      body, and NOT in Directory.Build.targets.
+
+      Directory.Build.targets is imported at the end of Microsoft.Common.targets, which is
+      long after the SDK's Microsoft.NET.TargetFrameworkInference.targets has already
+      parsed $(TargetFramework) into TargetFrameworkIdentifier/Version. Setting it there
+      means inference runs against an EMPTY value and silently falls back:
+
+          TargetFramework           net11.0-tizen11.0
+          TargetFrameworkIdentifier _            <- garbage
+          TargetFrameworkVersion    v0.0         <- garbage
+
+      Everything keyed off the identifier - NuGet's restore graph, framework-conditional
+      items, SDK feature switches - then evaluates against a framework that does not
+      exist. It "works" right up until it doesn't, which is the worst kind of build bug.
+
+      Imported from the project body, this file is evaluated before Sdk.targets, so
+      inference sees the real value.
+    -->
+    <TargetFramework Condition="'$(TargetFramework)' == ''">$(MauiTizenTargetFramework)</TargetFramework>
+    <SupportedOSPlatformVersion Condition="'$(SupportedOSPlatformVersion)' == ''">$(TizenPlatformVersion)</SupportedOSPlatformVersion>
+    <TargetPlatformMinVersion Condition="'$(TargetPlatformMinVersion)' == ''">$(TizenPlatformVersion)</TargetPlatformMinVersion>
+
+    <!--
+      TIZEN is defined unconditionally. Upstream this is conditional because the same
+      sources compile for six platforms; here every file is Tizen-only, so the #if TIZEN
+      blocks inherited from dotnet/maui must always take the Tizen branch. Leaving it
+      undefined would compile the *wrong* half of every inherited conditional.
+    -->
+    <DefineConstants>$(DefineConstants);TIZEN</DefineConstants>
+
+    <!--
+      Assembly names follow the package ID (Maui.Tizen.*) rather than Microsoft.Maui.*,
+      because a Microsoft.Maui.Core.dll published from here would collide with the real
+      one at runtime and in the NuGet graph.
+
+      NAMESPACES are the opposite: they stay Microsoft.Maui.* so that inherited source
+      compiles unchanged and so consumers do not have to rewrite using directives.
+      Assembly identity and namespace identity are independent, and they are answered
+      differently on purpose. See docs/architecture.md.
+    -->
+    <AssemblyName Condition="'$(AssemblyName)' == ''">$(MSBuildProjectName)</AssemblyName>
+    <PackageId Condition="'$(PackageId)' == ''">$(MSBuildProjectName)</PackageId>
+
+    <!-- Not yet compiled; see the comment above. -->
+    <EnableDefaultCompileItems Condition="'$(EnableDefaultCompileItems)' == ''">false</EnableDefaultCompileItems>
+
+    <!--
+      Nothing publishes from this repository during Phases 0-1. Packing is enabled
+      per-project once its sources actually compile.
+    -->
+    <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
+
+    <!-- An assembly with no sources has no docs to generate. -->
+    <GenerateDocumentationFile Condition="'$(EnableDefaultCompileItems)' == 'false'">false</GenerateDocumentationFile>
+
+    <!--
+      CS1591 ("missing XML comment for publicly visible type or member") is suppressed
+      until the imported sources actually compile.
+
+      The inherited dotnet/maui sources are not uniformly documented, and TreatWarningsAsErrors
+      is on in CI, so the moment a project flips EnableDefaultCompileItems to true it would
+      fail with hundreds of CS1591 errors that say nothing about whether the migration is
+      correct. Documentation coverage is a real goal, but it is its own workstream - it
+      should not be the thing that blocks the first handler from compiling.
+
+      Remove this per-project as that project's documentation is completed.
+    -->
+    <NoWarn>$(NoWarn);CS1591;CS2008</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Enforces the PublicAPI.Shipped/Unshipped baselines that a project opts into.
+      Without the analyzer those files are inert text, and the API surface this repository
+      is supposed to preserve could drift silently.
+
+      PrivateAssets=all: an analyzer is a build-time tool and must not become a dependency
+      of the shipped package.
+
+      The analyzer is inert until a project supplies AdditionalFiles - see below.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+  </ItemGroup>
+
+  <!--
+    PUBLIC API BASELINES ARE NOT ATTACHED AUTOMATICALLY. This is deliberate.
+
+    A glob like `AdditionalFiles Include="PublicAPI/**/PublicAPI.*.txt"` looks obviously
+    right and is wrong in two independent ways here.
+
+    1. It attaches the WRONG baseline. The imported PublicAPI files are upstream's
+       MONOLITHIC per-assembly baselines: src/Maui.Tizen.Core's is the entire
+       Microsoft.Maui.Core surface - 3,268 entries, of which only 447 are the
+       Microsoft.Maui.Platform types this assembly will actually contain. Our assemblies
+       are SPLIT (Tizen implementation only), so the moment a project starts compiling,
+       every one of the ~2,800 non-Tizen entries becomes RS0017 "part of the declared API
+       but could not be found". That is thousands of errors describing a mismatch between
+       two different assemblies, not a real API regression.
+
+    2. It silently misses half the projects. The glob is rooted at the project directory,
+       so it matched Core, Essentials and BlazorWebView (PublicAPI/ at the root) and
+       silently matched NOTHING for Controls, Maps and Graphics, whose imported baselines
+       are nested one level deeper (Core/PublicAPI/, Xaml/PublicAPI/, Graphics.Skia/...)
+       because those packages merge two upstream assemblies. Measured: 2/2/2 items for the
+       first three, 0/0/0 for the rest. Silent absence of enforcement is worse than no
+       enforcement, because it looks enforced.
+
+    So the imported baselines under src/**/PublicAPI/** are PROVENANCE FIXTURES: they
+    record what upstream shipped for net-tizen and feed the API-baseline diffing in
+    eng/api-baselines/. They are not this repository's API contract.
+
+    To opt a project in once it compiles and ships public API, declare its own baseline
+    explicitly in the project file:
+
+      <PropertyGroup>
+        <EnablePublicApiAnalyzer>true</EnablePublicApiAnalyzer>
+      </PropertyGroup>
+      <ItemGroup>
+        <AdditionalFiles Include="PublicAPI/tizen/PublicAPI.Shipped.txt" />
+        <AdditionalFiles Include="PublicAPI/tizen/PublicAPI.Unshipped.txt" />
+      </ItemGroup>
+
+    The baseline must describe THIS assembly, not the upstream one it was split from.
+    Do not point it at the imported provenance fixtures, and do not suppress RS0016/RS0017
+    to make a mismatched baseline quiet - that discards the enforcement entirely. An
+    invariant test asserts both rules.
+
+    See eng/tests/PublicApiOptIn for a worked example that the CI lane compiles.
+  -->
+  <PropertyGroup>
+    <EnablePublicApiAnalyzer Condition="'$(EnablePublicApiAnalyzer)' == ''">false</EnablePublicApiAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(EnableDefaultCompileItems)' == 'false'">
+    <None Include="**/*.cs" Exclude="bin/**;obj/**" />
+  </ItemGroup>
+
+</Project>
