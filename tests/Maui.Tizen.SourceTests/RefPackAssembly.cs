@@ -41,7 +41,7 @@ public static class RefPackAssembly
 		var assembly = candidates[0];
 		var built = File.GetLastWriteTimeUtc(assembly);
 
-		var stale = SourceFiles()
+		var stale = BuildInputs()
 			.Where(source => File.GetLastWriteTimeUtc(source) > built)
 			.Select(source => System.IO.Path.GetFileName(source))
 			.Take(5)
@@ -54,6 +54,38 @@ public static class RefPackAssembly
 			+ $"and could pass for code that no longer exists. Rebuild: dotnet build tests/{AssemblyName}");
 
 		return assembly;
+	}
+
+	/// <summary>Everything that determines the ref-pack assembly's contents.</summary>
+	/// <remarks>
+	/// The build inputs matter as much as the sources. Dropping a file from
+	/// <c>eng/Maui.Tizen.Core.Sources.props</c> changes what is compiled without touching any
+	/// <c>.cs</c> file at all, so a scan of sources alone would see nothing, the stale assembly would
+	/// still contain the removed type, and the metadata assertion would pass for code no longer
+	/// being built. That is defended structurally by the build-ordering ProjectReference in this
+	/// project; this list is the second line, for the `--no-build` case where MSBuild is not
+	/// consulted.
+	/// </remarks>
+	static IEnumerable<string> BuildInputs()
+	{
+		foreach (var manifest in new[]
+		{
+			"eng/Maui.Tizen.Core.Sources.props",
+			"eng/Maui.props",
+			"eng/targets/TizenPackage.props",
+			"Directory.Build.props",
+			"Directory.Packages.props",
+			"tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj",
+		})
+		{
+			var path = RepoPaths.Combine(manifest.Split('/'));
+
+			if (File.Exists(path))
+				yield return path;
+		}
+
+		foreach (var source in SourceFiles())
+			yield return source;
 	}
 
 	/// <summary>The product sources the ref-pack lane compiles.</summary>

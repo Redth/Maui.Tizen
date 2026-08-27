@@ -206,6 +206,7 @@
     <MauiTizenWaveBControlsCompile Include="$(MauiTizenControlsDir)Core/Handlers/Shapes/Rectangle/TizenRectangleHandler.cs" />
     <MauiTizenWaveBControlsCompile Include="$(MauiTizenControlsDir)Core/Handlers/Shapes/RoundRectangle/TizenRoundRectangleHandler.cs" />
     <MauiTizenWaveBControlsCompile Include="$(MauiTizenControlsDir)Hosting/TizenShapeHandlerCollectionExtensions.cs" />
+    <MauiTizenWaveBControlsCompile Include="$(MauiTizenControlsDir)Hosting/TizenControlsMauiAppBuilderExtensions.cs" />
   </ItemGroup>
 
 </Project>

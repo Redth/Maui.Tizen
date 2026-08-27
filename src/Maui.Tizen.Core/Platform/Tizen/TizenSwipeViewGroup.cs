@@ -267,6 +267,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			_isOpen = isOpen;
 			Element.IsOpen = isOpen;
+
+			// Record which side is actually showing, from the direction that put it there. This is
+			// the single point where the open side is committed, so a gesture-opened swipe is
+			// tracked exactly like a programmatic one.
+			//
+			// Without it, _previousOpenSwipeItem was only ever written by the programmatic path, so
+			// a gesture-opened side left it stale - and because the enum's default is LeftItems,
+			// even the very first gesture open disagreed with it. A later programmatic open of the
+			// recorded side was then classified AlreadyOpen and silently did nothing while a
+			// different side was on screen.
+			if (isOpen && _swipeDirection is { } direction)
+				_previousOpenSwipeItem = TizenSwipeMetrics.GetOpenSwipeItem(direction);
 		}
 
 		void UpdateOffset(double swipeOffset)

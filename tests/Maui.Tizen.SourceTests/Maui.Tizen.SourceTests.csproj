@@ -73,4 +73,20 @@
     <PackageReference Include="Microsoft.Maui.Controls" />
   </ItemGroup>
 
+  <!--
+    The metadata tests assert on the ref-pack lane's compiled output, so that output must be built
+    from the CURRENT sources and the CURRENT source manifest.
+
+    ReferenceOutputAssembly="false" because nothing here can reference that assembly - it binds
+    Tizen.NUI, which does not load on a host TFM. This is purely a build-ordering dependency, which
+    hands the freshness problem to MSBuild: it already knows to rebuild when a compiled source
+    changes AND when the project or an imported .props changes. A timestamp heuristic in test code
+    cannot see the latter, so dropping a file from eng/Maui.Tizen.Core.Sources.props would silently
+    leave the old type in a stale assembly and the metadata assertion would still pass.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
 </Project>

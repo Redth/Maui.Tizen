@@ -91,6 +91,23 @@ namespace Microsoft.Maui.Platforms.Tizen
 			};
 
 		/// <summary>
+		/// Maps a swipe direction back onto the side of items it reveals.
+		/// </summary>
+		/// <remarks>
+		/// The exact inverse of <see cref="GetOpenSwipeDirection"/>. Needed because a swipe opened by
+		/// a <em>gesture</em> only ever knows its direction, but the programmatic-open decision is
+		/// expressed in terms of which side is showing.
+		/// </remarks>
+		public static OpenSwipeItem GetOpenSwipeItem(SwipeDirection swipeDirection) =>
+			swipeDirection switch
+			{
+				SwipeDirection.Up => OpenSwipeItem.BottomItems,
+				SwipeDirection.Right => OpenSwipeItem.LeftItems,
+				SwipeDirection.Left => OpenSwipeItem.RightItems,
+				_ => OpenSwipeItem.TopItems,
+			};
+
+		/// <summary>
 		/// Decides what a programmatic open must do given the swipe view's current state.
 		/// </summary>
 		/// <param name="isOpen">Whether a side is currently swiped out.</param>

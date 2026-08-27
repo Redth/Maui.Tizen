@@ -84,8 +84,8 @@ public class ImageSourceLoaderTests
 		}
 	}
 
-	static Task<TizenImageApplyResult> NoopApply(TizenImageSource? image, CancellationToken token) =>
-		Task.FromResult(TizenImageApplyResult.Success);
+	static Task<TizenImageApplyResult> NoopApply(TizenImageSource? image, TizenImageWrite write, CancellationToken token) =>
+		Task.FromResult(write(static () => { }) ? TizenImageApplyResult.Success : TizenImageApplyResult.Cancelled);
 
 	[Fact]
 	public async Task LoadAppliesTheResolvedImage()
@@ -96,7 +96,7 @@ public class ImageSourceLoaderTests
 		TizenImageSource? applied = null;
 		using var loader = new TizenImageSourceLoader();
 
-		await loader.LoadAsync(part, provider, (image, _) => { applied = image; return Task.FromResult(TizenImageApplyResult.Success); });
+		await loader.LoadAsync(part, provider, (image, write, _) => { write(() => applied = image); return Task.FromResult(TizenImageApplyResult.Success); });
 
 		Assert.Equal("a.png", applied?.ResourceUrl);
 		Assert.Equal(new[] { true }, part.Completions);
@@ -130,14 +130,17 @@ public class ImageSourceLoaderTests
 		using var loader = new TizenImageSourceLoader();
 
 		var applied = new List<string?>();
-		Task<TizenImageApplyResult> Apply(TizenImageSource? image, CancellationToken token)
+		Task<TizenImageApplyResult> Apply(TizenImageSource? image, TizenImageWrite write, CancellationToken token)
 		{
-			lock (applied)
+			var wrote = write(() =>
 			{
-				applied.Add(image?.ResourceUrl);
-			}
+				lock (applied)
+				{
+					applied.Add(image?.ResourceUrl);
+				}
+			});
 
-			return Task.FromResult(TizenImageApplyResult.Success);
+			return Task.FromResult(wrote ? TizenImageApplyResult.Success : TizenImageApplyResult.Cancelled);
 		}
 
 		var slow = loader.LoadAsync(part, provider, Apply);
@@ -186,14 +189,17 @@ public class ImageSourceLoaderTests
 		using var loader = new TizenImageSourceLoader();
 
 		var applied = new List<string?>();
-		Task<TizenImageApplyResult> Apply(TizenImageSource? image, CancellationToken token)
+		Task<TizenImageApplyResult> Apply(TizenImageSource? image, TizenImageWrite write, CancellationToken token)
 		{
-			lock (applied)
+			var wrote = write(() =>
 			{
-				applied.Add(image?.ResourceUrl);
-			}
+				lock (applied)
+				{
+					applied.Add(image?.ResourceUrl);
+				}
+			});
 
-			return Task.FromResult(TizenImageApplyResult.Success);
+			return Task.FromResult(wrote ? TizenImageApplyResult.Success : TizenImageApplyResult.Cancelled);
 		}
 
 		var slow = loader.LoadAsync(part, provider, Apply);
@@ -223,7 +229,7 @@ public class ImageSourceLoaderTests
 		var applied = false;
 		using var loader = new TizenImageSourceLoader();
 
-		var pending = loader.LoadAsync(part, provider, (_, _) => { applied = true; return Task.FromResult(TizenImageApplyResult.Success); });
+		var pending = loader.LoadAsync(part, provider, (_, write, _) => { write(() => applied = true); return Task.FromResult(TizenImageApplyResult.Success); });
 
 		loader.Cancel();
 		gate.SetResult();
@@ -246,7 +252,7 @@ public class ImageSourceLoaderTests
 		using var loader = new TizenImageSourceLoader();
 
 		// Stands in for NUI never raising ResourceReady: completes only on cancellation.
-		var pending = loader.LoadAsync(part, provider, async (_, token) =>
+		var pending = loader.LoadAsync(part, provider, async (_, _, token) =>
 		{
 			var never = new TaskCompletionSource();
 			using var registration = token.Register(() => never.TrySetResult());
@@ -278,12 +284,15 @@ public class ImageSourceLoaderTests
 		for (var i = 0; i < 25; i++)
 		{
 			part.Source = new StubImageSource("s");
-			tasks.Add(loader.LoadAsync(part, provider, (image, _) =>
+			tasks.Add(loader.LoadAsync(part, provider, (image, write, _) =>
 			{
-				lock (applied)
+				write(() =>
 				{
-					applied.Add(image?.ResourceUrl);
-				}
+					lock (applied)
+					{
+						applied.Add(image?.ResourceUrl);
+					}
+				});
 
 				return Task.FromResult(TizenImageApplyResult.Success);
 			}));
@@ -333,7 +342,7 @@ public class ImageSourceLoaderTests
 		loader.Dispose();
 
 		var applied = false;
-		await loader.LoadAsync(part, provider, (_, _) => { applied = true; return Task.FromResult(TizenImageApplyResult.Success); });
+		await loader.LoadAsync(part, provider, (_, write, _) => { write(() => applied = true); return Task.FromResult(TizenImageApplyResult.Success); });
 
 		Assert.False(applied);
 	}
@@ -367,9 +376,9 @@ public class ImageSourceLoaderTests
 		using var loader = new TizenImageSourceLoader();
 
 		var applied = false;
-		var pending = loader.LoadAsync(part, provider, (_, _) =>
+		var pending = loader.LoadAsync(part, provider, (_, write, _) =>
 		{
-			applied = true;
+			write(() => applied = true);
 			return Task.FromResult(TizenImageApplyResult.Success);
 		});
 
@@ -513,7 +522,7 @@ public class ImageSourceLoaderTests
 		await loader.LoadAsync(
 			part,
 			provider,
-			(_, _) => Task.FromResult(TizenImageApplyResult.Failed),
+			(_, _, _) => Task.FromResult(TizenImageApplyResult.Failed),
 			() => cleared = true);
 
 		Assert.Equal(new[] { false }, part.Completions);
@@ -536,7 +545,7 @@ public class ImageSourceLoaderTests
 		await loader.LoadAsync(
 			part,
 			provider,
-			(_, _) => Task.FromResult(TizenImageApplyResult.Cancelled),
+			(_, _, _) => Task.FromResult(TizenImageApplyResult.Cancelled),
 			() => cleared = true);
 
 		Assert.Equal(new[] { false }, part.Completions);
@@ -642,7 +651,7 @@ public class ImageSourceLoaderTests
 		var cleared = 0;
 		void Clear() => Interlocked.Increment(ref cleared);
 
-		async Task<TizenImageApplyResult> Apply(TizenImageSource? image, CancellationToken token)
+		async Task<TizenImageApplyResult> Apply(TizenImageSource? image, TizenImageWrite write, CancellationToken token)
 		{
 			if (image?.ResourceUrl == "first.png")
 			{
@@ -650,6 +659,7 @@ public class ImageSourceLoaderTests
 				return TizenImageApplyResult.Failed;
 			}
 
+			write(static () => { });
 			return TizenImageApplyResult.Success;
 		}
 
@@ -663,5 +673,229 @@ public class ImageSourceLoaderTests
 
 		Assert.Equal(0, Volatile.Read(ref cleared));
 		Assert.Equal(new[] { true, false }, part.Completions);
+	}
+
+	// ---------------------------------------------------------------------------------------
+	// Atomicity of the native write.
+	//
+	// These interpose at the exact instant a stale write would happen. Checking ownership and then
+	// writing as two steps leaves a window in between; the loader closes it by performing both
+	// under the lock that guards the generation. Interposing deterministically is what proves the
+	// window is gone, rather than merely unlikely.
+	// ---------------------------------------------------------------------------------------
+
+	/// <summary>
+	/// A load disconnected between the ownership check and the write must be refused the write.
+	/// </summary>
+	/// <remarks>
+	/// The apply callback cancels the loader — exactly what DisconnectHandler does — and only then
+	/// attempts the write. That is the interleaving a check-then-act sequence cannot survive: the
+	/// check has already passed, so the write would land on a view the handler no longer owns.
+	/// </remarks>
+	[Fact]
+	public async Task AWriteIsRefusedAfterTheHandlerDisconnects()
+	{
+		var part = new StubPart { Source = new StubImageSource("s") };
+		var provider = new StubProvider((_, _) => Task.FromResult<TizenImageSource?>(new TizenImageSource { ResourceUrl = "a.png" }));
+
+		using var loader = new TizenImageSourceLoader();
+
+		var wrote = false;
+		var permitted = true;
+
+		await loader.LoadAsync(part, provider, (image, write, _) =>
+		{
+			// Disconnect happens here - after the loader's own checks, before the write.
+			loader.Cancel();
+
+			permitted = write(() => wrote = true);
+
+			return Task.FromResult(permitted ? TizenImageApplyResult.Success : TizenImageApplyResult.Cancelled);
+		});
+
+		Assert.False(permitted);
+		Assert.False(wrote);
+	}
+
+	/// <summary>
+	/// A load superseded between the ownership check and the write must be refused the write.
+	/// </summary>
+	/// <remarks>
+	/// The same window, reached the other way: a newer load starts while this one is applying. The
+	/// newer load bumps the generation, so the older one's write must be refused even though its
+	/// own checks passed moments earlier.
+	/// </remarks>
+	[Fact]
+	public async Task AWriteIsRefusedAfterANewerLoadStarts()
+	{
+		var first = new StubImageSource("first");
+		var second = new StubImageSource("second");
+		var part = new StubPart { Source = first };
+
+		var provider = new StubProvider((source, _) =>
+			Task.FromResult<TizenImageSource?>(new TizenImageSource { ResourceUrl = ((StubImageSource)source).Name + ".png" }));
+
+		using var loader = new TizenImageSourceLoader();
+
+		var written = new List<string?>();
+		var firstPermitted = true;
+		var interposed = false;
+
+		async Task<TizenImageApplyResult> Apply(TizenImageSource? image, TizenImageWrite write, CancellationToken token)
+		{
+			if (image?.ResourceUrl == "first.png" && !interposed)
+			{
+				interposed = true;
+
+				// A newer load lands mid-apply, exactly as a rapid source change would.
+				part.Source = second;
+				await loader.LoadAsync(part, provider, Apply);
+
+				firstPermitted = write(() => written.Add("first.png"));
+
+				return firstPermitted ? TizenImageApplyResult.Success : TizenImageApplyResult.Cancelled;
+			}
+
+			return write(() => written.Add(image?.ResourceUrl)) ? TizenImageApplyResult.Success : TizenImageApplyResult.Cancelled;
+		}
+
+		await loader.LoadAsync(part, provider, Apply);
+
+		Assert.False(firstPermitted);
+		Assert.Equal(new[] { "second.png" }, written);
+	}
+
+	/// <summary>
+	/// Refusing the write must not leave the apply step waiting for a decode that cannot happen.
+	/// </summary>
+	/// <remarks>
+	/// The real apply awaits NUI's ResourceReady, which only fires because an image was assigned. If
+	/// a refused write still led to that await, a superseded load would hang forever holding its
+	/// result. This models the contract that makes the real implementation return instead.
+	/// </remarks>
+	[Fact]
+	public async Task ARefusedWriteCompletesRatherThanAwaitingADecode()
+	{
+		var part = new StubPart { Source = new StubImageSource("s") };
+		var provider = new StubProvider((_, _) => Task.FromResult<TizenImageSource?>(new TizenImageSource { ResourceUrl = "a.png" }));
+
+		using var loader = new TizenImageSourceLoader();
+
+		var load = loader.LoadAsync(part, provider, async (image, write, token) =>
+		{
+			loader.Cancel();
+
+			if (!write(static () => { }))
+				return TizenImageApplyResult.Cancelled;
+
+			// Stands in for awaiting ResourceReady: unreachable once the write is refused.
+			var never = new TaskCompletionSource();
+			using var registration = token.Register(() => never.TrySetResult());
+			await never.Task;
+
+			return TizenImageApplyResult.Success;
+		});
+
+		var finished = await Task.WhenAny(load, Task.Delay(TimeSpan.FromSeconds(5)));
+
+		Assert.Same(load, finished);
+		Assert.Equal(new[] { false }, part.Completions);
+	}
+
+	/// <summary>A clear is refused just as a write is, once ownership is gone.</summary>
+	/// <remarks>
+	/// Clearing is a native mutation too. An unguarded clear on a superseded load blanks the image
+	/// the newer load has already put on screen — the same defect as a stale write, with the
+	/// opposite symptom.
+	/// </remarks>
+	[Fact]
+	public async Task AClearIsRefusedAfterTheHandlerDisconnects()
+	{
+		var part = new StubPart { Source = new StubImageSource("s") };
+
+		// Held open so the disconnect lands before the failure propagates; without the gate the
+		// service throws synchronously and the load is already over.
+		var gate = new TaskCompletionSource();
+
+		var provider = new StubProvider(async Task<TizenImageSource?> (_, _) =>
+		{
+			await gate.Task;
+			throw new InvalidOperationException("boom");
+		});
+
+		using var loader = new TizenImageSourceLoader();
+
+		var cleared = false;
+
+		var load = loader.LoadAsync(part, provider, NoopApply, () => cleared = true);
+
+		loader.Cancel();
+		gate.SetResult();
+		await load;
+
+		Assert.False(cleared);
+		Assert.Empty(part.Failures);
+	}
+
+	/// <summary>
+	/// A concurrent disconnect cannot interleave with a native write.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The single-threaded interposition tests prove the guard is consulted; this one proves the
+	/// guard and the mutation are <em>indivisible</em>. A second thread calls
+	/// <see cref="TizenImageSourceLoader.Cancel()"/> while the write is executing: if ownership were
+	/// checked and then released before mutating, the cancel could slip in between and the write
+	/// would land on a disconnected view.
+	/// </para>
+	/// <para>
+	/// Deterministic despite being concurrent: the assertion is an ordering, not a timing. The
+	/// cancel is observed to complete only after the write has finished, which is exactly what
+	/// holding one lock across both guarantees.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public async Task ADisconnectCannotInterleaveWithAWrite()
+	{
+		var part = new StubPart { Source = new StubImageSource("s") };
+		var provider = new StubProvider((_, _) => Task.FromResult<TizenImageSource?>(new TizenImageSource { ResourceUrl = "a.png" }));
+
+		using var loader = new TizenImageSourceLoader();
+
+		var cancelStarted = new TaskCompletionSource();
+		var order = new List<string>();
+
+		await loader.LoadAsync(part, provider, async (image, write, _) =>
+		{
+			var cancelling = Task.Run(async () =>
+			{
+				await cancelStarted.Task;
+				loader.Cancel();
+
+				lock (order)
+				{
+					order.Add("cancel-finished");
+				}
+			});
+
+			write(() =>
+			{
+				// Release the other thread while still inside the guarded section, then give it
+				// every chance to run. It must not be able to complete until this returns.
+				cancelStarted.SetResult();
+				Thread.Sleep(50);
+
+				lock (order)
+				{
+					order.Add("write-finished");
+				}
+			});
+
+			await cancelling;
+
+			return TizenImageApplyResult.Success;
+		});
+
+		Assert.Equal(new[] { "write-finished", "cancel-finished" }, order);
 	}
 }

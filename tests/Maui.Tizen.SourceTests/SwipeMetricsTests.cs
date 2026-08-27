@@ -139,4 +139,130 @@ public class SwipeMetricsTests
 	[InlineData(OpenSwipeItem.BottomItems, SwipeDirection.Up)]
 	public void OpenRequestsMapOntoTheOppositeDirection(OpenSwipeItem item, SwipeDirection expected) =>
 		Assert.Equal(expected, TizenSwipeMetrics.GetOpenSwipeDirection(item));
+
+	/// <summary>
+	/// A direction always round-trips to the side it reveals, and back.
+	/// </summary>
+	/// <remarks>
+	/// This is what lets the platform view commit the open side from
+	/// <c>_swipeDirection</c> alone, for gesture and programmatic opens alike, instead of keeping a
+	/// second field that only one of the two paths ever writes.
+	/// </remarks>
+	[Theory]
+	[InlineData(OpenSwipeItem.LeftItems)]
+	[InlineData(OpenSwipeItem.RightItems)]
+	[InlineData(OpenSwipeItem.TopItems)]
+	[InlineData(OpenSwipeItem.BottomItems)]
+	public void OpenSideAndDirectionRoundTrip(OpenSwipeItem item) =>
+		Assert.Equal(item, TizenSwipeMetrics.GetOpenSwipeItem(TizenSwipeMetrics.GetOpenSwipeDirection(item)));
+
+	/// <summary>
+	/// Models the platform view's open-side bookkeeping, exactly as TizenSwipeViewGroup performs it.
+	/// </summary>
+	/// <remarks>
+	/// The platform view is NUI-bound and cannot run here, but its bookkeeping is these three
+	/// portable calls in this order. Keeping the model this thin is deliberate: anything richer
+	/// would be testing the model rather than the shipped logic.
+	/// </remarks>
+	sealed class SwipeState
+	{
+		bool _isOpen;
+		SwipeDirection? _direction;
+		OpenSwipeItem _previousOpenSwipeItem;
+
+		/// <summary>The side currently showing, or null when closed.</summary>
+		public OpenSwipeItem? OpenSide => _isOpen ? _previousOpenSwipeItem : null;
+
+		/// <summary>TizenSwipeViewGroup.UpdateIsOpen.</summary>
+		void UpdateIsOpen(bool isOpen)
+		{
+			_isOpen = isOpen;
+
+			if (isOpen && _direction is { } direction)
+				_previousOpenSwipeItem = TizenSwipeMetrics.GetOpenSwipeItem(direction);
+		}
+
+		/// <summary>A gesture settling on a side: sets the direction, then commits.</summary>
+		public void Gesture(OpenSwipeItem side)
+		{
+			_direction = TizenSwipeMetrics.GetOpenSwipeDirection(side);
+			UpdateIsOpen(true);
+		}
+
+		/// <summary>TizenSwipeViewGroup.ResetSwipe.</summary>
+		public void Close() => UpdateIsOpen(false);
+
+		/// <summary>TizenSwipeViewGroup.ProgrammaticallyOpenSwipeItem. Returns what it decided.</summary>
+		public TizenSwipeOpenAction Open(OpenSwipeItem side)
+		{
+			var action = TizenSwipeMetrics.GetProgrammaticOpenAction(_isOpen, _previousOpenSwipeItem, side);
+
+			if (action == TizenSwipeOpenAction.AlreadyOpen)
+				return action;
+
+			if (action == TizenSwipeOpenAction.ResetThenOpen)
+				Close();
+
+			_direction = TizenSwipeMetrics.GetOpenSwipeDirection(side);
+			UpdateIsOpen(true);
+
+			return action;
+		}
+	}
+
+	/// <summary>
+	/// The reported sequence: programmatic A, close, gesture B, programmatic A.
+	/// </summary>
+	/// <remarks>
+	/// The last step must actually open A. Before the fix the open side was recorded only by the
+	/// programmatic path, so after the gesture opened B the state still claimed A — and the final
+	/// call was classified AlreadyOpen and did nothing, leaving B on screen.
+	/// </remarks>
+	[Fact]
+	public void AProgrammaticOpenAfterAGestureOpensTheOtherSide()
+	{
+		var state = new SwipeState();
+
+		state.Open(OpenSwipeItem.RightItems);
+		state.Close();
+		state.Gesture(OpenSwipeItem.LeftItems);
+
+		Assert.Equal(OpenSwipeItem.LeftItems, state.OpenSide);
+
+		var action = state.Open(OpenSwipeItem.RightItems);
+
+		Assert.NotEqual(TizenSwipeOpenAction.AlreadyOpen, action);
+		Assert.Equal(OpenSwipeItem.RightItems, state.OpenSide);
+	}
+
+	/// <summary>
+	/// The enum's default value must not be mistaken for a real open side.
+	/// </summary>
+	/// <remarks>
+	/// <c>OpenSwipeItem.LeftItems</c> is 0, so an untracked open side reads as LeftItems. That made
+	/// even the very first gesture open disagree with the recorded state: gesture RightItems, then
+	/// programmatic LeftItems, was classified AlreadyOpen while RightItems was showing.
+	/// </remarks>
+	[Fact]
+	public void AFirstGestureOpenIsNotMistakenForTheDefaultSide()
+	{
+		var state = new SwipeState();
+
+		state.Gesture(OpenSwipeItem.RightItems);
+
+		Assert.Equal(OpenSwipeItem.RightItems, state.OpenSide);
+		Assert.NotEqual(TizenSwipeOpenAction.AlreadyOpen, state.Open(OpenSwipeItem.LeftItems));
+		Assert.Equal(OpenSwipeItem.LeftItems, state.OpenSide);
+	}
+
+	/// <summary>Re-opening the side a gesture actually opened is still a genuine no-op.</summary>
+	[Fact]
+	public void ReopeningTheGestureOpenedSideIsStillANoOp()
+	{
+		var state = new SwipeState();
+
+		state.Gesture(OpenSwipeItem.BottomItems);
+
+		Assert.Equal(TizenSwipeOpenAction.AlreadyOpen, state.Open(OpenSwipeItem.BottomItems));
+	}
 }

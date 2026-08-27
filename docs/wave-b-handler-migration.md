@@ -268,8 +268,18 @@ the composition root registers everything:
 
 - `AddTizenContentHandlers` — scroll, border, image, image button, graphics view, shape view,
   refresh view, swipe view and its items, indicator view.
-- `AddTizenShapeHandlers` — the Controls-level shapes, registered from `Maui.Tizen.Controls`
-  because they map `Microsoft.Maui.Controls` types that Core does not reference.
+- `AddTizenShapeHandlers` — the Controls-level shapes. Because the dependency runs
+  Controls → Core, `ConfigureTizen` cannot reach back and register these, so
+  `Maui.Tizen.Controls` supplies the entry point that closes the loop:
+  **`ConfigureTizenControls`** / **`UseMauiAppTizenControls<TApp>`**, the same layering MAUI itself
+  uses. Controls apps call those instead of `ConfigureTizen`.
+
+  For a period `AddTizenShapeHandlers` existed, compiled, and was covered by metadata assertions
+  while having **no call site anywhere in the product**. Nothing detected it, because the symptom is
+  silent: MAUI Controls already maps all seven shapes to its own neutral handlers, so every shape
+  still resolves and lays out — it simply never reaches a Tizen handler and never draws.
+  `ShapeCompositionTests` now reads the ref-pack lane's IL to assert the entry points really do call
+  the registration.
 - `AddTizenImageSources` + `AddTizenUriAndFontImageSources` — all four image source services.
 - `AddTizenFontServices` — the embedded font loader, and the Tizen font manager.
 
@@ -324,11 +334,32 @@ because of that definition, which is why it is stated here rather than left to b
 
 ### Shape handlers and `MapShape`
 
-`TizenPathHandler`, `TizenPolygonHandler` and `TizenPolylineHandler` do not re-declare `MapShape`.
-Upstream must, because each neutral handler's mapper names its own method; here they chain
-`TizenShapeViewHandler.Mapper`, whose `MapShape` calls `UpdateShape(shapeView)` on the same
-`IShapeView` instance. The behaviour is identical, so a redundant override would only be noise. The
-parity manifest accounts for keys inherited this way.
+`TizenPathHandler`, `TizenPolygonHandler` and `TizenPolylineHandler` **deliberately re-declare
+`MapShape`**, and it must stay that way.
+
+`ShapeView.UpdateShape` does not mutate the existing drawable — it assigns a **brand new**
+`ShapeDrawable`. Any per-shape state previously pushed into the old one is therefore discarded along
+with it. Each of these three handlers owns exactly one such piece of state:
+
+| Handler | State lost on replacement | Reapplied by |
+|---|---|---|
+| `TizenPathHandler` | the path's `RenderTransform` | `ApplyRenderTransform` |
+| `TizenPolygonHandler` | the `FillRule` winding mode | `ApplyFillRule` |
+| `TizenPolylineHandler` | the `FillRule` winding mode | `ApplyFillRule` |
+
+Without the override, chaining `TizenShapeViewHandler.Mapper` alone would replace the drawable and
+stop there, so a transformed path would silently snap back to untransformed — and an `EvenOdd`
+polygon would silently revert to `NonZero` — the next time its shape changed. The symptom appears
+only on a *subsequent* change, not on first render, which is what makes it easy to miss.
+
+`RectangleHandler` and `RoundRectangleHandler` genuinely do not need the override: their extra keys
+(`RadiusX`/`RadiusY`, `CornerRadius`) are read from the virtual view when the drawable is built, so
+replacement re-reads them.
+
+An earlier revision of this document claimed the opposite — that the three handlers do *not*
+re-declare `MapShape` and that an override "would only be noise". That was wrong, and dangerously so:
+acting on it would delete the overrides and reintroduce both regressions. Corrected here rather than
+quietly removed.
 
 ### Not compiled, and why
 
@@ -476,3 +507,35 @@ on.
 One case is only provable at integration: Wave A's file and stream image source services sit behind
 `#if TIZEN`, so on a host TFM they are not registered at all. `ImageSourceSeamTests` covers those
 from the ref-pack lane's emitted IL instead.
+
+
+## Atomicity of the native image write
+
+Every native mutation a load performs — assigning the image, and clearing it — goes through a single
+generation-guarded primitive on `TizenImageSourceLoader`, which performs the ownership check and the
+mutation **under the same lock that guards the generation**.
+
+Checking ownership and then mutating as two steps is not sufficient, however close together they
+sit. A load can be superseded, or the handler disconnected, in the window between them; the stale
+write then lands on a view that now belongs to a newer load, or to nothing at all. `Cancel` and
+`LoadAsync` both take that lock to move the generation, so holding it across check-and-mutate closes
+the window.
+
+The mutation runs while the lock is held and therefore must not block or re-enter the loader. In
+practice it is a single property assignment on the platform view.
+
+This also changed the apply contract. The write callback now returns whether the write was
+*permitted*, and a refused write makes the apply step return immediately instead of awaiting
+`ResourceReady`. That is not a nicety: `ResourceReady` only fires because an image was assigned, so
+a refused write followed by an await would hang forever, holding the load's result.
+
+`ImageSourceLoaderTests` interposes deterministically at the exact instant a stale write would
+happen — cancelling, or starting a newer load, from inside the apply callback — and a concurrent
+test proves the guard and the mutation are indivisible by racing `Cancel` against a write and
+asserting the ordering. Each was mutation-verified: leaving the write unguarded fails the
+interposition tests, and releasing the lock before mutating fails the concurrency test.
+
+One consequence worth recording: the primitive reports **ownership**, not whether an action ran. An
+earlier revision conflated the two, which silently suppressed `LoadingFailed` whenever no clear
+action had been supplied — a caller with nothing to mutate could no longer tell whether it still
+owned the part.

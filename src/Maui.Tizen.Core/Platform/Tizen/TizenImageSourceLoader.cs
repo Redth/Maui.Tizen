@@ -44,6 +44,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// new view. The generation makes that impossible, because it never goes backwards.
 	/// </para>
 	/// </remarks>
+	/// <summary>
+	/// Performs a native mutation on the image's platform view, if the load still owns it.
+	/// </summary>
+	/// <param name="mutate">The native write. Runs under the loader's lock; must not block or re-enter.</param>
+	/// <returns><see langword="true"/> if the write was performed; <see langword="false"/> if the load has been superseded, cancelled or disconnected.</returns>
+	public delegate bool TizenImageWrite(Action mutate);
+
 	public sealed class TizenImageSourceLoader : IDisposable
 	{
 		readonly object _sync = new();
@@ -122,7 +129,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public async Task LoadAsync(
 			IImageSourcePart part,
 			IImageSourceServiceProvider services,
-			Func<TizenImageSource?, CancellationToken, Task<TizenImageApplyResult>> applyAsync,
+			Func<TizenImageSource?, TizenImageWrite, CancellationToken, Task<TizenImageApplyResult>> applyAsync,
 			Action? clearImage = null)
 		{
 			ArgumentNullException.ThrowIfNull(part);
@@ -162,7 +169,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (imageSource is null)
 			{
 				// A null source is a real state change: whatever was showing must be taken down.
-				clearImage?.Invoke();
+				TryMutate(generation, token, part, imageSource, clearImage);
 				return;
 			}
 
@@ -189,24 +196,27 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 				if (result?.Value is null)
 				{
-					clearImage?.Invoke();
+					TryMutate(generation, token, part, imageSource, clearImage);
 					events?.LoadingCompleted(false);
 					completed = true;
 					return;
 				}
 
-				var applied = await applyAsync(result.Value, token).ConfigureAwait(false);
+				// The native write itself is generation-guarded, so it cannot land after this load
+				// has been superseded or the handler disconnected. Refusing the write also tells
+				// the apply step to stop rather than wait for a decode notification that will never
+				// arrive for an image it was not allowed to assign.
+				bool Write(Action mutate) => TryMutate(generation, token, part, imageSource, mutate);
 
-				// Applying awaits the platform, so ownership is re-checked before acting on the
-				// outcome. Hoisted above the failure branch because a superseded load must not
-				// clear the image a later load has already put on screen.
+				var applied = await applyAsync(result.Value, Write, token).ConfigureAwait(false);
+
 				var stillOurs = IsCurrent(generation, token) && ReferenceEquals(imageSource, part.Source);
 
 				if (applied != TizenImageApplyResult.Success)
 				{
 					// An assigned URL is not success. The platform may still have failed to decode.
-					if (stillOurs && applied == TizenImageApplyResult.Failed)
-						clearImage?.Invoke();
+					if (applied == TizenImageApplyResult.Failed)
+						TryMutate(generation, token, part, imageSource, clearImage);
 
 					result.Dispose();
 					result = null;
@@ -241,9 +251,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 				// load A that throws after a later load B has already succeeded would clear B's
 				// image and report B as failed, so the control would end up blank with an error
 				// raised for a source it is no longer even displaying.
-				if (IsCurrent(generation, token) && ReferenceEquals(imageSource, part.Source))
+				if (TryMutate(generation, token, part, imageSource, clearImage))
 				{
-					clearImage?.Invoke();
 					events?.LoadingFailed(ex);
 				}
 				else
@@ -285,6 +294,55 @@ namespace Microsoft.Maui.Platforms.Tizen
 			lock (_sync)
 			{
 				return !_disposed && _generation == generation;
+			}
+		}
+
+		/// <summary>
+		/// Performs a native mutation if and only if this load still owns the view, atomically.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// This is the only place a load is allowed to touch the platform view. Every ownership
+		/// check and every native write goes through it, under the same lock that guards the
+		/// generation, so the two cannot be interleaved.
+		/// </para>
+		/// <para>
+		/// Checking ownership and then mutating as two steps is not enough, however close together
+		/// they sit: a load can be superseded — or the handler disconnected — in the window between
+		/// them, and the stale write then lands on a view that now belongs to a newer load, or to
+		/// nothing at all. Holding the lock across both is what closes that window, because
+		/// <see cref="Cancel()"/> and <see cref="LoadAsync"/> both take the same lock to move the
+		/// generation.
+		/// </para>
+		/// <para>
+		/// <paramref name="mutate"/> therefore runs while the lock is held and <b>must not</b> call
+		/// back into this loader or block. In practice it is a single property assignment on the
+		/// platform view.
+		/// </para>
+		/// </remarks>
+		/// <returns>
+		/// <see langword="true"/> if this load still owns the view — in which case
+		/// <paramref name="mutate"/>, when supplied, has been applied.
+		/// </returns>
+		/// <remarks>
+		/// The return value reports <em>ownership</em>, not whether an action ran, so a caller with
+		/// nothing to mutate can still use it to decide whether to report an outcome. Conflating the
+		/// two silently suppressed <c>LoadingFailed</c> whenever no clear action was supplied.
+		/// </remarks>
+		bool TryMutate(long generation, CancellationToken token, IImageSourcePart part, IImageSource? source, Action? mutate)
+		{
+			lock (_sync)
+			{
+				if (_disposed || _generation != generation || token.IsCancellationRequested)
+					return false;
+
+				// Re-read inside the lock: a service is not obliged to honour the token, so the
+				// source can change without the generation moving.
+				if (!ReferenceEquals(source, part.Source))
+					return false;
+
+				mutate?.Invoke();
+				return true;
 			}
 		}
 

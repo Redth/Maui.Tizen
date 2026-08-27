@@ -89,7 +89,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			return handler._sourceLoader.LoadAsync(
 				image,
 				provider,
-				(platformImage, cancellationToken) =>
+				(platformImage, write, cancellationToken) =>
 				{
 					// The handler may have been disconnected while the source was resolving, in
 					// which case there is no view left to write to.
@@ -101,13 +101,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 					return platformView.ApplyImageSourceAsync(
 						platformImage,
-						image =>
-						{
-							if (image is not null)
-							{
-								platformView.ResourceUrl = image.ResourceUrl;
-							}
-						},
+						// Routed through the loader's guard so the assignment cannot land on a view
+						// this load no longer owns. Returns false when it is refused.
+						image => image is not null
+							&& write(() => platformView.ResourceUrl = image.ResourceUrl),
 						cancellationToken);
 				},
 				() =>

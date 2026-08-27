@@ -122,7 +122,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public static async Task<TizenImageApplyResult> ApplyImageSourceAsync(
 			this NView destinationContext,
 			TizenImageSource? platformImage,
-			Action<TizenImageSource?> setImage,
+			Func<TizenImageSource?, bool> setImage,
 			CancellationToken cancellationToken = default)
 		{
 			ArgumentNullException.ThrowIfNull(setImage);
@@ -136,8 +136,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (destinationContext is not TizenNativeImageView imageView)
 			{
 				// No decode notification is available, so the assignment is all we can report on.
-				setImage.Invoke(platformImage);
-				return TizenImageApplyResult.Success;
+				return setImage(platformImage) ? TizenImageApplyResult.Success : TizenImageApplyResult.Cancelled;
 			}
 
 			var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -153,7 +152,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 			try
 			{
 				imageView.ResourceReady += OnResourceReady;
-				setImage.Invoke(platformImage);
+
+				// The write is refused when this load no longer owns the view. Returning here
+				// rather than awaiting is essential: nothing was assigned, so no ResourceReady
+				// would ever arrive and the await would never complete.
+				if (!setImage(platformImage))
+					return TizenImageApplyResult.Cancelled;
+
 				ready = await completion.Task.ConfigureAwait(false);
 			}
 			finally
