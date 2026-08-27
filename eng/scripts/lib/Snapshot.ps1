@@ -28,6 +28,42 @@ function Get-SnapshotMarkerPath {
     Join-Path $Dir '.mt-snapshot.json'
 }
 
+function Get-SnapshotCanonicalRelativePath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Dir,
+        [Parameter(Mandatory = $true)][string]$Path
+    )
+
+    $relativePath = [System.IO.Path]::GetRelativePath($Dir, $Path)
+    $directorySeparator = [System.IO.Path]::DirectorySeparatorChar
+    $alternateSeparator = [System.IO.Path]::AltDirectorySeparatorChar
+
+    if ($directorySeparator -eq $alternateSeparator) {
+        return $relativePath
+    }
+
+    $segments = $relativePath.Split(
+        [char[]]@($directorySeparator, $alternateSeparator),
+        [System.StringSplitOptions]::None)
+    return [string]::Join('/', $segments)
+}
+
+function Add-SnapshotLengthPrefix {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Security.Cryptography.IncrementalHash]$Hash,
+        [Parameter(Mandatory = $true)]
+        [int64]$Length
+    )
+
+    $bytes = [byte[]]::new(8)
+    for ($index = $bytes.Length - 1; $index -ge 0; $index--) {
+        $bytes[$index] = [byte]($Length -band 0xff)
+        $Length = $Length -shr 8
+    }
+    $Hash.AppendData($bytes)
+}
+
 <#
 .SYNOPSIS
     Computes the deterministic (fileCount, treeHash) pair for every file currently under -Dir.
@@ -40,31 +76,40 @@ function Get-SnapshotMarkerPath {
     file itself (.mt-snapshot.json) is excluded from the hash, since it does not exist yet on first
     write and its own content depends on the hash being computed -- including it would be circular.
 
-    Each entry's relative path length and content length are appended as fixed-width prefixes
-    before the path/content bytes themselves (rather than just delimiting the path with a
-    separator like a newline). A plain "path\n<content>path2\n<content2>..." concatenation is not
-    strictly injective for filenames that legally contain an embedded newline byte (POSIX allows
-    this): a different (path, content) partition of the exact same byte stream could in principle
-    hash identically. Length-prefixing makes the encoding of the full file list unambiguous
-    regardless of what bytes appear in a path or a file's content.
+    Each entry's relative path length and content length are appended as big-endian fixed-width
+    prefixes before the path/content bytes themselves. Relative paths are formed from OS path
+    segments joined with "/", so Windows separators are canonicalized without changing a literal
+    backslash in a legal POSIX filename. A plain "path\n<content>path2\n<content2>..."
+    concatenation is not strictly injective for filenames that legally contain an embedded
+    newline byte (POSIX allows this): a different (path, content) partition of the exact same byte
+    stream could in principle hash identically. Length-prefixing makes the encoding of the full
+    file list unambiguous regardless of what bytes appear in a path or a file's content.
 #>
 function Get-SnapshotTreeHash {
     param([Parameter(Mandatory = $true)][string]$Dir)
 
     $markerPath = [System.IO.Path]::GetFullPath((Get-SnapshotMarkerPath $Dir))
-    $files = [System.IO.Directory]::EnumerateFiles($Dir, '*', [System.IO.SearchOption]::AllDirectories) |
-        Where-Object { [System.IO.Path]::GetFullPath($_) -ne $markerPath } |
-        Sort-Object -Culture 'invariant'
+    $files = [System.Collections.Generic.SortedDictionary[string, string]]::new(
+        [System.StringComparer]::Ordinal)
+    foreach ($file in [System.IO.Directory]::EnumerateFiles(
+            $Dir, '*', [System.IO.SearchOption]::AllDirectories)) {
+        $fullPath = [System.IO.Path]::GetFullPath($file)
+        if ([string]::Equals($fullPath, $markerPath, [System.StringComparison]::Ordinal)) {
+            continue
+        }
+
+        $relativePath = Get-SnapshotCanonicalRelativePath -Dir $Dir -Path $fullPath
+        $files.Add($relativePath, $fullPath)
+    }
 
     $incremental = [System.Security.Cryptography.IncrementalHash]::CreateHash([System.Security.Cryptography.HashAlgorithmName]::SHA256)
     $fileCount = 0
-    foreach ($f in $files) {
-        $rel = [System.IO.Path]::GetRelativePath($Dir, $f).Replace('\', '/')
-        $relBytes = [System.Text.Encoding]::UTF8.GetBytes($rel)
-        $incremental.AppendData([System.BitConverter]::GetBytes([int64]$relBytes.Length))
+    foreach ($entry in $files.GetEnumerator()) {
+        $relBytes = [System.Text.Encoding]::UTF8.GetBytes($entry.Key)
+        Add-SnapshotLengthPrefix -Hash $incremental -Length $relBytes.Length
         $incremental.AppendData($relBytes)
-        $incremental.AppendData([System.BitConverter]::GetBytes([int64](Get-Item $f).Length))
-        $stream = [System.IO.File]::OpenRead($f)
+        Add-SnapshotLengthPrefix -Hash $incremental -Length ([System.IO.FileInfo]::new($entry.Value).Length)
+        $stream = [System.IO.File]::OpenRead($entry.Value)
         try {
             $buffer = New-Object byte[] 1048576
             while (($read = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {

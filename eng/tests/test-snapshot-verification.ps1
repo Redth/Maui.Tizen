@@ -40,6 +40,32 @@ function Assert-True([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
 }
 
+function Get-NaiveSnapshotEncoding([string]$dir) {
+    $stream = [System.IO.MemoryStream]::new()
+    try {
+        $files = [System.Collections.Generic.SortedDictionary[string, string]]::new(
+            [System.StringComparer]::Ordinal)
+        foreach ($file in [System.IO.Directory]::EnumerateFiles(
+                $dir, '*', [System.IO.SearchOption]::AllDirectories)) {
+            $relativePath = [System.IO.Path]::GetRelativePath($dir, $file).Replace('\', '/')
+            $files.Add($relativePath, $file)
+        }
+
+        foreach ($entry in $files.GetEnumerator()) {
+            $pathBytes = [System.Text.Encoding]::UTF8.GetBytes($entry.Key)
+            $stream.Write($pathBytes, 0, $pathBytes.Length)
+            $stream.WriteByte(10)
+            $contentBytes = [System.IO.File]::ReadAllBytes($entry.Value)
+            $stream.Write($contentBytes, 0, $contentBytes.Length)
+        }
+
+        return [System.Convert]::ToBase64String($stream.ToArray())
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
 function New-SyntheticSnapshot([string]$dir) {
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $dir 'src/Sub') -Force | Out-Null
@@ -159,34 +185,108 @@ Test-Case 'Two independent snapshots of identical content produce the same tree 
     }
 }
 
-Test-Case 'Repartitioning content across a filename containing an embedded newline does not collide (length-prefixed encoding)' {
-    # A plain "path\n<content>" concatenation is not strictly injective for a filename that
-    # legally contains an embedded newline byte (POSIX allows this): two different (path,
-    # content) splits of the exact same underlying bytes could in principle hash identically.
-    # Get-SnapshotTreeHash length-prefixes each path and content instead of relying on a
-    # delimiter, so this constructs the adversarial case directly: one tree with a single file
-    # whose name contains a literal newline, and a differently-partitioned tree with two files,
-    # such that a delimiter-based (non-length-prefixed) scheme would concatenate to the same
-    # byte stream. The hashes must differ.
+Test-Case 'Canonical length prefixes use explicit big-endian byte order' {
+    $dir = Join-Path ([System.IO.Path]::GetTempPath()) "mt-snap-test-$([System.Guid]::NewGuid().ToString('N'))"
+    try {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $dir 'a') -Value 'b' -NoNewline
+
+        $hash = Get-SnapshotTreeHash -Dir $dir
+        Assert-True ($hash.treeHash -eq '3c9d591045bc8876f9d0399bbfb05c6a412096e906f73278f98406cd5dca86df') "expected the canonical big-endian hash vector"
+    }
+    finally {
+        Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+Test-Case 'Canonical paths are sorted with ordinal comparison' {
+    $dir = Join-Path ([System.IO.Path]::GetTempPath()) "mt-snap-test-$([System.Guid]::NewGuid().ToString('N'))"
+    try {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $dir 'a') -Value 'y' -NoNewline
+        Set-Content -LiteralPath (Join-Path $dir 'B') -Value 'x' -NoNewline
+
+        $hash = Get-SnapshotTreeHash -Dir $dir
+        Assert-True ($hash.treeHash -eq 'f62ebaccd1a567edf71c6f059813dbbe50e7c65e74556cc1ad113d07482c3c86') "expected ordinal path ordering with 'B' before 'a'"
+    }
+    finally {
+        Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+Test-Case 'A literal POSIX backslash does not alias a directory separator' {
+    if ($IsWindows) {
+        Write-Host '       SKIP Windows does not permit a literal backslash in a path segment'
+        return
+    }
+
     $dirA = Join-Path ([System.IO.Path]::GetTempPath()) "mt-snap-test-$([System.Guid]::NewGuid().ToString('N'))"
     $dirB = Join-Path ([System.IO.Path]::GetTempPath()) "mt-snap-test-$([System.Guid]::NewGuid().ToString('N'))"
     try {
         New-Item -ItemType Directory -Path $dirA -Force | Out-Null
-        # Single file whose name is "a`nb" (contains a literal newline) and whose content is "c".
-        $nameWithNewline = "a`nb"
-        Set-Content -Path (Join-Path $dirA $nameWithNewline) -Value 'c' -NoNewline
+        $literalBackslashPath = $dirA + [System.IO.Path]::DirectorySeparatorChar + 'a\b'
+        [System.IO.File]::WriteAllText($literalBackslashPath, 'content')
 
-        New-Item -ItemType Directory -Path $dirB -Force | Out-Null
-        # Two files, "a" (content "b") and "b" (content "c") -- chosen so that a delimiter-based
-        # "path\ncontent" scheme would produce the identical byte stream "a\nb" + "b\nc" split
-        # differently than dirA's "a\nb\nc", i.e. exactly the ambiguity a length-prefixed scheme
-        # must NOT be fooled by.
-        Set-Content -Path (Join-Path $dirB 'a') -Value 'b' -NoNewline
-        Set-Content -Path (Join-Path $dirB 'b') -Value 'c' -NoNewline
+        New-Item -ItemType Directory -Path (Join-Path $dirB 'a') -Force | Out-Null
+        Set-Content -LiteralPath ([System.IO.Path]::Combine($dirB, 'a', 'b')) -Value 'content' -NoNewline
 
         $hashA = Get-SnapshotTreeHash -Dir $dirA
         $hashB = Get-SnapshotTreeHash -Dir $dirB
-        Assert-True ($hashA.treeHash -ne $hashB.treeHash) "expected different (path, content) partitions to produce different tree hashes even when their naive concatenation would coincide"
+        Assert-True ($hashA.treeHash -ne $hashB.treeHash) "expected literal backslash and directory separator paths to hash differently"
+    }
+    finally {
+        Remove-Item $dirA -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item $dirB -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+Test-Case 'Marker exclusion is ordinal and case-sensitive when the filesystem permits distinct names' {
+    $dir = Join-Path ([System.IO.Path]::GetTempPath()) "mt-snap-test-$([System.Guid]::NewGuid().ToString('N'))"
+    try {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $dir '.mt-snapshot.json') -Value 'marker' -NoNewline
+        Set-Content -LiteralPath (Join-Path $dir '.MT-SNAPSHOT.JSON') -Value 'payload' -NoNewline
+
+        $names = @([System.IO.Directory]::EnumerateFiles($dir) | ForEach-Object {
+                [System.IO.Path]::GetFileName($_)
+            })
+        if (@($names | Where-Object { $_ -ceq '.mt-snapshot.json' }).Count -ne 1 -or
+            @($names | Where-Object { $_ -ceq '.MT-SNAPSHOT.JSON' }).Count -ne 1) {
+            Write-Host '       SKIP filesystem does not permit these names as distinct files'
+            return
+        }
+
+        $hash = Get-SnapshotTreeHash -Dir $dir
+        Assert-True ($hash.fileCount -eq 1) "expected only the exact lowercase marker path to be excluded"
+    }
+    finally {
+        Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+Test-Case 'Equal naive streams from a newline filename do not collide after length-prefixing' {
+    if ($IsWindows) {
+        Write-Host '       SKIP Windows does not permit a literal newline in a filename'
+        return
+    }
+
+    $dirA = Join-Path ([System.IO.Path]::GetTempPath()) "mt-snap-test-$([System.Guid]::NewGuid().ToString('N'))"
+    $dirB = Join-Path ([System.IO.Path]::GetTempPath()) "mt-snap-test-$([System.Guid]::NewGuid().ToString('N'))"
+    try {
+        New-Item -ItemType Directory -Path $dirA -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $dirA 'a') -Value "b`nc" -NoNewline
+
+        New-Item -ItemType Directory -Path $dirB -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $dirB "a`nb") -Value 'c' -NoNewline
+
+        $oldEncodingA = Get-NaiveSnapshotEncoding $dirA
+        $oldEncodingB = Get-NaiveSnapshotEncoding $dirB
+        Assert-True ($oldEncodingA -eq $oldEncodingB) "fixture error: expected the old path-newline-content encodings to be identical"
+
+        $hashA = Get-SnapshotTreeHash -Dir $dirA
+        $hashB = Get-SnapshotTreeHash -Dir $dirB
+        Assert-True ($hashA.fileCount -eq $hashB.fileCount) "fixture error: expected equal file counts"
+        Assert-True ($hashA.treeHash -ne $hashB.treeHash) "expected length-prefixed encodings to distinguish equal naive streams"
     }
     finally {
         Remove-Item $dirA -Recurse -Force -ErrorAction SilentlyContinue
