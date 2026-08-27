@@ -36,10 +36,13 @@
 
   <Folder Name="/eng/">
     <File Path="eng/baselines.json" />
+    <File Path="eng/build-tizen.sh" />
     <File Path="eng/build-workload-free.sh" />
+    <File Path="eng/ci/tizen-workload-gate.sh" />
     <File Path="eng/import/tizen-paths.txt" />
     <File Path="eng/import/filter-maui-tizen.sh" />
     <File Path="eng/import/normalize-layout.sh" />
+    <File Path="eng/tests/test-ci-tizen-workload-gate.sh" />
     <File Path="eng/manifests/source-disposition.schema.json" />
     <File Path="eng/api-baselines/net9.0-tizen7.0-package-trust.json" />
     <File Path="eng/targets/TizenPackage.props" />

@@ -46,7 +46,9 @@ Details in [`docs/migration.md`](docs/migration.md).
 This runs everything that does not need the Tizen workload — SDK and package
 configuration, baseline consistency, import tooling integrity, and 20 repository
 invariant tests. It is the required CI lane, so that when the workload ships, the
-workload is the only thing that has to start working.
+workload is the only thing that has to start working. The external-gate job then installs
+through Samsung's supported workload installer and runs `eng/build-tizen.sh`; it cannot
+report success by skipping or masking a failed real Tizen restore/build/pack.
 
 Requires the .NET SDK pinned in [`global.json`](global.json) (11.0.100-preview.7).
 
