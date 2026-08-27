@@ -27,6 +27,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	public sealed class TizenSecureStorage : ISecureStorage
 	{
 		static readonly object Locker = new();
+		const string AliasVersion = "v2:";
 		readonly ITizenSecureRepository _repository;
 		readonly ITizenSecureStorageTombstones _tombstones;
 
@@ -71,11 +72,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				{
 					// The namespaced alias does not exist.
 				}
-				catch
-				{
-					global::Tizen.Log.Error(TizenPlatform.CurrentPackageLogTag, "Failed to load data.");
-					throw;
-				}
 
 				if (_tombstones.Contains(key) || _tombstones.ContainsAll)
 					return Task.FromResult<string?>(null);
@@ -84,14 +80,36 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 				try
 				{
-					legacyValue = _repository.Get(key);
+					if (!CanUseLegacyNamespacedAlias(key))
+						throw new InvalidOperationException();
+
+					legacyValue = _repository.Get(ToLegacyNamespacedAlias(key));
 				}
 				catch (InvalidOperationException)
 				{
-					return Task.FromResult<string?>(null);
+					try
+					{
+						legacyValue = _repository.Get(key);
+					}
+					catch (InvalidOperationException)
+					{
+						return Task.FromResult<string?>(null);
+					}
+				}
+				catch (ArgumentException)
+				{
+					try
+					{
+						legacyValue = _repository.Get(key);
+					}
+					catch (InvalidOperationException)
+					{
+						return Task.FromResult<string?>(null);
+					}
 				}
 
-				// Raw aliases are unowned and may belong to another component. Copy, never delete.
+				// Legacy namespaced and raw aliases are copied into v2. Raw aliases are unowned and
+				// may belong to another component, so they are never deleted.
 				_repository.Save(ToAlias(key), legacyValue);
 
 				return Task.FromResult<string?>(Encoding.UTF8.GetString(legacyValue));
@@ -106,27 +124,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			lock (Locker)
 			{
-				try
-				{
-					var alias = ToAlias(key);
-					try
-					{
-						_repository.RemoveAlias(alias);
-					}
-					catch
-					{
-						// Expected when the alias did not exist.
-					}
+				var alias = ToAlias(key);
+				RemoveOwnedAliasIfPresent(alias);
+				if (CanUseLegacyNamespacedAlias(key))
+					RemoveOwnedAliasIfPresent(ToLegacyNamespacedAlias(key));
 
-					_repository.Save(alias, Encoding.UTF8.GetBytes(value));
-					_tombstones.Remove(key);
-					return Task.CompletedTask;
-				}
-				catch
-				{
-					global::Tizen.Log.Error(TizenPlatform.CurrentPackageLogTag, "Failed to save data.");
-					throw;
-				}
+				_repository.Save(alias, Encoding.UTF8.GetBytes(value));
+				_tombstones.Remove(key);
+				return Task.CompletedTask;
 			}
 		}
 
@@ -148,9 +153,22 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					_repository.RemoveAlias(ToAlias(key));
 					removed = true;
 				}
-				catch
+				catch (InvalidOperationException)
 				{
 					// Missing namespaced data is expected when only an ambiguous raw alias exists.
+				}
+
+				try
+				{
+					if (CanUseLegacyNamespacedAlias(key))
+					{
+						_repository.RemoveAlias(ToLegacyNamespacedAlias(key));
+						removed = true;
+					}
+				}
+				catch (InvalidOperationException)
+				{
+					// Missing v1 namespaced data is expected.
 				}
 
 				_tombstones.Add(key);
@@ -204,8 +222,36 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// </summary>
 		/// <param name="key">The caller's key.</param>
 		/// <returns>The namespaced alias.</returns>
-		internal static string ToAlias(string key) =>
+		/// <remarks>
+		/// Version 2 encodes the UTF-8 key as unpadded Base64url, producing an injective alias with
+		/// no whitespace or delimiters rejected by Tizen's secure repository. Aliases are never
+		/// truncated; native alias-length or format failures are surfaced to the caller.
+		/// </remarks>
+		internal static string ToAlias(string key)
+		{
+			ArgumentNullException.ThrowIfNull(key);
+
+			var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(key))
+				.TrimEnd('=')
+				.Replace('+', '-')
+				.Replace('/', '_');
+
+			return AliasPrefix + AliasVersion + encoded;
+		}
+
+		internal static string ToLegacyNamespacedAlias(string key) =>
 			AliasPrefix + TizenStorageKeyEncoding.Encode(key);
+
+		internal static bool CanUseLegacyNamespacedAlias(string key)
+		{
+			foreach (var character in key)
+			{
+				if (char.IsWhiteSpace(character))
+					return false;
+			}
+
+			return true;
+		}
 
 		/// <summary>
 		/// Determines whether an alias was created by this API.
@@ -228,6 +274,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			return separator >= 0 &&
 				alias.AsSpan(separator + 1).StartsWith(AliasPrefix, StringComparison.Ordinal);
+		}
+
+		void RemoveOwnedAliasIfPresent(string alias)
+		{
+			try
+			{
+				_repository.RemoveAlias(alias);
+			}
+			catch (InvalidOperationException)
+			{
+				// Expected when the owned alias did not exist.
+			}
 		}
 	}
 

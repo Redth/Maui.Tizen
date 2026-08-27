@@ -64,17 +64,19 @@ working.
 ### SecureStorage data migration
 
 The standalone Essentials package stores secure values under
-`maui.tizen.securestorage:<encoded-key>`. The in-box Tizen backend stored the caller's raw key in
-the application-wide secure-repository alias space.
+`maui.tizen.securestorage:v2:<base64url-utf8-key>`. The v2 encoding is injective and contains no
+whitespace, padding, or separator characters rejected by Tizen's secure repository. Aliases are
+never truncated or hashed to fit a native limit; Tizen's argument error is surfaced instead.
 
-`GetAsync` performs a one-way, per-key compatibility migration: it reads the namespaced alias first;
-only when that alias is absent does it read the exact legacy raw alias and save the value under the
-namespaced alias. It never deletes the raw alias because the application-wide secure repository
+`GetAsync` performs a one-way, per-key compatibility migration in this order: v2 alias, the first
+standalone package's escaped namespaced alias, then the in-box backend's exact raw alias. A legacy
+value is copied to v2. Raw aliases are never deleted because the application-wide secure repository
 cannot prove that alias is owned by SecureStorage. A migration save failure is surfaced and leaves
 the legacy value intact.
 
-`Remove` and `RemoveAll` delete only namespaced aliases and write tombstones in the application
-preference store. Those tombstones suppress legacy fallback, so an unowned raw alias cannot
+`Remove` deletes both generations of owned namespaced alias, and `RemoveAll` deletes every alias
+under the private ownership prefix. Both write tombstones in the application preference store.
+Those tombstones suppress legacy fallback, so an unowned raw alias cannot
 resurrect a removed SecureStorage value. There is no safe way to distinguish an old SecureStorage
 raw alias from certificates, keys, or another component's data in the shared repository. Tombstones
 are persistent and may accumulate: removing one while its shadowed raw alias still exists would

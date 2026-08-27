@@ -259,13 +259,30 @@ public class TizenServiceBehaviorTests
 		var alias = TizenSecureStorage.ToAlias("token");
 
 		Assert.StartsWith(TizenSecureStorage.AliasPrefix, alias, StringComparison.Ordinal);
-		Assert.EndsWith("token", alias, StringComparison.Ordinal);
+		Assert.StartsWith(TizenSecureStorage.AliasPrefix + "v2:", alias, StringComparison.Ordinal);
+		Assert.DoesNotContain(alias, char.IsWhiteSpace);
 	}
 
 	[Fact]
 	public void SecureStorageAliasesCannotCollideWithEachOther()
 	{
-		Assert.NotEqual(TizenSecureStorage.ToAlias("a~b"), TizenSecureStorage.ToAlias("a\\~b"));
+		string[] keys = ["a~b", "a\\~b", "a:b", "a b", "a\tb", "é", "e\u0301", "秘密"];
+
+		Assert.Equal(keys.Length, keys.Select(TizenSecureStorage.ToAlias).Distinct().Count());
+	}
+
+	[Theory]
+	[InlineData("api token")]
+	[InlineData("api\ttoken")]
+	[InlineData("ключ доступа")]
+	[InlineData("a:b~c\\d")]
+	public void SecureStorageAliasesAreWhitespaceFreeBase64Url(string key)
+	{
+		var encoded = TizenSecureStorage.ToAlias(key)[(TizenSecureStorage.AliasPrefix.Length + 3)..];
+
+		Assert.NotEmpty(encoded);
+		Assert.All(encoded, character => Assert.True(
+			char.IsAsciiLetterOrDigit(character) || character is '-' or '_'));
 	}
 
 	[Theory]
@@ -322,6 +339,74 @@ public class TizenServiceBehaviorTests
 
 		Assert.Equal("new-value", await storage.GetAsync("token"));
 		Assert.Equal("legacy-value", repository["token"]);
+	}
+
+	[Fact]
+	public async Task SecureStorageReadsAndMigratesThePreviousNamespacedAlias()
+	{
+		var repository = new FakeSecureRepository
+		{
+			[TizenSecureStorage.ToLegacyNamespacedAlias("token")] = "v1-value",
+			["token"] = "raw-value",
+		};
+		var storage = new TizenSecureStorage(repository);
+
+		Assert.Equal("v1-value", await storage.GetAsync("token"));
+		Assert.Equal("v1-value", repository[TizenSecureStorage.ToAlias("token")]);
+		Assert.Equal("raw-value", repository["token"]);
+	}
+
+	[Fact]
+	public async Task SecureStorageNewAliasWinsOverAllLegacyAliases()
+	{
+		var repository = new FakeSecureRepository
+		{
+			[TizenSecureStorage.ToAlias("token")] = "v2-value",
+			[TizenSecureStorage.ToLegacyNamespacedAlias("token")] = "v1-value",
+			["token"] = "raw-value",
+		};
+
+		Assert.Equal("v2-value", await new TizenSecureStorage(repository).GetAsync("token"));
+	}
+
+	[Fact]
+	public async Task SecureStorageWhitespaceKeyUsesOnlyNativeSafeAliases()
+	{
+		var repository = new FakeSecureRepository
+		{
+			RejectWhitespaceAliases = true,
+		};
+		var storage = new TizenSecureStorage(repository);
+
+		await storage.SetAsync("api token", "value");
+
+		Assert.Equal("value", await storage.GetAsync("api token"));
+		Assert.False(TizenSecureStorage.CanUseLegacyNamespacedAlias("api token"));
+	}
+
+	[Fact]
+	public async Task SecureStorageDoesNotTruncateAliasesRejectedByTheNativeLimit()
+	{
+		var repository = new FakeSecureRepository
+		{
+			MaximumAliasLength = TizenSecureStorage.AliasPrefix.Length + 8,
+		};
+		var storage = new TizenSecureStorage(repository);
+
+		await Assert.ThrowsAsync<ArgumentException>(() => storage.SetAsync(new string('x', 64), "value"));
+		Assert.Empty(repository.GetAliases());
+	}
+
+	[Fact]
+	public void SecureStorageRemoveDeletesPreviousOwnedAlias()
+	{
+		var repository = new FakeSecureRepository
+		{
+			[TizenSecureStorage.ToLegacyNamespacedAlias("token")] = "v1-value",
+		};
+
+		Assert.True(new TizenSecureStorage(repository).Remove("token"));
+		Assert.False(repository.Contains(TizenSecureStorage.ToLegacyNamespacedAlias("token")));
 	}
 
 	[Fact]
@@ -484,19 +569,110 @@ public class TizenServiceBehaviorTests
 		using var source = new CancellationTokenSource();
 		var utterance = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var stopped = false;
-		var cancellationWonBeforeStop = false;
+		var retiredBeforeCancellationSettled = false;
 
 		TizenTextToSpeech.CancelUtterance(utterance, source.Token, () =>
 		{
-			cancellationWonBeforeStop = utterance.Task.IsCanceled;
+			retiredBeforeCancellationSettled = !utterance.Task.IsCompleted;
 			stopped = true;
 		});
 
 		var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => utterance.Task);
 
 		Assert.True(stopped);
-		Assert.True(cancellationWonBeforeStop);
+		Assert.True(retiredBeforeCancellationSettled);
 		Assert.Equal(source.Token, exception.CancellationToken);
+	}
+
+	[Fact]
+	public void TextToSpeechPlayFailureRetiresBeforeRethrowing()
+	{
+		var retired = false;
+
+		Assert.Throws<InvalidOperationException>(() =>
+			TizenTextToSpeech.PlayOrRetire(
+				() => throw new InvalidOperationException("play failed"),
+				() => retired = true));
+
+		Assert.True(retired);
+	}
+
+	[Fact]
+	public void TextToSpeechIgnoresStaleUtteranceCallbacks()
+	{
+		Assert.True(TizenTextToSpeech.MatchesUtterance(42, 42));
+		Assert.False(TizenTextToSpeech.MatchesUtterance(42, 41));
+	}
+
+	[Fact]
+	public void TextToSpeechNativeErrorRetiresBeforeTaskSettlement()
+	{
+		var retired = false;
+		var settledAfterRetirement = false;
+
+		Assert.True(TizenTextToSpeech.RetireBeforeSettle(
+			() =>
+			{
+				retired = true;
+				return true;
+			},
+			() => settledAfterRetirement = retired));
+
+		Assert.True(settledAfterRetirement);
+	}
+
+	[Fact]
+	public async Task TextToSpeechNativeTeardownIsDeferred()
+	{
+		using var allowDispatch = new ManualResetEventSlim();
+		var tornDown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		TizenTextToSpeech.DeferNativeTeardown(
+			action =>
+			{
+				allowDispatch.Wait(TestContext.Current.CancellationToken);
+				action();
+			},
+			() => tornDown.SetResult());
+
+		Assert.False(tornDown.Task.IsCompleted);
+		allowDispatch.Set();
+		await tornDown.Task.WaitAsync(TestContext.Current.CancellationToken);
+	}
+
+	[Fact]
+	public async Task TextToSpeechClientGuardSerializesVoiceQueriesAndSpeech()
+	{
+		using var clientLock = new SemaphoreSlim(1, 1);
+		var firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var secondStarted = false;
+
+		var first = TizenTextToSpeech.RunWithCurrentClientAsync(
+			clientLock,
+			CancellationToken.None,
+			_ => Task.FromResult("client"),
+			async _ =>
+			{
+				firstStarted.SetResult();
+				await releaseFirst.Task;
+			});
+
+		await firstStarted.Task;
+		var second = TizenTextToSpeech.RunWithCurrentClientAsync(
+			clientLock,
+			CancellationToken.None,
+			_ => Task.FromResult("client"),
+			_ =>
+			{
+				secondStarted = true;
+				return Task.CompletedTask;
+			});
+
+		Assert.False(secondStarted);
+		releaseFirst.SetResult();
+		await Task.WhenAll(first, second);
+		Assert.True(secondStarted);
 	}
 
 	[Fact]
@@ -797,6 +973,8 @@ public class TizenServiceBehaviorTests
 		readonly object _locker = new();
 
 		public Exception? SaveException { get; init; }
+		public int? MaximumAliasLength { get; init; }
+		public bool RejectWhitespaceAliases { get; init; }
 		public int SuccessfulSaves { get; private set; }
 
 		public string this[string alias]
@@ -825,15 +1003,20 @@ public class TizenServiceBehaviorTests
 		public byte[] Get(string alias)
 		{
 			lock (_locker)
+			{
+				ValidateAlias(alias);
 				return _values.TryGetValue(alias, out var value)
 					? value
 					: throw new InvalidOperationException("alias not found");
+			}
 		}
 
 		public void Save(string alias, byte[] value)
 		{
 			lock (_locker)
 			{
+				ValidateAlias(alias);
+
 				if (SaveException is not null)
 					throw SaveException;
 
@@ -849,6 +1032,8 @@ public class TizenServiceBehaviorTests
 		{
 			lock (_locker)
 			{
+				ValidateAlias(alias);
+
 				if (!_values.Remove(alias))
 					throw new InvalidOperationException("alias not found");
 			}
@@ -858,6 +1043,14 @@ public class TizenServiceBehaviorTests
 		{
 			lock (_locker)
 				return _values.Keys.ToArray();
+		}
+
+		void ValidateAlias(string alias)
+		{
+			if (RejectWhitespaceAliases && alias.Any(char.IsWhiteSpace))
+				throw new ArgumentException("alias contains whitespace", nameof(alias));
+			if (MaximumAliasLength is { } maximum && alias.Length > maximum)
+				throw new ArgumentException("alias exceeds native limit", nameof(alias));
 		}
 	}
 

@@ -59,7 +59,7 @@ Profile column values are the Tizen device profiles on which the service is usab
 | `IPhoneDialer` | `TizenPhoneDialer` | Implemented | Mobile | `tel:` AppControl, gated on the `contact` feature key. |
 | `IPreferences` | `TizenPreferences` | Implemented | All | `Tizen.Applications.Preference`; shared names are emulated with an **escaped** `{sharedName}~{key}` prefix so distinct stores cannot collide. Default-store keys stay unprefixed for compatibility. |
 | `IScreenshot` | `TizenScreenshot` | Implemented | All | `Tizen.NUI.Capture` plus `Tizen.Multimedia.Util` encoders; native handles disposed, RGBX/BGRX treated as opaque, and a bounded wait for `Capture.Finished`. Also implements `IViewScreenshot`. |
-| `ISecureStorage` | `TizenSecureStorage` | Implemented | All | Tizen key manager. Aliases are stored under a private prefix, so `RemoveAll` deletes only entries this API created rather than every alias the app can see. |
+| `ISecureStorage` | `TizenSecureStorage` | Implemented | All | Tizen key manager. Versioned Base64url aliases are whitespace-free and private to this API; reads migrate earlier namespaced/raw aliases, while tombstones prevent removed raw values from resurfacing. |
 | `ISemanticScreenReader` | `TizenSemanticScreenReader` | Implemented | All | `Tizen.NUI.Accessibility`. |
 | `IShare` | `TizenShare` | Implemented | All | `share` / `share_text` AppControls. |
 | `ISms` | `TizenSms` | Implemented | Mobile | `sms:` compose AppControl, gated on `network.telephony.sms`. |
@@ -76,7 +76,7 @@ Profile column values are the Tizen device profiles on which the service is usab
 | Sources type-check against the **API15 reference pack** the product targets | Verified, by `tests/Maui.Tizen.Essentials.RefPackCompile` |
 | The declared public API surface matches `PublicAPI/slice/PublicAPI.Unshipped.txt` | Verified, by the PublicAPI analyzer in that same lane |
 | Sources compile against loadable Tizen implementation assemblies | Verified, by `src/Maui.Tizen.Essentials.HostVerification` |
-| DI registration, facade/`MainThread` ownership, permission privilege mapping, unsupported classification, ported translation logic | Verified, by `tests/Maui.Tizen.Essentials.Tests` (313 tests) |
+| DI registration, facade/`MainThread` ownership, permission privilege mapping, unsupported classification, ported translation logic | Verified, by `tests/Maui.Tizen.Essentials.Tests` (327 tests) |
 | `src/Maui.Tizen.Essentials` builds for `net11.0-tizen11.0` | **Blocked.** Fails with `MAUITIZEN0001`: the Samsung workload manifest `samsung.net.sdk.tizen.manifest-11.0.100` is unpublished. Nobody can build this TFM anywhere yet. |
 | Any behaviour that P/Invokes into Tizen (sensors, AppControl, key manager, NUI capture, TTS, geocoding, ...) | **Blocked.** Requires a Tizen device or emulator, which in turn requires the workload. |
 
