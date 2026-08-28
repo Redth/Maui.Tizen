@@ -473,12 +473,18 @@ it, and `VisualStateGroup` is sealed with no change notification. **This is exac
 Wave C replaced was `internal`:** `View.IsItemSelected` was read *inside* `ChangeVisualState`, so
 selection took part in the same recompute instead of racing it.
 
-So the disable direction recovers automatically, and the re-enable direction needs
-`ItemSelectionState.Refresh`, which `UpdateViewState` calls. The residual gap - a re-enable with no
-other item-state transition - is device-observable only. `ReEnablingDoesNotRestoreSelectedWithoutARefresh`
-pins the limitation so it is a recorded fact rather than a surprise, and so it FAILS and tells us to
-delete the workaround if upstream ever closes it. Recorded as **MAUI-TIZEN-API-0006**, whose earlier
-"(none required)" rationale this work disproved and which has been corrected in place.
+An earlier revision stopped there and recorded the re-enable path as an unfixable gap. **That was
+wrong too.** Dispatching the refresh puts it after the whole set-value operation, including
+`ChangeVisualState`, which is the ordering guarantee needed - so the behaviour is correct on device
+with no upstream change. `ItemSelectionState.PostRecompute` is the seam; it defaults to the element's
+dispatcher and is substituted in host tests, which have none, so the tests exercise the real
+sequencing rather than a stand-in for it. When no dispatcher exists the refresh is skipped rather
+than run inline, because running it inline would land *before* `ChangeVisualState` and be overwritten
+anyway.
+
+**MAUI-TIZEN-API-0006** has now been corrected twice - first from "(none required)", then from
+"unfixable" - and stands only as an **ergonomic** request: every backend that renders selection has
+to discover this ordering and re-dispatch around it.
 
 ## Icon-press routing
 
@@ -614,6 +620,78 @@ the whole suite passes.
   mapper is declared over a MAUI handler *interface* (`WaveCMapperDispatchTests`)
 - the validation lane still targets a real Tizen TFM and still compiles the same sources as the
   shipping project
+
+## Handler registration
+
+Every handler in this assembly was **unreachable** until `TizenNavigationHandlers` was added. MAUI
+resolves handlers from a registry, so a handler that is implemented, mapped and tested but never
+registered is dead code that falls back to whatever the neutral registry provides - which for these
+types is nothing. Implemented, mapped, and covered by tests is not the same as reachable, and nothing
+in the build said otherwise.
+
+`AddMauiTizenNavigationHandlers()` registers all 15 concrete handlers, and `UseMauiTizenNavigation()`
+wires it from a `MauiAppBuilder`. Registration **replaces** the neutral handler rather than chaining,
+because Wave C handlers declare their own mappers instead of extending the neutral ones - chaining
+would run both and double-apply every mapping.
+
+`WaveCHandlerRegistrationTests` **derives the expected set from the source tree** rather than
+hardcoding it, so adding a handler without registering it fails the build. It also rejects duplicate
+registrations, since the later one silently wins. Negative controls: removing one registration and
+duplicating one each fail it.
+
+The only part that remains integration work is the **call site** - which host actually calls
+`UseMauiTizenNavigation()` - because that belongs to the final Core→A→B stack.
+
+## Adaptor registration is shared, not duplicated
+
+The four Shell item adaptors each kept a private `Dictionary<NView, View>`. That looks equivalent to
+the base adaptor's own table and is not: rebinding a recycled row, resolving the MAUI view in
+`UpdateViewState`, activating the current item and tearing a row down are all keyed off the base
+registration, so a parallel table silently opts every row out of all of it.
+
+`TizenItemTemplateAdaptor` now exposes `RegisterNativeView` / `GetRegisteredView` /
+`UnregisterNativeView`, and all four Shell adaptors go through them. Enabled-state tracking is
+attached inside registration so no caller has to remember it, and removal now *unregisters* rather
+than merely looking up — leaving the entry behind kept the view alive and let a recycled native view
+resolve to a MAUI view whose handler was already disposed.
+
+## What the body probe found
+
+Running the acceptance lane with the two missing Core types supplied — the only way to make Roslyn
+bind method bodies while the gate is open — surfaced **four real errors that the gated build reported
+as clean**:
+
+| Error | File |
+| --- | --- |
+| `disposing` does not exist (undefined identifier) | `TizenShellView.Dispose(DisposeTypes)` |
+| `ArgumentNullException` unresolved (missing `using System;`) | `TizenToolbarNavigationSlot.cs` |
+| `ArgumentNullException` unresolved (missing `using System;`) | `TizenNavigationHandlers.cs` |
+| `IDispatcher` / `Dispatch` unresolved (missing `using Microsoft.Maui.Dispatching;`) | `ItemSelectionState.cs` |
+
+Two of those were in code written in this round, and two had been sitting in the tree unnoticed. This
+is the concrete cost of the gate hiding the body phase, and the reason making the acceptance compile
+unconditional after the rebase is tracked as required work rather than a tidy-up.
+
+Everything still failing in that probe is a Core-owned symbol that has not landed: the six
+`DrawerView.Update*` extensions, `MauiFlyoutView`/`MauiTVFlyoutView`, `WrapperView` members,
+`Color.ToNUIColor`/`ToPlatform`, `FlyoutBehavior.ToPlatform`, `double.ToScaledPixel`/`ToScaledPoint`,
+`MauiToolbar.UpdateTitle`, `ViewHandler.MapToolbar`, `IPlatformViewHandler`, and the `object`-typed
+`PlatformView` sites.
+
+## Deferred to the final predecessor stack
+
+Two items are deliberately not fixed here, because they only become real once Core lands and are
+recorded so they cannot be lost:
+
+1. **Toolbar transfer safety during Core toolbar inlining.** When `ITizenToolbarContainer.SetToolbar`
+   becomes the ownership-transfer point, the outgoing toolbar must be detached *before* transfer, and
+   a same-instance transfer must be a no-op rather than a detach/reattach cycle. Tracked as
+   `r3-final-toolbar`.
+2. **Unconditional acceptance compile.** After the rebase, `MauiTizenWaveCAcceptance` becomes
+   unconditional and the lane must prove every registration and real method body compiles. Today's 50
+   missing declarations are expected, but they stop Roslyn before the body phase, so they can hide
+   other errors - which is exactly how a latent `Dispose` bug and two missing `using System;` errors
+   survived until a probe forced bodies to bind. Tracked as `r3-final-gate`.
 
 ## Predecessor dependencies
 

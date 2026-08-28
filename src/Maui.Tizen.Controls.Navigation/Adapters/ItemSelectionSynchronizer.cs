@@ -152,18 +152,31 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 
 		/// <summary>
 		/// Removes any position the filter rejects from a native-originated selection, deselecting it
-		/// natively so the two sides do not disagree.
+		/// natively so the two sides do not disagree. When <paramref name="previousValidIndex"/> is
+		/// provided and all selected indexes are rejected, restores that previous valid selection so
+		/// a <c>SingleAlways</c> collection is never left with nothing selected.
 		/// </summary>
 		/// <returns>The indexes that survived the filter.</returns>
 		/// <remarks>
+		/// <para>
 		/// A user can tap a group header, so the rejection has to happen on this side too - not only
 		/// when pushing a selection down. Deselecting immediately keeps the native view from holding
 		/// a highlighted row the virtual view never accepted.
+		/// </para>
+		/// <para>
+		/// <b>SingleAlways preservation.</b> The native API (<c>Tizen.UIExtensions.NUI.CollectionView</c>)
+		/// does not expose a pre-selection hook that allows rejecting items before the selection mutates.
+		/// Once the user taps a group header, the native selection has already changed. Without the
+		/// previous valid index, rejecting the header leaves the collection with nothing selected,
+		/// violating the <c>SingleAlways</c> contract. Passing the previous valid index allows this
+		/// method to restore it when all tapped items are rejected.
+		/// </para>
 		/// </remarks>
 		public IReadOnlyList<int> RejectUnselectableIndexes(
 			ITizenNativeSelection native,
 			IEnumerable<int> selectedIndexes,
-			ITizenSelectableItemFilter? filter)
+			ITizenSelectableItemFilter? filter,
+			int? previousValidIndex = null)
 		{
 			if (native is null || selectedIndexes is null)
 			{
@@ -191,6 +204,29 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 				}
 
 				kept.Add(index);
+			}
+
+			// If all items were rejected and we have a previous valid index, restore it.
+			// This ensures SingleAlways mode is never left with no selection.
+			if (kept.Count == 0 && previousValidIndex.HasValue && previousValidIndex.Value >= 0)
+			{
+				int prevIdx = previousValidIndex.Value;
+				// Validate the previous index is still in range and selectable
+				if (prevIdx < native.Count && (filter?.IsItemSelectableAt(prevIdx) != false))
+				{
+					_pushingToNative = true;
+
+					try
+					{
+						native.RequestItemSelect(prevIdx);
+					}
+					finally
+					{
+						_pushingToNative = false;
+					}
+
+					kept.Add(prevIdx);
+				}
 			}
 
 			return kept;

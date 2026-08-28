@@ -47,6 +47,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		readonly ItemSelectionSynchronizer _selection = new();
 
+		/// <summary>
+		/// Tracks the last valid selected index for SingleAlways preservation.
+		/// The native Tizen.UIExtensions.NUI.CollectionView does not support pre-emption of selection,
+		/// so when a group header/footer is tapped, the native selection has already changed.
+		/// We need to preserve the previous valid index to restore it when all tapped items are rejected.
+		/// </summary>
+		int? _lastValidSelectedIndex;
+
 		protected override void ConnectHandler(NView platformView)
 		{
 			base.ConnectHandler(platformView);
@@ -63,15 +71,27 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			// Group headers and footers share one flat index space with real items and must never
 			// become selected. Rejecting them here - before anything reaches the virtual view -
 			// deselects them natively too, so the two sides cannot disagree.
+			// 
+			// BLOCKER B FIX: The native Tizen.UIExtensions.NUI.CollectionView does not expose a
+			// pre-selection hook, so by the time we reach this handler the selection has already
+			// changed natively. For SingleAlways mode, if all selected items are rejected (e.g.,
+			// user tapped a group header), we must restore the previous valid selection to prevent
+			// the collection from being left with nothing selected.
 			if (Adaptor is ITizenSelectableItemFilter filter && NativeCollectionView is { } native)
 			{
 				var kept = _selection.RejectUnselectableIndexes(
 					new TizenNativeCollectionSelection(native, Adaptor.Count),
 					e.SelectedItems.Select(item => Adaptor.GetItemIndex(item)),
-					filter);
+					filter,
+					_lastValidSelectedIndex);
 
 				if (kept.Count != e.SelectedItems.Count)
 				{
+					// Some items were rejected. If any were kept, update the last valid index.
+					if (kept.Count > 0)
+					{
+						_lastValidSelectedIndex = kept[0];
+					}
 					return;
 				}
 			}
@@ -85,6 +105,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				{
 					case SelectionMode.Single:
 						VirtualView.SelectedItem = e.SelectedItems.FirstOrDefault();
+						// Track the valid selection for SingleAlways preservation
+						if (Adaptor != null && VirtualView.SelectedItem != null)
+						{
+							_lastValidSelectedIndex = Adaptor.GetItemIndex(VirtualView.SelectedItem);
+						}
 						break;
 					case SelectionMode.Multiple:
 						// Assign rather than Clear()+Add(): clearing an observable collection that

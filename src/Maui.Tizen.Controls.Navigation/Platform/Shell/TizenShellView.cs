@@ -523,7 +523,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (_isDisposed)
 				return;
 
-			if (disposing)
+			// DisposeTypes.Explicit is a real Dispose() call; Implicit is finalization, where
+			// touching other managed objects is not safe.
+			if (type == DisposeTypes.Explicit)
 			{
 				if (Shell != null)
 				{
@@ -557,6 +559,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			}
 
 			_isDisposed = true;
+
+			// The NUI base owns the native handle; skipping this leaks it regardless of what the
+			// managed teardown above released.
+			base.Dispose(type);
 		}
 	}
 }

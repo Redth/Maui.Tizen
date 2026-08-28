@@ -381,35 +381,125 @@ public class WaveCItemSelectionStateTests
 	}
 
 	/// <summary>
-	/// Pins the upstream gap: on re-enable, MAUI's own recompute wins and selection is not restored
-	/// automatically.
+	/// Re-enabling restores <c>Selected</c> automatically once the post-recompute refresh runs.
 	/// </summary>
 	/// <remarks>
 	/// <para>
 	/// <c>VisualElement.ChangeVisualState</c> runs from the <c>IsEnabled</c> property-changed
 	/// callback, which fires after both <c>PropertyChanging</c> and <c>PropertyChanged</c>, and it
-	/// applies <c>Normal</c> with no knowledge of selection. No public hook runs after it.
+	/// applies <c>Normal</c> with no knowledge of selection. Recomputing from the event alone is
+	/// therefore always overwritten on the re-enable path.
 	/// </para>
 	/// <para>
-	/// This test exists so the limitation is a recorded fact rather than a surprise, and so that it
-	/// FAILS - telling us to delete it and the workaround - if upstream ever makes selection part of
-	/// that recompute. See MAUI-TIZEN-API-0010.
+	/// On a device the refresh is dispatched, which lands after the whole set-value operation. Host
+	/// tests have no dispatcher, so the scheduler is substituted with one that runs the refresh at
+	/// the same point the dispatcher would - after the value has settled. That is what this test
+	/// exercises: the sequencing, not a stand-in for it.
 	/// </para>
 	/// </remarks>
 	[Fact]
-	public void ReEnablingDoesNotRestoreSelectedWithoutARefresh()
+	public void ReEnablingRestoresSelectedOnceThePostRecomputeRefreshRuns()
+	{
+		var scheduled = new List<Action>();
+		var original = ItemSelectionState.PostRecompute;
+		ItemSelectionState.PostRecompute = (_, refresh) => scheduled.Add(refresh);
+
+		try
+		{
+			var item = NewTemplatedItem();
+			ItemSelectionState.TrackEnabledState(item);
+			ItemSelectionState.SetItemSelected(item, selected: true);
+
+			item.IsEnabled = false;
+			item.IsEnabled = true;
+
+			// MAUI's own recompute has already overwritten the state by this point.
+			Assert.Equal(VisualStateManager.CommonStates.Normal, CurrentState(item));
+
+			// Drain what the dispatcher would have run.
+			Assert.NotEmpty(scheduled);
+			foreach (var refresh in scheduled)
+			{
+				refresh();
+			}
+
+			// Restored with no re-selection anywhere in this test.
+			Assert.Equal(VisualStateManager.CommonStates.Selected, CurrentState(item));
+		}
+		finally
+		{
+			ItemSelectionState.PostRecompute = original;
+		}
+	}
+
+	/// <summary>
+	/// A refresh is scheduled for every <c>IsEnabled</c> change, not only re-enable.
+	/// </summary>
+	[Fact]
+	public void EveryEnabledChangeSchedulesAPostRecomputeRefresh()
+	{
+		var scheduled = 0;
+		var original = ItemSelectionState.PostRecompute;
+		ItemSelectionState.PostRecompute = (_, _) => scheduled++;
+
+		try
+		{
+			var item = NewTemplatedItem();
+			ItemSelectionState.TrackEnabledState(item);
+
+			item.IsEnabled = false;
+			item.IsEnabled = true;
+
+			Assert.Equal(2, scheduled);
+		}
+		finally
+		{
+			ItemSelectionState.PostRecompute = original;
+		}
+	}
+
+	/// <summary>
+	/// An untracked view schedules nothing, so a recycled row does not repaint off-screen.
+	/// </summary>
+	[Fact]
+	public void AnUntrackedViewSchedulesNoRefresh()
+	{
+		var scheduled = 0;
+		var original = ItemSelectionState.PostRecompute;
+		ItemSelectionState.PostRecompute = (_, _) => scheduled++;
+
+		try
+		{
+			var item = NewTemplatedItem();
+			ItemSelectionState.TrackEnabledState(item);
+			ItemSelectionState.UntrackEnabledState(item);
+
+			item.IsEnabled = false;
+
+			Assert.Equal(0, scheduled);
+		}
+		finally
+		{
+			ItemSelectionState.PostRecompute = original;
+		}
+	}
+
+	/// <summary>
+	/// The default scheduler must not throw for a view with no dispatcher.
+	/// </summary>
+	/// <remarks>
+	/// An unparented or recycled row has no dispatcher, and <c>Element.Dispatcher</c> throws rather
+	/// than returning null in that state. Tracking such a row must stay safe.
+	/// </remarks>
+	[Fact]
+	public void TheDefaultSchedulerToleratesAViewWithNoDispatcher()
 	{
 		var item = NewTemplatedItem();
 		ItemSelectionState.TrackEnabledState(item);
-		ItemSelectionState.SetItemSelected(item, selected: true);
 
-		item.IsEnabled = false;
-		item.IsEnabled = true;
+		var exception = Record.Exception(() => item.IsEnabled = false);
 
-		Assert.Equal(VisualStateManager.CommonStates.Normal, CurrentState(item));
-
-		// The selection itself survives - only the painted state was overwritten.
-		Assert.True(ItemSelectionState.GetItemSelected(item));
+		Assert.Null(exception);
 	}
 
 	/// <summary>

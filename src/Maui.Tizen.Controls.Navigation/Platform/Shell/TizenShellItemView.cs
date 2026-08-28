@@ -132,6 +132,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				return;
 
 			var items = ShellItem.Items.ToList();
+
+			// BLOCKER C FIX: Re-attach the tab bar BEFORE the unchanged-items fast path.
+			// If the tab bar was previously hidden/detached via HideTabBar(), we need to re-add
+			// it to the view hierarchy even if the items haven't changed. The fast path check
+			// must happen AFTER ensuring the tab bar is attached, not before.
+			if (_bottomTabBar != null && _bottomTabBar.GetParent() == null)
+			{
+				Add(_bottomTabBar);
+			}
+
+			// Now the unchanged-items fast path is safe - the tab bar is already visible
 			if (_bottomTabBar != null && !IsItemChanged(items))
 				return;
 
@@ -339,6 +350,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			}
 
 			_isDisposed = true;
+
+			// The NUI base owns the native handle; skipping this leaks it regardless of what the
+			// managed teardown above released.
+			base.Dispose(type);
 		}
 	}
 }

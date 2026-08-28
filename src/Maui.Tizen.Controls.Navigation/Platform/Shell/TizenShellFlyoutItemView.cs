@@ -163,11 +163,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			}
 		}
 
-		public static View GetFlyoutItemView(object data, IMauiContext context)
+		public static View GetFlyoutItemView(object data, IMauiContext context, TizenItemAppearance? appearance = null)
 		{
 			var view = new TizenShellFlyoutItemView();
 			view.BindToData(data);
-			view.SetBinding(View.BackgroundColorProperty, static (TizenItemAppearance app) => app.BackgroundColor);
+			if (appearance != null)
+			{
+				// Use explicit source so binding works even when BindingContext is the flyout item
+				view.SetBinding(View.BackgroundColorProperty, static (TizenItemAppearance app) => app.BackgroundColor, source: appearance);
+			}
 			return view;
 		}
 

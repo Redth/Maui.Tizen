@@ -39,6 +39,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// Gets the index of the specified item in the items source.
 		/// </summary>
 		int GetItemIndex(object item);
+
+		/// <summary>
+		/// Gets the number of items the adaptor is presenting.
+		/// </summary>
+		/// <remarks>
+		/// Needed to bound-check indexes before they reach the native selection surface. Satisfied
+		/// implicitly by <c>ItemAdaptor.Count</c> on the base class.
+		/// </remarks>
+		int Count { get; }
 	}
 
 	/// <summary>
@@ -151,6 +160,54 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 						break;
 				}
 			}
+		}
+
+		/// <summary>
+		/// Registers the MAUI view created for <paramref name="native"/>, and starts tracking it.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// Derived adaptors - the Shell flyout, section, content and search item adaptors - create
+		/// their own item views and must register them <b>here</b> rather than in a private table of
+		/// their own. Everything that makes a row work is keyed off this registration: rebinding a
+		/// recycled row, resolving the MAUI view in <see cref="UpdateViewState"/>, activating the
+		/// current item, and tearing the row down. A parallel table looks equivalent and silently
+		/// opts the row out of all of it.
+		/// </para>
+		/// <para>
+		/// Enabled-state tracking is attached here too, so no caller has to remember it.
+		/// </para>
+		/// </remarks>
+		protected void RegisterNativeView(NView native, View view)
+		{
+			ArgumentNullException.ThrowIfNull(native);
+			ArgumentNullException.ThrowIfNull(view);
+
+			_nativeMauiTable[native] = view;
+			ItemSelectionState.TrackEnabledState(view);
+		}
+
+		/// <summary>
+		/// Gets the MAUI view registered for <paramref name="native"/>, if any.
+		/// </summary>
+		protected View? GetRegisteredView(NView native)
+			=> native is not null && _nativeMauiTable.TryGetValue(native, out View? view) ? view : null;
+
+		/// <summary>
+		/// Removes the registration for <paramref name="native"/> and stops tracking it.
+		/// </summary>
+		/// <returns>The view that was registered, so the caller can dispose its handler.</returns>
+		protected View? UnregisterNativeView(NView native)
+		{
+			if (native is null || !_nativeMauiTable.TryGetValue(native, out View? view))
+			{
+				return null;
+			}
+
+			ItemSelectionState.UntrackEnabledState(view);
+			_nativeMauiTable.Remove(native);
+
+			return view;
 		}
 
 		public View? GetTemplatedView(NView view)

@@ -84,6 +84,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (_tabbedPage.CurrentPage == null)
 				return;
 
+			// Sync the native tab selection to match the current page
+			// Use public Children instead of internal InternalChildren
+			var currentPageIndex = _tabbedPage.Children.IndexOf(_tabbedPage.CurrentPage);
+			if (currentPageIndex != -1)
+			{
+				_tabbedView!.RequestItemSelect(currentPageIndex);
+			}
+
 			try
 			{
 				var currentHandler = _tabbedPage.CurrentPage.ToHandler(MauiContext);
@@ -280,7 +288,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				HorizontalTextAlignment = TextAlignment.Center,
 				VerticalTextAlignment = TextAlignment.Center,
 			};
-			label.SetBinding(XLabel.TextProperty, static (TabbedPage page) => page.Title, source: _page);
+			// Bind to the child Page's Title via BindingContext (not the parent TabbedPage)
+			label.SetBinding(XLabel.TextProperty, static (Page page) => page.Title);
 			label.SetBinding(XLabel.TextColorProperty, static (TabbedPage page) => page.BarTextColor, source: _page);
 
 			_bar = new BoxView

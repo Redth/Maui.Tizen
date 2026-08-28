@@ -299,4 +299,112 @@ public class WaveCItemSelectionSynchronizerTests
 
 		Assert.Equal(new[] { 0, 1 }, native.SelectedIndexes.OrderBy(i => i));
 	}
+
+	// -----------------------------------------------------------------
+	// SingleAlways preservation (Blocker B fix)
+	// -----------------------------------------------------------------
+
+	/// <summary>
+	/// When all selected items are rejected and a previous valid index is provided, restore it.
+	/// This is required for SingleAlways mode where the collection must never be left unselected.
+	/// </summary>
+	/// <remarks>
+	/// The native Tizen.UIExtensions.NUI.CollectionView does not support pre-emption of selection,
+	/// so when a user taps a group header the native selection has already changed. Without restoring
+	/// the previous valid selection, the collection is left with nothing selected, violating the
+	/// SingleAlways contract.
+	/// </remarks>
+	[Fact]
+	public void WhenAllItemsRejectedWithPreviousValidIndex_RestoresIt()
+	{
+		var native = new FakeNativeSelection(count: 5, initiallySelected: new[] { 0 }); // user tapped header at 0
+
+		var kept = new ItemSelectionSynchronizer()
+			.RejectUnselectableIndexes(native, new[] { 0 }, new HeaderFooterFilter(0), previousValidIndex: 2);
+
+		// Header should be deselected
+		Assert.Contains("unselect:0", native.Operations);
+		// Previous valid index should be restored
+		Assert.Contains("select:2", native.Operations);
+		Assert.Equal(new[] { 2 }, kept);
+		Assert.Equal(new[] { 2 }, native.SelectedIndexes);
+	}
+
+	/// <summary>
+	/// When some items survive rejection, the previous valid index is not used.
+	/// </summary>
+	[Fact]
+	public void WhenSomeItemsSurvive_DoesNotRestorePreviousIndex()
+	{
+		var native = new FakeNativeSelection(count: 5, initiallySelected: new[] { 0, 2 });
+
+		var kept = new ItemSelectionSynchronizer()
+			.RejectUnselectableIndexes(native, new[] { 0, 2 }, new HeaderFooterFilter(0), previousValidIndex: 4);
+
+		Assert.Contains("unselect:0", native.Operations);
+		Assert.DoesNotContain("select:4", native.Operations);
+		Assert.Equal(new[] { 2 }, kept);
+	}
+
+	/// <summary>
+	/// A null previous valid index does not restore anything.
+	/// </summary>
+	[Fact]
+	public void WhenAllItemsRejectedWithNullPreviousIndex_NoRestore()
+	{
+		var native = new FakeNativeSelection(count: 5, initiallySelected: new[] { 0 });
+
+		var kept = new ItemSelectionSynchronizer()
+			.RejectUnselectableIndexes(native, new[] { 0 }, new HeaderFooterFilter(0), previousValidIndex: null);
+
+		Assert.Empty(kept);
+		Assert.Contains("unselect:0", native.Operations);
+		Assert.DoesNotContain("select:", string.Join(",", native.Operations.Where(o => o.StartsWith("select:"))));
+	}
+
+	/// <summary>
+	/// A negative previous valid index is ignored (represents "no previous selection").
+	/// </summary>
+	[Fact]
+	public void WhenPreviousValidIndexIsNegative_DoesNotRestore()
+	{
+		var native = new FakeNativeSelection(count: 5, initiallySelected: new[] { 0 });
+
+		var kept = new ItemSelectionSynchronizer()
+			.RejectUnselectableIndexes(native, new[] { 0 }, new HeaderFooterFilter(0), previousValidIndex: -1);
+
+		Assert.Empty(kept);
+	}
+
+	/// <summary>
+	/// If the previous valid index is itself unselectable (e.g., it was a group header that was replaced),
+	/// it should not be restored.
+	/// </summary>
+	[Fact]
+	public void WhenPreviousIndexIsAlsoUnselectable_DoesNotRestore()
+	{
+		var native = new FakeNativeSelection(count: 5, initiallySelected: new[] { 0 });
+
+		// Both 0 and 2 are unselectable (both are group headers)
+		var kept = new ItemSelectionSynchronizer()
+			.RejectUnselectableIndexes(native, new[] { 0 }, new HeaderFooterFilter(0, 2), previousValidIndex: 2);
+
+		Assert.Empty(kept);
+		Assert.DoesNotContain("select:2", native.Operations);
+	}
+
+	/// <summary>
+	/// If the previous valid index is out of range (collection shrunk), it should not be restored.
+	/// </summary>
+	[Fact]
+	public void WhenPreviousIndexIsOutOfRange_DoesNotRestore()
+	{
+		var native = new FakeNativeSelection(count: 3, initiallySelected: new[] { 0 });
+
+		var kept = new ItemSelectionSynchronizer()
+			.RejectUnselectableIndexes(native, new[] { 0 }, new HeaderFooterFilter(0), previousValidIndex: 5);
+
+		Assert.Empty(kept);
+		Assert.DoesNotContain("select:5", native.Operations);
+	}
 }

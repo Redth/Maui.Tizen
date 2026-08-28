@@ -30,6 +30,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	{
 		ITizenItemTemplateAdaptor? _adaptor;
 		INotifyCollectionChanged? _observableCollection;
+		bool _isShowingEmptyAdaptor;
 
 		/// <summary>
 		/// Property mapper for <see cref="ItemsView"/> properties.
@@ -118,23 +119,84 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			UnsubscribeFromCollectionChanges();
 
 			var itemsSource = VirtualView?.ItemsSource;
-			if (itemsSource == null || !HasItems(itemsSource))
-			{
-				// Show empty view
-				UpdateEmptyView();
-				return;
-			}
 
-			// Subscribe to collection changes for INotifyCollectionChanged sources
+			// CRITICAL: Subscribe to observable sources BEFORE checking if empty.
+			// The upstream pattern (MauiCollectionView.cs:47-61) subscribes first, then calls
+			// UpdateAdaptor. A source that starts empty must still be observed so the first add
+			// triggers the transition from empty adaptor to real adaptor.
 			if (itemsSource is INotifyCollectionChanged observable)
 			{
 				_observableCollection = observable;
 				_observableCollection.CollectionChanged += OnCollectionChanged;
 			}
 
-			// Create and set the adaptor
-			Adaptor = CreateAdaptor();
-			collectionView.Adaptor = Adaptor as ItemAdaptor;
+			// Now decide which adaptor to use based on whether the source has items.
+			if (itemsSource == null || !HasItems(itemsSource))
+			{
+				TransitionToEmptyAdaptor();
+			}
+			else
+			{
+				TransitionToRealAdaptor();
+			}
+		}
+
+		/// <summary>
+		/// Centralized transition to the real data adaptor. Handles backing field, native view,
+		/// event subscriptions, and disposal of any replaced adaptor in one atomic operation.
+		/// </summary>
+		protected virtual void TransitionToRealAdaptor()
+		{
+			var collectionView = NativeCollectionView;
+			if (collectionView == null)
+				return;
+
+			var newAdaptor = CreateAdaptor();
+			SetAdaptor(collectionView, newAdaptor);
+			_isShowingEmptyAdaptor = false;
+		}
+
+		/// <summary>
+		/// Centralized transition to the empty view adaptor. Handles backing field, native view,
+		/// event subscriptions, and disposal of any replaced adaptor in one atomic operation.
+		/// </summary>
+		protected virtual void TransitionToEmptyAdaptor()
+		{
+			var collectionView = NativeCollectionView;
+			if (collectionView == null || VirtualView == null)
+				return;
+
+			if (VirtualView.EmptyView != null || VirtualView.EmptyViewTemplate != null)
+			{
+				var emptyAdaptor = new TizenEmptyItemAdaptor(VirtualView);
+				SetAdaptor(collectionView, emptyAdaptor);
+			}
+			else
+			{
+				// No empty view configured, just clear the adaptor
+				SetAdaptor(collectionView, null);
+			}
+			_isShowingEmptyAdaptor = true;
+		}
+
+		/// <summary>
+		/// Atomically sets the adaptor on the native view, updating the backing field, disposing the
+		/// old adaptor, and managing selection event subscriptions.
+		/// </summary>
+		void SetAdaptor(NCollectionView collectionView, ITizenItemTemplateAdaptor? newAdaptor)
+		{
+			// Get the old adaptor before we overwrite it
+			var oldAdaptor = Adaptor;
+
+			// The Adaptor property setter handles event subscriptions
+			Adaptor = newAdaptor;
+			collectionView.Adaptor = newAdaptor as ItemAdaptor;
+
+			// Dispose the old adaptor after it's been replaced
+			if (oldAdaptor != null && oldAdaptor != newAdaptor)
+			{
+				(oldAdaptor as IDisposable)?.Dispose();
+			}
 		}
 
 		protected virtual ITizenItemTemplateAdaptor CreateAdaptor()
@@ -166,20 +228,29 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (collectionView == null || VirtualView == null)
 				return;
 
-			// For Reset actions (clear, replace all) - recreate the adaptor
-			// The ItemAdaptor internally tracks the IEnumerable/INotifyCollectionChanged
-			// and updates automatically via its internal binding to the collection.
-			// For non-Reset actions, check if we need to switch from/to empty view.
-			if (e.Action == NotifyCollectionChangedAction.Reset)
-			{
-				UpdateItemsSource();
-			}
-
-			// Check if we need to show/hide empty view
+			// The upstream pattern (MauiCollectionView.cs:207-220) checks empty->real and real->empty
+			// transitions on every collection change, not just Reset.
 			bool hasItems = VirtualView.ItemsSource != null && HasItems(VirtualView.ItemsSource);
+
 			if (!hasItems)
 			{
-				UpdateEmptyView();
+				// Transition to empty adaptor if not already showing one
+				if (!_isShowingEmptyAdaptor)
+				{
+					TransitionToEmptyAdaptor();
+				}
+			}
+			else if (_isShowingEmptyAdaptor)
+			{
+				// We have items now but are showing empty adaptor - transition to real
+				TransitionToRealAdaptor();
+			}
+			// If Reset action and we have items and already showing real adaptor, recreate it
+			// to pick up the new data. The ItemAdaptor internally tracks the IEnumerable but
+			// a Reset may indicate a complete replacement.
+			else if (e.Action == NotifyCollectionChangedAction.Reset)
+			{
+				TransitionToRealAdaptor();
 			}
 		}
 

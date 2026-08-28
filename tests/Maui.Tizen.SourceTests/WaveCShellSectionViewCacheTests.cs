@@ -350,4 +350,156 @@ public class WaveCShellContentSourceTests
 			Assert.Contains("RemoveNativeView", source, StringComparison.Ordinal);
 		}
 	}
+
+	// -----------------------------------------------------------------
+	// Blocker A: ShellSection page content mounting
+	// -----------------------------------------------------------------
+
+	/// <summary>
+	/// The shell section must mount its content via IShellContentController.GetOrCreateContent().
+	/// </summary>
+	/// <remarks>
+	/// Blocker A required using the PUBLIC IShellContentController interface to get the Page from
+	/// ShellContent rather than reaching for internal APIs. This test verifies the interface is used.
+	/// </remarks>
+	[Fact]
+	public void TheShellSectionMountsContentViaIShellContentController()
+	{
+		var source = ReadWaveCSource("TizenShellSectionView.cs");
+
+		Assert.Contains("IShellContentController", source, StringComparison.Ordinal);
+		Assert.Contains("GetOrCreateContent", source, StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// The shell section must use the content cache for per-ShellContent page caching.
+	/// </summary>
+	/// <remarks>
+	/// Blocker A required reusing ShellSectionViewCache to cache per-ShellContent pages.
+	/// </remarks>
+	[Fact]
+	public void TheShellSectionUsesContentCacheForPages()
+	{
+		var source = ReadWaveCSource("TizenShellSectionView.cs");
+
+		Assert.Contains("ShellSectionViewCache<ShellContent", source, StringComparison.Ordinal);
+		Assert.Contains("_contentCache.SetCurrent", source, StringComparison.Ordinal);
+	}
+
+	// -----------------------------------------------------------------
+	// Blocker C: Flyout appearance binding with explicit source
+	// -----------------------------------------------------------------
+
+	/// <summary>
+	/// Flyout item views must use explicit source for appearance bindings.
+	/// </summary>
+	/// <remarks>
+	/// Blocker C: When the BindingContext is the flyout item, bindings to TizenItemAppearance
+	/// silently broke. The fix uses the explicit source: parameter.
+	/// </remarks>
+	[Fact]
+	public void FlyoutAppearanceBindingsUseExplicitSource()
+	{
+		var source = ReadWaveCSource("TizenShellFlyoutItemAdaptor.cs");
+
+		// Must use source: parameter in SetBinding for appearance
+		Assert.Contains("source: _itemAppearance", source, StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// The TizenShellFlyoutItemView helper must accept optional appearance parameter.
+	/// </summary>
+	[Fact]
+	public void FlyoutItemViewHelperAcceptsAppearanceParameter()
+	{
+		var source = ReadWaveCSource("TizenShellFlyoutItemView.cs");
+
+		// GetFlyoutItemView signature must include TizenItemAppearance? appearance parameter
+		Assert.Contains("TizenItemAppearance? appearance", source, StringComparison.Ordinal);
+		Assert.Contains("source: appearance", source, StringComparison.Ordinal);
+	}
+}
+
+/// <summary>
+/// Source invariants for TabbedPage mapping fixes.
+/// </summary>
+/// <remarks>
+/// Blocker D tests - TabbedPage must sync native tab selection when CurrentPage changes,
+/// and tab labels must bind to each child Page's Title, not the parent TabbedPage's Title.
+/// </remarks>
+public class WaveCTabbedPageSourceTests
+{
+	static string ReadWaveCSource(string fileName)
+		=> File.ReadAllText(WaveCSource.Files.Single(f => Path.GetFileName(f) == fileName));
+
+	/// <summary>
+	/// TabbedPage UpdateCurrentPage must sync native tab selection.
+	/// </summary>
+	/// <remarks>
+	/// Blocker D: When CurrentPage changes programmatically, the native tab bar must update to show
+	/// the correct selection. This is done via RequestItemSelect.
+	/// </remarks>
+	[Fact]
+	public void TabbedPageUpdateCurrentPageSyncsNativeSelection()
+	{
+		var source = ReadWaveCSource("TizenTabbedPageView.cs");
+
+		// UpdateCurrentPage method body must call RequestItemSelect
+		var updateMethod = source.IndexOf("public void UpdateCurrentPage()", StringComparison.Ordinal);
+		Assert.True(updateMethod >= 0, "UpdateCurrentPage method not found");
+
+		var afterMethod = source[updateMethod..];
+		var methodEnd = afterMethod.IndexOf("\n\t\t}", StringComparison.Ordinal);
+		var methodBody = afterMethod[..methodEnd];
+
+		Assert.Contains("RequestItemSelect", methodBody, StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// Tab labels must bind to the child Page's Title, not the parent TabbedPage.
+	/// </summary>
+	/// <remarks>
+	/// Blocker D: Each tab label was incorrectly binding to _page.Title (the TabbedPage). It must
+	/// bind via BindingContext to get the child Page's Title. The binding uses a lambda that takes
+	/// Page as the source type.
+	/// </remarks>
+	[Fact]
+	public void TabLabelBindsToChildPageTitle()
+	{
+		var source = ReadWaveCSource("TizenTabbedPageView.cs");
+
+		// The label binding must use (Page page) => page.Title pattern for child page binding
+		// NOT source: _page which would bind to parent TabbedPage
+		Assert.Contains("(Page page) => page.Title", source, StringComparison.Ordinal);
+
+		// Verify it does NOT bind TextProperty with source: _page (which would be wrong)
+		// The correct pattern binds via BindingContext which is set to the child Page
+		// Look for the label's TextProperty binding - should NOT have source: _page
+		var labelTextBinding = "label.SetBinding(XLabel.TextProperty";
+		var labelBindingIndex = source.IndexOf(labelTextBinding, StringComparison.Ordinal);
+		Assert.True(labelBindingIndex >= 0, "Label TextProperty binding not found");
+
+		// Get the binding call up to the semicolon
+		var afterBinding = source[labelBindingIndex..];
+		var endOfLine = afterBinding.IndexOf(';', StringComparison.Ordinal);
+		var bindingLine = afterBinding[..endOfLine];
+
+		// The TextProperty binding must NOT use source: _page
+		Assert.DoesNotContain("source: _page", bindingLine, StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// TabbedPage adaptor must use public Children collection, not internal InternalChildren.
+	/// </summary>
+	[Fact]
+	public void TabbedPageUsesPublicChildrenCollection()
+	{
+		var source = ReadWaveCSource("TizenTabbedPageView.cs");
+
+		// Must use public Children
+		Assert.Contains(".Children", source, StringComparison.Ordinal);
+		// Must NOT use .InternalChildren in code (comments are OK)
+		// The pattern ".InternalChildren" as a property access would be bad
+		Assert.DoesNotContain(".InternalChildren", source, StringComparison.Ordinal);
+	}
 }

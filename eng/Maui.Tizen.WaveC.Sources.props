@@ -147,6 +147,7 @@
     Navigation, Shell, CollectionView, toolbar and menu handlers.
   -->
   <ItemGroup Condition="'$(MauiTizenWaveCAcceptance)' == 'true'" Label="Wave C handlers">
+    <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)TizenNavigationHandlers.cs" />
     <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)Handlers/Items/TizenCarouselViewHandler.cs" />
     <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)Handlers/Items/TizenCollectionViewHandler.cs" />
     <MauiTizenWaveCCompile Include="$(MauiTizenNavigationDir)Handlers/Items/TizenGroupableItemsViewHandler.cs" />

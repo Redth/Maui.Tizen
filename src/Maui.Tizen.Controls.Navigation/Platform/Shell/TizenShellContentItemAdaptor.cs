@@ -15,7 +15,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 	/// </summary>
 	public class TizenShellContentItemAdaptor : TizenItemTemplateAdaptor
 	{
-		readonly Dictionary<NView, View> _shellNativeMauiTable = new();
 		TizenItemAppearance? _itemAppearance;
 
 		public TizenShellContentItemAdaptor(ShellSection shellSection, IEnumerable items) :
@@ -43,7 +42,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			var native = view.ToPlatform(MauiContext);
 
 			// Register native-to-MAUI mapping for selection state tracking
-			_shellNativeMauiTable[native] = view;
+			RegisterNativeView(native, view);
 			ItemSelectionState.TrackEnabledState(view);
 
 			return native;
@@ -52,7 +51,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		public override void UpdateViewState(NView view, ViewHolderState state)
 		{
 			base.UpdateViewState(view, state);
-			if (_shellNativeMauiTable.TryGetValue(view, out View? formsView))
+			if (GetRegisteredView(view) is { } formsView)
 			{
 				switch (state)
 				{
@@ -71,19 +70,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		public override void RemoveNativeView(NView native)
 		{
-			if (_shellNativeMauiTable.TryGetValue(native, out View? view))
+			// Unregister rather than just look up: leaving the entry behind keeps the view alive and
+			// lets a recycled native view resolve to a MAUI view whose handler is already disposed.
+			if (UnregisterNativeView(native) is { } view)
 			{
-				ItemSelectionState.UntrackEnabledState(view);
-				_shellNativeMauiTable.Remove(native);
-
 				if (view.Handler is ITizenPlatformViewHandler handler)
 				{
 					handler.Dispose();
 					view.Handler = null;
 				}
 			}
+
 			base.RemoveNativeView(native);
 		}
+
 
 		static DataTemplate GetContentItemTemplate()
 		{

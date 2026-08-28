@@ -4,6 +4,7 @@ using System.Collections.Specialized;
 using System.Linq;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Platform;
+using Microsoft.Maui.Platforms.Tizen.Adapters;
 using Tizen.NUI;
 using Tizen.NUI.BaseComponents;
 using Tizen.UIExtensions.NUI;
@@ -25,6 +26,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		NView? _currentContent;
 		TizenItemAppearance _appearance;
 		bool _isDisposed;
+		readonly ShellSectionViewCache<ShellContent, NView> _contentCache = new();
+		readonly Dictionary<Page, IViewHandler?> _handlerMap = new();
 
 		public TizenShellSectionView(ShellSection shellSection, IMauiContext context)
 		{
@@ -167,15 +170,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			UpdateContent(content);
 		}
 
-		void UpdateContent(ShellContent content)
+		void UpdateContent(ShellContent? content)
 		{
-			if (content == null)
-			{
-				CurrentContent = null;
-				return;
-			}
+			// Use the cache to track and create/reuse the platform view
+			// The cache handles null content and returns null for the platform view
+			var platformView = _contentCache.SetCurrent(
+				content,
+				c =>
+				{
+					// Get the page from the content via the public IShellContentController interface
+					var page = ((IShellContentController)c).GetOrCreateContent();
+					if (page == null)
+						throw new InvalidOperationException($"ShellContent {c.Title} returned null page");
+					var native = page.ToPlatform(MauiContext);
+					_handlerMap[page] = page.Handler;
+					return native;
+				});
 
-			CurrentContent = content.ToPlatform(MauiContext);
+			CurrentContent = platformView;
 		}
 
 		public void UpdateAppearance(ShellAppearance appearance)
@@ -235,9 +247,25 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					_tabBarAdaptor.SelectionChanged -= OnTopTabSelected;
 					_tabBarAdaptor.Dispose();
 				}
+
+				// Dispose all cached page handlers
+				foreach (var kvp in _handlerMap)
+				{
+					if (kvp.Value is ITizenPlatformViewHandler handler)
+					{
+						handler.Dispose();
+					}
+					kvp.Key.Handler = null;
+				}
+				_handlerMap.Clear();
+				_contentCache.Clear();
 			}
 
 			_isDisposed = true;
+
+			// The NUI base owns the native handle; skipping this leaks it regardless of what the
+			// managed teardown above released.
+			base.Dispose(type);
 		}
 	}
 }

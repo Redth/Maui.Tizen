@@ -1,4 +1,6 @@
+using System;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Dispatching;
 
 namespace Microsoft.Maui.Platforms.Tizen.Adapters
 {
@@ -234,9 +236,66 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 
 		static void OnTrackedViewPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
 		{
-			if (e.PropertyName == nameof(VisualElement.IsEnabled) && sender is VisualElement view)
+			if (e.PropertyName != nameof(VisualElement.IsEnabled) || sender is not VisualElement view)
 			{
-				UpdateVisualState(view);
+				return;
+			}
+
+			// Recompute now so the DISABLE direction is correct even if nothing reschedules...
+			UpdateVisualState(view);
+
+			// ...then again after MAUI's own recompute, which runs later in this same operation and
+			// would otherwise overwrite the result. See PostRecompute.
+			PostRecompute(view, () => UpdateVisualState(view));
+		}
+
+		/// <summary>
+		/// Schedules <paramref name="refresh"/> to run after MAUI's own visual-state recomputation.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// <b>This exists because the ordering is not ours to control.</b>
+		/// <c>VisualElement.ChangeVisualState</c> is invoked from the <c>IsEnabled</c>
+		/// property-changed callback, which runs <em>after</em> both <c>PropertyChanging</c> and
+		/// <c>PropertyChanged</c> - measured, not assumed - and it applies <c>Normal</c> with no
+		/// knowledge of selection. Recomputing from the event alone is therefore always overwritten
+		/// on the re-enable path.
+		/// </para>
+		/// <para>
+		/// Dispatching puts the refresh after the whole set-value operation, including
+		/// <c>ChangeVisualState</c>, which is the only ordering guarantee available without an
+		/// upstream hook. Overridable so the sequencing can be exercised in a host test, where no
+		/// dispatcher exists.
+		/// </para>
+		/// </remarks>
+		public static Action<VisualElement, Action> PostRecompute { get; set; } = DispatchPostRecompute;
+
+		/// <summary>
+		/// Default <see cref="PostRecompute"/>: run through the element's dispatcher.
+		/// </summary>
+		/// <remarks>
+		/// A dispatcher is only available once the element belongs to a running application. When it
+		/// is not - unparented views, and host tests - the refresh is skipped rather than run inline,
+		/// because running it inline would land BEFORE <c>ChangeVisualState</c> and be overwritten
+		/// anyway. The items layer still refreshes on the next view-state transition.
+		/// </remarks>
+		static void DispatchPostRecompute(VisualElement view, Action refresh)
+		{
+			try
+			{
+				IDispatcher? dispatcher = view.Dispatcher;
+
+				if (dispatcher is null)
+				{
+					return;
+				}
+
+				dispatcher.Dispatch(refresh);
+			}
+			catch (InvalidOperationException)
+			{
+				// No dispatcher for this element yet. Not an error: the row is not on screen, so
+				// there is nothing to repaint, and the next transition recomputes anyway.
 			}
 		}
 
