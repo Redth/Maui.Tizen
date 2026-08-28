@@ -16,6 +16,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	{
 		ITizenPlatformViewHandler? _contentHandler;
 
+		internal bool HasOwnedContent => _contentHandler is not null;
+
 		/// <summary>Property mapper for <see cref="IContentView"/> on Tizen.</summary>
 		public static readonly IPropertyMapper<IContentView, IContentViewHandler> Mapper =
 			new PropertyMapper<IContentView, IContentViewHandler>(TizenViewMappers.ViewMapper, ContentViewHandler.Mapper)
@@ -115,10 +117,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <inheritdoc />
 		protected override void Dispose(bool disposing)
 		{
-			if (disposing)
-				_contentHandler?.Dispose();
+			var contentHandler = disposing ? _contentHandler : null;
 
-			base.Dispose(disposing);
+			TizenCleanup.Run(
+				() =>
+				{
+					if (disposing)
+						_contentHandler = null;
+				},
+				() => contentHandler?.Dispose(),
+				() => base.Dispose(disposing));
 		}
 	}
 }
