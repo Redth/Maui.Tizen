@@ -158,11 +158,7 @@ jobs:
             [[ "$REQUESTED_SHA" == "$GITHUB_SHA" ]]
             [[ "$REQUESTED_REF" == "$GITHUB_REF" ]]
             [[ "$REQUESTED_RUN_ID" == "$GITHUB_RUN_ID" ]]
-            [[ "$REQUESTED_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
-            if (( REQUESTED_RUN_ATTEMPT > GITHUB_RUN_ATTEMPT )); then
-              echo "::error::The artifact producer attempt cannot be newer than this validation attempt."
-              exit 1
-            fi
+            [[ "$REQUESTED_RUN_ATTEMPT" == "$GITHUB_RUN_ATTEMPT" ]]
             [[ "$CALLER_WORKFLOW_REF" == "$expected_repository/.github/workflows/release.yml@$GITHUB_REF" ]]
             source_sha="$REQUESTED_SHA"
             source_ref="$REQUESTED_REF"

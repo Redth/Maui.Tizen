@@ -30,6 +30,11 @@ both the transferring and receiving org.
 - [ ] No secrets/credentials carried over from the interim org "as-is"
       without rotation — every credential (signing cert, publishing
       trust config) is reissued fresh in the Samsung-owned environment.
+- [ ] The `tizen-device-lab` environment provides a rotated,
+      least-privilege `RELEASE_GOVERNANCE_AUDIT_TOKEN` (preferably a GitHub
+      App token) that can read environment protection, complete ruleset
+      bypass metadata, and organization runner-group configuration. The
+      default workflow token is intentionally insufficient.
 - [ ] Confirm nuget.org **Trusted Publishing** is (re)configured against
       the new org/repo (OIDC subject changes when the repo moves org —
       trusted publishing configs are typically repo-path-scoped and must

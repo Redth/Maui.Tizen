@@ -1084,7 +1084,9 @@ def verify_protections(args: argparse.Namespace) -> None:
         missing.append("release policy declares no runner group")
     else:
         organization = owner.get("login")
-        visible_repository = urllib.parse.quote(args.repository, safe="")
+        visible_repository = urllib.parse.quote(
+            args.repository.split("/", 1)[-1], safe=""
+        )
         groups = run_gh_json(
             args.gh,
             f"orgs/{organization}/actions/runner-groups"

@@ -350,6 +350,10 @@ public class ReleaseWorkflowSecurityTests
 
         Assert.Contains("expected_repository=\"Redth/Maui.Tizen\"", workflow, StringComparison.Ordinal);
         Assert.Contains("CALLER_WORKFLOW_REF", workflow, StringComparison.Ordinal);
+        Assert.Contains(
+            "[[ \"$REQUESTED_RUN_ATTEMPT\" == \"$GITHUB_RUN_ATTEMPT\" ]]",
+            workflow,
+            StringComparison.Ordinal);
         Assert.Contains("repository: Redth/Maui.Tizen", workflow, StringComparison.Ordinal);
         Assert.Equal(2, Regex.Matches(workflow, @"group:\s+maui-tizen-release").Count);
         Assert.Contains("NUGET_PACKAGES: ${{ runner.temp }}/maui-tizen-nuget-", workflow, StringComparison.Ordinal);
@@ -375,8 +379,9 @@ public class ReleaseWorkflowSecurityTests
         Assert.Contains("--source-ref", release, StringComparison.Ordinal);
         Assert.Contains("--run-attempt", release, StringComparison.Ordinal);
         Assert.Contains("--subject-digest", release, StringComparison.Ordinal);
-        Assert.Contains("UNSIGNED_RUN_ATTEMPT", release, StringComparison.Ordinal);
-        Assert.Contains("SIGNED_RUN_ATTEMPT", release, StringComparison.Ordinal);
+        Assert.Contains("source_run_attempt: ${{ github.run_attempt }}", release, StringComparison.Ordinal);
+        Assert.Contains("--run-attempt \"$GITHUB_RUN_ATTEMPT\"", release, StringComparison.Ordinal);
+        Assert.Contains("RELEASE_GOVERNANCE_AUDIT_TOKEN", release, StringComparison.Ordinal);
         Assert.Contains("environment: nuget-signing", release, StringComparison.Ordinal);
         Assert.Contains("environment: nuget-publish", release, StringComparison.Ordinal);
         Assert.DoesNotContain("nuget-production", release, StringComparison.Ordinal);

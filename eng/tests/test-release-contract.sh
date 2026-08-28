@@ -508,6 +508,7 @@ JSON
     printf '%s\n' '{"id":7,"name":"maui-tizen-release","inherited":false,"visibility":"selected","allows_public_repositories":true,"restricted_to_workflows":true,"selected_workflows":["Redth/Maui.Tizen/.github/workflows/tizen-device-validation.yml@refs/heads/main"]}'
     ;;
   orgs/*/actions/runner-groups?*)
+    [[ "$endpoint" == *"visible_to_repository=Maui.Tizen"* ]] || exit 65
     printf '%s\n' '{"total_count":1,"runner_groups":[{"id":7,"name":"maui-tizen-release"}]}'
     ;;
   repos/Redth/Maui.Tizen)

@@ -121,4 +121,6 @@ session to avoid duplicate or conflicting edits).
   package content change blocks the whole retry. The symbol-package endpoint
   does not retain the author signature, so `.snupkg` retries compare every
   non-signature payload entry exactly. Primary and symbol packages are
-  checked and retried independently.
+  checked and retried independently. A retry is a fresh dispatch (or
+  "re-run all jobs") for the same version; re-running only failed jobs is
+  rejected because it would consume artifacts from a prior run attempt.

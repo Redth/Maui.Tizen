@@ -104,7 +104,6 @@ jobs:
       artifact_name: ${{ steps.identity.outputs.name }}
       artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
       manifest_sha256: ${{ steps.stage.outputs.manifest_sha256 }}
-      run_attempt: ${{ steps.identity.outputs.run_attempt }}
       workload_id: ${{ steps.stage.outputs.workload_id }}
       workload_version: ${{ steps.stage.outputs.workload_version }}
       workload_package_sha256: ${{ steps.stage.outputs.workload_package_sha256 }}
@@ -145,7 +144,6 @@ jobs:
         run: |
           {
             echo "name=maui-tizen-unsigned-${PACKAGE_VERSION}-run-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}"
-            echo "run_attempt=$GITHUB_RUN_ATTEMPT"
           } >> "$GITHUB_OUTPUT"
 
       - name: Generate the exact unsigned release manifest
@@ -214,6 +212,7 @@ jobs:
     if: inputs.confirm_publish == 'PUBLISH'
     needs: [source, build-pack]
     runs-on: ubuntu-latest
+    environment: tizen-device-lab
     permissions:
       actions: read
       contents: read
@@ -224,7 +223,6 @@ jobs:
       DEFAULT_BRANCH: ${{ needs.source.outputs.default_branch }}
       MANIFEST_SHA256: ${{ needs.build-pack.outputs.manifest_sha256 }}
       PACKAGE_VERSION: ${{ needs.source.outputs.package_version }}
-      PRODUCER_RUN_ATTEMPT: ${{ needs.build-pack.outputs.run_attempt }}
       SOURCE_REF: ${{ needs.source.outputs.source_ref }}
       SOURCE_SHA: ${{ needs.source.outputs.source_sha }}
     steps:
@@ -253,7 +251,7 @@ jobs:
             --name "$ARTIFACT_NAME" \
             --digest "$ARTIFACT_DIGEST" \
             --run-id "$GITHUB_RUN_ID" \
-            --run-attempt "$PRODUCER_RUN_ATTEMPT" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
             --source-commit "$SOURCE_SHA" \
             --source-ref "$SOURCE_REF"
 
@@ -278,14 +276,18 @@ jobs:
             --source-commit "$SOURCE_SHA" \
             --source-ref "$SOURCE_REF" \
             --run-id "$GITHUB_RUN_ID" \
-            --run-attempt "$PRODUCER_RUN_ATTEMPT" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
             --artifact-name "$ARTIFACT_NAME"
 
       - name: Verify protected environments and default-branch ruleset
         if: always()
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_GOVERNANCE_AUDIT_TOKEN }}
         run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::error::The tizen-device-lab environment must provide RELEASE_GOVERNANCE_AUDIT_TOKEN."
+            exit 1
+          fi
           ./eng/release/release-contract.py verify-protections \
             --repository "$GITHUB_REPOSITORY" \
             --default-branch "$DEFAULT_BRANCH"
@@ -308,7 +310,7 @@ jobs:
       source_sha: ${{ needs.source.outputs.source_sha }}
       source_ref: ${{ needs.source.outputs.source_ref }}
       source_run_id: ${{ github.run_id }}
-      source_run_attempt: ${{ needs.build-pack.outputs.run_attempt }}
+      source_run_attempt: ${{ github.run_attempt }}
       workload_id: ${{ needs.build-pack.outputs.workload_id }}
       workload_version: ${{ needs.build-pack.outputs.workload_version }}
       workload_package_sha256: ${{ needs.build-pack.outputs.workload_package_sha256 }}
@@ -350,14 +352,12 @@ jobs:
       UNSIGNED_ARTIFACT_ID: ${{ needs.build-pack.outputs.artifact_id }}
       UNSIGNED_ARTIFACT_NAME: ${{ needs.build-pack.outputs.artifact_name }}
       UNSIGNED_MANIFEST_SHA256: ${{ needs.build-pack.outputs.manifest_sha256 }}
-      UNSIGNED_RUN_ATTEMPT: ${{ needs.build-pack.outputs.run_attempt }}
     outputs:
       artifact_id: ${{ steps.upload.outputs.artifact-id }}
       artifact_name: ${{ steps.identity.outputs.name }}
       artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
       certificate_sha256: ${{ steps.certificate.outputs.sha256 }}
       manifest_sha256: ${{ steps.signed.outputs.manifest_sha256 }}
-      run_attempt: ${{ steps.identity.outputs.run_attempt }}
     steps:
       - name: Checkout the reviewed SHA
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -385,7 +385,7 @@ jobs:
             --name "$env:UNSIGNED_ARTIFACT_NAME" `
             --digest "$env:UNSIGNED_ARTIFACT_DIGEST" `
             --run-id "$env:GITHUB_RUN_ID" `
-            --run-attempt "$env:UNSIGNED_RUN_ATTEMPT" `
+            --run-attempt "$env:GITHUB_RUN_ATTEMPT" `
             --source-commit "$env:SOURCE_SHA" `
             --source-ref "$env:SOURCE_REF"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -412,7 +412,7 @@ jobs:
             --source-commit "$env:SOURCE_SHA" `
             --source-ref "$env:SOURCE_REF" `
             --run-id "$env:GITHUB_RUN_ID" `
-            --run-attempt "$env:UNSIGNED_RUN_ATTEMPT" `
+            --run-attempt "$env:GITHUB_RUN_ATTEMPT" `
             --artifact-name "$env:UNSIGNED_ARTIFACT_NAME"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -436,7 +436,6 @@ jobs:
         run: |
           "name=maui-tizen-signed-${env:PACKAGE_VERSION}-run-${env:GITHUB_RUN_ID}-attempt-${env:GITHUB_RUN_ATTEMPT}" `
             >> $env:GITHUB_OUTPUT
-          "run_attempt=$env:GITHUB_RUN_ATTEMPT" >> $env:GITHUB_OUTPUT
 
       - name: Organization signing service is not configured
         shell: pwsh
@@ -512,14 +511,12 @@ jobs:
       SIGNED_ARTIFACT_ID: ${{ needs.sign.outputs.artifact_id }}
       SIGNED_ARTIFACT_NAME: ${{ needs.sign.outputs.artifact_name }}
       SIGNED_MANIFEST_SHA256: ${{ needs.sign.outputs.manifest_sha256 }}
-      SIGNED_RUN_ATTEMPT: ${{ needs.sign.outputs.run_attempt }}
       SOURCE_REF: ${{ needs.source.outputs.source_ref }}
       SOURCE_SHA: ${{ needs.source.outputs.source_sha }}
       UNSIGNED_ARTIFACT_DIGEST: ${{ needs.build-pack.outputs.artifact_digest }}
       UNSIGNED_ARTIFACT_ID: ${{ needs.build-pack.outputs.artifact_id }}
       UNSIGNED_ARTIFACT_NAME: ${{ needs.build-pack.outputs.artifact_name }}
       UNSIGNED_MANIFEST_SHA256: ${{ needs.build-pack.outputs.manifest_sha256 }}
-      UNSIGNED_RUN_ATTEMPT: ${{ needs.build-pack.outputs.run_attempt }}
     steps:
       - name: Checkout the reviewed SHA
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -539,7 +536,7 @@ jobs:
         run: |
           set -euo pipefail
           verify_artifact() {
-            local id="$1" name="$2" digest="$3" metadata="$4" producer_attempt="$5"
+            local id="$1" name="$2" digest="$3" metadata="$4"
             gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" > "$metadata"
             ./eng/release/release-contract.py verify-artifact-metadata \
               --metadata "$metadata" \
@@ -547,7 +544,7 @@ jobs:
               --name "$name" \
               --digest "$digest" \
               --run-id "$GITHUB_RUN_ID" \
-              --run-attempt "$producer_attempt" \
+              --run-attempt "$GITHUB_RUN_ATTEMPT" \
               --source-commit "$SOURCE_SHA" \
               --source-ref "$SOURCE_REF"
           }
@@ -555,14 +552,12 @@ jobs:
             "$UNSIGNED_ARTIFACT_ID" \
             "$UNSIGNED_ARTIFACT_NAME" \
             "$UNSIGNED_ARTIFACT_DIGEST" \
-            unsigned-artifact.json \
-            "$UNSIGNED_RUN_ATTEMPT"
+            unsigned-artifact.json
           verify_artifact \
             "$SIGNED_ARTIFACT_ID" \
             "$SIGNED_ARTIFACT_NAME" \
             "$SIGNED_ARTIFACT_DIGEST" \
-            signed-artifact.json \
-            "$SIGNED_RUN_ATTEMPT"
+            signed-artifact.json
 
       - name: Download exact unsigned input
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -593,7 +588,7 @@ jobs:
             --source-commit "$SOURCE_SHA" \
             --source-ref "$SOURCE_REF" \
             --run-id "$GITHUB_RUN_ID" \
-            --run-attempt "$UNSIGNED_RUN_ATTEMPT" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
             --artifact-name "$UNSIGNED_ARTIFACT_NAME"
           ./eng/release/release-contract.py verify-signed-manifest \
             --signed-dir artifacts/signed \
@@ -605,7 +600,7 @@ jobs:
             --source-commit "$SOURCE_SHA" \
             --source-ref "$SOURCE_REF" \
             --run-id "$GITHUB_RUN_ID" \
-            --run-attempt "$SIGNED_RUN_ATTEMPT" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
             --artifact-name "$SIGNED_ARTIFACT_NAME"
           for package in artifacts/signed/*.nupkg artifacts/signed/*.snupkg; do
             dotnet nuget verify --all --certificate-fingerprint "$CERTIFICATE_SHA256" "$package"
@@ -632,7 +627,7 @@ jobs:
               --source-commit "$SOURCE_SHA" \
               --source-ref "$SOURCE_REF" \
               --run-id "$GITHUB_RUN_ID" \
-              --run-attempt "$SIGNED_RUN_ATTEMPT" \
+              --run-attempt "$GITHUB_RUN_ATTEMPT" \
               --subject-name "$filename" \
               --subject-digest "$digest"
           done < artifacts/signed/attestation-subjects.sha256
