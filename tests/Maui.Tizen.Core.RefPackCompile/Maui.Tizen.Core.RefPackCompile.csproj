@@ -1,0 +1,95 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Backend compile-validation lane.
+
+    The product assembly targets net11.0-tizen11.0 and cannot be restored until Samsung publishes
+    the 11.0.100 workload manifest. That would normally leave every NUI-touching source file in this
+    repository completely unverified. This project compiles the backend's Tizen-only sources against
+    the real TizenFX reference assemblies with TIZEN defined, on a plain net11.0 host.
+
+    This is NOT a neutral fallback for the product - it produces no shippable output
+    (IsPackable=false, reference-only assemblies, never executed). It exists purely so `#if TIZEN`
+    code is type-checked in CI instead of being taken on faith.
+
+    SCOPE: backend sources ONLY.
+
+    This lane used to compile the sample's sources too. That was wrong in two ways, both of which a
+    review caught:
+
+      * It produced a single merged Core+sample assembly, so the sample never actually crossed the
+        package boundary it exists to demonstrate. A sample that touched an internal, or a type it
+        could not see through a real assembly reference, would have compiled clean here.
+      * The analyzer saw one merged public surface with both baseline pairs attached, so PublicAPI
+        ownership was false-green: moving a Core type into the SAMPLE's baseline still passed.
+        Verified by mutation - Microsoft.Maui.Platforms.Tizen.TizenFlyoutView was moved into the
+        sample baseline and the build still succeeded.
+
+    The sample is now compiled by tests/Maui.Tizen.Sample.RefPackCompile, which reaches this
+    assembly through a ProjectReference exactly as a package consumer would.
+  -->
+
+  <Import Project="$(RepositoryRoot)eng/Maui.props" />
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
+
+  <PropertyGroup>
+    <TargetFramework>$(DotNetTfm)</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+
+    <!--
+      Deliberately the REAL product assembly name, not a lane-specific one. The sample lane
+      references this project, and the point of that reference is to reproduce what a consumer sees
+      when they reference the Maui.Tizen.Core package. Referencing something called
+      "Maui.Tizen.Core.RefPackCompile" would exercise a boundary that does not exist in the product.
+    -->
+    <AssemblyName>Maui.Tizen.Core</AssemblyName>
+    <RootNamespace>Microsoft.Maui.Platforms.Tizen</RootNamespace>
+
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <NoWarn>$(NoWarn);CS1591;NU1701</NoWarn>
+
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+
+    <!--
+      TIZEN only, and it must stay that way. PLATFORM was also defined here but NOT by the product,
+      which meant a future `#if PLATFORM` block would compile in this lane and vanish from the
+      shipping assembly - the exact class of drift this lane exists to prevent.
+      RefPackLaneAndProductDefineTheSameSymbols pins the two define sets together.
+    -->
+    <DefineConstants>$(DefineConstants);TIZEN</DefineConstants>
+  </PropertyGroup>
+
+  <!--
+    Runs the PublicAPI analyzer over the REAL product sources with the REAL slice baselines.
+    src/Maui.Tizen.Core cannot be built without the Samsung workload, so this is the only lane where
+    RS0016/RS0017 can actually be enforced before that ships.
+
+    ONLY the backend baseline is attached. The sample's baseline belongs to the sample's own
+    compilation, and attaching it here is precisely what made ownership unverifiable.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+
+    <AdditionalFiles Include="$(RepositoryRoot)src/Maui.Tizen.Core/PublicAPI/slice/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="$(RepositoryRoot)src/Maui.Tizen.Core/PublicAPI/slice/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Core" />
+    <PackageReference Include="Microsoft.Maui.Graphics" />
+  </ItemGroup>
+
+  <Import Project="$(RepositoryRoot)eng/targets/TizenRefPack.targets" />
+
+  <ItemGroup>
+    <Compile Include="@(MauiTizenPortableCompile)" LinkBase="Backend" />
+    <Compile Include="@(MauiTizenHandlerCompile)" LinkBase="Backend" />
+    <Compile Include="@(MauiTizenPlatformCompile)" LinkBase="Backend" />
+  </ItemGroup>
+
+</Project>

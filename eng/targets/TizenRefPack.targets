@@ -1,0 +1,46 @@
+<Project>
+
+  <!--
+    Shared TizenFX reference-assembly wiring for the workload-free compile lanes.
+
+    The product targets net11.0-tizen11.0 and cannot be restored until Samsung publishes the
+    11.0.100 workload manifest (blocker B1). Samsung.Tizen.Ref.API15 does however ship real
+    ref/net8.0 reference assemblies for the whole of TizenFX, so the Tizen-only sources can still
+    be type-checked on a plain net11.0 host.
+
+    This lives in its own file because there are now TWO lanes that need it - one for the backend
+    and one for the sample - and they must reference an identical TizenFX or the boundary between
+    them proves nothing.
+  -->
+
+  <ItemGroup>
+    <!--
+      PackageDownload rather than PackageReference: these packages publish no net11.0-compatible
+      assets, so a normal reference fails restore with NU1202. We only want the files on disk.
+    -->
+    <PackageDownload Include="$(TizenReferencePackId)" Version="[$(TizenReferencePackVersion)]" />
+    <PackageDownload Include="Tizen.UIExtensions.NUI" Version="[$(TizenUIExtensionsPackageVersion)]" />
+  </ItemGroup>
+
+  <Target Name="_AddTizenReferenceAssemblies" BeforeTargets="ResolveAssemblyReferences">
+    <PropertyGroup>
+      <_TizenRefPackDir>$(NuGetPackageRoot)$(TizenReferencePackId.ToLowerInvariant())/$(TizenReferencePackVersion)/ref/net8.0/</_TizenRefPackDir>
+      <_TizenUIExtensionsDir>$(NuGetPackageRoot)tizen.uiextensions.nui/$(TizenUIExtensionsPackageVersion)/lib/tizen10.0/</_TizenUIExtensionsDir>
+    </PropertyGroup>
+
+    <Error Condition="!Exists('$(_TizenRefPackDir)Tizen.NUI.dll')"
+           Code="MAUITIZEN0102"
+           Text="Could not find Tizen.NUI.dll under '$(_TizenRefPackDir)'. Expected it from $(TizenReferencePackId) $(TizenReferencePackVersion); run 'dotnet restore' for this project first." />
+
+    <ItemGroup>
+      <Reference Include="$(_TizenRefPackDir)Tizen.NUI.dll" Private="false" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.NUI.Components.dll" Private="false" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.Applications.Common.dll" Private="false" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.Applications.UI.dll" Private="false" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.Log.dll" Private="false" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.dll" Private="false" />
+      <Reference Include="$(_TizenUIExtensionsDir)Tizen.UIExtensions.NUI.dll" Private="false" Condition="Exists('$(_TizenUIExtensionsDir)Tizen.UIExtensions.NUI.dll')" />
+    </ItemGroup>
+  </Target>
+
+</Project>

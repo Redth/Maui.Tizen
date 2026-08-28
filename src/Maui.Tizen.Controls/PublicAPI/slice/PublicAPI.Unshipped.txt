@@ -1,0 +1,7 @@
+#nullable enable
+Microsoft.Maui.Platforms.Tizen.Controls.TizenControlsHostingExtensions
+Microsoft.Maui.Platforms.Tizen.Controls.TizenControlsMappings
+static Microsoft.Maui.Platforms.Tizen.Controls.TizenControlsHostingExtensions.ConfigureTizenControls(this Microsoft.Maui.Hosting.MauiAppBuilder! builder) -> Microsoft.Maui.Hosting.MauiAppBuilder!
+static Microsoft.Maui.Platforms.Tizen.Controls.TizenControlsMappings.MapAccessibility(Microsoft.Maui.IViewHandler! handler, Microsoft.Maui.IView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Controls.TizenControlsMappings.MapLineBreakMode(Microsoft.Maui.Handlers.ILabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
+static Microsoft.Maui.Platforms.Tizen.Controls.TizenControlsMappings.Register() -> void

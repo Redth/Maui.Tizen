@@ -114,6 +114,37 @@ info "Workload-independent projects"
 WORKLOAD_FREE_PROJECTS=(
   "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj"
   "tests/UnitTests/Maui.Tizen.UnitTests.csproj"
+
+  # Verification lanes for the ported backend slice. Neither is a Tizen artifact:
+  #
+  #   Maui.Tizen.Core.UnitTests   compiles the backend against inert stand-ins for Tizen.NUI
+  #                               and EXECUTES tests for the workload-independent behaviour
+  #                               (mapper and DI registration, hosting, dispatching, density,
+  #                               layout z-index ordering).
+  #
+  #   Maui.Tizen.Core.RefPackCompile  type-checks every `#if TIZEN` backend source against the
+  #                               REAL TizenFX reference assemblies from Samsung.Tizen.Ref.API15,
+  #                               and enforces the backend's PublicAPI baseline. Compile-only and
+  #                               unpackable, so it cannot become a neutral fallback.
+  #
+  #   Maui.Tizen.Sample.RefPackCompile  compiles the sample head as its OWN assembly with a
+  #                               ProjectReference to the backend, so the sample crosses a real
+  #                               package boundary. It used to be folded into the backend lane,
+  #                               which merged both into one assembly and meant the boundary was
+  #                               never actually exercised - and left PublicAPI ownership
+  #                               unverifiable, since either baseline satisfied either assembly.
+  "tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj"
+  #
+  #   Maui.Tizen.Controls.RefPackCompile  compiles the Controls-to-Tizen mapper bridge as its own
+  #                               assembly. Separate from the Core lane on purpose: the bridge
+  #                               references Microsoft.Maui.Controls and Core must not, so merging
+  #                               them would hide the dependency-direction mistake this layer
+  #                               exists to avoid.
+  "tests/Maui.Tizen.Sample.RefPackCompile/Maui.Tizen.Sample.RefPackCompile.csproj"
+  "tests/Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj"
+  "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj"
+
+  # Foundation-owned probes.
   "eng/tests/PublicApiOptIn/PublicApiOptIn.csproj"
   "eng/tests/PackReadmeProbe/PackReadmeProbe.csproj"
   "eng/tools/ApiDump/ApiDump.csproj"
@@ -186,6 +217,7 @@ fi
 info "Repository invariant tests"
 if [[ $BUILD_OK -eq 1 ]]; then
   check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
+  check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
   check "migration tooling tests" "$DOTNET" test tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj --no-build -c Release
 else
   fail "tests skipped - a preceding build failed (running --no-build now would only add cascading noise)"
