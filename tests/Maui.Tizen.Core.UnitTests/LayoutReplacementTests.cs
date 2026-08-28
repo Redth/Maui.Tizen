@@ -157,6 +157,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			handler.Update(0, only);
 
 			Assert.False(view.IsDisposed, "Replacing a child with itself disposed its native view.");
+			Assert.Equal(1, handler.LogicalChildCount);
 		}
 
 		[Fact]

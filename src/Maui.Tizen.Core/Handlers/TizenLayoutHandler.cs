@@ -33,6 +33,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </remarks>
 		readonly List<IView> _children = new();
 
+		internal int LogicalChildCount => _children.Count;
+
 		/// <summary>Property mapper for <see cref="ILayout"/> on Tizen.</summary>
 		public static readonly IPropertyMapper<ILayout, ILayoutHandler> Mapper =
 			new PropertyMapper<ILayout, ILayoutHandler>(TizenViewMappers.ViewMapper, LayoutHandler.Mapper)
@@ -219,7 +221,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			// its handler intact. Nothing threw.
 			var outgoing = index >= 0 && index < _children.Count ? _children[index] : null;
 
-			if (outgoing is not null && !ReferenceEquals(outgoing, child))
+			if (ReferenceEquals(outgoing, child))
+				return;
+
+			if (outgoing is not null)
 			{
 				// By identity, and the native view found through its own handler - never by
 				// position, which is exactly what was wrong.

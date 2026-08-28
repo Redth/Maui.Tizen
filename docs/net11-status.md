@@ -44,8 +44,8 @@ identical, so neither can drift from the other.
 
 | Lane | Command | What it proves |
 | --- | --- | --- |
-| Unit tests | `dotnet test tests/Maui.Tizen.Core.UnitTests` | Mapper + command-mapper registration, DI/handler registration, hosting, dispatcher/timer/provider semantics, density conversion, layout z-index ordering, `IMauiContext` scoping. **102 tests, all passing.** |
-| Compile validation | `dotnet build tests/Maui.Tizen.Core.RefPackCompile` | Every `#if TIZEN` source - including `TizenMauiApplication`, the NUI view groups and all the ported platform extensions - type-checks against the **real** TizenFX reference assemblies from `Samsung.Tizen.Ref.API15` (`ref/net8.0`), plus the sample head's managed code. **Builds clean.** |
+| Unit tests | `dotnet test tests/Maui.Tizen.Core.UnitTests` | Mapper + command-mapper registration, DI/handler registration, hosting, dispatcher/timer/provider semantics, density conversion, layout z-index ordering, `IMauiContext` scoping. **417 tests at this head, all passing.** |
+| Compile validation | `dotnet build tests/Maui.Tizen.Core.RefPackCompile` | Every Core `#if TIZEN` source - including `TizenMauiApplication`, the NUI view groups and all the ported platform extensions - type-checks against the **real** TizenFX reference assemblies from `Samsung.Tizen.Ref.API15` (`ref/net8.0`). The sample is compiled separately by `Maui.Tizen.Sample.RefPackCompile`. **Both build cleanly.** |
 | Product | `dotnet build src/Maui.Tizen.Core` | Fails with actionable `MAUITIZEN0001` from `Directory.Build.targets`. This is the intended behaviour. |
 
 Both lanes are wired into `eng/build-workload-free.sh`, so they run in the workload-free CI lane
@@ -428,9 +428,10 @@ anything built on them are therefore absent.
 **Container-backed decoration.** See G1 - gradient/image backgrounds, clip and shadow are not
 rendered, because the container hook is not reachable from outside MAUI.
 
-**Controls-level remapping.** `Layout.RemapForControls` and friends append to MAUI's *static*
-`LayoutHandler.Mapper`, not to this backend's mappers, so Controls-specific mappings do not reach
-these handlers. Wiring that up belongs with the `Maui.Tizen.Controls` layer.
+**Remaining Controls-level mappings.** `Maui.Tizen.Controls` now composes MAUI's static Controls
+mappers into the Tizen handlers, so the implemented LineBreakMode and accessibility mappings reach
+real Controls apps. `MaxLines` and `FormattedText` remain unsupported as described in G10 and belong
+to Wave A.
 
 **Everything else.** All other handlers (button, entry, image, scroll view, web view, navigation,
 shell, ...) remain raw imported sources and are not yet ported.

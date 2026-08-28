@@ -46,6 +46,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Controls
 			builder.ConfigureMauiHandlers(handlers =>
 			{
 				handlers.AddHandler<Label, TizenLabelHandler>();
+				handlers.AddHandler<ContentView, TizenContentViewHandler>();
 				handlers.AddHandler<Microsoft.Maui.Controls.Layout, TizenLayoutHandler>();
 				handlers.AddHandler<Page, TizenPageHandler>();
 				handlers.AddHandler<Microsoft.Maui.Controls.Window, TizenWindowHandler>();

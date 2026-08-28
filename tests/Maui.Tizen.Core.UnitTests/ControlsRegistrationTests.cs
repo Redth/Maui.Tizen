@@ -5,8 +5,8 @@ using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Hosting;
-using Microsoft.Maui.Platforms.Tizen.Handlers;
 using Microsoft.Maui.Platforms.Tizen.Controls;
+using Microsoft.Maui.Platforms.Tizen.Handlers;
 using Microsoft.Maui.Platforms.Tizen.Hosting;
 using Xunit;
 
@@ -59,6 +59,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 		[Theory]
 		[InlineData(typeof(Label), typeof(TizenLabelHandler))]
+		[InlineData(typeof(ContentView), typeof(TizenContentViewHandler))]
 		[InlineData(typeof(ContentPage), typeof(TizenPageHandler))]
 		[InlineData(typeof(VerticalStackLayout), typeof(TizenLayoutHandler))]
 		[InlineData(typeof(Grid), typeof(TizenLayoutHandler))]
