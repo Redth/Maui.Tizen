@@ -55,7 +55,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		/// <summary>Finalizes the handler.</summary>
-		~TizenViewHandler() => Dispose(disposing: false);
+		~TizenViewHandler() => DisposeHandler(disposing: false);
 
 		TizenNativeView? ITizenPlatformViewHandler.PlatformView =>
 			((IElementHandler)this).PlatformView as TizenNativeView;
@@ -238,7 +238,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 			try
 			{
-				Dispose(disposing: true);
+				DisposeHandler(disposing: true);
 			}
 			finally
 			{
@@ -250,19 +250,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <param name="disposing">Whether managed resources should be released.</param>
 		protected virtual void Dispose(bool disposing)
 		{
+			if (disposing)
+			{
+				var platformView = ((IElementHandler)this).PlatformView as IDisposable;
+
+				TizenCleanup.Run(
+					() => ((IElementHandler)this).DisconnectHandler(),
+					() => platformView?.Dispose());
+			}
+		}
+
+		void DisposeHandler(bool disposing)
+		{
 			if (Interlocked.CompareExchange(ref _disposeState, Disposing, NotDisposed) != NotDisposed)
 				return;
 
 			try
 			{
-				if (disposing)
-				{
-					var platformView = ((IElementHandler)this).PlatformView as IDisposable;
-
-					TizenCleanup.Run(
-						() => ((IElementHandler)this).DisconnectHandler(),
-						() => platformView?.Dispose());
-				}
+				Dispose(disposing);
 			}
 			finally
 			{

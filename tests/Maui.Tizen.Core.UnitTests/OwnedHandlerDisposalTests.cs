@@ -2,6 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui;
 using Microsoft.Maui.Controls;
@@ -80,6 +82,94 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(1, parent.DisconnectCount);
 		}
 
+		[Fact]
+		public void ReentrantLayoutDisposeWaitsUntilEveryOwnedChildWasAttempted()
+		{
+			using var app = BuildApp();
+			var context = new MauiContext(app.Services);
+			var order = new List<string>();
+			var parent = new OrderedLayoutHandler(order);
+			var first = new Label { Text = "first" };
+			var second = new Label { Text = "second" };
+			var firstHandler = AttachReentrant(
+				first,
+				context,
+				order,
+				"first",
+				parent.Dispose,
+				"first failure");
+			var secondHandler = AttachReentrant(
+				second,
+				context,
+				order,
+				"second",
+				static () => { },
+				"second failure");
+			var layout = new VerticalStackLayout { first, second };
+
+			((IElementHandler)parent).SetMauiContext(context);
+			parent.SetVirtualView(layout);
+
+			var failure = Assert.Throws<AggregateException>(parent.Dispose);
+
+			Assert.Equal(
+				["first failure", "second failure"],
+				failure.InnerExceptions.Select(exception => exception.Message));
+			Assert.Equal(
+				["first", "second", "parent-disconnect", "parent-platform"],
+				order);
+			Assert.Equal(1, firstHandler.DisposeAttempts);
+			Assert.Equal(1, secondHandler.DisposeAttempts);
+			Assert.Equal(0, parent.LogicalChildCount);
+			Assert.Equal(1, parent.DisconnectCount);
+			Assert.Equal(1, parent.CreatedPlatformView.DisposeCount);
+			Assert.True(parent.CreatedPlatformView.IsDisposed);
+
+			Assert.Null(Record.Exception(parent.Dispose));
+			Assert.Equal(1, firstHandler.DisposeAttempts);
+			Assert.Equal(1, secondHandler.DisposeAttempts);
+			Assert.Equal(1, parent.DisconnectCount);
+			Assert.Equal(1, parent.CreatedPlatformView.DisposeCount);
+		}
+
+		[Fact]
+		public void ReentrantContentDisposeCannotDestroyParentBeforeContentFinishes()
+		{
+			using var app = BuildApp();
+			var context = new MauiContext(app.Services);
+			var order = new List<string>();
+			var parent = new OrderedContentViewHandler(order);
+			var content = new Label { Text = "content" };
+			var contentHandler = AttachReentrant(
+				content,
+				context,
+				order,
+				"content",
+				parent.Dispose,
+				"content failure");
+			var contentView = new ContentView { Content = content };
+
+			((IElementHandler)parent).SetMauiContext(context);
+			parent.SetVirtualView(contentView);
+
+			var failure = Assert.Throws<InvalidOperationException>(parent.Dispose);
+
+			Assert.Equal("content failure", failure.Message);
+			Assert.Equal(
+				["content", "parent-disconnect", "parent-platform"],
+				order);
+			Assert.Equal(1, contentHandler.DisposeAttempts);
+			Assert.False(parent.HasOwnedContent);
+			Assert.Equal(1, parent.DisconnectCount);
+			Assert.Equal(1, parent.CreatedPlatformView.DisposeCount);
+			Assert.True(parent.CreatedPlatformView.IsDisposed);
+
+			Assert.Null(Record.Exception(parent.Dispose));
+			Assert.Equal(1, contentHandler.DisposeAttempts);
+			Assert.Equal(1, parent.DisconnectCount);
+			Assert.Equal(1, parent.CreatedPlatformView.DisposeCount);
+		}
+
 		static MauiApp BuildApp()
 		{
 			var builder = MauiApp.CreateBuilder();
@@ -95,6 +185,20 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			bool throwOnFirstDispose)
 		{
 			var handler = new ThrowingLabelHandler(throwOnFirstDispose);
+			((IElementHandler)handler).SetMauiContext(context);
+			handler.SetVirtualView(label);
+			return handler;
+		}
+
+		static ReentrantLabelHandler AttachReentrant(
+			Label label,
+			IMauiContext context,
+			ICollection<string> order,
+			string name,
+			Action reenter,
+			string failure)
+		{
+			var handler = new ReentrantLabelHandler(order, name, reenter, failure);
 			((IElementHandler)handler).SetMauiContext(context);
 			handler.SetVirtualView(label);
 			return handler;
@@ -125,6 +229,44 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			}
 		}
 
+		sealed class ReentrantLabelHandler : TizenLabelHandler
+		{
+			readonly ICollection<string> _order;
+			readonly string _name;
+			readonly Action _reenter;
+			readonly string _failure;
+
+			public ReentrantLabelHandler(
+				ICollection<string> order,
+				string name,
+				Action reenter,
+				string failure)
+			{
+				_order = order;
+				_name = name;
+				_reenter = reenter;
+				_failure = failure;
+			}
+
+			public int DisposeAttempts { get; private set; }
+
+			protected override void Dispose(bool disposing)
+			{
+				DisposeAttempts++;
+				_order.Add(_name);
+				_reenter();
+
+				try
+				{
+					base.Dispose(disposing);
+				}
+				finally
+				{
+					throw new InvalidOperationException(_failure);
+				}
+			}
+		}
+
 		sealed class RecordingLayoutHandler : TizenLayoutHandler
 		{
 			public int DisconnectCount { get; private set; }
@@ -144,6 +286,98 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			{
 				DisconnectCount++;
 				base.DisconnectHandler(platformView);
+			}
+		}
+
+		sealed class OrderedLayoutHandler : TizenLayoutHandler
+		{
+			readonly ICollection<string> _order;
+
+			public OrderedLayoutHandler(ICollection<string> order) => _order = order;
+
+			public int DisconnectCount { get; private set; }
+
+			public OrderedLayoutViewGroup CreatedPlatformView { get; private set; } = null!;
+
+			protected override TizenLayoutViewGroup CreatePlatformView()
+			{
+				CreatedPlatformView = new OrderedLayoutViewGroup(VirtualView, _order)
+				{
+					CrossPlatformMeasure = VirtualView.CrossPlatformMeasure,
+					CrossPlatformArrange = VirtualView.CrossPlatformArrange,
+				};
+				return CreatedPlatformView;
+			}
+
+			protected override void DisconnectHandler(TizenLayoutViewGroup platformView)
+			{
+				DisconnectCount++;
+				_order.Add("parent-disconnect");
+				base.DisconnectHandler(platformView);
+			}
+		}
+
+		sealed class OrderedContentViewHandler : TizenContentViewHandler
+		{
+			readonly ICollection<string> _order;
+
+			public OrderedContentViewHandler(ICollection<string> order) => _order = order;
+
+			public int DisconnectCount { get; private set; }
+
+			public OrderedContentViewGroup CreatedPlatformView { get; private set; } = null!;
+
+			protected override TizenContentViewGroup CreatePlatformView()
+			{
+				CreatedPlatformView = new OrderedContentViewGroup(VirtualView, _order)
+				{
+					CrossPlatformMeasure = VirtualView.CrossPlatformMeasure,
+					CrossPlatformArrange = VirtualView.CrossPlatformArrange,
+				};
+				return CreatedPlatformView;
+			}
+
+			protected override void DisconnectHandler(TizenContentViewGroup platformView)
+			{
+				DisconnectCount++;
+				_order.Add("parent-disconnect");
+				base.DisconnectHandler(platformView);
+			}
+		}
+
+		sealed class OrderedLayoutViewGroup : TizenLayoutViewGroup
+		{
+			readonly ICollection<string> _order;
+
+			public OrderedLayoutViewGroup(IView virtualView, ICollection<string> order)
+				: base(virtualView) =>
+				_order = order;
+
+			public int DisposeCount { get; private set; }
+
+			protected override void Dispose(bool disposing)
+			{
+				DisposeCount++;
+				_order.Add("parent-platform");
+				base.Dispose(disposing);
+			}
+		}
+
+		sealed class OrderedContentViewGroup : TizenContentViewGroup
+		{
+			readonly ICollection<string> _order;
+
+			public OrderedContentViewGroup(IView virtualView, ICollection<string> order)
+				: base(virtualView) =>
+				_order = order;
+
+			public int DisposeCount { get; private set; }
+
+			protected override void Dispose(bool disposing)
+			{
+				DisposeCount++;
+				_order.Add("parent-platform");
+				base.Dispose(disposing);
 			}
 		}
 
