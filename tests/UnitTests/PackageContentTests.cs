@@ -530,6 +530,163 @@ public class PackageContentTests : TestBase
 		}
 	}
 
+	/// <summary>
+	/// Every shipped managed assembly must be REACHABLE from the task assembly.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The test above pins that the closure is complete. This one pins that it is nothing more.
+	/// The two failures are different and only one of them is loud: a missing dependency breaks
+	/// the task on a consumer's machine, whereas an extra assembly ships silently and is then
+	/// loaded from beside the task by MSBuild's probing - a stale copy of something the consumer
+	/// also references, resolved from the package rather than from their own graph.
+	/// </para>
+	/// <para>
+	/// The package used to be assembled by globbing the build output directory, which is a claim
+	/// that everything in an output folder belongs to this project. It does not: an output folder
+	/// accumulates renamed experiments, files copied in by hand, and dependencies left over from
+	/// before a package downgrade, and every one of them was packed. Enumerating the resolved
+	/// copy-local closure instead is what makes this assertion possible at all, and asserting it
+	/// here is what stops the glob coming back.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void EveryShippedAssemblyIsReachableFromTheTaskAssembly()
+	{
+		var managed = ExtractedPackageFiles("Maui.Tizen.Build.Tasks")
+			.Where(f => f.Name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+			.Where(f => string.Equals(Path.GetFileName(Path.GetDirectoryName(f.Path)), "buildTransitive", StringComparison.Ordinal))
+			.ToDictionary(f => Path.GetFileNameWithoutExtension(f.Name), f => f.Path, StringComparer.OrdinalIgnoreCase);
+
+		Assert.Contains("Maui.Tizen.Build.Tasks", (IReadOnlyCollection<string>)managed.Keys);
+
+		var reached = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		var queue = new Queue<string>();
+		queue.Enqueue("Maui.Tizen.Build.Tasks");
+		reached.Add("Maui.Tizen.Build.Tasks");
+
+		while (queue.Count > 0)
+		{
+			var current = queue.Dequeue();
+
+			foreach (var reference in AssemblyReferencesOf(managed[current]))
+			{
+				if (managed.ContainsKey(reference) && reached.Add(reference))
+					queue.Enqueue(reference);
+			}
+		}
+
+		var unreachable = managed.Keys.Where(name => !reached.Contains(name)).OrderBy(n => n, StringComparer.Ordinal).ToList();
+
+		Assert.True(
+			unreachable.Count == 0,
+			"These assemblies ship in buildTransitive/ but nothing in the package references them, so they are "
+				+ "not part of the task's dependency closure and must not be there: "
+				+ string.Join(", ", unreachable));
+	}
+
+	/// <summary>
+	/// An unrelated assembly sitting in the build output directory must not be packaged.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is the defect the reachability test above describes, exercised end to end rather than
+	/// argued about: the package contents used to be a wildcard over $(TargetDir), so anything
+	/// that happened to be in the output folder shipped inside buildTransitive/ and would be
+	/// loaded from beside the task assembly on a consumer's machine.
+	/// </para>
+	/// <para>
+	/// The stale file here is a real, loadable managed assembly - a copy of one the build genuinely
+	/// produced - because that is the case a filter on extension or on validity cannot catch, and
+	/// it is the realistic one: a renamed experiment, a dependency left over from before a package
+	/// downgrade, output from a project that once wrote to the same folder.
+	/// </para>
+	/// <para>
+	/// It runs in an ISOLATED output directory so the repository's own artifacts/ tree is never
+	/// polluted with a file that would then be picked up by every other pack in the run.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void AStaleAssemblyInTheOutputDirectoryIsNotPackaged()
+	{
+		var workspace = CreateTempDirectory("maui-tizen-stale-output");
+
+		var binaries = Path.Combine(workspace, "bin") + Path.DirectorySeparatorChar;
+		var intermediate = Path.Combine(workspace, "obj") + Path.DirectorySeparatorChar;
+		var packages = Path.Combine(workspace, "pkg");
+
+		var project = Path.Combine(RepositoryRoot, "src", "Maui.Tizen.Build.Tasks", "Maui.Tizen.Build.Tasks.csproj");
+
+		var isolation = new[]
+		{
+			"-p:BaseOutputPath=" + binaries,
+			"-p:BaseIntermediateOutputPath=" + intermediate,
+			"-c", "Release",
+		};
+
+		RunDotnet(new[] { "build", project }.Concat(isolation).ToArray());
+
+		var outputDirectory = Path.Combine(binaries, "Release", "netstandard2.0");
+		Assert.True(Directory.Exists(outputDirectory), $"The isolated build produced no output at '{outputDirectory}'.");
+
+		// A valid managed assembly that this build did not produce.
+		var stale = Path.Combine(outputDirectory, "MauiTizenStaleLeftover.dll");
+		File.Copy(Path.Combine(outputDirectory, "SkiaSharp.dll"), stale, overwrite: true);
+		Assert.NotEmpty(AssemblyReferencesOf(stale));
+
+		RunDotnet(new[] { "pack", project, "--no-build", "-p:PackageOutputPath=" + packages }.Concat(isolation).ToArray());
+
+		var produced = Directory.GetFiles(packages, "Maui.Tizen.Build.Tasks.*.nupkg").Single();
+		var entries = ProducedPackages.EntryNames(produced);
+
+		// The stale file was there to be found...
+		Assert.True(File.Exists(stale), "The stale assembly disappeared before packing, so this test proved nothing.");
+
+		// ...and it is not in the package.
+		Assert.DoesNotContain("buildTransitive/MauiTizenStaleLeftover.dll", entries);
+		Assert.DoesNotContain(entries, e => e.Contains("StaleLeftover", StringComparison.OrdinalIgnoreCase));
+
+		// The owned closure is still complete, so this did not pass by packaging nothing.
+		foreach (var expected in new[]
+		{
+			"buildTransitive/Maui.Tizen.Build.Tasks.dll",
+			"buildTransitive/SkiaSharp.dll",
+			"buildTransitive/System.Memory.dll",
+			"buildTransitive/System.Buffers.dll",
+			"buildTransitive/System.Numerics.Vectors.dll",
+			"buildTransitive/System.Runtime.CompilerServices.Unsafe.dll",
+		})
+		{
+			Assert.Contains(expected, entries);
+		}
+	}
+
+	private static void RunDotnet(params string[] arguments)
+	{
+		var startInfo = new ProcessStartInfo("dotnet")
+		{
+			WorkingDirectory = RepositoryRoot,
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			UseShellExecute = false,
+		};
+
+		foreach (var argument in arguments)
+			startInfo.ArgumentList.Add(argument);
+
+		startInfo.ArgumentList.Add("--nologo");
+		startInfo.ArgumentList.Add("-v:q");
+
+		foreach (var isolation in ConfigureIsolatedMSBuild(startInfo))
+			startInfo.ArgumentList.Add(isolation);
+
+		using var process = Process.Start(startInfo)!;
+		var log = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
+		process.WaitForExit();
+
+		Assert.True(process.ExitCode == 0, $"'dotnet {string.Join(' ', arguments)}' failed:{Environment.NewLine}{log}");
+	}
+
 	private static string ReadNuspec(string packageId)
 	{
 		using var archive = ZipFile.OpenRead(ProducedPackages.PathOf(packageId));

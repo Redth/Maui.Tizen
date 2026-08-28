@@ -1187,4 +1187,502 @@ public class TizenTargetsTests : TestBase
 		Assert.NotEmpty(mapped);
 		Assert.Equal(mapped, splashInputs.OrderBy(n => n, StringComparer.Ordinal).ToList());
 	}
+
+	// =====================================================================================
+	// Manifest source identity
+	// =====================================================================================
+
+	/// <summary>Writes an authored manifest whose <c>exec</c> attribute identifies it.</summary>
+	/// <remarks>
+	/// <c>exec</c> is carried through the rewrite untouched, so it is a marker for WHICH document
+	/// the generated manifest was produced from - which is precisely what the derived values
+	/// (application id, title, version) cannot tell you, because they are overwritten from MSBuild
+	/// properties and are identical in both files.
+	/// </remarks>
+	private static string WriteIdentifiableManifest(MSBuildProjectBuilder app, string relativePath, string exec)
+		=> app.WriteText(relativePath, $"""
+			<?xml version="1.0" encoding="utf-8"?>
+			<manifest package="maui-application-id-placeholder" version="0.0.0" api-version="11" xmlns="http://tizen.org/ns/packages">
+			  <profile name="common" />
+			  <ui-application appid="maui-application-id-placeholder" exec="{exec}" multiple="false" nodisplay="false" taskmanage="true" type="dotnet" launch_mode="single">
+			    <label>maui-application-title-placeholder</label>
+			    <icon>maui-appicon-placeholder</icon>
+			  </ui-application>
+			</manifest>
+			""");
+
+	/// <summary>Declares an icon-only application that points at a specific authored manifest.</summary>
+	private static MSBuildProjectBuilder DeclareManifestApp(string root, string? tizenManifestFile)
+	{
+		var builder = new MSBuildProjectBuilder(root);
+
+		builder
+			.WithProperty("ApplicationId", "com.contoso.tizenapp")
+			.WithProperty("ApplicationTitle", "Contoso Tizen")
+			.WithProperty("ApplicationDisplayVersion", "1.2.3")
+			.WithItem("MauiIcon", "Resources\\AppIcon\\appicon.svg", ("Color", "#512BD4"));
+
+		if (tizenManifestFile is not null)
+			builder.WithProperty("TizenManifestFile", tizenManifestFile);
+
+		return builder;
+	}
+
+	/// <summary>
+	/// Pointing the project at a DIFFERENT authored manifest must regenerate from it, even when
+	/// that manifest is older than the generated file.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The generated manifest is a rewrite of a specific source document: the application id, the
+	/// title, the version and the resource elements are replaced, and everything else - privileges,
+	/// metadata, the exec name, the api-version - is carried through verbatim. Which document was
+	/// the source is therefore an input in its own right, and it was not recorded: the state file
+	/// held only the DERIVED values, and the only file input was $(TizenManifestFile), compared by
+	/// timestamp.
+	/// </para>
+	/// <para>
+	/// So switching to an older manifest changed nothing MSBuild could see. An older file is not
+	/// exotic - it is what you get from a git checkout, a branch switch, a restored backup, or
+	/// simply a manifest that was authored first - and the result was a build that kept packaging
+	/// a manifest derived from a file the project no longer referenced.
+	/// </para>
+	/// <para>
+	/// Same intermediate directory, no rewritten sources: only the project's manifest selection
+	/// changes.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void SwitchingToAnOlderAuthoredManifestRegeneratesFromIt()
+	{
+		var root = CreateTempDirectory("maui-tizen-manifest-identity");
+
+		var app = DeclareManifestApp(root, "Platforms\\Tizen\\manifest-a.xml");
+		app.WriteSvg("Resources/AppIcon/appicon.svg");
+		WriteIdentifiableManifest(app, "Platforms/Tizen/manifest-a.xml", "ManifestA.dll");
+		var manifestB = WriteIdentifiableManifest(app, "Platforms/Tizen/manifest-b.xml", "ManifestB.dll");
+		app.Generate();
+
+		var first = app.Build();
+		AssertBuildSucceeded(first);
+
+		var generatedPath = Path.Combine(app.ProjectDirectory, first.Property("TizenManifestFile"));
+		Assert.Contains("ManifestA.dll", File.ReadAllText(generatedPath));
+
+		// The second manifest is OLDER than everything the first build produced, which is the
+		// state a timestamp comparison cannot distinguish from "nothing to do".
+		File.SetLastWriteTimeUtc(manifestB, DateTime.UtcNow.AddDays(-2));
+
+		var switched = DeclareManifestApp(root, "Platforms\\Tizen\\manifest-b.xml");
+		switched.Generate();
+
+		var second = switched.Build();
+		AssertBuildSucceeded(second);
+
+		var generated = File.ReadAllText(generatedPath);
+		Assert.Contains("ManifestB.dll", generated);
+		Assert.DoesNotContain("ManifestA.dll", generated);
+
+		// The identity is what the recorded state now carries, and it names the file the project
+		// actually selected.
+		var recorded = File.ReadAllText(Path.Combine(IntermediateDirectory(app, second), "tizen-manifest.inputs"));
+		Assert.Contains("manifest-b.xml", recorded);
+		Assert.Contains("TizenManifestSelection=explicit", recorded);
+
+		// The generated manifest is still what packaging is handed, and it is still placeholder
+		// free - regenerating from a different source must not lose the single-project values.
+		Assert.DoesNotContain("maui-application-id-placeholder", generated);
+		Assert.Contains("com.contoso.tizenapp", generated);
+	}
+
+	/// <summary>
+	/// Removing an explicit <c>TizenManifestFile</c> must fall back to the default manifest and
+	/// regenerate from it.
+	/// </summary>
+	/// <remarks>
+	/// This is the same defect approached from the other side: nothing about the project's
+	/// property values changes here except which file is selected, and the default file is older
+	/// than the generated one. Recording the resolved path AND how it was chosen is what makes
+	/// both directions visible - 'default' and 'explicit' can name the same file, and only the
+	/// recorded selection distinguishes "the project always used the default" from "the project
+	/// used to point somewhere else".
+	/// </remarks>
+	[Fact]
+	public void RemovingAnExplicitManifestFallsBackToTheDefaultAndRegenerates()
+	{
+		var root = CreateTempDirectory("maui-tizen-manifest-fallback");
+
+		var app = DeclareManifestApp(root, "Platforms\\Tizen\\custom-manifest.xml");
+		app.WriteSvg("Resources/AppIcon/appicon.svg");
+		var defaultManifest = WriteIdentifiableManifest(app, "Platforms/Tizen/tizen-manifest.xml", "DefaultManifest.dll");
+		WriteIdentifiableManifest(app, "Platforms/Tizen/custom-manifest.xml", "CustomManifest.dll");
+		app.Generate();
+
+		var first = app.Build();
+		AssertBuildSucceeded(first);
+
+		var generatedPath = Path.Combine(app.ProjectDirectory, first.Property("TizenManifestFile"));
+		Assert.Contains("CustomManifest.dll", File.ReadAllText(generatedPath));
+
+		File.SetLastWriteTimeUtc(defaultManifest, DateTime.UtcNow.AddDays(-2));
+
+		var reverted = DeclareManifestApp(root, tizenManifestFile: null);
+		reverted.Generate();
+
+		var second = reverted.Build();
+		AssertBuildSucceeded(second);
+
+		var generated = File.ReadAllText(generatedPath);
+		Assert.Contains("DefaultManifest.dll", generated);
+		Assert.DoesNotContain("CustomManifest.dll", generated);
+
+		var recorded = File.ReadAllText(Path.Combine(IntermediateDirectory(app, second), "tizen-manifest.inputs"));
+		Assert.Contains("TizenManifestSelection=default", recorded);
+	}
+
+	/// <summary>
+	/// A project that had no Tizen manifest and then gains one must generate from it, even when
+	/// the new file is older than everything the previous build produced.
+	/// </summary>
+	/// <remarks>
+	/// This is the "absence" half of the recorded manifest identity. A build with no manifest used
+	/// to record no state at all, so the first build after a manifest was added had nothing to
+	/// compare against - and the file it compared instead, the manifest itself, could easily be
+	/// older than the intermediate directory. Recording 'none' explicitly is what turns the
+	/// transition into a state change.
+	/// </remarks>
+	[Fact]
+	public void AddingAManifestToAProjectThatHadNoneGeneratesIt()
+	{
+		var root = CreateTempDirectory("maui-tizen-manifest-absence");
+
+		var app = DeclareManifestApp(root, tizenManifestFile: null);
+		app.WriteSvg("Resources/AppIcon/appicon.svg");
+		app.Generate();
+
+		var first = app.Build();
+		AssertBuildSucceeded(first);
+
+		// No manifest was selected, and that is what the state says.
+		Assert.Equal(string.Empty, first.Property("TizenManifestFile"));
+
+		var stateFile = Path.Combine(IntermediateDirectory(app, first), "tizen-manifest.inputs");
+		Assert.True(File.Exists(stateFile), "No manifest state was recorded for a project without a manifest.");
+		Assert.Contains("TizenManifestSelection=none", File.ReadAllText(stateFile));
+
+		// Add the default manifest, dated well before this build.
+		var added = WriteIdentifiableManifest(app, "Platforms/Tizen/tizen-manifest.xml", "AddedManifest.dll");
+		File.SetLastWriteTimeUtc(added, DateTime.UtcNow.AddDays(-30));
+
+		var withManifest = DeclareManifestApp(root, tizenManifestFile: null);
+		withManifest.Generate();
+
+		var second = withManifest.Build();
+		AssertBuildSucceeded(second);
+
+		var generatedPath = Path.Combine(app.ProjectDirectory, second.Property("TizenManifestFile"));
+		Assert.EndsWith("tizen-manifest.xml", generatedPath);
+		Assert.True(File.Exists(generatedPath), "The manifest was not generated after one was added to the project.");
+
+		var generated = File.ReadAllText(generatedPath);
+		Assert.Contains("AddedManifest.dll", generated);
+		Assert.Contains("com.contoso.tizenapp", generated);
+		Assert.Contains("TizenManifestSelection=default", File.ReadAllText(stateFile));
+	}
+
+	// =====================================================================================
+	// res.xml incrementality
+	// =====================================================================================
+
+	/// <summary>The res.xml this package generated, as declared to packaging.</summary>
+	private static string? PackagedResourceXml(BuildResult result)
+		=> result.ItemsOf("TizenTpkUserIncludeFiles")
+			.Where(i => Path.GetFileName(i.Identity) == "res.xml")
+			.Select(i => i.Identity)
+			.SingleOrDefault();
+
+	/// <summary>
+	/// A second build must not rewrite res.xml.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The generating target had no Inputs/Outputs, and the task saved unconditionally, so every
+	/// build replaced a byte-identical res.xml. res.xml is a TPK packaging input, so that
+	/// re-stamped everything downstream of it and turned every no-op build into a partial
+	/// repackage.
+	/// </para>
+	/// <para>
+	/// The application here drops the Resizetizer's own res.xml from the processed image set.
+	/// That is not a workaround: with the pinned Resizetizer the built-in Tizen branches still
+	/// write res.xml themselves and this package's generator is correctly inert, so a test that
+	/// did not simulate their removal would assert nothing about the generator and would pass in
+	/// either direction. See MSBuildProjectBuilder.SimulateUpstreamWithoutBuiltInResourceXml.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void ASecondBuildDoesNotRewriteTheGeneratedResourceXml()
+	{
+		var app = CreateApp();
+		app.SimulateUpstreamWithoutBuiltInResourceXml = true;
+		app.Generate();
+
+		var first = app.Build();
+		AssertBuildSucceeded(first);
+
+		var resourceXml = PackagedResourceXml(first);
+		Assert.NotNull(resourceXml);
+		Assert.True(File.Exists(resourceXml), $"res.xml was declared at '{resourceXml}' but is not on disk.");
+
+		// It really is the generated one: the Resizetizer's copy was removed from the item set
+		// before this package looked at it.
+		var stateFile = Path.Combine(IntermediateDirectory(app, first), "tizen-res.inputs");
+		Assert.True(File.Exists(stateFile), "The resource bucket state was not recorded.");
+		Assert.Contains("Bucket=default_All-HDPI", File.ReadAllText(stateFile));
+
+		var stamp = File.GetLastWriteTimeUtc(resourceXml!);
+		var contents = File.ReadAllText(resourceXml!);
+		var stateStamp = File.GetLastWriteTimeUtc(stateFile);
+
+		// Coarse filesystem timestamps would make an immediate rewrite look like a no-op.
+		System.Threading.Thread.Sleep(1100);
+
+		var second = app.Build();
+		AssertBuildSucceeded(second);
+
+		Assert.Equal(stamp, File.GetLastWriteTimeUtc(resourceXml!));
+		Assert.Equal(contents, File.ReadAllText(resourceXml!));
+		Assert.Equal(stateStamp, File.GetLastWriteTimeUtc(stateFile));
+
+		// And the up-to-date build still hands it to packaging: an incremental build that quietly
+		// dropped res.xml would produce a different TPK from the clean one.
+		Assert.Equal(resourceXml, PackagedResourceXml(second));
+
+		// A third build covers the replay-to-replay transition as well as generate-to-replay.
+		AssertBuildSucceeded(app.Build());
+		Assert.Equal(stamp, File.GetLastWriteTimeUtc(resourceXml!));
+	}
+
+	/// <summary>
+	/// Changing the set of resource buckets must regenerate res.xml, and stopping producing any
+	/// bucket must stop packaging it.
+	/// </summary>
+	/// <remarks>
+	/// The bucket set is the whole of what res.xml describes, so it is the state the incremental
+	/// check is keyed on. An application whose only image is the app icon has no
+	/// <c>res/contents</c> buckets at all - app icons live under <c>shared/res</c> - so res.xml
+	/// describes nothing and must not be packaged; adding an image back must bring it back. Same
+	/// intermediate directory throughout, so nothing is proven by a clean build.
+	/// </remarks>
+	[Fact]
+	public void ChangingTheResourceBucketsRegeneratesTheResourceXml()
+	{
+		var root = CreateTempDirectory("maui-tizen-res-buckets");
+
+		MSBuildProjectBuilder Declare(bool withImage)
+		{
+			var builder = new MSBuildProjectBuilder(root) { SimulateUpstreamWithoutBuiltInResourceXml = true };
+
+			builder
+				.WithProperty("ApplicationId", "com.contoso.tizenapp")
+				.WithProperty("ApplicationTitle", "Contoso Tizen")
+				.WithProperty("ApplicationDisplayVersion", "1.2.3")
+				.WithItem("MauiIcon", "Resources\\AppIcon\\appicon.svg", ("Color", "#512BD4"));
+
+			if (withImage)
+				builder.WithItem("MauiImage", "Resources\\Images\\logo.svg");
+
+			return builder;
+		}
+
+		var app = Declare(withImage: true);
+		app.WriteSvg("Resources/AppIcon/appicon.svg");
+		app.WriteSvg("Resources/Images/logo.svg", "#00FF00");
+		app.WriteTizenManifest();
+		app.Generate();
+
+		var first = app.Build();
+		AssertBuildSucceeded(first);
+
+		var resourceXml = PackagedResourceXml(first);
+		Assert.NotNull(resourceXml);
+
+		var stateFile = Path.Combine(IntermediateDirectory(app, first), "tizen-res.inputs");
+		Assert.Contains("Bucket=", File.ReadAllText(stateFile));
+
+		// Remove the only resizable image. The icon remains, so images are still processed - they
+		// simply no longer describe any resource bucket.
+		var iconOnly = Declare(withImage: false);
+		iconOnly.Generate();
+
+		var second = iconOnly.Build();
+		AssertBuildSucceeded(second);
+
+		Assert.Null(PackagedResourceXml(second));
+		Assert.DoesNotContain("Bucket=", File.ReadAllText(stateFile));
+
+		// Put it back: the state changes again and res.xml returns.
+		var restored = Declare(withImage: true);
+		restored.Generate();
+
+		var third = restored.Build();
+		AssertBuildSucceeded(third);
+
+		var regenerated = PackagedResourceXml(third);
+		Assert.NotNull(regenerated);
+		Assert.True(File.Exists(regenerated));
+		Assert.Contains("Bucket=default_All-HDPI", File.ReadAllText(stateFile));
+		Assert.Contains("contents/default_All-HDPI", File.ReadAllText(regenerated!));
+	}
+
+	// =====================================================================================
+	// Splash ResizeQuality
+	// =====================================================================================
+
+	/// <summary>
+	/// Writes a PNG of one-pixel vertical stripes, whose appearance after downscaling depends
+	/// entirely on the sampling used.
+	/// </summary>
+	private static void WriteStripedPng(MSBuildProjectBuilder app, string relativePath, int size)
+	{
+		var path = Path.Combine(app.ProjectDirectory, relativePath);
+		Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+		using var bitmap = new SkiaSharp.SKBitmap(size, size);
+		for (var y = 0; y < size; y++)
+		{
+			for (var x = 0; x < size; x++)
+				bitmap.SetPixel(x, y, x % 2 == 0 ? SkiaSharp.SKColors.White : SkiaSharp.SKColors.Black);
+		}
+
+		using var image = SkiaSharp.SKImage.FromBitmap(bitmap);
+		using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+		using var stream = File.Create(path);
+		data.SaveTo(stream);
+	}
+
+	/// <summary>
+	/// Changing only <c>MauiSplashScreen</c>'s <c>ResizeQuality</c> must recompose the splash
+	/// images, and the composed content must actually differ.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Two separate things made this stale. The composition's own recorded state did not include
+	/// ResizeQuality, so nothing this package watched changed. And the splash only joined
+	/// <c>@(MauiImage)</c> AFTER the Resizetizer had written mauiimage.inputs, so its metadata
+	/// never entered the Resizetizer's recorded image state either - the DPI-scaled sources the
+	/// composition reads were reused exactly as the previous build left them. Recomposing from
+	/// stale sources would have produced stale output even with perfect state tracking on this
+	/// side, so both were fixed: the splash is contributed before the Resizetizer records its
+	/// state, and ResizeQuality is part of the composition's inputs file.
+	/// </para>
+	/// <para>
+	/// The source is a striped raster deliberately larger than the target canvas. A flat colour
+	/// cannot show a resampling difference and a source smaller than the canvas is never scaled,
+	/// so either would make this test pass without the setting being honoured at all.
+	/// </para>
+	/// <para>
+	/// Asserted on CONTENT rather than timestamps, and in the same intermediate directory, with no
+	/// source file rewritten between the two builds.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void ChangingTheSplashResizeQualityRecomposesTheSplashImages()
+	{
+		var root = CreateTempDirectory("maui-tizen-splash-quality");
+
+		MSBuildProjectBuilder Declare(string quality)
+		{
+			var builder = new MSBuildProjectBuilder(root);
+
+			builder
+				.WithProperty("ApplicationId", "com.contoso.tizenapp")
+				.WithProperty("ApplicationTitle", "Contoso Tizen")
+				.WithProperty("ApplicationDisplayVersion", "1.2.3")
+				.WithItem("MauiIcon", "Resources\\AppIcon\\appicon.svg", ("Color", "#512BD4"))
+				.WithItem(
+					"MauiSplashScreen",
+					"Resources\\Splash\\splash.png",
+					("Color", "#512BD4"),
+					("BaseSize", "1024,1024"),
+					("ResizeQuality", quality));
+
+			return builder;
+		}
+
+		var app = Declare("High");
+		app.WriteSvg("Resources/AppIcon/appicon.svg");
+		WriteStripedPng(app, "Resources/Splash/splash.png", 512);
+		app.WriteTizenManifest();
+		app.Generate();
+
+		var first = app.Build();
+		AssertBuildSucceeded(first);
+
+		var splashDirectory = SplashDirectory(app, first);
+		var before = HashSplashImages(splashDirectory);
+		Assert.NotEmpty(before);
+
+		var recorded = File.ReadAllText(Path.Combine(IntermediateDirectory(app, first), "tizen-splash.inputs"));
+		Assert.Contains("ResizeQuality=High", recorded);
+
+		var nearest = Declare("None");
+		nearest.Generate();
+
+		var second = nearest.Build();
+		AssertBuildSucceeded(second);
+
+		var after = HashSplashImages(splashDirectory);
+
+		Assert.Equal(before.Keys.OrderBy(k => k, StringComparer.Ordinal), after.Keys.OrderBy(k => k, StringComparer.Ordinal));
+		foreach (var (name, hash) in before)
+			Assert.False(after[name] == hash, $"'{name}' still has the splash screen composed at the previous ResizeQuality.");
+
+		Assert.Contains(
+			"ResizeQuality=None",
+			File.ReadAllText(Path.Combine(IntermediateDirectory(app, second), "tizen-splash.inputs")));
+
+		// The packaged inputs are the recomposed files, not a stale set left on disk.
+		var packaged = second.ItemsOf("TizenTpkUserIncludeFiles")
+			.Where(i => i.Metadata1.Replace('\\', '/').TrimEnd('/') == "shared/res/splash")
+			.Select(i => Path.GetFileName(i.Identity))
+			.OrderBy(n => n, StringComparer.Ordinal)
+			.ToList();
+
+		Assert.Equal(after.Keys.OrderBy(k => k, StringComparer.Ordinal), packaged);
+	}
+
+	/// <summary>
+	/// The splash screen's metadata must reach the Resizetizer's own recorded image state.
+	/// </summary>
+	/// <remarks>
+	/// This is the root cause behind the test above, asserted directly so it cannot regress
+	/// quietly: if the splash is not in mauiimage.inputs, then no metadata on it can invalidate
+	/// image processing, and every DPI source the composition reads is whatever the previous build
+	/// produced. The assertion is on the Resizetizer's file rather than on an outcome because the
+	/// outcome (stale pixels) is only visible for metadata that changes pixels, while the hole
+	/// itself covers BaseSize, Resize, TintColor and ResizeQuality alike.
+	/// </remarks>
+	[Fact]
+	public void TheSplashScreenParticipatesInTheResizetizerImageState()
+	{
+		var app = CreateApp();
+		app.Generate();
+
+		var result = app.Build();
+		AssertBuildSucceeded(result);
+
+		var inputs = Directory
+			.GetFiles(Path.Combine(app.ProjectDirectory, "obj"), "mauiimage.inputs", SearchOption.AllDirectories)
+			.Single();
+
+		var recorded = File.ReadAllText(inputs).Replace('\\', '/');
+
+		Assert.Contains("Resources/Splash/splash.svg", recorded);
+
+		// Exactly once: the splash is contributed before the Resizetizer collects items and again
+		// afterwards for referenced-project items, and a duplicate would trip the Resizetizer's
+		// own duplicate-output-name detection.
+		var occurrences = recorded.Split('\n').Count(l => l.Contains("Resources/Splash/splash.svg", StringComparison.Ordinal));
+		Assert.Equal(1, occurrences);
+	}
 }

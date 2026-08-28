@@ -101,6 +101,27 @@ public sealed class MSBuildProjectBuilder
 	/// </remarks>
 	public string? PackagesFolder { get; set; }
 
+	/// <summary>
+	/// When true, the project drops the Resizetizer's own <c>res.xml</c> from
+	/// <c>@(MauiProcessedImage)</c> before this package computes the Tizen resource layout.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This simulates the state the externalized generator exists for: the one in which upstream
+	/// has removed its built-in Tizen branches. With the currently pinned Microsoft.Maui.Resizetizer
+	/// those branches are still present, so the Resizetizer writes res.xml itself and this
+	/// package's generator is deliberately inert - which means a test written against the shipped
+	/// behaviour would assert nothing about the generator at all, and would pass whether or not it
+	/// worked.
+	/// </para>
+	/// <para>
+	/// The simulation is exactly the removal of the upstream contribution, nothing else. It does
+	/// not set a switch inside the package or bypass any of its logic, so what runs afterwards is
+	/// the real path a future Resizetizer will take.
+	/// </para>
+	/// </remarks>
+	public bool SimulateUpstreamWithoutBuiltInResourceXml { get; set; }
+
 	public MSBuildProjectBuilder WithProperty(string name, string value)
 	{
 		_properties.Add($"    <{name}>{value}</{name}>");
@@ -281,6 +302,9 @@ public sealed class MSBuildProjectBuilder
 		foreach (var raw in _rawContent)
 			builder.AppendLine(raw);
 
+		if (SimulateUpstreamWithoutBuiltInResourceXml)
+			builder.AppendLine(DropUpstreamResourceXmlTarget);
+
 		builder.AppendLine(DumpTarget);
 		builder.AppendLine("</Project>");
 
@@ -300,6 +324,26 @@ public sealed class MSBuildProjectBuilder
 				""");
 		}
 	}
+
+	/// <summary>
+	/// Removes the Resizetizer's own res.xml from the processed image set, before this package
+	/// computes the Tizen resource layout.
+	/// </summary>
+	/// <remarks>
+	/// BeforeTargets on the layout target, not on the generator: MSBuild runs a target's
+	/// DependsOnTargets BEFORE any target that declares BeforeTargets on it, so hooking the
+	/// generator would run this after the layout had already been computed and would change
+	/// nothing. A Remove with a metadata condition is expressed in two steps because Remove does
+	/// not batch over metadata.
+	/// </remarks>
+	private const string DropUpstreamResourceXmlTarget = """
+		  <Target Name="MauiTizenTestDropUpstreamResourceXml" BeforeTargets="_MauiTizenComputeResourceLayout">
+		    <ItemGroup>
+		      <_MauiTizenTestUpstreamResourceXml Include="@(MauiProcessedImage)" Condition="'%(Filename)%(Extension)' == 'res.xml'" />
+		      <MauiProcessedImage Remove="@(_MauiTizenTestUpstreamResourceXml)" />
+		    </ItemGroup>
+		  </Target>
+		""";
 
 	private const string DumpTarget = """
 		  <Target Name="DumpTizenState" AfterTargets="Build">

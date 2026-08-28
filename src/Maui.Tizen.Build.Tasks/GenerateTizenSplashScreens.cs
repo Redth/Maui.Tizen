@@ -97,6 +97,19 @@ namespace Maui.Tizen.Build.Tasks
 
 			var sources = IndexProcessedImages(splashInfo.OutputName);
 
+			// ResizeQuality decides how the processed source is sampled when it is scaled onto the
+			// Tizen canvas, which is a different scaling step from the Resizetizer's own DPI
+			// resize. Honouring it here is what makes the metadata mean something on this backend:
+			// a splash source larger than the target screen is downscaled by THIS task, and the
+			// sampling used is the only thing that decides what the device shows.
+			if (!TizenImageInfo.TryParseSampling(splashInfo.ResizeQuality, out var sampling))
+			{
+				Log.LogWarning(
+					$"Unrecognized ResizeQuality '{splashInfo.ResizeQuality}' on splash screen '{splashInfo.OutputName}'. " +
+					"Expected one of None, Low, Medium or High. Falling back to High.");
+				sampling = TizenImageInfo.HighQualitySampling;
+			}
+
 			var generated = new List<ITaskItem>();
 			var entries = new List<ITaskItem>();
 			var map = new List<string>();
@@ -118,7 +131,7 @@ namespace Maui.Tizen.Build.Tasks
 					var fileName = $"{splashInfo.OutputName}.{resolution}.{orientation}.png";
 					var destination = Path.Combine(splashFullPath, fileName);
 
-					Compose(source, GetScreenSize(resolution, orientation), color.Value, destination);
+					Compose(source, GetScreenSize(resolution, orientation), color.Value, sampling, destination);
 
 					var relative = $"{SplashDirectoryName}/{fileName}";
 
@@ -188,7 +201,7 @@ namespace Maui.Tizen.Build.Tasks
 				: new SKSizeI(size.Height, size.Width);
 		}
 
-		static void Compose(string sourceFilePath, SKSizeI screenSize, SKColor color, string destFilePath)
+		static void Compose(string sourceFilePath, SKSizeI screenSize, SKColor color, SKSamplingOptions sampling, string destFilePath)
 		{
 			using var img = SKImage.FromEncodedData(sourceFilePath);
 			if (img is null)
@@ -201,7 +214,6 @@ namespace Maui.Tizen.Build.Tasks
 			canvas.Clear(color);
 
 			using var paint = new SKPaint { IsAntialias = true };
-			var sampling = new SKSamplingOptions(SKCubicResampler.Mitchell);
 
 			var left = screenSize.Width <= img.Width ? 0 : (screenSize.Width - img.Width) / 2;
 			var top = screenSize.Height <= img.Height ? 0 : (screenSize.Height - img.Height) / 2;

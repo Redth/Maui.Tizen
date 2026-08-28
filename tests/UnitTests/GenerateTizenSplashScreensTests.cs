@@ -185,4 +185,106 @@ public class GenerateTizenSplashScreensTests : TestBase
 		Assert.True(task.Execute(), engine.AllErrors());
 		Assert.All(task.SplashScreens, i => Assert.StartsWith("aliased.", Path.GetFileName(i.ItemSpec), StringComparison.Ordinal));
 	}
+
+	/// <summary>
+	/// Writes a PNG of one-pixel vertical stripes, whose appearance after downscaling depends
+	/// entirely on the sampling used.
+	/// </summary>
+	/// <remarks>
+	/// A flat colour cannot show a resampling difference - every filter returns the same colour -
+	/// so a quality test built on the usual solid test image would pass whether or not the setting
+	/// was honoured.
+	/// </remarks>
+	private static string WriteStripedPng(string path, int size)
+	{
+		Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+		using var bitmap = new SkiaSharp.SKBitmap(size, size);
+		for (var y = 0; y < size; y++)
+		{
+			for (var x = 0; x < size; x++)
+				bitmap.SetPixel(x, y, x % 2 == 0 ? SkiaSharp.SKColors.White : SkiaSharp.SKColors.Black);
+		}
+
+		using var image = SkiaSharp.SKImage.FromBitmap(bitmap);
+		using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+		using var stream = File.Create(path);
+		data.SaveTo(stream);
+
+		return path;
+	}
+
+	private static GenerateTizenSplashScreens ComposeWithQuality(string processedSource, string? resizeQuality, string intermediate)
+	{
+		var metadata = resizeQuality is null
+			? new[] { ("Color", "#512BD4") }
+			: new[] { ("Color", "#512BD4"), ("ResizeQuality", resizeQuality) };
+
+		var task = new GenerateTizenSplashScreens
+		{
+			MauiSplashScreen = new[] { Item(processedSource, metadata) },
+			ProcessedImages = new[] { Item(processedSource) },
+			IntermediateOutputPath = intermediate,
+		};
+
+		task.UseRecordingEngine();
+		return task;
+	}
+
+	/// <summary>
+	/// <c>ResizeQuality</c> must change the composed image when the source is scaled onto the
+	/// canvas.
+	/// </summary>
+	/// <remarks>
+	/// The Tizen composition is a second scaling step, separate from the Resizetizer's DPI resize:
+	/// a splash source larger than the target screen is downscaled by this task, and the sampling
+	/// it uses is the only thing that decides what the device shows. The source here is
+	/// deliberately larger than the FHD canvas so that scaling actually happens.
+	/// </remarks>
+	[Fact]
+	public void ResizeQualityChangesTheComposedImage()
+	{
+		var processedRoot = CreateTempDirectory();
+		var source = WriteStripedPng(
+			Path.Combine(processedRoot, "res", "contents", "default_All-HDPI", "splash.png"),
+			2048);
+
+		string HashOf(string? quality)
+		{
+			var task = ComposeWithQuality(source, quality, CreateTempDirectory());
+			Assert.True(task.Execute());
+
+			var portrait = task.SplashScreens.Single(i => i.ItemSpec.EndsWith("hdpi.portrait.png", StringComparison.Ordinal)).ItemSpec;
+			return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(portrait)));
+		}
+
+		var none = HashOf("None");
+		var high = HashOf("High");
+
+		Assert.NotEqual(none, high);
+
+		// The unset value must keep behaving exactly as it always has, so adopting this metadata
+		// changes nothing for a project that never sets it.
+		Assert.Equal(high, HashOf(null));
+		Assert.Equal(high, HashOf(string.Empty));
+	}
+
+	/// <summary>
+	/// An unrecognized quality is reported rather than silently treated as the default.
+	/// </summary>
+	[Fact]
+	public void AnUnknownResizeQualityWarns()
+	{
+		var processedRoot = CreateTempDirectory();
+		var source = WriteStripedPng(
+			Path.Combine(processedRoot, "res", "contents", "default_All-MDPI", "splash.png"),
+			256);
+
+		var task = ComposeWithQuality(source, "Highest", CreateTempDirectory());
+		var engine = task.UseRecordingEngine();
+
+		Assert.True(task.Execute(), engine.AllErrors());
+		Assert.Contains("Unrecognized ResizeQuality 'Highest'", engine.AllWarnings());
+		Assert.NotEmpty(task.SplashScreens);
+	}
 }

@@ -872,4 +872,124 @@ public class RepositoryInvariantTests
 		Assert.DoesNotContain("_MauiTizenBuildTasksAssembly", executable);
 		Assert.DoesNotContain("Maui.Tizen.Build.Tasks.targets", executable);
 	}
+
+	// ---------------------------------------------------------------------
+	// Provenance wiring
+	//
+	// The DECISION these guard is executed for real by PackageInputCleanlinessTests, which runs
+	// eng/check-package-inputs-clean.sh against purpose-built repositories. What is left to pin is
+	// the WIRING: that the lane consults the gate at all, that the local-validation override
+	// cannot survive into CI, and that the container run is handed a verified revision instead of
+	// silently losing its repository identity. Those are properties of how the scripts are
+	// assembled, so they are asserted as such.
+	// ---------------------------------------------------------------------
+
+	/// <summary>
+	/// The lane must consult the cleanliness gate before claiming provenance.
+	/// </summary>
+	[Fact]
+	public void TheLaneGatesProvenanceOnCommittedPackageInputs()
+	{
+		var lane = ReadRepoFile("eng/build-workload-free.sh");
+
+		Assert.Contains("eng/check-package-inputs-clean.sh", lane);
+
+		// Fail-closed: a dirty tree without the override is a counted failure, not a warning.
+		Assert.Contains("package inputs do not match HEAD, so the packages cannot claim its provenance", lane);
+	}
+
+	/// <summary>
+	/// The dirty-provenance override must be refused on CI and release runs.
+	/// </summary>
+	/// <remarks>
+	/// An escape hatch that works everywhere is not an escape hatch, it is the new default. This
+	/// one exists so an in-progress patch can still be validated locally; the moment it can be set
+	/// in CI or on a publishing run it stops being a provenance gate at all.
+	/// </remarks>
+	[Fact]
+	public void TheDirtyProvenanceOverrideIsRefusedOnAutomatedRuns()
+	{
+		var lane = ReadRepoFile("eng/build-workload-free.sh");
+
+		var refusal = Regex.Match(
+			lane,
+			@"if \[\[ ""\$ALLOW_DIRTY_PROVENANCE"" == ""1"" && \$IS_AUTOMATED_RUN -eq 1 \]\]; then(?<body>.*?)\nfi",
+			RegexOptions.Singleline);
+
+		Assert.True(refusal.Success, "eng/build-workload-free.sh no longer refuses the dirty-provenance override on automated runs.");
+		Assert.Contains("the override is refused", refusal.Groups["body"].Value);
+		Assert.Contains("ALLOW_DIRTY_PROVENANCE=0", refusal.Groups["body"].Value);
+
+		// CI, GitHub Actions and an explicit release run all count as automated.
+		Assert.Contains("${CI:-}", lane);
+		Assert.Contains("${GITHUB_ACTIONS:-}", lane);
+		Assert.Contains("${MAUI_TIZEN_RELEASE:-0}", lane);
+	}
+
+	/// <summary>
+	/// The container lane must be handed a verified revision, and must not be handed a broken
+	/// repository instead.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// eng/run-linux-checks.sh copies the working tree into a container, and the lane inside it
+	/// needs the repository identity to stamp packages with. Excluding only <c>.git/</c> was
+	/// subtly wrong for this repository: development happens in git WORKTREES, where <c>.git</c>
+	/// is a FILE pointing into the main repository's <c>.git/worktrees</c>. A directory-only
+	/// pattern let that file through, and git inside the container then followed a pointer to a
+	/// path that does not exist - which fails in a way that reads as a broken checkout rather than
+	/// a missing exclusion.
+	/// </para>
+	/// <para>
+	/// Both spellings are excluded and the revision is resolved and verified on the host instead.
+	/// The cleanliness VERDICT travels with it, because passing the revision alone would just move
+	/// the false provenance claim across the container boundary.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void TheLinuxContainerRunReceivesAVerifiedRevision()
+	{
+		var script = ReadRepoFile("eng/run-linux-checks.sh");
+
+		Assert.Contains("--exclude '.git'", script);
+		Assert.Contains("--exclude '.git/'", script);
+
+		Assert.Contains("MAUI_TIZEN_SOURCE_REVISION=$SOURCE_REVISION", script);
+		Assert.Contains("MAUI_TIZEN_SOURCE_REVISION_STATE=$SOURCE_REVISION_STATE", script);
+		Assert.Contains("eng/check-package-inputs-clean.sh", script);
+
+		// And the lane consumes exactly those, rejecting anything that is not a full commit id.
+		var lane = ReadRepoFile("eng/build-workload-free.sh");
+		Assert.Contains("MAUI_TIZEN_SOURCE_REVISION:-", lane);
+		Assert.Contains("MAUI_TIZEN_SOURCE_REVISION_STATE:-", lane);
+		Assert.Contains("^[0-9a-f]{40}$", lane);
+	}
+
+	/// <summary>
+	/// Every script the provenance story depends on must be present and executable.
+	/// </summary>
+	[Theory]
+	[InlineData("eng/check-package-inputs-clean.sh")]
+	[InlineData("eng/run-linux-checks.sh")]
+	[InlineData("eng/build-workload-free.sh")]
+	public void ProvenanceScriptsAreValidShell(string relativePath)
+	{
+		var path = Path.Combine(RepoRoot, relativePath);
+		Assert.True(File.Exists(path), $"{relativePath} is missing.");
+
+		var startInfo = new System.Diagnostics.ProcessStartInfo("bash")
+		{
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			UseShellExecute = false,
+		};
+		startInfo.ArgumentList.Add("-n");
+		startInfo.ArgumentList.Add(path);
+
+		using var process = System.Diagnostics.Process.Start(startInfo)!;
+		var log = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
+		process.WaitForExit();
+
+		Assert.True(process.ExitCode == 0, $"{relativePath} is not valid shell:{Environment.NewLine}{log}");
+	}
 }

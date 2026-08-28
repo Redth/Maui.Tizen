@@ -10,10 +10,36 @@ Extracting the .NET MAUI Tizen backend from `dotnet/maui` into this repository.
 | **1** | History-preserving import; repository scaffolding; docs; CI | **Complete** |
 | 2 | Handler implementation (`Maui.Tizen.Core`, `Maui.Tizen.Controls`) | Not started |
 | 3 | Essentials implementation | Not started |
-| 4 | BlazorWebView, Maps, Build.Tasks, Templates | Not started |
-| 5 | Device tests, samples, packaging and publishing | Not started |
+| **4a** | **Build pipeline: `Maui.Tizen.Build.Tasks`, `Maui.Tizen.Templates`** | **Implemented, packed and validated** — see below |
+| 4b | BlazorWebView, Maps | Not started |
+| 5 | Device tests, samples, publishing | Not started |
 
-Phases 2 onward are **blocked on an external dependency** — see below.
+Phases 2, 3, 4b and 5 are **blocked on an external dependency** — see below. Phase 4a is not:
+the build tasks target `netstandard2.0` and the template package is content, so both build, pack
+and are exercised end to end today.
+
+### Phase 4a — what is actually done
+
+- `Maui.Tizen.Build.Tasks` generates `tizen-manifest.xml`, the Tizen splash screens and
+  `res.xml`, and hands them to the Samsung workload as TPK packaging inputs. It is driven
+  entirely through the **public** Resizetizer external-backend contract from dotnet/maui
+  PR 36653 (`ResizetizerPlatformType`, `MauiProcessedImage` / `MauiProcessedFont` /
+  `MauiProcessedAsset`, the `ResizetizerAfter*ProcessingTargets` hooks), so nothing upstream is
+  forked here.
+- Both packages are packed on every run of the workload-free lane, and their contents are
+  asserted from the produced `.nupkg` — layout, the task assembly's managed dependency closure,
+  the per-architecture native SkiaSharp binaries, the template tree, and the fact that no
+  unowned file rides along.
+- The backend is additionally exercised **as a package**: a generated application takes a plain
+  `PackageReference` and relies on NuGet's automatic `buildTransitive` import, and the produced
+  template package is installed into an isolated template hive and instantiated.
+- Incremental behaviour is covered rather than assumed: the manifest, the splash screens and
+  `res.xml` each have recorded non-file state, and same-intermediate-directory mutation tests
+  assert both that a no-op build changes nothing and that changing a property or an item's
+  metadata regenerates what depends on it.
+
+What Phase 4a does **not** cover is TPK assembly, signing, deployment and launching. Those are
+owned by the Samsung workload and sit behind the external gate below.
 
 ## The external gate
 
@@ -46,7 +72,14 @@ The lane in `eng/build-workload-free.sh` (required in CI) genuinely exercises:
 - the packable projects' shape: the produced template nupkg is installed into an isolated
   template hive and instantiated, and the generated project's package references are restored
   cold against the approved feeds
+- package provenance: every produced package must carry a `<repository commit="...">` stamp
+  naming the revision being built, and the lane refuses to make that claim unless the package
+  inputs are committed and match it ([`eng/check-package-inputs-clean.sh`](../eng/check-package-inputs-clean.sh))
 - integrity of the imported history and the import tooling
+
+The same lane runs on Linux in a container through
+[`eng/run-linux-checks.sh`](../eng/run-linux-checks.sh), which is what covers SkiaSharp's
+platform-specific native resolution before CI does.
 
 So when the workload does ship, the workload is the *only* thing that needs to start
 working.
@@ -164,7 +197,6 @@ The 87 files that exist only at `9.0.120` break down as:
 |---|---|
 | **Compatibility layer** | .NET MAUI 11 drops it. Audit each of the 70 files; `move` only what net11 Tizen handlers genuinely require, `exclude` the rest. Expected outcome: the package is deleted entirely. |
 | **Graphics** | `Microsoft.Maui.Graphics` is upstreamed from its own repository and carries one Tizen view here. Likely `keep-upstream` — contribute the view back rather than shipping a package. |
-| **Build.Tasks** | The imported Tizen tasks depend on shared Resizetizer types (`ILogger`, `ResizeImageInfo`, `ResizedImageInfo`) whose filenames contain no "tizen" and were therefore correctly excluded by the import filter. Either vendor them here, or ship these tasks inside `Microsoft.Maui.Resizetizer` upstream. **Also unresolved:** these tasks use SkiaSharp for splash/icon generation, so enabling them raises real runtime and native-asset packaging questions (which SkiaSharp native assets ship, and how they reach a Tizen build). That is deliberately *not* papered over in the foundation — it is part of enabling the project, not of scaffolding it. |
 | **Documentation warnings** | `CS1591` is suppressed in `TizenPackage.props` while projects compile nothing. The inherited sources are not uniformly documented, so flipping a project to compile would otherwise fail on hundreds of missing-comment errors under warnings-as-errors. Remove the suppression per project as its documentation is completed. |
 | **`Tizen.UIExtensions`** | Needs republishing to drop its .NET 6-era `Microsoft.Maui.Graphics` dependencies. No API surface change expected. |
 
@@ -185,16 +217,19 @@ diffing the import commit alone. Full detail in [`../PROVENANCE.md`](../PROVENAN
 ```mermaid
 graph LR
     F["Phase 0-1<br/>Foundation<br/><b>done</b>"] --> I["Inventory + API baselines"]
+    F --> B["Phase 4a<br/>Build.Tasks, Templates<br/><b>done</b>"]
     F --> G{{"Samsung workload<br/><b>external gate</b>"}}
     I --> H["Phase 2<br/>Handlers"]
     G --> H
     G --> E["Phase 3<br/>Essentials"]
-    H --> X["Phase 4<br/>BlazorWebView, Maps,<br/>Build.Tasks, Templates"]
+    H --> X["Phase 4b<br/>BlazorWebView, Maps"]
     E --> X
-    X --> P["Phase 5<br/>Device tests, samples,<br/>packaging"]
+    B --> P["Phase 5<br/>Device tests, samples,<br/>publishing"]
+    X --> P
 ```
 
-Inventory work can proceed now. Everything downstream of the gate cannot.
+Inventory work and the build pipeline can proceed now — the latter is done. Everything
+downstream of the gate cannot.
 
 ## See also
 

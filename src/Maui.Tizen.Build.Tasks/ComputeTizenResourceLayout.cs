@@ -41,6 +41,18 @@ namespace Maui.Tizen.Build.Tasks
 		[Output]
 		public string ResourceRoot { get; set; } = string.Empty;
 
+		/// <summary>
+		/// The distinct <c>res/contents</c> bucket folder names implied by the processed images,
+		/// sorted ordinally.
+		/// </summary>
+		/// <remarks>
+		/// This is the complete input to <c>res.xml</c>, published so the targets can persist it
+		/// and give the generating target something MSBuild's timestamp-only up-to-date check can
+		/// actually compare. An empty result means no res.xml describes this build.
+		/// </remarks>
+		[Output]
+		public string[] ResourceBuckets { get; set; } = Array.Empty<string>();
+
 		public override bool Execute()
 		{
 			try
@@ -87,6 +99,9 @@ namespace Maui.Tizen.Build.Tasks
 
 			// Deterministic ordering so repeated builds produce identical item lists.
 			TpkFiles = results.OrderBy(i => i.ItemSpec, StringComparer.Ordinal).ToArray();
+
+			// Computed from the same items, with the same rule GenerateTizenResourceXml applies.
+			ResourceBuckets = TizenResourceBuckets.FromProcessedImages(ProcessedImages).ToArray();
 
 			if (roots.Count == 1)
 			{
