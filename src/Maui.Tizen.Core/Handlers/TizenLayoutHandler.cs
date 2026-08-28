@@ -345,15 +345,25 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <inheritdoc />
 		protected override void Dispose(bool disposing)
 		{
+			var cleanup = new List<Action>();
+
 			if (disposing)
 			{
-				foreach (var child in _children)
-					(child.Handler as ITizenPlatformViewHandler)?.Dispose();
+				var childHandlers = _children
+					.Select(child => child.Handler as ITizenPlatformViewHandler)
+					.Where(handler => handler is not null)
+					.ToArray();
 
-				_children.Clear();
+				// Relinquish ownership before invoking child code so a retry or reentrant Dispose
+				// cannot attempt the same child twice.
+				cleanup.Add(_children.Clear);
+
+				foreach (var childHandler in childHandlers)
+					cleanup.Add(childHandler!.Dispose);
 			}
 
-			base.Dispose(disposing);
+			cleanup.Add(() => base.Dispose(disposing));
+			TizenCleanup.Run(cleanup.ToArray());
 		}
 	}
 }

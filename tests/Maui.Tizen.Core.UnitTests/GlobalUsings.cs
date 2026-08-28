@@ -6,3 +6,7 @@
 // set, not of any one test, and IView is a Core interface so the Primitives type is always the
 // correct one here.
 global using LayoutAlignment = Microsoft.Maui.Primitives.LayoutAlignment;
+
+// Maui.Tizen.Controls introduces a sibling namespace that would otherwise shadow the Controls
+// shorthand throughout this test assembly.
+global using MauiControls = Microsoft.Maui.Controls;
