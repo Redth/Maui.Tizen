@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -141,6 +142,25 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.DoesNotContain("Microsoft.Maui.Controls", lane);
 		}
 
+		[Fact]
+		public void ControlsPackIsBlockedByUnshippableUIExtensions()
+		{
+			var result = RunUIExtensionsPackGuard(isShippable: false);
+
+			Assert.NotEqual(0, result.ExitCode);
+			Assert.Contains("MAUITIZEN0101", result.Output, StringComparison.Ordinal);
+			Assert.Contains("Maui.Tizen.Controls", result.Output, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void ControlsPackGuardAllowsAVerifiedUIExtensionsVersion()
+		{
+			var result = RunUIExtensionsPackGuard(isShippable: true);
+
+			Assert.Equal(0, result.ExitCode);
+			Assert.DoesNotContain("MAUITIZEN0101", result.Output, StringComparison.Ordinal);
+		}
+
 		[Theory]
 		[InlineData("src/Maui.Tizen.Core/Maui.Tizen.Core.csproj")]
 		[InlineData(ControlsProduct)]
@@ -202,5 +222,36 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				@"<PackageReference\s+Include=""([^""]+)""")
 			.Select(m => m.Groups[1].Value)
 			.ToHashSet(StringComparer.Ordinal);
+
+		static (int ExitCode, string Output) RunUIExtensionsPackGuard(bool isShippable)
+		{
+			var dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") is { Length: > 0 } host
+				? host
+				: "dotnet";
+
+			var startInfo = new ProcessStartInfo(dotnet)
+			{
+				WorkingDirectory = RepositoryRoot,
+				RedirectStandardOutput = true,
+				RedirectStandardError = true,
+			};
+
+			startInfo.ArgumentList.Add("msbuild");
+			startInfo.ArgumentList.Add(Path.Combine(RepositoryRoot, ControlsProduct));
+			startInfo.ArgumentList.Add("-t:BlockPackOnUnshippableUIExtensions");
+			startInfo.ArgumentList.Add("-nologo");
+			startInfo.ArgumentList.Add("-p:TargetFramework=net11.0");
+			startInfo.ArgumentList.Add("-p:TizenWorkloadAvailable=true");
+			startInfo.ArgumentList.Add($"-p:TizenUIExtensionsIsShippable={isShippable.ToString().ToLowerInvariant()}");
+
+			using var process = Process.Start(startInfo)
+				?? throw new InvalidOperationException("Failed to start dotnet msbuild.");
+
+			var output = process.StandardOutput.ReadToEnd();
+			var error = process.StandardError.ReadToEnd();
+			process.WaitForExit();
+
+			return (process.ExitCode, output + error);
+		}
 	}
 }

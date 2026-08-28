@@ -190,4 +190,21 @@
     <None Include="**/*.cs" Exclude="bin/**;obj/**" />
   </ItemGroup>
 
+  <!--
+    Tizen.UIExtensions.NUI 0.9.2 transitively declares Microsoft.Maui.Graphics 6.0.300-rc.3.1336.
+    Refuse to produce any package that references it while that is true. The PackageReference item
+    is evaluated at target execution, so this shared policy follows every current and future
+    package that consumes UIExtensions without blocking unrelated Tizen packages.
+  -->
+  <Target Name="BlockPackOnUnshippableUIExtensions" BeforeTargets="GenerateNuspec">
+    <ItemGroup>
+      <_MauiTizenUIExtensionsReference Include="@(PackageReference)"
+                                       Condition="'%(PackageReference.Identity)' == 'Tizen.UIExtensions.NUI'" />
+    </ItemGroup>
+
+    <Error Condition="'@(_MauiTizenUIExtensionsReference)' != '' AND '$(TizenUIExtensionsIsShippable)' != 'true'"
+           Code="MAUITIZEN0101"
+           Text="Refusing to pack $(MSBuildProjectName) against Tizen.UIExtensions.NUI $(TizenUIExtensionsPackageVersion), which transitively declares Microsoft.Maui.Graphics 6.0.300-rc.3.1336. Bump the Tizen.UIExtensions.NUI PackageVersion in Directory.Packages.props once Samsung republishes it, or pass -p:TizenUIExtensionsIsShippable=true if you have verified the resulting dependency graph." />
+  </Target>
+
 </Project>
