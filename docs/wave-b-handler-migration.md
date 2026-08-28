@@ -539,3 +539,67 @@ One consequence worth recording: the primitive reports **ownership**, not whethe
 earlier revision conflated the two, which silently suppressed `LoadingFailed` whenever no clear
 action had been supplied — a caller with nothing to mutate could no longer tell whether it still
 owned the part.
+
+
+## Native lifecycle and third-party behaviour
+
+Seven defects in this area shared a shape: the code read correctly, but the platform or the
+third-party wrapper did something other than what the call implied.
+
+### `ScrollOrientation.Neither` cannot be expressed as an orientation
+
+`Tizen.UIExtensions.NUI` 0.9.2 converts its `ScrollOrientation` to NUI's two-valued
+`ScrollingDirection` with the equivalent of `value == Horizontal ? Horizontal : Vertical` — verified
+by reading the shipped assembly's IL. NUI has no "no direction" value, so **both `Both` and
+`Neither` arrive as Vertical**, and a view told not to scroll scrolls vertically.
+
+The intent has to be carried by `ScrollEnabled` instead, which `UpdateOrientation` now sets — and
+restores for every other orientation, so a view that was `Neither` is not left frozen.
+
+### Ownership at the swipe content boundary
+
+`UpdateContent` disposed the content view and then disposed the handler that created it — a
+double-dispose of the same native object. The handler owns the view it created, so the view is now
+unparented first, the handler disposed, and the view disposed directly only on the branch where no
+handler owns it (the placeholder from `CreateEmptyContent`).
+
+### Animations outlive the views they animate
+
+The swipe animation is committed under a fixed handle, so it survives a content change or a handler
+disconnect unless aborted. Both its stepper and its finished callback touch the content view, so it
+is now aborted before either, and the stepper captures the view rather than reading the mutable
+field — otherwise a replacement mid-animation silently redirects the animation onto the new view.
+
+### A refresh restart during the completion window
+
+`RefreshLayout`'s `RequestRefresh`, `StartRefresh` and `CompleteRefresh` are **private** and gated on
+a private `_refreshState`, so a start requested while the completion animation runs is dropped.
+Stopping and immediately restarting therefore left the virtual view believing it was refreshing
+while the spinner never returned.
+
+Private reflection is not an option (see `docs/architecture.md`), so the transition is serialised on
+this side: `TizenRefreshStateMachine` holds a start requested during the window and replays it after
+it closes, and a stop supersedes a held start so a cancelled refresh is never resurrected. The
+machine is NUI-free, so this is executed rather than asserted.
+
+### Teardown must not start an animation
+
+Handler teardown used to write `IsRefreshing = false` and then dispose the layout. That write starts
+the base class's completion animation — an `async void` with no cancellation — whose continuation
+then touches the refresh icon the same teardown is disposing. Teardown now calls `Reset`, which
+abandons the state without producing a native write, and cancels any scheduled replay.
+
+### NUI signal cleanup belongs on the main loop
+
+The `ResourceReady` unsubscribe ran in a `finally` whose continuation resumes on a pool thread —
+`ConfigureAwait(false)` with `RunContinuationsAsynchronously`, or on whichever thread cancelled. It
+is now marshalled to the dispatcher and **awaited**: the caller disposes the platform view once the
+apply returns, so a posted unsubscribe could otherwise be scheduled behind that disposal and touch a
+freed object.
+
+### Visibility is not the indicator's to decide alone
+
+`UpdateCount` called `Show()` whenever the `HideSingle` policy allowed it, ignoring the virtual
+view's own `Visibility`. Because that method runs for every `Count`, `MaximumVisible` and appearance
+change, an indicator the app had hidden reappeared on an unrelated property change. The decision now
+combines both, in a portable helper that is covered behaviourally.

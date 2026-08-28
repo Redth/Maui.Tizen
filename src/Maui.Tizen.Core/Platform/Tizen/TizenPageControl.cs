@@ -114,11 +114,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (!UseDefaultIndicator || _contentView == null)
 				return;
 
-			// HideSingle had no implementation at all: a single-item indicator stayed on screen.
-			if (_indicatorView.HideSingle && _indicatorView.Count <= 1)
-				Hide();
-			else
+			// Visibility combines the HideSingle policy with the virtual view's own Visibility.
+			// Showing on the policy alone re-reveals an indicator the app has hidden, because this
+			// runs for every Count / MaximumVisible / appearance change.
+			if (TizenPortableExtensions.IsIndicatorVisible(_indicatorView.Visibility, _indicatorView.HideSingle, _indicatorView.Count))
 				Show();
+			else
+				Hide();
 
 			var count = Math.Max(0, Math.Min(_indicatorView.Count, _indicatorView.MaximumVisible));
 			var diff = _indicators.Count - count;

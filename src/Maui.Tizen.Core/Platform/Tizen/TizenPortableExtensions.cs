@@ -60,5 +60,26 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			return Math.Clamp(position - start, 0, visibleCount - 1);
 		}
+	
+
+		/// <summary>
+		/// Decides whether the indicator should be on screen.
+		/// </summary>
+		/// <param name="visibility">The virtual view's visibility.</param>
+		/// <param name="hideSingle">Whether a single-item indicator hides itself.</param>
+		/// <param name="count">The indicator count.</param>
+		/// <remarks>
+		/// Both inputs matter. Deciding on <paramref name="hideSingle"/> alone means any change to
+		/// Count or MaximumVisible re-shows an indicator whose <c>Visibility</c> is Hidden or
+		/// Collapsed, because the count mapper would call Show unconditionally — a control the app
+		/// deliberately hid reappears on an unrelated property change.
+		/// </remarks>
+		public static bool IsIndicatorVisible(Visibility visibility, bool hideSingle, int count)
+		{
+			if (visibility != Visibility.Visible)
+				return false;
+
+			return !(hideSingle && count <= 1);
+		}
 	}
 }

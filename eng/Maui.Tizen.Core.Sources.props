@@ -148,6 +148,7 @@
     <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenSwipeMetrics.cs" />
     <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenPortableExtensions.cs" />
     <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenImageSourceLoader.cs" />
+    <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenRefreshStateMachine.cs" />
     <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Fonts/TizenEmbeddedFontLoader.cs" />
     <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Hosting/TizenFontServiceCollectionExtensions.cs" />
   </ItemGroup>

@@ -105,6 +105,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 						// this load no longer owns. Returns false when it is refused.
 						image => image is not null
 							&& write(() => platformView.ResourceUrl = image.ResourceUrl),
+						// NUI signal cleanup must be marshalled to the main loop; see
+						// ApplyImageSourceAsync.
+						handler.GetService<Microsoft.Maui.Dispatching.IDispatcher>(),
 						cancellationToken);
 				},
 				() =>

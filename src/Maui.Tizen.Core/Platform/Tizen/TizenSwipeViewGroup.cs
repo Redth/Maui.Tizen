@@ -28,6 +28,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 		const float OpenSwipeThresholdPercentage = 0.6f; // 60%
 		const uint SwipeAnimationDuration = 200;
 
+		/// <summary>Handle the swipe animation is committed under, so it can be aborted by name.</summary>
+		const string SwipeAnimationHandle = "Swipe";
+
 		ITizenPlatformViewHandler? _contentHandler;
 		NView? _contentView;
 		NView? _actionView;
@@ -71,6 +74,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </remarks>
 		public void DisposeChildHandlers()
 		{
+			// The handler is being disconnected, so the animation must stop before the views it
+			// drives are disposed. Without this its callbacks run on freed native objects.
+			AbortSwipeAnimation();
+
 			_contentHandler?.Dispose();
 			_contentHandler = null;
 
@@ -79,16 +86,35 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public void UpdateContent()
 		{
-			if (_contentView != null)
+			// Stop any in-flight swipe animation before the view it animates goes away. The
+			// animation callbacks read _contentView, so leaving one running across a content change
+			// would have it drive - or dispose-check - a view that is no longer the current one.
+			AbortSwipeAnimation();
+
+			var previousView = _contentView;
+			var previousHandler = _contentHandler;
+
+			_contentView = null;
+			_contentHandler = null;
+
+			if (previousView != null)
 			{
-				Children.Remove(_contentView);
-				_contentView?.Unparent();
-				_contentView?.Dispose();
-				_contentView = null;
+				Children.Remove(previousView);
+				previousView.Unparent();
 			}
 
-			_contentHandler?.Dispose();
-			_contentHandler = null;
+			if (previousHandler != null)
+			{
+				// The handler created the platform view and owns it, so disposing the handler
+				// disposes the view. Disposing both double-disposes the same native object.
+				previousHandler.Dispose();
+			}
+			else
+			{
+				// No handler means this was the placeholder created by CreateEmptyContent, which
+				// nothing else owns.
+				previousView?.Dispose();
+			}
 
 			if (Element?.PresentedContent is IView view)
 			{
@@ -103,6 +129,19 @@ namespace Microsoft.Maui.Platforms.Tizen
 				_contentView = CreateEmptyContent();
 			}
 			Children.Add(_contentView);
+		}
+
+		/// <summary>Stops the swipe animation, if one is running.</summary>
+		/// <remarks>
+		/// The animation is committed on this view under a fixed handle, so it outlives the content
+		/// it animates unless it is explicitly aborted. Both its stepper and its finished callback
+		/// touch <c>_contentView</c>, so it must be stopped before that view is replaced or
+		/// disposed — otherwise the callback runs against a disposed native object.
+		/// </remarks>
+		void AbortSwipeAnimation()
+		{
+			this.AbortAnimation(SwipeAnimationHandle);
+			_isResettingSwipe = false;
 		}
 
 		public void UpdateIsSwipeEnabled(bool isEnabled)
@@ -504,12 +543,17 @@ namespace Microsoft.Maui.Platforms.Tizen
 					case SwipeDirection.Right:
 						{
 							_swipeDirection = null;
-							var diffX = _contentView.PositionX - contentPosition.X;
+
+							// Captured, not read from the field: the field can be replaced by
+							// UpdateContent while this animation runs, and the stepper would then
+							// start driving whichever view happened to be current.
+							var animatedView = _contentView;
+							var diffX = animatedView.PositionX - contentPosition.X;
 							new Animation(v =>
 							{
-								_contentView.PositionX = (float)(contentPosition.X + diffX - diffX * v);
+								animatedView.PositionX = (float)(contentPosition.X + diffX - diffX * v);
 
-							}).Commit(this, "Swipe", (uint)SwipeAnimationDuration, finished: (v, r) =>
+							}).Commit(this, SwipeAnimationHandle, (uint)SwipeAnimationDuration, finished: (v, r) =>
 							{
 								if (_swipeDirection == null)
 									DisposeSwipeItems();
@@ -523,12 +567,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 					case SwipeDirection.Down:
 						{
 							_swipeDirection = null;
-							var diffY = _contentView.PositionY - contentPosition.Y;
+
+							// Captured for the same reason as the horizontal branch above.
+							var animatedView = _contentView;
+							var diffY = animatedView.PositionY - contentPosition.Y;
 							new Animation(v =>
 							{
-								_contentView.PositionY = (float)(contentPosition.Y + diffY - diffY * v);
+								animatedView.PositionY = (float)(contentPosition.Y + diffY - diffY * v);
 
-							}).Commit(this, "Swipe", (uint)SwipeAnimationDuration, finished: (v, r) =>
+							}).Commit(this, SwipeAnimationHandle, (uint)SwipeAnimationDuration, finished: (v, r) =>
 							{
 								if (_swipeDirection == null)
 									DisposeSwipeItems();

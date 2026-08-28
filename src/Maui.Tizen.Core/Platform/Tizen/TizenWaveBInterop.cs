@@ -10,6 +10,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Maui;
+using Microsoft.Maui.Dispatching;
 using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Platforms.Tizen.Handlers;
 using Tizen.UIExtensions.Common;
@@ -119,10 +120,26 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <c>ResourceReady</c> more than once; and nothing is written once the token is cancelled,
 		/// so a stale load cannot overwrite a newer one.
 		/// </remarks>
+		/// <summary>Removes the ResourceReady handler on the NUI main loop, and waits for it.</summary>
+		static async Task UnsubscribeResourceReadyAsync(
+			TizenNativeImageView imageView,
+			EventHandler<TizenNativeImageView.ResourceReadyEventArgs> handler,
+			IDispatcher? dispatcher)
+		{
+			if (dispatcher is null || !dispatcher.IsDispatchRequired)
+			{
+				imageView.ResourceReady -= handler;
+				return;
+			}
+
+			await dispatcher.DispatchAsync(() => imageView.ResourceReady -= handler).ConfigureAwait(false);
+		}
+
 		public static async Task<TizenImageApplyResult> ApplyImageSourceAsync(
 			this NView destinationContext,
 			TizenImageSource? platformImage,
 			Func<TizenImageSource?, bool> setImage,
+			IDispatcher? dispatcher = null,
 			CancellationToken cancellationToken = default)
 		{
 			ArgumentNullException.ThrowIfNull(setImage);
@@ -151,6 +168,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			try
 			{
+				// Subscribing happens before the first await, so it is still on the caller's thread -
+				// the mapper, which runs on the NUI main loop.
 				imageView.ResourceReady += OnResourceReady;
 
 				// The write is refused when this load no longer owns the view. Returning here
@@ -163,7 +182,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 			finally
 			{
-				imageView.ResourceReady -= OnResourceReady;
+				// Unsubscribing is a NUI signal mutation and must happen on the main loop. It cannot
+				// simply run here: the continuation resumes on a pool thread (ConfigureAwait(false),
+				// RunContinuationsAsynchronously), and a cancellation completion resumes on whichever
+				// thread cancelled.
+				//
+				// It is also AWAITED rather than posted. The caller disposes the platform view once
+				// this returns, so a fire-and-forget unsubscribe could be scheduled behind that
+				// disposal and then touch a freed native object.
+				await UnsubscribeResourceReadyAsync(imageView, OnResourceReady, dispatcher).ConfigureAwait(false);
 			}
 
 			if (cancellationToken.IsCancellationRequested)

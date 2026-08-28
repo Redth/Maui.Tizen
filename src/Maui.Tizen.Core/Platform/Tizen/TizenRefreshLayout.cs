@@ -48,9 +48,33 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_contentHandler = null;
 		}
 
-		public void UpdateIsRefreshing(IRefreshView view)
+		/// <summary>Serialises IsRefreshing around the base class's private completion animation.</summary>
+		public TizenRefreshStateMachine RefreshState { get; } = new();
+
+		/// <summary>
+		/// How long the native completion animation runs in Tizen.UIExtensions.NUI 0.9.2.
+		/// </summary>
+		/// <remarks>
+		/// The base class exposes no completion event and its state members are private, so the
+		/// window has to be waited out rather than observed. Deliberately a little longer than the
+		/// animation itself: replaying too early is silently dropped, which is the bug being fixed.
+		/// </remarks>
+		public const int CompletionWindowMilliseconds = 150;
+
+		/// <summary>Applies the machine's state to the platform view.</summary>
+		public void ApplyRefreshState() => IsRefreshing = RefreshState.IsRefreshing;
+
+		public void UpdateIsRefreshing(IRefreshView view) => UpdateIsRefreshing(view.IsRefreshing);
+
+		/// <summary>Requests a refresh state, returning what the caller must schedule.</summary>
+		public TizenRefreshAction UpdateIsRefreshing(bool isRefreshing)
 		{
-			IsRefreshing = view.IsRefreshing;
+			var action = RefreshState.Request(isRefreshing);
+
+			if (action == TizenRefreshAction.Apply)
+				ApplyRefreshState();
+
+			return action;
 		}
 
 		public void UpdateRefreshColor(IRefreshView view)

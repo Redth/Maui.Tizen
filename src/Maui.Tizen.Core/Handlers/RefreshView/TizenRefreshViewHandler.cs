@@ -6,6 +6,10 @@
 // exists in Microsoft.Maui.Core.
 
 using System;
+using System.Threading;
+using Microsoft.Maui.Dispatching;
+using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
@@ -54,12 +58,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			platformView.Refreshing += OnRefreshing;
 		}
 
+		/// <summary>Cancels a pending completion-window replay when the handler goes away.</summary>
+		CancellationTokenSource? _completionCts;
+
 		protected override void DisconnectHandler(TizenRefreshLayout platformView)
 		{
 			platformView.Refreshing -= OnRefreshing;
 
-			// Stop any refresh in flight before the view goes away.
-			platformView.IsRefreshing = false;
+			// Cancel any replay scheduled for the end of the completion window, so it cannot run
+			// against a view that is about to be disposed.
+			_completionCts?.Cancel();
+			_completionCts?.Dispose();
+			_completionCts = null;
+
+			// Deliberately NOT `platformView.IsRefreshing = false`. Writing that property starts the
+			// base class's completion animation - an async void with no cancellation - and its
+			// continuation then touches the refresh icon that the lines below are about to dispose.
+			// Reset abandons the state without producing a native write.
+			platformView.RefreshState.Reset();
 
 			// The content handler is owned here, so tearing this handler down must tear it down too.
 			platformView.DisposeContentHandler();
@@ -67,6 +83,58 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 			base.DisconnectHandler(platformView);
 		}
+
+		/// <summary>
+		/// Applies a refresh state, replaying it after the native completion window when required.
+		/// </summary>
+		void SetIsRefreshing(bool isRefreshing)
+		{
+			if (PlatformView.UpdateIsRefreshing(isRefreshing) != TizenRefreshAction.Defer)
+				return;
+
+			// Held because the native control is mid-completion and would drop it. Replay once the
+			// window closes, on the dispatcher, so the native write happens on the NUI main loop.
+			_completionCts?.Cancel();
+			_completionCts?.Dispose();
+
+			var source = new CancellationTokenSource();
+			_completionCts = source;
+
+			_ = ReplayAfterCompletionAsync(source.Token);
+		}
+
+		async Task ReplayAfterCompletionAsync(CancellationToken token)
+		{
+			try
+			{
+				await Task.Delay(TizenRefreshLayout.CompletionWindowMilliseconds, token).ConfigureAwait(false);
+			}
+			catch (OperationCanceledException)
+			{
+				return;
+			}
+
+			var dispatcher = MauiContext?.Services?.GetService<IDispatcher>();
+
+			void Replay()
+			{
+				if (token.IsCancellationRequested || !IsConnected())
+					return;
+
+				if (PlatformView.RefreshState.CompletionElapsed() == TizenRefreshAction.Apply)
+					PlatformView.ApplyRefreshState();
+			}
+
+			if (dispatcher is null || dispatcher.IsDispatchRequired is false)
+			{
+				Replay();
+				return;
+			}
+
+			dispatcher.Dispatch(Replay);
+		}
+
+		bool IsConnected() => VirtualView is not null && ReferenceEquals(VirtualView.Handler, this);
 
 		void OnRefreshing(object? sender, EventArgs e)
 		{
@@ -94,7 +162,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				return;
 			}
 
-			handler.PlatformView.UpdateIsRefreshing(refreshView);
+			handler.SetIsRefreshing(refreshView.IsRefreshing);
 		}
 
 		public static void MapContent(TizenRefreshViewHandler handler, IRefreshView refreshView) =>
