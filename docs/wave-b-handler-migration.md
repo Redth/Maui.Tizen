@@ -115,9 +115,10 @@ to the native containers and translate platform geometry only.
 
 No device or emulator run was performed and none is claimed.
 
-What *is* verified runs in `tests/Maui.Tizen.SourceTests` (12 tests, host-side, no Tizen SDK needed).
-It parses the migrated sources with Roslyn and checks them against the **real MAUI assemblies via
-reflection**, so the expectations are not transcribed by hand:
+What *is* verified runs in the host-side Core and SourceTests projects with no Tizen SDK needed.
+The production handler sources are compiled against host platform stubs, resolved through a real
+`UseMauiAppTizenControls<TApp>` factory and have their actual mappers executed. Source/metadata
+checks remain only for Tizen-only wiring that cannot load on the host:
 
 - every migrated source parses with zero syntax errors;
 - no migrated type name collides with a public MAUI type name;
@@ -125,7 +126,7 @@ reflection**, so the expectations are not transcribed by hand:
 - no private reflection (`BindingFlags.NonPublic`, `UnsafeAccessor`, …);
 - no `ProjectReference` into a dotnet/maui source tree;
 - **every mapper key on the corresponding neutral MAUI handler is implemented or recorded as a gap**,
-  accounting for keys inherited through mapper chaining;
+  accounting for the effective `TizenViewMappers` chain and explicit unsupported bodies;
 - every empty mapper body has a documented justification;
 - the committed parity manifest matches what the sources actually declare.
 
@@ -257,7 +258,9 @@ the composition root registers everything:
   Controls → Core, `ConfigureTizen` cannot reach back and register these, so
   `Maui.Tizen.Controls` supplies the entry point that closes the loop:
   **`ConfigureTizenControls`** / **`UseMauiAppTizenControls<TApp>`**, the same layering MAUI itself
-  uses. Controls apps call those instead of `ConfigureTizen`.
+  uses. `UseMauiAppTizenControls<TApp>` first calls MAUI Controls' `UseMauiApp<TApp>`, then finalized
+  Core configuration, mapper initialization, every Core/Wave A/Wave B concrete registration and
+  the seven shape registrations. It is the only public `ConfigureTizenControls` extension.
 
   For a period `AddTizenShapeHandlers` existed, compiled, and was covered by metadata assertions
   while having **no call site anywhere in the product**. Nothing detected it, because the symptom is
@@ -504,9 +507,11 @@ restores for every other orientation, so a view that was `Neither` is not left f
 ### Ownership at the swipe content boundary
 
 `UpdateContent` disposed the content view and then disposed the handler that created it — a
-double-dispose of the same native object. The handler owns the view it created, so the view is now
-unparented first, the handler disposed, and the view disposed directly only on the branch where no
-handler owns it (the placeholder from `CreateEmptyContent`).
+double-dispose of the same native object. `TizenContentOwnership` now snapshots and clears the
+fields before any callback, cancels animation callbacks, detaches the native view, and then disposes
+either the owning handler or the unowned placeholder exactly once. `TizenCallbackGeneration`
+rejects any animation step or completion that was already queued when replacement or teardown
+invalidated the content.
 
 ### Animations outlive the views they animate
 
@@ -523,27 +528,33 @@ Stopping and immediately restarting therefore left the virtual view believing it
 while the spinner never returned.
 
 Private reflection is not an option (see `docs/architecture.md`), so the transition is serialised on
-this side: `TizenRefreshStateMachine` holds a start requested during the window and replays it after
-it closes, and a stop supersedes a held start so a cancelled refresh is never resurrected. The
-machine is NUI-free, so this is executed rather than asserted.
+this side: `TizenRefreshCoordinator` schedules one completion expiry when a stop begins, holds a
+restart requested during the window, and rechecks enabled/desired/connected state on the dispatcher
+before replay. Repeated stop and disable clear pending restart intent without scheduling another
+expiry. The coordinator and state machine are NUI-free and are executed with a manual clock.
 
 ### Teardown must not start an animation
 
 Handler teardown used to write `IsRefreshing = false` and then dispose the layout. That write starts
 the base class's completion animation — an `async void` with no cancellation — whose continuation
-then touches the refresh icon the same teardown is disposing. Teardown now calls `Reset`, which
-abandons the state without producing a native write, and cancels any scheduled replay.
+then touches the refresh icon the same teardown is disposing. Teardown now cancels replay, marks the
+layout disconnected, detaches content before child disposal, and retains a completing native layout
+until the completion window expires before dispatching its final disposal.
 
 ### Image cleanup belongs on the main loop
 
 Image result disposal can release a NUI `ImageUrl`, so Core's loader captures the handler dispatcher
 before the asynchronous load starts and performs the commit, superseded-result disposal and failed
-dispatch recovery through that captured route. Disconnect invalidates Wave B's event sequence before
-disposing the loader, preventing a late completion from touching a detached part.
+dispatch recovery through that captured route. Wave B dispatches freshness checks,
+`LoadingCompleted`/`LoadingFailed` and `UpdateIsLoading(false)` as a second awaited lifecycle commit.
+Disconnect invalidates the originating part and clears its loading state before disposing the
+loader. URI loads report success only after NUI raises `ResourceReady` with a ready status.
 
 ### Visibility is not the indicator's to decide alone
 
 `UpdateCount` called `Show()` whenever the `HideSingle` policy allowed it, ignoring the virtual
 view's own `Visibility`. Because that method runs for every `Count`, `MaximumVisible` and appearance
 change, an indicator the app had hidden reappeared on an unrelated property change. The decision now
-combines both, in a portable helper that is covered behaviourally.
+combines both. The same production helper tracks the visible window start, keeps position 10 visible
+inside a 5-dot window for 20 items, and translates a tapped visible dot back to its absolute item
+position.

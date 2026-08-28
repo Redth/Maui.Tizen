@@ -19,22 +19,38 @@ namespace Microsoft.Maui.Platforms.Tizen
 	public class TizenRefreshLayout : RefreshLayout
 	{
 		ITizenPlatformViewHandler? _contentHandler;
+		TizenNativeView? _contentView;
+		bool _disconnected;
 
 		public void UpdateContent(IView? content, IMauiContext? mauiContext)
 		{
-			Content = null;
-			_contentHandler?.Dispose();
-			_contentHandler = null;
+			if (_disconnected)
+				return;
+
+			TizenNativeView? replacementView = null;
+			ITizenPlatformViewHandler? replacementHandler = null;
 
 			if (content != null && mauiContext != null)
 			{
-				var contentView = content.ToPlatformView(mauiContext);
+				replacementView = content.ToPlatformView(mauiContext);
 				if (content.Handler is ITizenPlatformViewHandler thandler)
-				{
-					_contentHandler = thandler;
-				}
-				Content = contentView;
+					replacementHandler = thandler;
 			}
+
+			TizenCleanup.Run(
+				() => TizenContentOwnership.Replace(
+					ref _contentView,
+					ref _contentHandler,
+					replacementView,
+					replacementHandler,
+					view =>
+					{
+						if (ReferenceEquals(Content, view))
+							Content = null;
+						view.Unparent();
+					},
+					static () => { }),
+				() => Content = _contentView);
 		}
 
 		/// <summary>Disposes the content handler this layout created.</summary>
@@ -44,8 +60,16 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </remarks>
 		public void DisposeContentHandler()
 		{
-			_contentHandler?.Dispose();
-			_contentHandler = null;
+			TizenContentOwnership.Clear(
+				ref _contentView,
+				ref _contentHandler,
+				view =>
+				{
+					if (ReferenceEquals(Content, view))
+						Content = null;
+					view.Unparent();
+				},
+				static () => { });
 		}
 
 		/// <summary>Serialises IsRefreshing around the base class's private completion animation.</summary>
@@ -61,29 +85,29 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </remarks>
 		public const int CompletionWindowMilliseconds = 150;
 
-		/// <summary>Applies the machine's state to the platform view.</summary>
-		public void ApplyRefreshState() => IsRefreshing = RefreshState.IsRefreshing;
-
-		public void UpdateIsRefreshing(IRefreshView view) => UpdateIsRefreshing(view.IsRefreshing);
-
-		/// <summary>Requests a refresh state, returning what the caller must schedule.</summary>
-		public TizenRefreshAction UpdateIsRefreshing(bool isRefreshing)
+		/// <summary>Applies a coordinator-approved state to the native layout.</summary>
+		internal void ApplyRefreshState(bool isRefreshing)
 		{
-			var action = RefreshState.Request(isRefreshing);
-
-			if (action == TizenRefreshAction.Apply)
-				ApplyRefreshState();
-
-			return action;
+			if (!_disconnected)
+				IsRefreshing = isRefreshing;
 		}
+
+		/// <summary>Prevents any late coordinator callback from touching this layout.</summary>
+		internal void MarkDisconnected() => _disconnected = true;
 
 		public void UpdateRefreshColor(IRefreshView view)
 		{
+			if (_disconnected)
+				return;
+
 			IconColor = view.RefreshColor.ToColor()?.ToTizenCommonColor() ?? TColor.Default;
 		}
 
 		public void UpdateBackground(IRefreshView view)
 		{
+			if (_disconnected)
+				return;
+
 			IconBackgroundColor = view.Background.ToColor()?.ToTizenCommonColor() ?? TColor.Default;
 		}
 	}

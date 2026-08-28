@@ -5,6 +5,7 @@ using Microsoft.Maui;
 using Microsoft.Maui.Platform;
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Microsoft.Maui.Platforms.Tizen
@@ -55,6 +56,47 @@ namespace Microsoft.Maui.Platforms.Tizen
 			finally
 			{
 				imageBuffer.Dispose();
+			}
+		}
+
+		/// <summary>
+		/// Resolves a URI through NUI and publishes it only after the platform reports a successful
+		/// resource load.
+		/// </summary>
+		internal async Task<bool> LoadUrlAsync(string url, CancellationToken cancellationToken)
+		{
+			ArgumentException.ThrowIfNullOrEmpty(url);
+			cancellationToken.ThrowIfCancellationRequested();
+
+			using var imageView = new global::Tizen.NUI.BaseComponents.ImageView();
+			var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+			void OnResourceReady(
+				object? sender,
+				global::Tizen.NUI.BaseComponents.ImageView.ResourceReadyEventArgs args) =>
+				completion.TrySetResult(
+					imageView.LoadingStatus ==
+					global::Tizen.NUI.BaseComponents.ImageView.LoadingStatusType.Ready);
+
+			imageView.ResourceReady += OnResourceReady;
+			using var registration = cancellationToken.Register(
+				static state => ((TaskCompletionSource<bool>)state!).TrySetCanceled(),
+				completion);
+
+			try
+			{
+				imageView.ResourceUrl = url;
+				var ready = await completion.Task;
+				cancellationToken.ThrowIfCancellationRequested();
+
+				if (ready)
+					ResourceUrl = url;
+
+				return ready;
+			}
+			finally
+			{
+				imageView.ResourceReady -= OnResourceReady;
 			}
 		}
 

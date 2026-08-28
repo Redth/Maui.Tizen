@@ -20,7 +20,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	public class TizenIndicatorViewHandler : TizenViewHandler<IIndicatorView, TizenPageControl>
 	{
 		public static IPropertyMapper<IIndicatorView, TizenIndicatorViewHandler> Mapper =
-			new PropertyMapper<IIndicatorView, TizenIndicatorViewHandler>(ViewMapper)
+			new PropertyMapper<IIndicatorView, TizenIndicatorViewHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(IIndicatorView.Count)] = MapCount,
 				[nameof(IIndicatorView.Position)] = MapPosition,
@@ -33,7 +33,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		public static CommandMapper<IIndicatorView, TizenIndicatorViewHandler> CommandMapper =
-			new(ViewCommandMapper)
+			new(TizenViewMappers.ViewCommandMapper)
 			{
 			};
 

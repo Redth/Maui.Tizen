@@ -16,6 +16,31 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// <summary>Reproductions of MAUI helpers that are internal to Microsoft.Maui.Core.</summary>
 	public static class TizenPortableExtensions
 	{
+		internal readonly record struct IndicatorWindow(int Start, int VisibleCount, int SelectedIndex)
+		{
+			public int ToAbsolutePosition(int visibleIndex)
+			{
+				if (visibleIndex < 0 || visibleIndex >= VisibleCount)
+					return -1;
+
+				return Start + visibleIndex;
+			}
+		}
+
+		internal static IndicatorWindow GetIndicatorWindow(int position, int count, int maximumVisible)
+		{
+			var visibleCount = Math.Max(0, Math.Min(count, maximumVisible));
+			if (visibleCount == 0 || position < 0 || count <= 0)
+				return new IndicatorWindow(0, visibleCount, -1);
+
+			var clampedPosition = Math.Clamp(position, 0, count - 1);
+			var start = count <= visibleCount
+				? 0
+				: Math.Clamp(clampedPosition - visibleCount + 1, 0, count - visibleCount);
+
+			return new IndicatorWindow(start, visibleCount, clampedPosition - start);
+		}
+
 		/// <summary>Returns whether any of <paramref name="points"/> falls inside the rectangle.</summary>
 		/// <remarks>Upstream used an internal <c>RectF.ContainsAny</c> helper.</remarks>
 		public static bool ContainsAny(this RectF rect, PointF[] points) => points.Any(rect.Contains);
@@ -34,18 +59,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// the selected item visible, which is the point of capping the dots at all.
 		/// </remarks>
 		public static int GetVisibleIndicatorPosition(int position, int count, int visibleCount)
-		{
-			if (visibleCount <= 0 || position < 0)
-				return -1;
-
-			if (count <= visibleCount)
-				return Math.Min(position, visibleCount - 1);
-
-			var maxStart = Math.Max(0, count - visibleCount);
-			var start = Math.Clamp(position - visibleCount + 1, 0, maxStart);
-
-			return Math.Clamp(position - start, 0, visibleCount - 1);
-		}
+			=> GetIndicatorWindow(position, count, visibleCount).SelectedIndex;
 
 
 		/// <summary>

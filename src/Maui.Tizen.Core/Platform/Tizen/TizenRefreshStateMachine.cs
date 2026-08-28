@@ -81,7 +81,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 			// virtual view has already cancelled.
 			_pendingStart = false;
 
-			if (!_isRefreshing && !_completing)
+			if (_completing)
+				return TizenRefreshAction.None;
+
+			if (!_isRefreshing)
 				return TizenRefreshAction.None;
 
 			_isRefreshing = false;

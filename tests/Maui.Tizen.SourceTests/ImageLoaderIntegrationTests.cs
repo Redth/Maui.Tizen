@@ -21,6 +21,7 @@ public class ImageLoaderIntegrationTests
 		Assert.Contains("TizenImageLoader<TizenImageSource>", source, StringComparison.Ordinal);
 		Assert.Contains("TizenDispatchExtensions.CaptureDispatcher(handler)", source, StringComparison.Ordinal);
 		Assert.Contains("_sourceLoader.LoadPartAsync(", source, StringComparison.Ordinal);
+		Assert.Contains(".FireAndForget(handler)", source, StringComparison.Ordinal);
 		Assert.Contains("_sourceLoader.Dispose", source, StringComparison.Ordinal);
 		Assert.DoesNotContain("TizenImageSourceLoader", source, StringComparison.Ordinal);
 		Assert.DoesNotContain("ApplyImageSourceAsync", source, StringComparison.Ordinal);
@@ -53,5 +54,19 @@ public class ImageLoaderIntegrationTests
 		Assert.Contains("AddService<IUriImageSource>", waveB, StringComparison.Ordinal);
 		Assert.Contains("AddService<IFontImageSource>", waveB, StringComparison.Ordinal);
 		Assert.DoesNotContain("AddTizenUriAndFontImageSources", services, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void UriServiceWaitsForNativeReadinessBeforeReturningSuccess()
+	{
+		var image = Read(
+			"src", "Maui.Tizen.Core", "ImageSources", "TizenImageSource.cs");
+		var service = Read(
+			"src", "Maui.Tizen.Core", "ImageSources", "TizenWaveBImageSourceServices.cs");
+
+		Assert.Contains("imageView.ResourceReady += OnResourceReady", image, StringComparison.Ordinal);
+		Assert.Contains("imageView.LoadingStatus", image, StringComparison.Ordinal);
+		Assert.Contains("cancellationToken.ThrowIfCancellationRequested()", image, StringComparison.Ordinal);
+		Assert.Contains("await image.LoadUrlAsync(uri.AbsoluteUri, cancellationToken)", service, StringComparison.Ordinal);
 	}
 }

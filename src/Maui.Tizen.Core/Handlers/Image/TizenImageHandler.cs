@@ -11,14 +11,15 @@ using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
 using Microsoft.Maui.Platforms.Tizen;
+using TizenImageView = Tizen.UIExtensions.NUI.Image;
 
 namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="IImage"/>.</summary>
-	public class TizenImageHandler : TizenViewHandler<IImage, Image>
+	public class TizenImageHandler : TizenViewHandler<IImage, TizenImageView>
 	{
 		public static IPropertyMapper<IImage, TizenImageHandler> Mapper =
-			new PropertyMapper<IImage, TizenImageHandler>(ViewMapper)
+			new PropertyMapper<IImage, TizenImageHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(IImage.Background)] = MapBackground,
 				[nameof(IImage.Aspect)] = MapAspect,
@@ -27,7 +28,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		public static CommandMapper<IImage, TizenImageHandler> CommandMapper =
-			new(ViewCommandMapper)
+			new(TizenViewMappers.ViewCommandMapper)
 			{
 			};
 
@@ -49,9 +50,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 		}
 
-		protected override Image CreatePlatformView() => new Image();
+		protected override TizenImageView CreatePlatformView() => new TizenImageView();
 
-		protected override void ConnectHandler(Image platformView)
+		protected override void ConnectHandler(TizenImageView platformView)
 		{
 			var replacement = new TizenImageLoader<TizenImageSource>();
 
@@ -62,7 +63,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				() => base.ConnectHandler(platformView));
 		}
 
-		protected override void DisconnectHandler(Image platformView)
+		protected override void DisconnectHandler(TizenImageView platformView)
 		{
 			TizenCleanup.Run(
 				_sourceEvents.Invalidate,
@@ -73,7 +74,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapBackground(TizenImageHandler handler, IImage image)
 		{
-			handler.PlatformView?.UpdateBackground(image);
+			TizenViewMappers.MapBackground(handler, image);
 		}
 
 		public static void MapAspect(TizenImageHandler handler, IImage image) =>
@@ -82,8 +83,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public static void MapIsAnimationPlaying(TizenImageHandler handler, IImage image) =>
 			handler.PlatformView?.UpdateIsAnimationPlaying(image);
 
-		public static void MapSource(TizenImageHandler handler, IImage image) =>
-			_ = MapSourceAsync(handler, image);
+		public static void MapSource(TizenImageHandler handler, IImage image)
+		{
+#if TIZEN
+			MapSourceAsync(handler, image).FireAndForget(handler);
+#endif
+		}
 
 		public static Task MapSourceAsync(TizenImageHandler handler, IImage image)
 		{

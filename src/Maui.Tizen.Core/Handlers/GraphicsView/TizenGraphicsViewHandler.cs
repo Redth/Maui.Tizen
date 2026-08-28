@@ -19,15 +19,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	public class TizenGraphicsViewHandler : TizenViewHandler<IGraphicsView, TizenTouchGraphicsView>
 	{
 		public static IPropertyMapper<IGraphicsView, TizenGraphicsViewHandler> Mapper =
-			new PropertyMapper<IGraphicsView, TizenGraphicsViewHandler>(ViewMapper)
+			new PropertyMapper<IGraphicsView, TizenGraphicsViewHandler>(TizenViewMappers.ViewMapper)
 			{
-				[nameof(IView.Background)] = MapBackground,
 				[nameof(IGraphicsView.Drawable)] = MapDrawable,
 				[nameof(IView.FlowDirection)] = MapFlowDirection,
 			};
 
 		public static CommandMapper<IGraphicsView, TizenGraphicsViewHandler> CommandMapper =
-			new(ViewCommandMapper)
+			new(TizenViewMappers.ViewCommandMapper)
 			{
 				[nameof(IGraphicsView.Invalidate)] = MapInvalidate,
 			};
@@ -68,6 +67,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapFlowDirection(TizenGraphicsViewHandler handler, IGraphicsView graphicsView)
 		{
+			TizenViewMappers.MapFlowDirection(handler, graphicsView);
 			handler.PlatformView?.UpdateFlowDirection(graphicsView);
 			handler.PlatformView?.Invalidate();
 		}

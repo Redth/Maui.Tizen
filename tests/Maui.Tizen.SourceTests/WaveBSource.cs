@@ -35,10 +35,16 @@ public static class WaveBSource
 		.OrderBy(h => h.TypeName, StringComparer.Ordinal)
 		.ToList();
 
+	public static HandlerSource SharedViewMapper { get; } = Parse(
+		RepoPaths.Combine("src", "Maui.Tizen.Core", "Handlers", "TizenViewMappers.cs"))
+		.Single(handler => handler.TypeName == "TizenViewMappers");
+
 	public static SyntaxTree ParseTree(string path) =>
 		CSharpSyntaxTree.ParseText(
 			File.ReadAllText(path),
-			new CSharpParseOptions(LanguageVersion.Latest),
+			new CSharpParseOptions(
+				LanguageVersion.Latest,
+				preprocessorSymbols: ["TIZEN"]),
 			path);
 
 	static IReadOnlyList<string> Discover()
@@ -99,8 +105,8 @@ public static class WaveBSource
 				{
 					var target = variable.Identifier.Text switch
 					{
-						"Mapper" => property,
-						"CommandMapper" => command,
+						"Mapper" or "ViewMapper" => property,
+						"CommandMapper" or "ViewCommandMapper" => command,
 						_ => null,
 					};
 

@@ -20,7 +20,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	public class TizenShapeViewHandler : TizenViewHandler<IShapeView, TizenShapeView>
 	{
 		public static IPropertyMapper<IShapeView, TizenShapeViewHandler> Mapper =
-			new PropertyMapper<IShapeView, TizenShapeViewHandler>(ViewMapper)
+			new PropertyMapper<IShapeView, TizenShapeViewHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(IShapeView.Shape)] = MapShape,
 				[nameof(IShapeView.Aspect)] = MapAspect,
@@ -43,7 +43,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		public static CommandMapper<IShapeView, TizenShapeViewHandler> CommandMapper =
-			new(ViewCommandMapper)
+			new(TizenViewMappers.ViewCommandMapper)
 			{
 			};
 

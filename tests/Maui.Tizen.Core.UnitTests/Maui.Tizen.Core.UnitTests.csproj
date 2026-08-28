@@ -52,6 +52,12 @@
     <Compile Include="@(MauiTizenPortableCompile)" LinkBase="Backend" />
     <Compile Include="@(MauiTizenHandlerCompile)" LinkBase="Backend" />
     <Compile Include="$(MauiTizenCoreDir)Platform/TizenImageLoaderExtensions.cs" LinkBase="Backend" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/TizenContentOwnership.cs" LinkBase="WaveB" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/TizenRefreshCoordinator.cs" LinkBase="WaveB" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenTaskExtensions.cs" LinkBase="WaveB" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenRefreshStateMachine.cs" LinkBase="WaveB" />
+    <Compile Include="@(MauiTizenWaveBHandlerCompile)" LinkBase="WaveB" />
+    <Compile Include="@(MauiTizenWaveBControlsCompile)" LinkBase="WaveBControls" />
 
     <!--
       The Controls bridge. Every NUI call in it is inside `#if TIZEN`, so it compiles against the

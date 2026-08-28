@@ -45,6 +45,7 @@
       can compile code the product cannot, which is the one failure mode a verification lane must
       not have: it would report green while the shipping assembly fails to build.
     -->
+    <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Microsoft.Maui.Controls.Core" />
     <PackageReference Include="Microsoft.Maui.Core" />
 

@@ -13,11 +13,12 @@ using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
 using Microsoft.Maui.Platforms.Tizen;
+using TizenButton = Tizen.UIExtensions.NUI.Button;
 
 namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="ISwipeItemMenuItem"/>.</summary>
-	public class TizenSwipeItemMenuItemHandler : ElementHandler<ISwipeItemMenuItem, Button>
+	public class TizenSwipeItemMenuItemHandler : ElementHandler<ISwipeItemMenuItem, TizenButton>
 	{
 		public static IPropertyMapper<ISwipeItemMenuItem, TizenSwipeItemMenuItemHandler> Mapper =
 			new PropertyMapper<ISwipeItemMenuItem, TizenSwipeItemMenuItemHandler>(ElementMapper)
@@ -63,7 +64,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		/// <inheritdoc />
-		protected override void ConnectHandler(Button platformView)
+		protected override void ConnectHandler(TizenButton platformView)
 		{
 			var replacement = new TizenImageLoader<TizenImageSource>();
 
@@ -75,7 +76,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		/// <inheritdoc />
-		protected override void DisconnectHandler(Button platformView)
+		protected override void DisconnectHandler(TizenButton platformView)
 		{
 			TizenCleanup.Run(
 				_sourceEvents.Invalidate,
@@ -83,8 +84,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				() => base.DisconnectHandler(platformView));
 		}
 
-		protected override Button CreatePlatformElement() =>
-			new Button
+		protected override TizenButton CreatePlatformElement() =>
+			new TizenButton
 			{
 				BackgroundColor = global::Tizen.NUI.Color.Transparent,
 				IconRelativeOrientation = global::Tizen.NUI.Components.Button.IconOrientation.Top,
@@ -158,8 +159,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			swipeView?.UpdateIsVisibleSwipeItem(view);
 		}
 
-		public static void MapSource(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view) =>
-			_ = MapSourceAsync(handler, view);
+		public static void MapSource(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view)
+		{
+#if TIZEN
+			MapSourceAsync(handler, view).FireAndForget(handler);
+#endif
+		}
 
 		/// <summary>
 		/// The <c>IconColor</c> mapper key, contributed by Microsoft.Maui.Controls rather than

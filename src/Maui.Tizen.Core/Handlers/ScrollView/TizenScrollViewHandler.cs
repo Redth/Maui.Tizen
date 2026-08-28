@@ -15,14 +15,15 @@ using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
 using Microsoft.Maui.Platforms.Tizen;
+using TizenScrollView = Tizen.UIExtensions.NUI.ScrollView;
 
 namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="IScrollView"/>.</summary>
-	public class TizenScrollViewHandler : TizenViewHandler<IScrollView, ScrollView>
+	public class TizenScrollViewHandler : TizenViewHandler<IScrollView, TizenScrollView>
 	{
 		public static IPropertyMapper<IScrollView, TizenScrollViewHandler> Mapper =
-			new PropertyMapper<IScrollView, TizenScrollViewHandler>(ViewMapper)
+			new PropertyMapper<IScrollView, TizenScrollViewHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(IScrollView.Content)] = MapContent,
 				[nameof(IScrollView.HorizontalScrollBarVisibility)] = MapHorizontalScrollBarVisibility,
@@ -31,7 +32,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		public static CommandMapper<IScrollView, TizenScrollViewHandler> CommandMapper =
-			new(ViewCommandMapper)
+			new(TizenViewMappers.ViewCommandMapper)
 			{
 				[nameof(IScrollView.RequestScrollTo)] = MapRequestScrollTo,
 			};
@@ -56,9 +57,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 		}
 
-		protected override ScrollView CreatePlatformView() => new TizenScrollViewGroup(VirtualView);
+		protected override TizenScrollView CreatePlatformView() => new TizenScrollViewGroup(VirtualView);
 
-		protected override void ConnectHandler(ScrollView platformView)
+		protected override void ConnectHandler(TizenScrollView platformView)
 		{
 			base.ConnectHandler(platformView);
 
@@ -67,19 +68,34 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			platformView.Relayout += OnRelayout;
 		}
 
-		protected override void DisconnectHandler(ScrollView platformView)
+		protected override void DisconnectHandler(TizenScrollView platformView)
 		{
-			if (!platformView.HasBody())
-				return;
+			var contentHandler = _contentHandler;
+			_contentHandler = null;
+			_cachedWidth = 0;
+			_cachedHeight = 0;
+			_measureCache = default;
 
-			// The content handler is created here, so it must be released here. Without this the
-			// child handler outlives its parent and keeps the native content view alive.
-			UpdateContent(null);
-
-			base.DisconnectHandler(platformView);
-			platformView.Scrolling -= OnScrolled;
-			platformView.ScrollAnimationEnded -= ScrollAnimationEnded;
-			platformView.Relayout -= OnRelayout;
+			// ElementHandler clears its PlatformView before this typed callback runs. Every cleanup
+			// action therefore uses the captured parameter and the child snapshot, never the
+			// PlatformView property.
+			TizenCleanup.Run(
+				() =>
+				{
+					if (contentHandler?.PlatformView is TizenLayoutViewGroup viewGroup)
+						viewGroup.LayoutUpdated -= OnContentLayoutUpdated;
+				},
+				() => platformView.ContentContainer.Remove(contentHandler?.PlatformView),
+				() =>
+				{
+					platformView.ContentContainer.SizeWidth = 0;
+					platformView.ContentContainer.SizeHeight = 0;
+				},
+				() => platformView.Scrolling -= OnScrolled,
+				() => platformView.ScrollAnimationEnded -= ScrollAnimationEnded,
+				() => platformView.Relayout -= OnRelayout,
+				() => contentHandler?.Dispose(),
+				() => base.DisconnectHandler(platformView));
 		}
 
 		void ScrollAnimationEnded(object? sender, EventArgs e)

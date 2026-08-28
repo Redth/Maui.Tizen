@@ -6,10 +6,7 @@
 // exists in Microsoft.Maui.Core.
 
 using System;
-using System.Threading;
-using Microsoft.Maui.Dispatching;
 using System.Threading.Tasks;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
@@ -21,7 +18,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	public class TizenRefreshViewHandler : TizenViewHandler<IRefreshView, TizenRefreshLayout>
 	{
 		public static IPropertyMapper<IRefreshView, TizenRefreshViewHandler> Mapper =
-			new PropertyMapper<IRefreshView, TizenRefreshViewHandler>(ViewMapper)
+			new PropertyMapper<IRefreshView, TizenRefreshViewHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(IRefreshView.IsRefreshing)] = MapIsRefreshing,
 				[nameof(IRefreshView.Content)] = MapContent,
@@ -31,7 +28,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		public static CommandMapper<IRefreshView, TizenRefreshViewHandler> CommandMapper =
-			new(ViewCommandMapper)
+			new(TizenViewMappers.ViewCommandMapper)
 			{
 			};
 
@@ -54,87 +51,66 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override void ConnectHandler(TizenRefreshLayout platformView)
 		{
-			base.ConnectHandler(platformView);
-			platformView.Refreshing += OnRefreshing;
+			var dispatcher = TizenDispatchExtensions.CaptureDispatcher(this);
+			var replacement = new TizenRefreshCoordinator(
+				platformView.RefreshState,
+				token => Task.Delay(TizenRefreshLayout.CompletionWindowMilliseconds, token),
+				dispatcher,
+				platformView.ApplyRefreshState,
+				() =>
+					ReferenceEquals(((IElementHandler)this).PlatformView, platformView) &&
+					ReferenceEquals(VirtualView?.Handler, this));
+
+			TizenCleanup.Run(
+				() => _refreshCoordinator?.Dispose(),
+				() => _refreshCoordinator = replacement,
+				() => base.ConnectHandler(platformView),
+				() => platformView.Refreshing += OnRefreshing);
 		}
 
-		/// <summary>Cancels a pending completion-window replay when the handler goes away.</summary>
-		CancellationTokenSource? _completionCts;
+		TizenRefreshCoordinator? _refreshCoordinator;
 
 		protected override void DisconnectHandler(TizenRefreshLayout platformView)
 		{
-			platformView.Refreshing -= OnRefreshing;
+			var coordinator = _refreshCoordinator;
+			_refreshCoordinator = null;
 
-			// Cancel any replay scheduled for the end of the completion window, so it cannot run
-			// against a view that is about to be disposed.
-			_completionCts?.Cancel();
-			_completionCts?.Dispose();
-			_completionCts = null;
-
-			// Deliberately NOT `platformView.IsRefreshing = false`. Writing that property starts the
-			// base class's completion animation - an async void with no cancellation - and its
-			// continuation then touches the refresh icon that the lines below are about to dispose.
-			// Reset abandons the state without producing a native write.
-			platformView.RefreshState.Reset();
-
-			// The content handler is owned here, so tearing this handler down must tear it down too.
-			platformView.DisposeContentHandler();
-			platformView.Content = null;
-
-			base.DisconnectHandler(platformView);
+			TizenCleanup.Run(
+				platformView.MarkDisconnected,
+				() => platformView.Refreshing -= OnRefreshing,
+				() => coordinator?.Dispose(),
+				platformView.DisposeContentHandler,
+				() => base.DisconnectHandler(platformView));
 		}
 
-		/// <summary>
-		/// Applies a refresh state, replaying it after the native completion window when required.
-		/// </summary>
-		void SetIsRefreshing(bool isRefreshing)
+		protected override void Dispose(bool disposing)
 		{
-			if (PlatformView.UpdateIsRefreshing(isRefreshing) != TizenRefreshAction.Defer)
+			if (!disposing)
+			{
+				base.Dispose(disposing);
 				return;
+			}
 
-			// Held because the native control is mid-completion and would drop it. Replay once the
-			// window closes, on the dispatcher, so the native write happens on the NUI main loop.
-			_completionCts?.Cancel();
-			_completionCts?.Dispose();
+			var platformView = ((IElementHandler)this).PlatformView as TizenRefreshLayout;
+			var coordinator = _refreshCoordinator;
 
-			var source = new CancellationTokenSource();
-			_completionCts = source;
+			if (platformView is not null && coordinator?.IsCompleting == true)
+			{
+				var deferredDisposal = coordinator.RetainPlatformUntilCompletionAsync(platformView.Dispose);
+				TizenCleanup.Run(
+					() => ((IElementHandler)this).DisconnectHandler(),
+					() => deferredDisposal.FireAndForget(this));
+				return;
+			}
 
-			_ = ReplayAfterCompletionAsync(source.Token);
+			base.Dispose(disposing);
 		}
 
-		async Task ReplayAfterCompletionAsync(CancellationToken token)
+		void RequestRefresh(bool desired, bool enabled)
 		{
-			try
-			{
-				await Task.Delay(TizenRefreshLayout.CompletionWindowMilliseconds, token).ConfigureAwait(false);
-			}
-			catch (OperationCanceledException)
-			{
-				return;
-			}
-
-			var dispatcher = MauiContext?.Services?.GetService<IDispatcher>();
-
-			void Replay()
-			{
-				if (token.IsCancellationRequested || !IsConnected())
-					return;
-
-				if (PlatformView.RefreshState.CompletionElapsed() == TizenRefreshAction.Apply)
-					PlatformView.ApplyRefreshState();
-			}
-
-			if (dispatcher is null || dispatcher.IsDispatchRequired is false)
-			{
-				Replay();
-				return;
-			}
-
-			dispatcher.Dispatch(Replay);
+			var replay = _refreshCoordinator?.Request(desired, enabled);
+			replay?.FireAndForget(this);
 		}
-
-		bool IsConnected() => VirtualView is not null && ReferenceEquals(VirtualView.Handler, this);
 
 		void OnRefreshing(object? sender, EventArgs e)
 		{
@@ -144,7 +120,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			// snaps back, which reads as a glitch rather than as "disabled".
 			if (!VirtualView.IsRefreshEnabled)
 			{
-				PlatformView.IsRefreshing = false;
+				RequestRefresh(desired: false, enabled: false);
 				return;
 			}
 
@@ -157,12 +133,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			// spinning forever with no way to complete it.
 			if (refreshView.IsRefreshing && !refreshView.IsRefreshEnabled)
 			{
-				handler.PlatformView.IsRefreshing = false;
 				refreshView.IsRefreshing = false;
-				return;
 			}
 
-			handler.SetIsRefreshing(refreshView.IsRefreshing);
+			handler.RequestRefresh(refreshView.IsRefreshing, refreshView.IsRefreshEnabled);
 		}
 
 		public static void MapContent(TizenRefreshViewHandler handler, IRefreshView refreshView) =>
@@ -172,7 +146,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			handler.PlatformView.UpdateRefreshColor(refreshView);
 
 		public static void MapBackground(TizenRefreshViewHandler handler, IRefreshView view) =>
-			handler.PlatformView.UpdateBackground(view);
+			TizenViewMappers.MapBackground(handler, view);
 
 		/// <summary>
 		/// Applies <see cref="IRefreshView.IsRefreshEnabled"/>.
@@ -186,11 +160,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </remarks>
 		public static void MapIsRefreshEnabled(TizenRefreshViewHandler handler, IRefreshView refreshView)
 		{
-			if (!refreshView.IsRefreshEnabled && handler.PlatformView.IsRefreshing)
+			if (!refreshView.IsRefreshEnabled)
 			{
-				handler.PlatformView.IsRefreshing = false;
-				refreshView.IsRefreshing = false;
+				if (refreshView.IsRefreshing)
+					refreshView.IsRefreshing = false;
+
+				handler.RequestRefresh(desired: false, enabled: false);
+				return;
 			}
+
+			handler.RequestRefresh(refreshView.IsRefreshing, enabled: true);
 		}
 	}
 }

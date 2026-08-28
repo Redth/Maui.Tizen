@@ -11,8 +11,9 @@ and indicator handlers of the Tizen backend.
 
 The machine-readable companion to this document is
 [`wave-b-mapper-parity.json`](wave-b-mapper-parity.json). **It is generated, not hand-maintained.**
-`Maui.Tizen.SourceTests` rebuilds it from the migrated sources plus reflection over the real MAUI
-assemblies and fails if the committed copy has drifted:
+`Maui.Tizen.SourceTests` rebuilds it from the migrated sources, the effective finalized
+`TizenViewMappers` chain, and reflection over the real MAUI assemblies. It records inherited Tizen
+implementations separately from explicit unsupported bodies and fails if the committed copy drifts:
 
 ```bash
 dotnet test tests/Maui.Tizen.SourceTests                          # verify
@@ -43,15 +44,15 @@ reflecting over the shipped MAUI assemblies rather than trusting a hard-coded li
 
 ## Parity summary
 
-Every mapper key declared by the corresponding neutral MAUI handler is accounted for. Keys supplied
-by the shared `ViewMapper`/`ElementMapper`, and by a migrated base handler's mapper (the shape
-handlers chain `TizenShapeViewHandler.Mapper`), are inherited through mapper chaining and are not
-re-declared.
+Every mapper key declared by the corresponding neutral MAUI handler is accounted for. View handlers
+chain `TizenViewMappers.ViewMapper` and `ViewCommandMapper`; shape handlers additionally chain
+`TizenShapeViewHandler.Mapper`. The JSON includes these effective inherited entries instead of
+reporting only directly-declared keys.
 
 | Handler | Property mappers | Command mappers | Unmapped neutral keys |
 |---|---:|---:|---:|
 | `TizenBorderHandler` | 10 (8 unsupported, see below) | 0 | 0 |
-| `TizenGraphicsViewHandler` | 3 | 1 | 0 |
+| `TizenGraphicsViewHandler` | 2 | 1 | 0 |
 | `TizenImageHandler` | 4 | 0 | 0 |
 | `TizenImageButtonHandler` | 7 | 0 | 0 |
 | `TizenIndicatorViewHandler` | 8 | 0 | 0 |
@@ -87,41 +88,18 @@ exist — it does; only the Core interface member does not.
 
 ## Dispatch, not just key presence
 
-`MapperDispatchTests` **invokes** every reachable key against a handler that implements
-`IViewHandler` and derives from no built-in handler — the position every Tizen handler is in.
-
-This targets a failure key-presence parity cannot see. `PropertyMapper<TVirtualView, TViewHandler>.Add`
-wraps each mapping in a closure that performs `(TViewHandler)h`, guarded **only** by a check on the
-virtual view type. When `TViewHandler` is a concrete built-in handler, any other handler reaching
-that key through chaining throws `InvalidCastException` at runtime while every key-presence
-assertion still passes.
-
-Such mappings really do exist in MAUI — 28 of them, on `ApplicationHandler`, `PickerHandler`,
-`ProgressBarHandler`, `StepperHandler` and `CarouselViewHandler`. **Wave B chains none of them**:
-it chains only `ViewMapper` and `ElementMapper`, whose every entry is `Action<IViewHandler, IView>`.
-A test asserts that and fails if it ever stops being true.
-
-`CarouselViewHandler` being on that list is a direct warning for Wave C, which owns it.
+`WaveBConcreteMapperTests` resolves every concrete Controls type through the production
+`UseMauiAppTizenControls<TApp>` factory, creates the real Tizen handler source against host platform
+stubs, and executes visibility, enabled state, opacity, background, transformations, sizing, input,
+focus and invalidation mappings. This catches a neutral no-op chain or concrete-handler cast while
+also proving the handler is reachable without manual registration.
 
 ## Inherited keys that silently do nothing
 
-Dispatching a key proves it does not crash. It does not prove it does anything. `InertMapperTests`
-reads the IL of every mapper target reachable through `ViewMapper` and flags the ones whose body is
-a bare `ret`.
-
-Eleven are, and the cause is structural rather than an oversight in this port: **MAUI 11 ships no
-Tizen target framework**, so this repository consumes the neutral `net11.0` assembly, in which
-`PlatformView` is `object` and the platform half of each mapper does not exist.
-
-| Keys | Status |
-|---|---|
-| `TranslationX`, `TranslationY`, `Scale`, `ScaleX`, `ScaleY`, `Rotation`, `RotationX`, `RotationY`, `AnchorX`, `AnchorY` | **Regression against upstream.** Upstream's Tizen build routed all ten through `TransformationExtensions.UpdateTransformation`, which really did move, scale and rotate the NUI view. Today they do nothing. |
-| `ToolTip` | Not a regression — upstream's own Tizen `UpdateToolTip` is an empty body, so Tizen has never shown tooltips. |
-
-**`ViewMapper` is chained by core, Wave A and Wave B alike, so this is not a Wave B defect and the
-fix does not belong in a single wave.** It belongs in the shared Tizen view handler, where one
-implementation serves every handler in the repository. Raised for core rather than patched here,
-because duplicating it per wave would guarantee a conflict the moment core does it properly.
+The effective manifest classifies empty production bodies as `Unsupported` and requires a reason.
+The finalized shared mapper implements transformations and the other common view mappings. Remaining
+unsupported entries are explicit platform/API gaps such as `ToolTip`, maximum size, the obsolete
+`IBorder.Border` key and the unavailable external container hook.
 
 The test records the current set rather than merely asserting it is empty, so a *new* inert key —
 MAUI moving something else behind a platform guard — fails the build instead of quietly joining the
@@ -205,8 +183,8 @@ That last one is the crash-safety invariant.
 handler to `TViewHandler`, guarded only by the virtual-view type. When `TViewHandler` is a concrete
 upstream class such as `LineHandler`, dispatching that key onto a Tizen handler throws
 `InvalidCastException` — and such keys are typically reachable only through chaining, so nothing in
-the source names them. Wave B chains only `ViewMapper`/`ElementMapper` (interface-typed, so
-`Action<IViewHandler, IView>`) and `TizenShapeViewHandler.Mapper`, which keeps the hard cast
-impossible. Each of these assertions was mutation-tested: removing the base `StrokeDashArray`
+the source names them. Wave B view handlers chain finalized `TizenViewMappers`; the swipe menu item
+chains only the interface-typed element mapper; and shapes chain `TizenShapeViewHandler.Mapper`.
+Each of these assertions was mutation-tested: removing the base `StrokeDashArray`
 mapping fails all seven shape tests, and pointing one handler at neutral `LineHandler.Mapper` fails
 the invariant.

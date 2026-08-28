@@ -18,7 +18,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	public class TizenImageButtonHandler : TizenViewHandler<IImageButton, TizenImageButtonView>
 	{
 		public static IPropertyMapper<IImageButton, TizenImageButtonHandler> Mapper =
-			new PropertyMapper<IImageButton, TizenImageButtonHandler>(ViewMapper)
+			new PropertyMapper<IImageButton, TizenImageButtonHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(IImage.Aspect)] = MapAspect,
 				[nameof(IImage.IsAnimationPlaying)] = MapIsAnimationPlaying,
@@ -30,7 +30,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		public static CommandMapper<IImageButton, TizenImageButtonHandler> CommandMapper =
-			new(ViewCommandMapper)
+			new(TizenViewMappers.ViewCommandMapper)
 			{
 			};
 
@@ -108,8 +108,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public static void MapIsAnimationPlaying(TizenImageButtonHandler handler, IImageButton imageButton) =>
 			handler.PlatformView?.UpdateIsAnimationPlaying(imageButton);
 
-		public static void MapSource(TizenImageButtonHandler handler, IImageButton imageButton) =>
-			_ = MapSourceAsync(handler, imageButton);
+		public static void MapSource(TizenImageButtonHandler handler, IImageButton imageButton)
+		{
+#if TIZEN
+			MapSourceAsync(handler, imageButton).FireAndForget(handler);
+#endif
+		}
 
 		public static Task MapSourceAsync(TizenImageButtonHandler handler, IImageButton imageButton)
 		{

@@ -38,20 +38,29 @@ namespace Microsoft.Maui.Platforms.Tizen
 		}
 
 		/// <inheritdoc />
-		public Task<IImageSourceServiceResult<TizenImageSource>?> GetImageAsync(IImageSource imageSource, CancellationToken cancellationToken = default)
+		public async Task<IImageSourceServiceResult<TizenImageSource>?> GetImageAsync(IImageSource imageSource, CancellationToken cancellationToken = default)
 		{
 			if (imageSource is not IUriImageSource uriImageSource || uriImageSource.IsEmpty)
-				return Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(null);
+				return null;
 
 			var uri = uriImageSource.Uri;
 
 			try
 			{
-				// NUI resolves remote and file URIs itself, so the URL is handed over as-is.
-				var image = new TizenImageSource { ResourceUrl = uri.AbsoluteUri };
+				var image = new TizenImageSource();
 
-				return Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(
-					new TizenImageSourceServiceResult(image, image.Dispose));
+#if TIZEN
+				if (!await image.LoadUrlAsync(uri.AbsoluteUri, cancellationToken))
+				{
+					image.Dispose();
+					_logger?.LogWarning("Unable to load image URI '{Uri}'.", uri);
+					return null;
+				}
+#else
+				image.ResourceUrl = uri.AbsoluteUri;
+#endif
+
+				return new TizenImageSourceServiceResult(image, image.Dispose);
 			}
 			catch (Exception ex)
 			{

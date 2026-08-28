@@ -25,7 +25,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	public class TizenBorderHandler : TizenViewHandler<IBorderView, TizenContentViewGroup>
 	{
 		public static IPropertyMapper<IBorderView, TizenBorderHandler> Mapper =
-			new PropertyMapper<IBorderView, TizenBorderHandler>(ViewMapper)
+			new PropertyMapper<IBorderView, TizenBorderHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(IBorderView.Background)] = MapBackground,
 				[nameof(IBorderView.Content)] = MapContent,
@@ -40,11 +40,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		public static CommandMapper<IBorderView, TizenBorderHandler> CommandMapper =
-			new(ViewCommandMapper)
+			new(TizenViewMappers.ViewCommandMapper)
 			{
 			};
 
 		ITizenPlatformViewHandler? _contentHandler;
+		TizenNativeView? _contentView;
 
 		public TizenBorderHandler()
 			: base(Mapper, CommandMapper)
@@ -88,14 +89,25 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override void Dispose(bool disposing)
 		{
-			if (disposing)
+			if (!disposing)
 			{
-				_contentHandler?.Dispose();
-				_contentHandler = null;
+				base.Dispose(disposing);
+				return;
 			}
 
-			base.Dispose(disposing);
+			var platformView = ((IElementHandler)this).PlatformView as TizenContentViewGroup;
+
+			TizenCleanup.Run(
+				() => ClearOwnedContent(platformView),
+				() => base.Dispose(disposing));
 		}
+
+		void ClearOwnedContent(TizenContentViewGroup? platformView) =>
+			TizenContentOwnership.Clear(
+				ref _contentView,
+				ref _contentHandler,
+				view => platformView?.Children.Remove(view),
+				static () => { });
 
 		void UpdateContent()
 		{
@@ -103,22 +115,37 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			_ = VirtualView ?? throw new InvalidOperationException($"{nameof(VirtualView)} should have been set by base class.");
 			_ = MauiContext ?? throw new InvalidOperationException($"{nameof(MauiContext)} should have been set by base class.");
 
-			PlatformView.Children.Clear();
-			_contentHandler?.Dispose();
-			_contentHandler = null;
+			TizenNativeView? replacementView = null;
+			ITizenPlatformViewHandler? replacementHandler = null;
 
 			if (VirtualView.PresentedContent is IView view)
 			{
-				PlatformView.Children.Add(view.ToPlatformView(MauiContext));
+				replacementView = view.ToPlatformView(MauiContext);
 				if (view.Handler is ITizenPlatformViewHandler thandler)
-				{
-					_contentHandler = thandler;
-				}
+					replacementHandler = thandler;
 			}
+
+			if (ReferenceEquals(_contentView, replacementView)
+				&& ReferenceEquals(_contentHandler, replacementHandler))
+				return;
+
+			TizenCleanup.Run(
+				() => TizenContentOwnership.Replace(
+					ref _contentView,
+					ref _contentHandler,
+					replacementView,
+					replacementHandler,
+					oldView => PlatformView.Children.Remove(oldView),
+					static () => { }),
+				() =>
+				{
+					if (_contentView is not null)
+						PlatformView.Children.Add(_contentView);
+				});
 		}
 
 		public static void MapBackground(TizenBorderHandler handler, IBorderView border) =>
-			handler.PlatformView?.UpdateBackground(border);
+			TizenViewMappers.MapBackground(handler, border);
 
 		public static void MapContent(TizenBorderHandler handler, IBorderView border) => handler.UpdateContent();
 

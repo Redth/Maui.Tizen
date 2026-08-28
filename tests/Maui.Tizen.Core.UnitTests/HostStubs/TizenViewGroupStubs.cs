@@ -10,6 +10,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// </summary>
 	public class TizenContentViewGroup : TizenPlatformView
 	{
+		/// <summary>Gets the child platform views.</summary>
+		public System.Collections.Generic.List<TizenPlatformView> Children { get; } = new();
+
 		/// <summary>Initializes a new instance of the <see cref="TizenContentViewGroup"/> class.</summary>
 		/// <param name="virtualView">The cross-platform view this group renders.</param>
 		public TizenContentViewGroup(IView? virtualView) => VirtualView = virtualView;
@@ -35,6 +38,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// </summary>
 	public class TizenLayoutViewGroup : TizenContentViewGroup
 	{
+		EventHandler<global::Tizen.UIExtensions.Common.LayoutEventArgs>? _layoutUpdated;
+
 		/// <summary>Initializes a new instance of the <see cref="TizenLayoutViewGroup"/> class.</summary>
 		/// <param name="virtualView">The cross-platform view this group renders.</param>
 		public TizenLayoutViewGroup(IView? virtualView)
@@ -44,5 +49,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		/// <summary>Gets or sets a value indicating whether input passes through this group.</summary>
 		public bool InputTransparent { get; set; }
+
+		/// <summary>Gets or sets the nested layout-update depth.</summary>
+		public int IsLayoutUpdating { get; set; }
+
+		/// <summary>Raised when the layout changes.</summary>
+		public event EventHandler<global::Tizen.UIExtensions.Common.LayoutEventArgs>? LayoutUpdated
+		{
+			add => _layoutUpdated += value;
+			remove => _layoutUpdated -= value;
+		}
 	}
 }

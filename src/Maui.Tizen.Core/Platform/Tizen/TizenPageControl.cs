@@ -35,6 +35,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		List<Indicator> _indicators = new List<Indicator>();
 		int _currentPoistion = -1;
+		int _visibleWindowStart;
 
 		public TizenPageControl(IIndicatorView view)
 		{
@@ -83,7 +84,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 
 			UpdateIndicatorColor(_currentPoistion, _indicatorView.IndicatorColor);
-			_currentPoistion = GetVisiblePosition();
+			var window = GetVisibleWindow();
+			_visibleWindowStart = window.Start;
+			_currentPoistion = window.SelectedIndex;
 			UpdateIndicatorColor(_currentPoistion, _indicatorView.SelectedIndicatorColor);
 		}
 
@@ -101,13 +104,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// dot count in the first place.
 		/// </para>
 		/// </remarks>
-		int GetVisiblePosition()
-		{
-			return TizenPortableExtensions.GetVisibleIndicatorPosition(
+		TizenPortableExtensions.IndicatorWindow GetVisibleWindow() =>
+			TizenPortableExtensions.GetIndicatorWindow(
 				_indicatorView.Position,
 				_indicatorView.Count,
 				_indicators.Count);
-		}
 
 		public void UpdateCount()
 		{
@@ -197,10 +198,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 			// The highlight must use the WINDOWED position, not the raw one. With 20 items, a
 			// maximum of 5 and position 10, `i == Position` is never true, so a rebuild triggered by
 			// an appearance change (colour, size, shape) left no dot highlighted at all.
-			_currentPoistion = TizenPortableExtensions.GetVisibleIndicatorPosition(
+			var window = TizenPortableExtensions.GetIndicatorWindow(
 				_indicatorView.Position,
 				_indicatorView.Count,
 				count);
+			_visibleWindowStart = window.Start;
+			_currentPoistion = window.SelectedIndex;
 
 			for (int i = 0; i < count; i++)
 			{
@@ -263,7 +266,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (_contentView == null)
 				return;
 
-			var indicator = CreateIndicator(_indicators.Count == _indicatorView.Position ? _indicatorView.SelectedIndicatorColor : _indicatorView.IndicatorColor);
+			var window = TizenPortableExtensions.GetIndicatorWindow(
+				_indicatorView.Position,
+				_indicatorView.Count,
+				Math.Min(_indicatorView.Count, _indicatorView.MaximumVisible));
+			var indicator = CreateIndicator(
+				_indicators.Count == window.SelectedIndex
+					? _indicatorView.SelectedIndicatorColor
+					: _indicatorView.IndicatorColor);
 			_contentView.Add(indicator);
 			_indicators.Add(indicator);
 		}
@@ -279,7 +289,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 					var position = _indicators.IndexOf(indicator);
 					if (position != -1)
 					{
-						_indicatorView.Position = position;
+						_indicatorView.Position = _visibleWindowStart + position;
 					}
 				}
 			}

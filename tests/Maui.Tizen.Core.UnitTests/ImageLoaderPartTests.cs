@@ -58,6 +58,28 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			public void LoadingFailed(Exception exception) => Failures.Add(exception);
 		}
 
+		sealed class QueuedCommit
+		{
+			readonly List<(Action Action, TaskCompletionSource Completion)> _pending = new();
+
+			public int Count => _pending.Count;
+
+			public Task Enqueue(Action action)
+			{
+				var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+				_pending.Add((action, completion));
+				return completion.Task;
+			}
+
+			public void RunNext()
+			{
+				var pending = _pending[0];
+				_pending.RemoveAt(0);
+				pending.Action();
+				pending.Completion.SetResult();
+			}
+		}
+
 		static Task CommitInline(Action action)
 		{
 			action();
@@ -146,6 +168,132 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal("current", applied?.Name);
 			Assert.Equal(new[] { false, true }, part.Completions);
 			Assert.False(part.IsLoading);
+		}
+
+		[Fact]
+		public async Task CompletionAndLoadingResetRunInTheDispatchedLifecycleCommit()
+		{
+			using var loader = new TizenImageLoader<FakeImage>();
+			var events = new TizenImageLoadEvents();
+			var part = new FakePart { Source = new FakeSource() };
+			var commits = new QueuedCommit();
+
+			var load = loader.LoadPartAsync(
+				part,
+				events,
+				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(new FakeResult("image")),
+				commits.Enqueue,
+				static _ => { },
+				static () => true);
+
+			Assert.True(part.IsLoading);
+			Assert.Equal(1, commits.Count);
+
+			commits.RunNext();
+			for (var i = 0; i < 20 && commits.Count == 0; i++)
+				await Task.Yield();
+
+			Assert.Equal(1, commits.Count);
+			Assert.Empty(part.Completions);
+			Assert.True(part.IsLoading);
+
+			commits.RunNext();
+			await load;
+
+			Assert.Equal(new[] { true }, part.Completions);
+			Assert.False(part.IsLoading);
+		}
+
+		[Fact]
+		public async Task DisconnectClearsOriginatingLoadingStateAndRejectsLateResult()
+		{
+			var loader = new TizenImageLoader<FakeImage>();
+			var events = new TizenImageLoadEvents();
+			var part = new FakePart { Source = new FakeSource() };
+			var result = new TaskCompletionSource<IImageSourceServiceResult<FakeImage>?>(
+				TaskCreationOptions.RunContinuationsAsynchronously);
+			FakeImage? applied = null;
+
+			var load = loader.LoadPartAsync(
+				part,
+				events,
+				(_, _) => result.Task,
+				CommitInline,
+				image => applied = image,
+				static () => true);
+
+			Assert.True(part.IsLoading);
+
+			events.Invalidate();
+			loader.Dispose();
+			result.SetResult(new FakeResult("late"));
+			await load;
+
+			Assert.False(part.IsLoading);
+			Assert.Null(applied);
+			Assert.Equal(new[] { false }, part.Completions);
+		}
+
+		[Fact]
+		public async Task RejectedDispatcherIsResetByDisconnect()
+		{
+			using var loader = new TizenImageLoader<FakeImage>();
+			var events = new TizenImageLoadEvents();
+			var part = new FakePart { Source = new FakeSource() };
+
+			await Assert.ThrowsAsync<InvalidOperationException>(() =>
+				loader.LoadPartAsync(
+					part,
+					events,
+					(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(new FakeResult("image")),
+					static _ => Task.FromException(new InvalidOperationException("dispatch rejected")),
+					static _ => { },
+					static () => true));
+
+			events.Invalidate();
+
+			Assert.False(part.IsLoading);
+		}
+
+		[Fact]
+		public async Task LateLoadAAfterDisconnectReconnectAndLoadBCannotReplaceB()
+		{
+			var events = new TizenImageLoadEvents();
+			var loaderA = new TizenImageLoader<FakeImage>();
+			var partA = new FakePart { Source = new FakeSource() };
+			var pendingA = new TaskCompletionSource<IImageSourceServiceResult<FakeImage>?>(
+				TaskCreationOptions.RunContinuationsAsynchronously);
+			FakeImage? applied = null;
+
+			var loadA = loaderA.LoadPartAsync(
+				partA,
+				events,
+				(_, _) => pendingA.Task,
+				CommitInline,
+				image => applied = image,
+				static () => true);
+
+			events.Invalidate();
+			loaderA.Dispose();
+
+			using var loaderB = new TizenImageLoader<FakeImage>();
+			var partB = new FakePart { Source = new FakeSource() };
+			await loaderB.LoadPartAsync(
+				partB,
+				events,
+				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(new FakeResult("B")),
+				CommitInline,
+				image => applied = image,
+				static () => true);
+
+			pendingA.SetResult(new FakeResult("A"));
+			await loadA;
+
+			Assert.Equal("B", applied?.Name);
+			Assert.False(partA.IsLoading);
+			Assert.False(partB.IsLoading);
+			Assert.Equal(new[] { false }, partA.Completions);
+			Assert.Equal(new[] { true }, partB.Completions);
 		}
 	}
 }

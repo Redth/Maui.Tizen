@@ -17,7 +17,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	public class TizenSwipeViewHandler : TizenViewHandler<ISwipeView, TizenSwipeViewGroup>
 	{
 		public static IPropertyMapper<ISwipeView, TizenSwipeViewHandler> Mapper =
-			new PropertyMapper<ISwipeView, TizenSwipeViewHandler>(ViewMapper)
+			new PropertyMapper<ISwipeView, TizenSwipeViewHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(IContentView.Content)] = MapContent,
 				[nameof(ISwipeView.SwipeTransitionMode)] = MapSwipeTransitionMode,
@@ -29,7 +29,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		public static CommandMapper<ISwipeView, TizenSwipeViewHandler> CommandMapper =
-			new(ViewCommandMapper)
+			new(TizenViewMappers.ViewCommandMapper)
 			{
 				[nameof(ISwipeView.RequestOpen)] = MapRequestOpen,
 				[nameof(ISwipeView.RequestClose)] = MapRequestClose,
@@ -59,8 +59,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </remarks>
 		protected override void DisconnectHandler(TizenSwipeViewGroup platformView)
 		{
-			platformView.DisposeChildHandlers();
-			base.DisconnectHandler(platformView);
+			TizenCleanup.Run(
+				platformView.DisposeChildHandlers,
+				() => base.DisconnectHandler(platformView));
 		}
 
 		public override void SetVirtualView(IView view)
@@ -86,7 +87,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public static void MapIsEnabled(TizenSwipeViewHandler handler, ISwipeView swipeView)
 		{
 			handler.PlatformView.UpdateIsSwipeEnabled(swipeView.IsEnabled);
-			ViewHandler.MapIsEnabled(handler, swipeView);
+			TizenViewMappers.MapIsEnabled(handler, swipeView);
 		}
 
 		public static void MapSwipeTransitionMode(TizenSwipeViewHandler handler, ISwipeView swipeView)

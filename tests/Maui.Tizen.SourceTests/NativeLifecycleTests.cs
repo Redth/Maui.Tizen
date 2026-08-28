@@ -49,101 +49,17 @@ public class NativeLifecycleTests
 	}
 
 	/// <summary>
-	/// The swipe content view must not be disposed directly when a handler owns it.
+	/// The native swipe view delegates ownership and late-callback rejection to the host-tested
+	/// coordinators.
 	/// </summary>
-	/// <remarks>
-	/// <c>UpdateContent</c> used to call <c>_contentView.Dispose()</c> and then dispose the handler
-	/// that created that same view, double-disposing the native object.
-	/// </remarks>
 	[Fact]
-	public void SwipeContentIsNotDoubleDisposed()
+	public void SwipeNativePathUsesTheTestedOwnershipCoordinators()
 	{
 		var source = SwipeGroup;
 
-		// The direct dispose is now reachable only on the no-handler branch.
-		Assert.DoesNotContain("_contentView?.Dispose();", source, StringComparison.Ordinal);
-		Assert.DoesNotContain("_contentView.Dispose();", source, StringComparison.Ordinal);
-
-		Assert.Contains("previousHandler.Dispose();", source, StringComparison.Ordinal);
-		Assert.Contains("previousView?.Dispose();", source, StringComparison.Ordinal);
-	}
-
-	/// <summary>The old view is unparented before anything disposes it.</summary>
-	[Fact]
-	public void SwipeContentIsUnparentedBeforeDisposal()
-	{
-		var source = SwipeGroup;
-
-		var unparent = source.IndexOf("previousView.Unparent();", StringComparison.Ordinal);
-		var disposeHandler = source.IndexOf("previousHandler.Dispose();", StringComparison.Ordinal);
-
-		Assert.True(unparent >= 0, "The previous content view is never unparented.");
-		Assert.True(disposeHandler >= 0, "The previous content handler is never disposed.");
-		Assert.True(unparent < disposeHandler, "The view must be unparented before its owner is disposed.");
-	}
-
-	/// <summary>
-	/// The swipe animation is aborted before the content it animates is replaced or torn down.
-	/// </summary>
-	/// <remarks>
-	/// The animation is committed under a fixed handle and outlives the content otherwise. Both its
-	/// stepper and its finished callback touch the content view, so an animation left running across
-	/// a replacement or a disconnect runs against a disposed native object.
-	/// </remarks>
-	[Theory]
-	[InlineData("UpdateContent")]
-	[InlineData("DisposeChildHandlers")]
-	public void TheSwipeAnimationIsAbortedBefore(string method)
-	{
-		var source = SwipeGroup;
-
-		var start = source.IndexOf($"public void {method}()", StringComparison.Ordinal);
-		Assert.True(start >= 0, $"{method} not found.");
-
-		var body = source[start..Math.Min(source.Length, start + 700)];
-
-		Assert.Contains("AbortSwipeAnimation();", body, StringComparison.Ordinal);
-	}
-
-	/// <summary>
-	/// The animation callbacks capture the view rather than reading the mutable field.
-	/// </summary>
-	/// <remarks>
-	/// Reading <c>_contentView</c> inside the stepper means a replacement mid-animation silently
-	/// redirects the animation onto the new view.
-	/// </remarks>
-	[Fact]
-	public void TheSwipeAnimationCapturesItsView()
-	{
-		var source = SwipeGroup;
-
-		Assert.Contains("var animatedView = _contentView;", source, StringComparison.Ordinal);
-		Assert.DoesNotContain("_contentView.PositionX = (float)(contentPosition.X + diffX", source, StringComparison.Ordinal);
-		Assert.DoesNotContain("_contentView.PositionY = (float)(contentPosition.Y + diffY", source, StringComparison.Ordinal);
-	}
-
-	/// <summary>
-	/// Refresh teardown must not write <c>IsRefreshing</c>.
-	/// </summary>
-	/// <remarks>
-	/// That write starts the base class's completion animation, an async void with no cancellation,
-	/// whose continuation then touches the refresh icon the same teardown is about to dispose.
-	/// </remarks>
-	[Fact]
-	public void RefreshTeardownDoesNotStartTheCompletionAnimation()
-	{
-		var source = ReadCode("src", "Maui.Tizen.Core", "Handlers", "RefreshView", "TizenRefreshViewHandler.cs");
-
-		var start = source.IndexOf("protected override void DisconnectHandler", StringComparison.Ordinal);
-		Assert.True(start >= 0);
-
-		var body = source[start..source.IndexOf("base.DisconnectHandler", start, StringComparison.Ordinal)];
-
-		Assert.DoesNotContain("IsRefreshing = false", body, StringComparison.Ordinal);
-		Assert.Contains("RefreshState.Reset();", body, StringComparison.Ordinal);
-
-		// The scheduled replay must be cancelled, or it fires against a disposed view.
-		Assert.Contains("_completionCts?.Cancel();", body, StringComparison.Ordinal);
+		Assert.Contains("TizenContentOwnership.Clear(", source, StringComparison.Ordinal);
+		Assert.Contains("CancelContentCallbacks", source, StringComparison.Ordinal);
+		Assert.Contains("_contentGeneration.IsCurrent(", source, StringComparison.Ordinal);
 	}
 
 	/// <summary>Every image call site captures Core's finalized commit dispatcher.</summary>
@@ -168,6 +84,7 @@ public class NativeLifecycleTests
 		var source = Read("src", "Maui.Tizen.Core", "Platform", "Tizen", "TizenPageControl.cs");
 
 		Assert.Contains("IsIndicatorVisible(_indicatorView.Visibility", source, StringComparison.Ordinal);
+		Assert.Contains("_indicatorView.Position = _visibleWindowStart + position", source, StringComparison.Ordinal);
 	}
 
 	/// <summary>

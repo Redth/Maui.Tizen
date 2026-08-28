@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Hosting;
@@ -50,9 +51,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		static MauiApp BuildControlsApp()
 		{
 			var builder = MauiApp.CreateBuilder();
-			builder.UseMauiApp<ControlsApp>();
-			builder.ConfigureTizen();
-			builder.ConfigureTizenControls();
+			builder.UseMauiAppTizenControls<ControlsApp>();
 
 			return builder.Build();
 		}
@@ -79,6 +78,23 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[InlineData(typeof(VerticalStackLayout), typeof(TizenLayoutHandler))]
 		[InlineData(typeof(Grid), typeof(TizenLayoutHandler))]
 		[InlineData(typeof(Window), typeof(TizenWindowHandler))]
+		[InlineData(typeof(ScrollView), typeof(TizenScrollViewHandler))]
+		[InlineData(typeof(Border), typeof(TizenBorderHandler))]
+		[InlineData(typeof(Image), typeof(TizenImageHandler))]
+		[InlineData(typeof(ImageButton), typeof(TizenImageButtonHandler))]
+		[InlineData(typeof(GraphicsView), typeof(TizenGraphicsViewHandler))]
+		[InlineData(typeof(RefreshView), typeof(TizenRefreshViewHandler))]
+		[InlineData(typeof(SwipeView), typeof(TizenSwipeViewHandler))]
+		[InlineData(typeof(IndicatorView), typeof(TizenIndicatorViewHandler))]
+		[InlineData(typeof(SwipeItemView), typeof(TizenSwipeItemViewHandler))]
+		[InlineData(typeof(SwipeItem), typeof(TizenSwipeItemMenuItemHandler))]
+		[InlineData(typeof(BoxView), typeof(TizenBoxViewHandler))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Line), typeof(TizenLineHandler))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Path), typeof(TizenPathHandler))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Polygon), typeof(TizenPolygonHandler))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Polyline), typeof(TizenPolylineHandler))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Rectangle), typeof(TizenRectangleHandler))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.RoundRectangle), typeof(TizenRoundRectangleHandler))]
 		public void ControlsTypeResolvesToTheTizenHandler(Type controlType, Type expectedHandler)
 		{
 			using var app = BuildControlsApp();
@@ -105,6 +121,22 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[InlineData(typeof(Switch))]
 		[InlineData(typeof(TimePicker))]
 		[InlineData(typeof(VerticalStackLayout))]
+		[InlineData(typeof(ScrollView))]
+		[InlineData(typeof(Border))]
+		[InlineData(typeof(Image))]
+		[InlineData(typeof(ImageButton))]
+		[InlineData(typeof(GraphicsView))]
+		[InlineData(typeof(RefreshView))]
+		[InlineData(typeof(SwipeView))]
+		[InlineData(typeof(IndicatorView))]
+		[InlineData(typeof(SwipeItemView))]
+		[InlineData(typeof(BoxView))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Line))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Path))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Polygon))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Polyline))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Rectangle))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.RoundRectangle))]
 		public void ResolvedControlsHandlerIsConstructible(Type controlType)
 		{
 			using var app = BuildControlsApp();
@@ -113,6 +145,24 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			Assert.NotNull(handler);
 			Assert.IsAssignableFrom<IViewHandler>(handler);
+		}
+
+		[Fact]
+		public void ExactlyOnePublicConfigureTizenControlsExtensionShips()
+		{
+			var methods = typeof(TizenControlsMauiAppBuilderExtensions).Assembly
+				.GetExportedTypes()
+				.SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static))
+				.Where(method => method.Name == nameof(TizenControlsMauiAppBuilderExtensions.ConfigureTizenControls))
+				.Where(method =>
+				{
+					var parameters = method.GetParameters();
+					return parameters.Length == 1 && parameters[0].ParameterType == typeof(MauiAppBuilder);
+				})
+				.ToArray();
+
+			Assert.Single(methods);
+			Assert.Equal(typeof(TizenControlsMauiAppBuilderExtensions), methods[0].DeclaringType);
 		}
 
 		[Fact]

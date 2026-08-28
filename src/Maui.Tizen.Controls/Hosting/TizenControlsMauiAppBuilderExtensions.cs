@@ -2,7 +2,10 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using Microsoft.Maui.Controls;
+using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Hosting;
+using Microsoft.Maui.Platforms.Tizen.Controls;
 
 namespace Microsoft.Maui.Platforms.Tizen.Hosting
 {
@@ -43,6 +46,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 			ArgumentNullException.ThrowIfNull(builder);
 
 			builder.ConfigureTizen();
+			builder.AddTizenControlsBackend();
 			builder.ConfigureMauiHandlers(handlers => handlers.AddTizenShapeHandlers());
 
 			return builder;
@@ -61,14 +65,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 		/// <param name="builder">The app builder.</param>
 		/// <returns>The app builder, for chaining.</returns>
 		public static MauiAppBuilder UseMauiAppTizenControls<TApp>(this MauiAppBuilder builder)
-			where TApp : class, IApplication
+			where TApp : Application
 		{
 			ArgumentNullException.ThrowIfNull(builder);
 
-			builder.UseMauiAppTizen<TApp>();
-			builder.ConfigureMauiHandlers(handlers => handlers.AddTizenShapeHandlers());
-
-			return builder;
+			builder.UseMauiApp<TApp>();
+			return builder.ConfigureTizenControls();
 		}
 	}
 }

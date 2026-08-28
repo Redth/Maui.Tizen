@@ -370,14 +370,11 @@ Microsoft.Maui.Platforms.Tizen.TizenRefreshAction.Apply = 1 -> Microsoft.Maui.Pl
 Microsoft.Maui.Platforms.Tizen.TizenRefreshAction.Defer = 2 -> Microsoft.Maui.Platforms.Tizen.TizenRefreshAction
 Microsoft.Maui.Platforms.Tizen.TizenRefreshAction.None = 0 -> Microsoft.Maui.Platforms.Tizen.TizenRefreshAction
 Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout
-Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.ApplyRefreshState() -> void
 Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.DisposeContentHandler() -> void
 Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.RefreshState.get -> Microsoft.Maui.Platforms.Tizen.TizenRefreshStateMachine!
 Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.TizenRefreshLayout() -> void
 Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.UpdateBackground(Microsoft.Maui.IRefreshView! view) -> void
 Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.UpdateContent(Microsoft.Maui.IView? content, Microsoft.Maui.IMauiContext? mauiContext) -> void
-Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.UpdateIsRefreshing(bool isRefreshing) -> Microsoft.Maui.Platforms.Tizen.TizenRefreshAction
-Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.UpdateIsRefreshing(Microsoft.Maui.IRefreshView! view) -> void
 Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.UpdateRefreshColor(Microsoft.Maui.IRefreshView! view) -> void
 Microsoft.Maui.Platforms.Tizen.TizenRefreshStateMachine
 Microsoft.Maui.Platforms.Tizen.TizenRefreshStateMachine.CompletionElapsed() -> Microsoft.Maui.Platforms.Tizen.TizenRefreshAction
@@ -577,6 +574,7 @@ override Microsoft.Maui.Platforms.Tizen.Handlers.TizenRadioButtonHandler.Disconn
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenRefreshViewHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenRefreshViewHandler.CreatePlatformView() -> Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout!
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenRefreshViewHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenRefreshViewHandler.Dispose(bool disposing) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenScrollViewHandler.ConnectHandler(Tizen.UIExtensions.NUI.ScrollView! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenScrollViewHandler.CreatePlatformView() -> Tizen.UIExtensions.NUI.ScrollView!
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenScrollViewHandler.DisconnectHandler(Tizen.UIExtensions.NUI.ScrollView! platformView) -> void

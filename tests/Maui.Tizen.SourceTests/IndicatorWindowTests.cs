@@ -57,4 +57,38 @@ public class IndicatorWindowTests
 	[Fact]
 	public void APositionPastTheEndClamps() =>
 		Assert.Equal(2, TizenPortableExtensions.GetVisibleIndicatorPosition(9, 3, 3));
+
+	[Fact]
+	public void PositionTenUsesWindowSixThroughTenAndTranslatesTaps()
+	{
+		var window = TizenPortableExtensions.GetIndicatorWindow(
+			position: 10,
+			count: 20,
+			maximumVisible: 5);
+
+		Assert.Equal(6, window.Start);
+		Assert.Equal(5, window.VisibleCount);
+		Assert.Equal(4, window.SelectedIndex);
+		Assert.Equal(6, window.ToAbsolutePosition(0));
+		Assert.Equal(8, window.ToAbsolutePosition(2));
+		Assert.Equal(10, window.ToAbsolutePosition(4));
+	}
+
+	[Theory]
+	[InlineData(0, 20, 5, 0, 0)]
+	[InlineData(4, 20, 5, 0, 4)]
+	[InlineData(19, 20, 5, 15, 4)]
+	[InlineData(9, 3, 3, 0, 2)]
+	public void EdgeWindowsClampStartAndSelection(
+		int position,
+		int count,
+		int visible,
+		int expectedStart,
+		int expectedSelection)
+	{
+		var window = TizenPortableExtensions.GetIndicatorWindow(position, count, visible);
+
+		Assert.Equal(expectedStart, window.Start);
+		Assert.Equal(expectedSelection, window.SelectedIndex);
+	}
 }

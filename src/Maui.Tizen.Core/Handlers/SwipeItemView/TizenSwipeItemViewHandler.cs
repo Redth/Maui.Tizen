@@ -17,18 +17,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	public class TizenSwipeItemViewHandler : TizenViewHandler<ISwipeItemView, TizenContentViewGroup>
 	{
 		public static IPropertyMapper<ISwipeItemView, TizenSwipeItemViewHandler> Mapper =
-			new PropertyMapper<ISwipeItemView, TizenSwipeItemViewHandler>(ViewMapper)
+			new PropertyMapper<ISwipeItemView, TizenSwipeItemViewHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(ISwipeItemView.Content)] = MapContent,
 				[nameof(ISwipeItemView.Visibility)] = MapVisibility,
 			};
 
 		public static CommandMapper<ISwipeItemView, TizenSwipeItemViewHandler> CommandMapper =
-			new(ViewCommandMapper)
+			new(TizenViewMappers.ViewCommandMapper)
 			{
 			};
 
 		ITizenPlatformViewHandler? _contentHandler;
+		TizenNativeView? _contentView;
 
 		public TizenSwipeItemViewHandler()
 			: base(Mapper, CommandMapper)
@@ -68,14 +69,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override void Dispose(bool disposing)
 		{
-			if (disposing)
+			if (!disposing)
 			{
-				_contentHandler?.Dispose();
-				_contentHandler = null;
+				base.Dispose(disposing);
+				return;
 			}
 
-			base.Dispose(disposing);
+			var platformView = ((IElementHandler)this).PlatformView as TizenContentViewGroup;
+			TizenCleanup.Run(
+				() => ClearContent(platformView),
+				() => base.Dispose(disposing));
 		}
+
+		void ClearContent(TizenContentViewGroup? platformView) =>
+			TizenContentOwnership.Clear(
+				ref _contentView,
+				ref _contentHandler,
+				view => platformView?.Children.Remove(view),
+				static () => { });
 
 		void UpdateContent()
 		{
@@ -83,26 +94,36 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			_ = VirtualView ?? throw new InvalidOperationException($"{nameof(VirtualView)} should have been set by base class.");
 			_ = MauiContext ?? throw new InvalidOperationException($"{nameof(MauiContext)} should have been set by base class.");
 
-			// Clean up the old view when the item is reused.
-			PlatformView.Children.Clear();
-			_contentHandler?.Dispose();
-			_contentHandler = null;
+			TizenNativeView? replacementView = null;
+			ITizenPlatformViewHandler? replacementHandler = null;
 
 			if (VirtualView.PresentedContent is IView view)
 			{
-				PlatformView.Children.Add(view.ToPlatformView(MauiContext));
+				replacementView = view.ToPlatformView(MauiContext);
 				if (view.Handler is ITizenPlatformViewHandler thandler)
-				{
-					_contentHandler = thandler;
-				}
+					replacementHandler = thandler;
 			}
+
+			TizenCleanup.Run(
+				() => TizenContentOwnership.Replace(
+					ref _contentView,
+					ref _contentHandler,
+					replacementView,
+					replacementHandler,
+					oldView => PlatformView.Children.Remove(oldView),
+					static () => { }),
+				() =>
+				{
+					if (_contentView is not null)
+						PlatformView.Children.Add(_contentView);
+				});
 		}
 
 		public static void MapContent(TizenSwipeItemViewHandler handler, ISwipeItemView page) => handler.UpdateContent();
 
 		public static void MapVisibility(TizenSwipeItemViewHandler handler, ISwipeItemView view)
 		{
-			handler.PlatformView.UpdateVisibility(view);
+			TizenViewMappers.MapVisibility(handler, view);
 
 			var swipeView = handler.PlatformView.GetParentOfType<TizenSwipeViewGroup>();
 			swipeView?.UpdateIsVisibleSwipeItem(view);

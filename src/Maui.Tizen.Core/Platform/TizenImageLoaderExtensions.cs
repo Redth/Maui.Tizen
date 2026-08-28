@@ -10,11 +10,32 @@ namespace Microsoft.Maui.Platforms.Tizen
 {
 	internal sealed class TizenImageLoadEvents
 	{
+		readonly object _gate = new();
 		long _generation;
+		IImageSourcePart? _originatingPart;
 
-		public long Begin() => Interlocked.Increment(ref _generation);
+		public long Begin(IImageSourcePart part)
+		{
+			lock (_gate)
+			{
+				_originatingPart = part;
+				return ++_generation;
+			}
+		}
 
-		public void Invalidate() => Interlocked.Increment(ref _generation);
+		public void Invalidate()
+		{
+			IImageSourcePart? part;
+
+			lock (_gate)
+			{
+				_generation++;
+				part = _originatingPart;
+				_originatingPart = null;
+			}
+
+			part?.UpdateIsLoading(false);
+		}
 
 		public bool IsCurrent(long generation) => Volatile.Read(ref _generation) == generation;
 	}
@@ -39,7 +60,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ArgumentNullException.ThrowIfNull(apply);
 			ArgumentNullException.ThrowIfNull(isTargetCurrent);
 
-			var generation = loadEvents.Begin();
+			var generation = loadEvents.Begin(part);
 			var source = part.Source;
 			var events = part as IImageSourcePartEvents;
 			Exception? loadFailure = null;
@@ -87,43 +108,60 @@ namespace Microsoft.Maui.Platforms.Tizen
 					() => ReferenceEquals(part.Source, source),
 					isTargetCurrent).ConfigureAwait(false);
 
-				if (!loadEvents.IsCurrent(generation)
-					|| !ReferenceEquals(part.Source, source)
-					|| !isTargetCurrent())
+				await commitOnUiThread(() =>
 				{
-					events?.LoadingCompleted(false);
+					if (!loadEvents.IsCurrent(generation)
+						|| !ReferenceEquals(part.Source, source)
+						|| !isTargetCurrent())
+					{
+						reported = true;
+						events?.LoadingCompleted(false);
+						return;
+					}
+
 					reported = true;
-					return;
-				}
-
-				if (loadFailure is not null)
-					events?.LoadingFailed(loadFailure);
-				else
-					events?.LoadingCompleted(
-						ReferenceEquals(loader.CurrentSource, source) && loader.Current is not null);
-
-				reported = true;
+					TizenCleanup.Run(
+						() =>
+						{
+							if (loadFailure is not null)
+								events?.LoadingFailed(loadFailure);
+							else
+								events?.LoadingCompleted(
+									ReferenceEquals(loader.CurrentSource, source) && loader.Current is not null);
+						},
+						() => part.UpdateIsLoading(false));
+				}).ConfigureAwait(false);
 			}
 			catch (Exception exception)
 			{
 				if (!reported)
 				{
-					if (loadEvents.IsCurrent(generation)
-						&& ReferenceEquals(part.Source, source)
-						&& isTargetCurrent())
-						events?.LoadingFailed(exception);
-					else
-						events?.LoadingCompleted(false);
+					try
+					{
+						await commitOnUiThread(() =>
+						{
+							if (loadEvents.IsCurrent(generation)
+								&& ReferenceEquals(part.Source, source)
+								&& isTargetCurrent())
+							{
+								TizenCleanup.Run(
+									() => events?.LoadingFailed(exception),
+									() => part.UpdateIsLoading(false));
+							}
+							else
+							{
+								events?.LoadingCompleted(false);
+							}
+						}).ConfigureAwait(false);
+					}
+					catch
+					{
+						// A rejected dispatcher cannot safely run lifecycle callbacks. Disconnect
+						// invalidates the originating part synchronously and clears IsLoading.
+					}
 				}
 
 				throw;
-			}
-			finally
-			{
-				if (loadEvents.IsCurrent(generation)
-					&& ReferenceEquals(part.Source, source)
-					&& isTargetCurrent())
-					part.UpdateIsLoading(false);
 			}
 		}
 	}

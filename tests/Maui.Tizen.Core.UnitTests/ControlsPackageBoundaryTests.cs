@@ -85,9 +85,10 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				.ToArray();
 
 			Assert.Contains(entries, e => e.EndsWith(".TizenControlsMappings", StringComparison.Ordinal));
-			Assert.Contains(entries, e => e.EndsWith(".TizenControlsHostingExtensions", StringComparison.Ordinal));
+			Assert.Contains(entries, e => e.EndsWith(".TizenControlsMauiAppBuilderExtensions", StringComparison.Ordinal));
 			Assert.Contains(entries, e => e.Contains(".Register() -> void", StringComparison.Ordinal));
 			Assert.Contains(entries, e => e.Contains(".ConfigureTizenControls(", StringComparison.Ordinal));
+			Assert.Single(entries, e => e.Contains(".ConfigureTizenControls(", StringComparison.Ordinal));
 			Assert.Contains(entries, e => e.Contains(".MapLineBreakMode(", StringComparison.Ordinal));
 			Assert.Contains(entries, e => e.Contains(".MapAccessibility(", StringComparison.Ordinal));
 		}
@@ -136,14 +137,17 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Fact]
-		public void TheLaneUsesControlsCoreRatherThanTheXamlInclusivePackage()
+		public void ProductAndLaneReferenceTheControlsHostingPackage()
 		{
-			// Stated directly as well, because the set comparison above would also pass if BOTH
-			// sides drifted to the broader package together.
+			// UseMauiApp<TApp> is the authoritative Controls startup path and is shipped by the
+			// XAML-inclusive package. Both the product and its RefPack lane must see the same API.
+			var product = PackageReferences(ControlsProduct);
 			var lane = PackageReferences(ControlsLane);
 
+			Assert.Contains("Microsoft.Maui.Controls", product);
+			Assert.Contains("Microsoft.Maui.Controls", lane);
+			Assert.Contains("Microsoft.Maui.Controls.Core", product);
 			Assert.Contains("Microsoft.Maui.Controls.Core", lane);
-			Assert.DoesNotContain("Microsoft.Maui.Controls", lane);
 		}
 
 		[Fact]
