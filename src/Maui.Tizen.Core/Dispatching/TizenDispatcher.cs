@@ -143,19 +143,31 @@ namespace Microsoft.Maui.Platforms.Tizen
 	public class TizenDispatcherTimer : IDispatcherTimer, IDisposable
 	{
 		readonly SynchronizationContext _context;
-		readonly ITimer _timer;
+		readonly TimeProvider _timeProvider;
 		volatile bool _disposed;
+
+		/// <summary>The timer for the CURRENT arming, replaced by every <see cref="Start"/>.</summary>
+		ITimer? _timer;
 
 		/// <summary>
 		/// Incremented by every <see cref="Start"/> and <see cref="Stop"/>, and captured in each
 		/// posted tick.
 		/// </summary>
 		/// <remarks>
+		/// <para>
 		/// Ticks are POSTED to the main loop, so one can still be sitting in the queue when the
 		/// timer is stopped and started again. Checking IsRunning alone is not enough: by the time
 		/// the stale tick is delivered the timer is running again, so it passes the check, raises a
 		/// Tick that belongs to the previous run, and - for a one-shot - then disarms the NEW run.
-		/// A callback is only honoured when the arming it was queued under is still current.
+		/// </para>
+		/// <para>
+		/// The generation must be captured IMMUTABLY per arming. Reading a mutable field inside the
+		/// timer callback is not enough: the underlying timer callback can itself be held before it
+		/// reaches the synchronization context, and by the time it runs the field already holds the
+		/// NEW generation - so the stale callback inherits the current identity and consumes the
+		/// restarted timer. Each arming therefore gets its OWN ITimer whose callback closes over
+		/// its generation value, which nothing can subsequently change.
+		/// </para>
 		/// </remarks>
 		int _generation;
 
@@ -175,13 +187,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_context = context ?? throw new ArgumentNullException(nameof(context));
 			ArgumentNullException.ThrowIfNull(timeProvider);
 
-			// The arming generation is captured when the tick is POSTED, not when it is delivered,
-			// so a callback carries the identity of the run that scheduled it.
-			_timer = timeProvider.CreateTimer(
-				_ => _context.Post(OnTimerTick, Volatile.Read(ref _generation)),
-				null,
-				Timeout.InfiniteTimeSpan,
-				Timeout.InfiniteTimeSpan);
+			_timeProvider = timeProvider;
 		}
 
 		/// <inheritdoc />
@@ -207,12 +213,22 @@ namespace Microsoft.Maui.Platforms.Tizen
 			IsRunning = true;
 
 			// New arming: anything queued under the previous one is now stale.
-			Interlocked.Increment(ref _generation);
+			var generation = Interlocked.Increment(ref _generation);
+
+			// A FRESH timer per arming, whose callback closes over this generation value. The old
+			// timer is disposed, and any callback it had already dispatched carries the previous
+			// generation - which it cannot inherit, because the value is captured here rather than
+			// read from a field when the callback eventually runs.
+			_timer?.Dispose();
 
 			// A non-repeating timer is armed with an infinite PERIOD rather than being armed to
 			// repeat and then disarmed after the first tick. The latter leaves a real window in
 			// which the underlying timer can queue a second tick before the disarm lands.
-			_timer.Change(Interval, IsRepeating ? Interval : Timeout.InfiniteTimeSpan);
+			_timer = _timeProvider.CreateTimer(
+				_ => _context.Post(OnTimerTick, generation),
+				null,
+				Interval,
+				IsRepeating ? Interval : Timeout.InfiniteTimeSpan);
 		}
 
 		/// <inheritdoc />
@@ -228,7 +244,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 			Interlocked.Increment(ref _generation);
 
 			if (!_disposed)
-				_timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+			{
+				// Disposed rather than disarmed: the arming is over, and a live timer holding a
+				// dispatched callback is precisely the hazard.
+				_timer?.Dispose();
+				_timer = null;
+			}
 		}
 
 		void OnTimerTick(object? state)
@@ -267,12 +288,17 @@ namespace Microsoft.Maui.Platforms.Tizen
 			// false and the timer is disarmed; if the handler called Start() it is true and the
 			// timer is already re-armed, so this correctly leaves that arming alone.
 			//
-			// A generation counter was tried here to distinguish "handler re-armed" from "one-shot
-			// finished". With IsRunning cleared before the handler it turned out to be redundant -
-			// no mutation of it could be made to fail a test - so it was removed rather than kept
-			// as unjustifiable complexity.
+			// Null-conditional because Stop() disposes the timer and clears the field: a handler
+			// that calls Stop() on itself - ordinary usage - would otherwise dereference null here,
+			// which is exactly what happened once each arming got its own timer.
+			//
+			// The generation check on entry already rejects stale callbacks, so this only needs to
+			// disarm a run that finished normally.
 			if (!IsRunning)
-				_timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+			{
+				_timer?.Dispose();
+				_timer = null;
+			}
 		}
 
 		/// <inheritdoc />
@@ -286,7 +312,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_disposed = true;
 			IsRunning = false;
 
-			_timer.Dispose();
+			_timer?.Dispose();
+			_timer = null;
 			GC.SuppressFinalize(this);
 		}
 	}

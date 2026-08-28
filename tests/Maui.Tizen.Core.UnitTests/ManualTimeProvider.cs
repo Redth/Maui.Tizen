@@ -46,6 +46,38 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		/// </remarks>
 		public bool DoubleFireTimers { get; set; }
 
+		/// <summary>
+		/// Captures fired callbacks instead of invoking them, so a test can release one AFTER the
+		/// timer has been stopped and restarted.
+		/// </summary>
+		/// <remarks>
+		/// Synchronous firing cannot reproduce the bug this exists for. A real underlying timer
+		/// callback can be held before it reaches the synchronization context; if the arming
+		/// identity is read from a mutable field when the callback finally runs, the stale callback
+		/// inherits the CURRENT generation and consumes the restarted timer. Holding the callback
+		/// here reproduces that ordering deterministically.
+		/// </remarks>
+		public bool HoldCallbacks { get; set; }
+
+		readonly List<Action> _held = new();
+
+		/// <summary>Runs every callback captured while <see cref="HoldCallbacks"/> was set.</summary>
+		public int ReleaseHeldCallbacks()
+		{
+			Action[] pending;
+
+			lock (_gate)
+			{
+				pending = _held.ToArray();
+				_held.Clear();
+			}
+
+			foreach (var callback in pending)
+				callback();
+
+			return pending.Length;
+		}
+
 		DateTimeOffset _now = new(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
 		public override DateTimeOffset GetUtcNow()
@@ -103,6 +135,12 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			}
 		}
 
+		internal void Hold(Action callback)
+		{
+			lock (_gate)
+				_held.Add(callback);
+		}
+
 		internal void Remove(FakeTimer timer)
 		{
 			lock (_gate)
@@ -149,6 +187,14 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				DueAt = _period == Timeout.InfiniteTimeSpan || _period == TimeSpan.Zero
 					? null
 					: _provider.GetUtcNow() + _period;
+
+				if (_provider.HoldCallbacks)
+				{
+					// Captured, not invoked. The arming that queued it is recorded by the closure
+					// the dispatcher created; releasing later must not let it adopt a newer one.
+					_provider.Hold(() => _callback(_state));
+					return;
+				}
 
 				_callback(_state);
 

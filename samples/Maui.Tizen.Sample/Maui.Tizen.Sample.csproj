@@ -31,8 +31,22 @@
     <ApplicationId>org.tizen.example.MauiTizenSample</ApplicationId>
     <ApplicationVersion>1.0.0</ApplicationVersion>
 
-    <UseMaui>true</UseMaui>
-    <SingleProject>true</SingleProject>
+    <!--
+      UseMaui and SingleProject are deliberately NOT set.
+
+      Both import Microsoft.Maui.Sdk, which requires the Microsoft MAUI workload. The real Tizen
+      lane installs only Samsung's `tizen` workload - by policy, because the whole point of this
+      package is that an external backend and its sample build from PACKAGES with the Samsung
+      workload alone. With UseMaui set, the sample would have failed restore with NETSDK1147 the
+      moment the gate opened, and only then: it cannot fail today, because restore stops earlier at
+      NETSDK1139 (unrecognised tizen platform). A latent break that first appears on the day
+      everyone is waiting for.
+
+      Nothing here needs the MAUI SDK. This is a Core-only app head: no XAML, no Controls types, its
+      own Main entry point, and its own tizen-manifest.xml handled by Samsung's Tizen SDK.
+      MauiApp.CreateBuilder comes from the Microsoft.Maui.Core PACKAGE, which is a package
+      reference, not a workload.
+    -->
 
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
@@ -73,6 +87,13 @@
 
   <ItemGroup>
     <None Include="Platforms/Tizen/tizen-manifest.xml" />
+
+    <!--
+      The manifest declares <icon>appicon.png</icon>, but no such file existed and nothing checked -
+      an unresolvable icon reference is not a build error, so the .tpk would simply have shipped
+      without one. Copied next to the manifest, where Samsung's packaging step looks for it.
+    -->
+    <None Include="Platforms/Tizen/appicon.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
