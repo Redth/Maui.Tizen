@@ -180,6 +180,12 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			return Task.CompletedTask;
 		}
 
+		static Task RejectDispatch(Action action) =>
+			Task.FromException(new InvalidOperationException("dispatch rejected"));
+
+		static Task ThrowDispatch(Action action) =>
+			throw new InvalidOperationException("dispatch threw");
+
 		static Task LoadAsync(
 			TizenImageLoader<FakeImage> loader,
 			IImageSource? source,
@@ -540,6 +546,93 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Null(loader.CurrentSource);
 		}
 
+		[Fact]
+		public async Task ThrowingSupersededCancellationStillCompletesReplacement()
+		{
+			var loader = new TizenImageLoader<FakeImage>();
+			var oldSource = new FakeSource();
+			var newSource = new FakeSource();
+			IImageSource selectedSource = oldSource;
+			var oldResult = new FakeResult(new FakeImage { Name = "old" });
+			var newResult = new FakeResult(new FakeImage { Name = "new" });
+			CancellationTokenRegistration registration = default;
+
+			await loader.LoadAsync(
+				oldSource,
+				(_, token) =>
+				{
+					registration = token.Register(
+						static () => throw new InvalidOperationException("old cancellation"));
+					return Task.FromResult<IImageSourceServiceResult<FakeImage>?>(oldResult);
+				},
+				RunInline,
+				static _ => { },
+				() => ReferenceEquals(selectedSource, oldSource),
+				static () => true);
+
+			selectedSource = newSource;
+
+			var failure = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+				loader.LoadAsync(
+					newSource,
+					(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(newResult),
+					RunInline,
+					static _ => { },
+					() => ReferenceEquals(selectedSource, newSource),
+					static () => true));
+
+			Assert.Equal("old cancellation", failure.Message);
+			Assert.Same(newResult.Value, loader.Current);
+			Assert.Equal(1, oldResult.DisposeCount);
+			Assert.Equal(0, newResult.DisposeCount);
+
+			registration.Dispose();
+			loader.Dispose();
+		}
+
+		[Fact]
+		public async Task ThrowingSupersededCancellationStillCompletesNullClear()
+		{
+			var loader = new TizenImageLoader<FakeImage>();
+			var oldSource = new FakeSource();
+			IImageSource? selectedSource = oldSource;
+			var oldResult = new FakeResult(new FakeImage { Name = "old" });
+			var applied = new List<string?>();
+			CancellationTokenRegistration registration = default;
+
+			await loader.LoadAsync(
+				oldSource,
+				(_, token) =>
+				{
+					registration = token.Register(
+						static () => throw new InvalidOperationException("old cancellation"));
+					return Task.FromResult<IImageSourceServiceResult<FakeImage>?>(oldResult);
+				},
+				RunInline,
+				image => applied.Add(image?.Name),
+				() => ReferenceEquals(selectedSource, oldSource),
+				static () => true);
+
+			selectedSource = null;
+
+			var failure = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+				loader.LoadAsync(
+					source: null,
+					(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(null),
+					RunInline,
+					image => applied.Add(image?.Name),
+					() => selectedSource is null,
+					static () => true));
+
+			Assert.Equal("old cancellation", failure.Message);
+			Assert.Equal(["old", null], applied);
+			Assert.Equal(1, oldResult.DisposeCount);
+			Assert.Null(loader.Current);
+
+			registration.Dispose();
+			loader.Dispose();
+		}
+
 		/// <summary>
 		/// A commit that was queued first but executes after a newer commit cannot win.
 		/// </summary>
@@ -592,6 +685,74 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(0, firstResult.ValueAccessCount);
 			Assert.False(secondResult.IsDisposed);
 			Assert.Equal("new", loader.Current?.Name);
+		}
+
+		[Fact]
+		public async Task RejectedDispatchResultIsDrainedByNextUiLoad()
+		{
+			var loader = new TizenImageLoader<FakeImage>();
+			var rejected = new FakeResult(new FakeImage { Name = "rejected" });
+			var applied = false;
+
+			await Assert.ThrowsAsync<InvalidOperationException>(() =>
+				loader.LoadAsync(
+					new FakeSource(),
+					(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(rejected),
+					RejectDispatch,
+					_ => applied = true,
+					static () => true,
+					static () => true));
+
+			Assert.False(applied);
+			Assert.Equal(0, rejected.DisposeCount);
+			Assert.Null(loader.Current);
+
+			var uiThread = Environment.CurrentManagedThreadId;
+			var current = new FakeResult(new FakeImage { Name = "current" });
+
+			await loader.LoadAsync(
+				new FakeSource(),
+				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(current),
+				RunInline,
+				static _ => { },
+				static () => true,
+				static () => true);
+
+			Assert.Equal(1, rejected.DisposeCount);
+			Assert.Equal([uiThread], rejected.DisposeThreadIds);
+			Assert.Same(current.Value, loader.Current);
+
+			loader.Dispose();
+			Assert.Equal(1, rejected.DisposeCount);
+		}
+
+		[Fact]
+		public async Task SynchronouslyThrowingDispatchResultIsDrainedByDisconnect()
+		{
+			var loader = new TizenImageLoader<FakeImage>();
+			var rejected = new FakeResult(new FakeImage { Name = "rejected" });
+			var applied = false;
+
+			await Assert.ThrowsAsync<InvalidOperationException>(() =>
+				loader.LoadAsync(
+					new FakeSource(),
+					(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(rejected),
+					ThrowDispatch,
+					_ => applied = true,
+					static () => true,
+					static () => true));
+
+			Assert.False(applied);
+			Assert.Equal(0, rejected.DisposeCount);
+
+			var uiThread = Environment.CurrentManagedThreadId;
+			loader.Dispose();
+
+			Assert.Equal(1, rejected.DisposeCount);
+			Assert.Equal([uiThread], rejected.DisposeThreadIds);
+
+			loader.Dispose();
+			Assert.Equal(1, rejected.DisposeCount);
 		}
 
 		[Fact]
@@ -669,8 +830,10 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			Assert.Equal(1, commits.Count);
 
+			var disconnectThread = Environment.CurrentManagedThreadId;
 			loader.Dispose();
-			Assert.False(result.IsDisposed);
+			Assert.True(result.IsDisposed);
+			Assert.Equal([disconnectThread], result.DisposeThreadIds);
 
 			commits.RunAt(0);
 			await load;
@@ -745,6 +908,10 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var active = new FakeResult(new FakeImage { Name = "active" }, throwOnDispose: true);
 			var activeSource = new FakeSource();
 			var pendingSource = new FakeSource();
+			var pendingCompletion =
+				new TaskCompletionSource<IImageSourceServiceResult<FakeImage>?>(
+					TaskCreationOptions.RunContinuationsAsynchronously);
+			CancellationTokenRegistration registration = default;
 
 			await loader.LoadAsync(
 				activeSource,
@@ -757,13 +924,12 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 			var pending = loader.LoadAsync(
 				pendingSource,
-				async (_, token) =>
+				(_, token) =>
 				{
-					using var registration = token.Register(
+					registration = token.Register(
 						static () => throw new InvalidOperationException("cancel callback"));
 					started.SetResult();
-					await Task.Delay(Timeout.InfiniteTimeSpan, token);
-					return null;
+					return pendingCompletion.Task;
 				},
 				RunInline,
 				static _ => { },
@@ -779,7 +945,9 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(1, active.DisposeCount);
 			Assert.Null(loader.Current);
 
+			pendingCompletion.SetException(new OperationCanceledException());
 			await pending;
+			registration.Dispose();
 		}
 
 		/// <summary>
@@ -823,9 +991,12 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Theory]
-		[InlineData("TizenButtonHandler.cs", "_iconLoader")]
-		[InlineData("TizenSliderHandler.cs", "_thumbLoader")]
-		public void ReconnectedHandlersCreateANewLoaderLifetime(string fileName, string fieldName)
+		[InlineData("TizenButtonHandler.cs", "_iconLoader", "TouchEvent += OnTouch")]
+		[InlineData("TizenSliderHandler.cs", "_thumbLoader", "ValueChanged += OnControlValueChanged")]
+		public void ReconnectedHandlersCreateANewLoaderLifetime(
+			string fileName,
+			string fieldName,
+			string firstEventAttachment)
 		{
 			var source = File.ReadAllText(Path.Combine(
 				TestRepositoryPaths.Root,
@@ -844,9 +1015,21 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.True(connectStart >= 0 && disconnectStart > connectStart);
 
 			var connect = source[connectStart..disconnectStart];
-			Assert.Contains($"{fieldName}.Dispose();", connect, StringComparison.Ordinal);
-			Assert.Contains($"{fieldName} = new();", connect, StringComparison.Ordinal);
+			Assert.Contains($"{fieldName}.Dispose,", connect, StringComparison.Ordinal);
+			Assert.Contains($"{fieldName} = replacement", connect, StringComparison.Ordinal);
 			Assert.Contains("TizenDispatchExtensions.CaptureDispatcher(handler)", source, StringComparison.Ordinal);
+			Assert.Contains("TizenCleanup.Run(", connect, StringComparison.Ordinal);
+
+			var cleanup = connect.IndexOf($"{fieldName}.Dispose,", StringComparison.Ordinal);
+			var replacement = connect.IndexOf($"{fieldName} = replacement", StringComparison.Ordinal);
+			var baseConnect = connect.IndexOf("base.ConnectHandler(platformView)", StringComparison.Ordinal);
+			var eventAttachment = connect.IndexOf(firstEventAttachment, StringComparison.Ordinal);
+
+			Assert.True(
+				cleanup < replacement &&
+				replacement < baseConnect &&
+				baseConnect < eventAttachment,
+				$"{fileName} must finish stale loader cleanup before base/event attachment.");
 		}
 	}
 }

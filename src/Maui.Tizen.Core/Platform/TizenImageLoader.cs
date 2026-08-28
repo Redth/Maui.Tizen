@@ -2,6 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Maui;
@@ -52,6 +54,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		where TImage : class
 	{
 		readonly object _gate = new();
+		readonly List<UncommittedResult> _uncommitted = new();
 
 		CancellationTokenSource? _pending;
 		IImageSource? _pendingSource;
@@ -100,6 +103,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ArgumentNullException.ThrowIfNull(isSourceCurrent);
 			ArgumentNullException.ThrowIfNull(isTargetCurrent);
 
+			var errors = new List<Exception>();
+
+			foreach (var error in await DrainFailedResultsAsync(commitOnUiThread).ConfigureAwait(false))
+				TizenCleanup.Add(errors, error);
+
 			CancellationTokenSource cts;
 			CancellationTokenSource? supersededPending;
 			long generation;
@@ -107,7 +115,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 			lock (_gate)
 			{
 				if (_disposed)
+				{
+					TizenCleanup.ThrowIfAny(errors);
 					return;
+				}
 
 				// Supersede: whatever was in flight is now stale.
 				supersededPending = _pending;
@@ -118,14 +129,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			if (supersededPending is not null)
 			{
-				TizenCleanup.Run(
-					supersededPending.Cancel,
-					supersededPending.Dispose);
+				TryCleanup(errors, supersededPending.Cancel);
+				TryCleanup(errors, supersededPending.Dispose);
 			}
 
 			if (source is null)
 			{
-				await CommitAsync(
+				await CaptureCommitAsync(
+					errors,
 					result: null,
 					requestSource: null,
 					appliedSource: null,
@@ -135,6 +146,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 					isTargetCurrent,
 					cts,
 					generation).ConfigureAwait(false);
+				TizenCleanup.ThrowIfAny(errors);
 				return;
 			}
 
@@ -147,13 +159,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 			catch (OperationCanceledException) when (cts.IsCancellationRequested)
 			{
 				// Superseded by a newer request; the newer one owns the view now.
+				TizenCleanup.ThrowIfAny(errors);
 				return;
 			}
 			catch (OperationCanceledException)
 			{
 				// The current service cancelled for its own reason. This is a current-source
 				// failure, not supersession, so clear the image exactly like any other failure.
-				await CommitAsync(
+				await CaptureCommitAsync(
+					errors,
 					result: null,
 					requestSource: source,
 					appliedSource: null,
@@ -163,12 +177,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 					isTargetCurrent,
 					cts,
 					generation).ConfigureAwait(false);
+				TizenCleanup.ThrowIfAny(errors);
 				return;
 			}
 			catch (Exception)
 			{
 				// A failed load must not leave the previous image showing under a new source.
-				await CommitAsync(
+				await CaptureCommitAsync(
+					errors,
 					result: null,
 					requestSource: source,
 					appliedSource: null,
@@ -178,10 +194,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 					isTargetCurrent,
 					cts,
 					generation).ConfigureAwait(false);
+				TizenCleanup.ThrowIfAny(errors);
 				return;
 			}
 
-			await CommitAsync(
+			await CaptureCommitAsync(
+				errors,
 				loaded,
 				requestSource: source,
 				appliedSource: source,
@@ -191,6 +209,38 @@ namespace Microsoft.Maui.Platforms.Tizen
 				isTargetCurrent,
 				cts,
 				generation).ConfigureAwait(false);
+			TizenCleanup.ThrowIfAny(errors);
+		}
+
+		async Task CaptureCommitAsync(
+			ICollection<Exception> errors,
+			IImageSourceServiceResult<TImage>? result,
+			IImageSource? requestSource,
+			IImageSource? appliedSource,
+			Func<Action, Task> commitOnUiThread,
+			Action<TImage?> apply,
+			Func<bool> isSourceCurrent,
+			Func<bool> isTargetCurrent,
+			CancellationTokenSource cts,
+			long generation)
+		{
+			try
+			{
+				await CommitAsync(
+					result,
+					requestSource,
+					appliedSource,
+					commitOnUiThread,
+					apply,
+					isSourceCurrent,
+					isTargetCurrent,
+					cts,
+					generation).ConfigureAwait(false);
+			}
+			catch (Exception exception)
+			{
+				TizenCleanup.Add(errors, exception);
+			}
 		}
 
 		/// <summary>
@@ -207,64 +257,143 @@ namespace Microsoft.Maui.Platforms.Tizen
 			CancellationTokenSource cts,
 			long generation)
 		{
-			await commitOnUiThread(() =>
+			var uncommitted = result is null ? null : new UncommittedResult(result);
+			var callbackInvoked = 0;
+
+			if (uncommitted is not null)
 			{
-				IImageSourceServiceResult<TImage>? dispose = null;
-				Exception? applyError = null;
-
 				lock (_gate)
-				{
-					var superseded =
-						_disposed ||
-						_generation != generation ||
-						!ReferenceEquals(_pending, cts) ||
-						!ReferenceEquals(_pendingSource, requestSource) ||
-						cts.IsCancellationRequested;
+					_uncommitted.Add(uncommitted);
+			}
 
-					// These checks run after a queued callback reaches the UI thread. Checking
-					// them before dispatch leaves a window in which a newer load or disconnect
-					// can invalidate the result while the callback is still waiting.
-					if (superseded || !isSourceCurrent() || !isTargetCurrent())
+			try
+			{
+				await commitOnUiThread(() =>
+				{
+					Interlocked.Exchange(ref callbackInvoked, 1);
+
+					if (uncommitted is not null && !uncommitted.TryBeginCallback())
 					{
-						dispose = result;
+						RemoveUncommitted(uncommitted);
+						return;
 					}
-					else
+
+					IImageSourceServiceResult<TImage>? disposePrevious = null;
+					var disposeUncommitted = false;
+					Exception? applyError = null;
+
+					try
 					{
-						// Keep both results alive until the platform has accepted the new image.
-						// Holding the gate across this short UI-thread write prevents a concurrent
-						// supersession or Dispose from releasing the new result underneath apply.
+						lock (_gate)
+						{
+							var superseded =
+								_disposed ||
+								_generation != generation ||
+								!ReferenceEquals(_pending, cts) ||
+								!ReferenceEquals(_pendingSource, requestSource) ||
+								cts.IsCancellationRequested;
+
+							// These checks run after a queued callback reaches the UI thread.
+							if (superseded || !isSourceCurrent() || !isTargetCurrent())
+							{
+								disposeUncommitted = true;
+							}
+							else
+							{
+								try
+								{
+									apply(result?.Value);
+								}
+								catch (Exception exception)
+								{
+									applyError = exception;
+									disposeUncommitted = true;
+								}
+
+								if (applyError is null)
+								{
+									disposePrevious = ReferenceEquals(_active, result) ? null : _active;
+									_active = result;
+									_activeSource = appliedSource;
+									uncommitted?.Transfer();
+								}
+							}
+						}
+
+						if (applyError is not null)
+						{
+							TizenCleanup.Run(
+								() => throw applyError,
+								() => uncommitted?.DisposeOnUiThread());
+						}
+						else
+						{
+							if (disposeUncommitted)
+								uncommitted?.DisposeOnUiThread();
+
+							disposePrevious?.Dispose();
+						}
+					}
+					finally
+					{
+						if (uncommitted?.IsCompleted == true)
+							RemoveUncommitted(uncommitted);
+					}
+				}).ConfigureAwait(false);
+			}
+			catch
+			{
+				if (Volatile.Read(ref callbackInvoked) == 0)
+					uncommitted?.MarkDispatchFailed();
+
+				throw;
+			}
+		}
+
+		async Task<IReadOnlyList<Exception>> DrainFailedResultsAsync(Func<Action, Task> dispatchOnUiThread)
+		{
+			UncommittedResult[] pending;
+
+			lock (_gate)
+				pending = _uncommitted.Where(result => result.IsDispatchFailed).ToArray();
+
+			var errors = new List<Exception>();
+
+			foreach (var result in pending)
+			{
+				try
+				{
+					await dispatchOnUiThread(() =>
+					{
+						if (!result.TryBeginCallback())
+						{
+							RemoveUncommitted(result);
+							return;
+						}
+
 						try
 						{
-							apply(result?.Value);
+							result.DisposeOnUiThread();
 						}
-						catch (Exception exception)
+						finally
 						{
-							applyError = exception;
-							dispose = result;
+							RemoveUncommitted(result);
 						}
-
-						if (applyError is null)
-						{
-							dispose = ReferenceEquals(_active, result) ? null : _active;
-							_active = result;
-							_activeSource = appliedSource;
-						}
-					}
+					}).ConfigureAwait(false);
 				}
-
-				// Native image results are dispatcher-bound. Rejected new results and replaced old
-				// results are both released before this awaited UI callback completes.
-				if (applyError is not null)
+				catch (Exception exception)
 				{
-					TizenCleanup.Run(
-						() => throw applyError,
-						() => dispose?.Dispose());
+					TizenCleanup.Add(errors, exception);
 				}
-				else
-				{
-					dispose?.Dispose();
-				}
-			}).ConfigureAwait(false);
+			}
+
+			return errors;
+		}
+
+		void RemoveUncommitted(UncommittedResult result)
+		{
+			lock (_gate)
+				_uncommitted.Remove(result);
 		}
 
 		/// <summary>
@@ -278,26 +407,98 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			IImageSourceServiceResult<TImage>? active;
 			CancellationTokenSource? pending;
+			UncommittedResult[] uncommitted;
+			var firstDispose = false;
 
 			lock (_gate)
 			{
-				if (_disposed)
-					return;
+				firstDispose = !_disposed;
+				active = firstDispose ? _active : null;
+				pending = firstDispose ? _pending : null;
+				uncommitted = _uncommitted.ToArray();
+				_uncommitted.Clear();
 
-				_disposed = true;
-				_generation++;
-				active = _active;
-				pending = _pending;
-				_active = null;
-				_activeSource = null;
-				_pending = null;
-				_pendingSource = null;
+				if (firstDispose)
+				{
+					_disposed = true;
+					_generation++;
+					_active = null;
+					_activeSource = null;
+					_pending = null;
+					_pendingSource = null;
+				}
 			}
 
-			TizenCleanup.Run(
+			if (!firstDispose && uncommitted.Length == 0)
+				return;
+
+			var cleanup = new List<Action>
+			{
 				() => pending?.Cancel(),
 				() => pending?.Dispose(),
-				() => active?.Dispose());
+			};
+
+			foreach (var result in uncommitted)
+				cleanup.Add(result.DisposeOnUiThread);
+			cleanup.Add(() => active?.Dispose());
+
+			TizenCleanup.Run(cleanup.ToArray());
+		}
+
+		static void TryCleanup(ICollection<Exception> errors, Action action)
+		{
+			try
+			{
+				action();
+			}
+			catch (Exception exception)
+			{
+				TizenCleanup.Add(errors, exception);
+			}
+		}
+
+		sealed class UncommittedResult
+		{
+			const int PendingDispatch = 0;
+			const int CallbackRunning = 1;
+			const int DispatchFailed = 2;
+			const int Completed = 3;
+
+			readonly IImageSourceServiceResult<TImage> _result;
+			int _state;
+
+			public UncommittedResult(IImageSourceServiceResult<TImage> result) => _result = result;
+
+			public bool IsDispatchFailed => Volatile.Read(ref _state) == DispatchFailed;
+
+			public bool IsCompleted => Volatile.Read(ref _state) == Completed;
+
+			public bool TryBeginCallback()
+			{
+				while (true)
+				{
+					var state = Volatile.Read(ref _state);
+
+					if (state is CallbackRunning or Completed)
+						return false;
+
+					if (Interlocked.CompareExchange(ref _state, CallbackRunning, state) == state)
+						return true;
+				}
+			}
+
+			public void MarkDispatchFailed() =>
+				Interlocked.CompareExchange(ref _state, DispatchFailed, PendingDispatch);
+
+			public void Transfer() => Interlocked.Exchange(ref _state, Completed);
+
+			public void DisposeOnUiThread()
+			{
+				if (Interlocked.Exchange(ref _state, Completed) == Completed)
+					return;
+
+				_result.Dispose();
+			}
 		}
 	}
 }

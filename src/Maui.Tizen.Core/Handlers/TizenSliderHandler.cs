@@ -84,13 +84,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override void ConnectHandler(TizenSliderView platformView)
 		{
-			base.ConnectHandler(platformView);
 #if TIZEN
-			_thumbLoader.Dispose();
-			_thumbLoader = new();
-			platformView.ValueChanged += OnControlValueChanged;
-			platformView.SlidingStarted += OnSlidingStarted;
-			platformView.SlidingFinished += OnSlidingFinished;
+			var replacement = new TizenImageLoader<TizenImageSource>();
+
+			TizenCleanup.Run(
+				_thumbLoader.Dispose,
+				() => _thumbLoader = replacement,
+				() => base.ConnectHandler(platformView),
+				() => platformView.ValueChanged += OnControlValueChanged,
+				() => platformView.SlidingStarted += OnSlidingStarted,
+				() => platformView.SlidingFinished += OnSlidingFinished);
+#else
+			base.ConnectHandler(platformView);
 #endif
 		}
 

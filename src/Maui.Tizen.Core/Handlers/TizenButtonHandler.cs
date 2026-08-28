@@ -127,14 +127,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override void ConnectHandler(TizenButtonView platformView)
 		{
-			base.ConnectHandler(platformView);
 #if TIZEN
 			// Disconnect permanently invalidates its loader so queued callbacks cannot revive it.
-			// A reconnect therefore gets a fresh generation/ownership scope.
-			_iconLoader.Dispose();
-			_iconLoader = new();
-			platformView.TouchEvent += OnTouch;
-			platformView.Clicked += OnClicked;
+			// Finish every reconnect step before surfacing stale-cleanup errors.
+			var replacement = new TizenImageLoader<TizenImageSource>();
+
+			TizenCleanup.Run(
+				_iconLoader.Dispose,
+				() => _iconLoader = replacement,
+				() => base.ConnectHandler(platformView),
+				() => platformView.TouchEvent += OnTouch,
+				() => platformView.Clicked += OnClicked);
+#else
+			base.ConnectHandler(platformView);
 #endif
 		}
 
