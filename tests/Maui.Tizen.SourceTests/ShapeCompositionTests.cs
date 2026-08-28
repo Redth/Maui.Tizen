@@ -165,7 +165,7 @@ public class ShapeCompositionTests
 	/// <summary>Names of every method called by <paramref name="methodName"/> or its closures.</summary>
 	static IReadOnlyCollection<string> CalledMethodNames(string declaringTypeFullName, string methodName)
 	{
-		using var stream = File.OpenRead(RefPackAssembly.Path);
+		using var stream = File.OpenRead(ControlsRefPackAssembly.Path);
 		using var pe = new PEReader(stream);
 		var reader = pe.GetMetadataReader();
 

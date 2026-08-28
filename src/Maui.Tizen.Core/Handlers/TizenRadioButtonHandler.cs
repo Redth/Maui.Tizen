@@ -19,15 +19,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// content group that presents whatever the radio button's template produced. The checked
 	/// state is toggled from key input.
 	/// </remarks>
-	public class TizenRadioButtonHandler : TizenViewHandler<IRadioButton, TizenRadioButtonView>
+	public class TizenRadioButtonHandler : TizenViewHandler<IRadioButton, TizenRadioButtonView>, IRadioButtonHandler
 	{
 #if TIZEN
 		IElementHandler? _contentHandler;
 #endif
 
 		/// <summary>The complete property mapper for <see cref="IRadioButton"/>.</summary>
-		public static readonly IPropertyMapper<IRadioButton, TizenRadioButtonHandler> Mapper =
-			new PropertyMapper<IRadioButton, TizenRadioButtonHandler>(ViewHandler.ViewMapper)
+		public static readonly IPropertyMapper<IRadioButton, IRadioButtonHandler> Mapper =
+			new PropertyMapper<IRadioButton, IRadioButtonHandler>(TizenHandlerMappers.Chain(RadioButtonHandler.Mapper))
 			{
 				[nameof(IContentView.Content)] = MapContent,
 				[nameof(IRadioButton.IsChecked)] = MapIsChecked,
@@ -40,8 +40,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		/// <summary>The complete command mapper for <see cref="IRadioButton"/>.</summary>
-		public static readonly CommandMapper<IRadioButton, TizenRadioButtonHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+		public static readonly CommandMapper<IRadioButton, IRadioButtonHandler> CommandMapper =
+			new CommandMapper<IRadioButton, IRadioButtonHandler>(TizenHandlerMappers.ChainCommands(RadioButtonHandler.CommandMapper));
 
 		public TizenRadioButtonHandler()
 			: base(Mapper, CommandMapper)
@@ -52,6 +52,33 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
 		{
 		}
+
+		IRadioButton IRadioButtonHandler.VirtualView => VirtualView;
+
+		/// <remarks>
+		/// <see cref="IRadioButtonHandler"/> types this as <see cref="object"/>. MAUI ships no Tizen asset,
+		/// so this backend resolves the neutral <c>net11.0</c> assembly on every target framework
+		/// and the interface is implementable without the per-platform alias mismatch that would
+		/// otherwise occur.
+		/// </remarks>
+		object IRadioButtonHandler.PlatformView => PlatformView;
+
+		/// <summary>
+		/// The typed platform view for a mapping.
+		/// </summary>
+		/// <remarks>
+		/// <see cref="IRadioButtonHandler"/> types <c>PlatformView</c> as <see cref="object"/>, because MAUI's
+		/// neutral assembly has no Tizen alias. Mappings therefore narrow it here rather than at
+		/// every call site.
+		/// </remarks>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The platform view, or <see langword="null"/> if it is not yet created.</returns>
+		static TizenRadioButtonView? Platform(IRadioButtonHandler handler) => handler.PlatformView as TizenRadioButtonView;
+
+		/// <summary>The concrete handler, for mappings that need its own state.</summary>
+		/// <param name="handler">The handler.</param>
+		/// <returns>The concrete handler.</returns>
+		static TizenRadioButtonHandler AsHandler(IRadioButtonHandler handler) => (TizenRadioButtonHandler)handler;
 
 		protected override TizenRadioButtonView CreatePlatformView()
 		{
@@ -92,10 +119,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			base.DisconnectHandler(platformView);
 		}
 
-		public static void MapContent(TizenRadioButtonHandler handler, IRadioButton radioButton)
+		public static void MapContent(IRadioButtonHandler handler, IRadioButton radioButton)
 		{
 #if TIZEN
-			handler.UpdateContent();
+			AsHandler(handler).UpdateContent();
 #endif
 		}
 
@@ -105,7 +132,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// which MAUI re-renders when <see cref="IRadioButton.IsChecked"/> changes. There is no
 		/// separate native indicator for this handler to update. Deliberate no-op.
 		/// </remarks>
-		public static void MapIsChecked(TizenRadioButtonHandler handler, IRadioButton radioButton)
+		public static void MapIsChecked(IRadioButtonHandler handler, IRadioButton radioButton)
 		{
 		}
 
@@ -114,46 +141,46 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// Text styling applies to the templated content's own label, which has its own handler
 		/// and mappings. Deliberate no-op.
 		/// </remarks>
-		public static void MapTextColor(TizenRadioButtonHandler handler, IRadioButton radioButton)
+		public static void MapTextColor(IRadioButtonHandler handler, IRadioButton radioButton)
 		{
 		}
 
 		/// <summary>Not supported on Tizen.</summary>
 		/// <remarks>See <see cref="MapTextColor"/>.</remarks>
-		public static void MapCharacterSpacing(TizenRadioButtonHandler handler, IRadioButton radioButton)
+		public static void MapCharacterSpacing(IRadioButtonHandler handler, IRadioButton radioButton)
 		{
 		}
 
 		/// <summary>Not supported on Tizen.</summary>
 		/// <remarks>See <see cref="MapTextColor"/>.</remarks>
-		public static void MapFont(TizenRadioButtonHandler handler, IRadioButton radioButton)
+		public static void MapFont(IRadioButtonHandler handler, IRadioButton radioButton)
 		{
 		}
 
 		/// <summary>Applies the border colour to the content group.</summary>
-		public static void MapStrokeColor(TizenRadioButtonHandler handler, IRadioButton radioButton)
+		public static void MapStrokeColor(IRadioButtonHandler handler, IRadioButton radioButton)
 		{
 #if TIZEN
-			if (handler.PlatformView is { } platformView)
+			if (Platform(handler) is { } platformView)
 				platformView.BorderlineColor = radioButton.StrokeColor.ToTizenNativeColor() ?? global::Tizen.NUI.Color.Transparent;
 #endif
 		}
 
 		/// <summary>Applies the border thickness to the content group.</summary>
-		public static void MapStrokeThickness(TizenRadioButtonHandler handler, IRadioButton radioButton)
+		public static void MapStrokeThickness(IRadioButtonHandler handler, IRadioButton radioButton)
 		{
 #if TIZEN
-			if (handler.PlatformView is { } platformView)
+			if (Platform(handler) is { } platformView)
 				platformView.BorderlineWidth = radioButton.StrokeThickness.ToScaledPixel();
 #endif
 		}
 
 		/// <summary>Applies the corner radius to the content group.</summary>
 		/// <remarks>MAUI uses -1 for "unset"; see <see cref="TizenButtonExtensions.UpdateCornerRadius"/>.</remarks>
-		public static void MapCornerRadius(TizenRadioButtonHandler handler, IRadioButton radioButton)
+		public static void MapCornerRadius(IRadioButtonHandler handler, IRadioButton radioButton)
 		{
 #if TIZEN
-			if (handler.PlatformView is { } platformView && radioButton.CornerRadius != -1)
+			if (Platform(handler) is { } platformView && radioButton.CornerRadius != -1)
 				platformView.CornerRadius = ((double)radioButton.CornerRadius).ToScaledPixel();
 #endif
 		}

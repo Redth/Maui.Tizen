@@ -1,0 +1,72 @@
+#nullable enable
+Microsoft.Maui.Platforms.Tizen.Controls.TizenControlsHostingExtensions
+Microsoft.Maui.Platforms.Tizen.Controls.TizenControlsMappings
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenBoxViewHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenBoxViewHandler.TizenBoxViewHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenBoxViewHandler.TizenBoxViewHandler(Microsoft.Maui.IPropertyMapper? mapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenBoxViewHandler.TizenBoxViewHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler.TizenLineHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler.TizenLineHandler(Microsoft.Maui.IPropertyMapper? mapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler.TizenLineHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler.TizenPathHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler.TizenPathHandler(Microsoft.Maui.IPropertyMapper? mapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler.TizenPathHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.TizenPolygonHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.TizenPolygonHandler(Microsoft.Maui.IPropertyMapper? mapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.TizenPolygonHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.TizenPolylineHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.TizenPolylineHandler(Microsoft.Maui.IPropertyMapper? mapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.TizenPolylineHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler.TizenRectangleHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler.TizenRectangleHandler(Microsoft.Maui.IPropertyMapper? mapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler.TizenRectangleHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler.TizenRoundRectangleHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler.TizenRoundRectangleHandler(Microsoft.Maui.IPropertyMapper? mapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler.TizenRoundRectangleHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper) -> void
+Microsoft.Maui.Platforms.Tizen.Hosting.TizenControlsMauiAppBuilderExtensions
+Microsoft.Maui.Platforms.Tizen.Hosting.TizenShapeHandlerCollectionExtensions
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.TizenShapeView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.TizenShapeView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.TizenShapeView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.TizenShapeView! platformView) -> void
+static Microsoft.Maui.Platforms.Tizen.Controls.TizenControlsHostingExtensions.ConfigureTizenControls(this Microsoft.Maui.Hosting.MauiAppBuilder! builder) -> Microsoft.Maui.Hosting.MauiAppBuilder!
+static Microsoft.Maui.Platforms.Tizen.Controls.TizenControlsMappings.MapAccessibility(Microsoft.Maui.IViewHandler! handler, Microsoft.Maui.IView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Controls.TizenControlsMappings.MapLineBreakMode(Microsoft.Maui.Handlers.ILabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
+static Microsoft.Maui.Platforms.Tizen.Controls.TizenControlsMappings.Register() -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.Shapes.Line!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.Controls.Shapes.Line!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler.MapX1(Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler! handler, Microsoft.Maui.Controls.Shapes.Line! line) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler.MapX2(Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler! handler, Microsoft.Maui.Controls.Shapes.Line! line) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler.MapY1(Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler! handler, Microsoft.Maui.Controls.Shapes.Line! line) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler.MapY2(Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler! handler, Microsoft.Maui.Controls.Shapes.Line! line) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.Shapes.Path!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler.MapData(Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler! handler, Microsoft.Maui.Controls.Shapes.Path! path) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.Controls.Shapes.Path!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler.MapRenderTransform(Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler! handler, Microsoft.Maui.Controls.Shapes.Path! path) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler.MapShape(Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler! handler, Microsoft.Maui.Controls.Shapes.Path! path) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.Shapes.Polygon!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.MapFillRule(Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler! handler, Microsoft.Maui.Controls.Shapes.Polygon! polygon) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.Controls.Shapes.Polygon!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.MapPoints(Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler! handler, Microsoft.Maui.Controls.Shapes.Polygon! polygon) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.MapShape(Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler! handler, Microsoft.Maui.Controls.Shapes.Polygon! polygon) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.Shapes.Polyline!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.MapFillRule(Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler! handler, Microsoft.Maui.Controls.Shapes.Polyline! polyline) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.Controls.Shapes.Polyline!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.MapPoints(Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler! handler, Microsoft.Maui.Controls.Shapes.Polyline! polyline) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.MapShape(Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler! handler, Microsoft.Maui.Controls.Shapes.Polyline! polyline) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.Shapes.Rectangle!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.Controls.Shapes.Rectangle!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler.MapRadiusX(Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler! handler, Microsoft.Maui.Controls.Shapes.Rectangle! rectangle) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler.MapRadiusY(Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler! handler, Microsoft.Maui.Controls.Shapes.Rectangle! rectangle) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.Shapes.RoundRectangle!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler.MapCornerRadius(Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler! handler, Microsoft.Maui.Controls.Shapes.RoundRectangle! roundRectangle) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.Controls.Shapes.RoundRectangle!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Hosting.TizenControlsMauiAppBuilderExtensions.ConfigureTizenControls(this Microsoft.Maui.Hosting.MauiAppBuilder! builder) -> Microsoft.Maui.Hosting.MauiAppBuilder!
+static Microsoft.Maui.Platforms.Tizen.Hosting.TizenControlsMauiAppBuilderExtensions.UseMauiAppTizenControls<TApp>(this Microsoft.Maui.Hosting.MauiAppBuilder! builder) -> Microsoft.Maui.Hosting.MauiAppBuilder!
+static Microsoft.Maui.Platforms.Tizen.Hosting.TizenShapeHandlerCollectionExtensions.AddTizenShapeHandlers(this Microsoft.Maui.Hosting.IMauiHandlersCollection! handlers) -> Microsoft.Maui.Hosting.IMauiHandlersCollection!

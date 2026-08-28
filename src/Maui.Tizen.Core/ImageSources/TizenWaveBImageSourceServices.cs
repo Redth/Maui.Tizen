@@ -10,8 +10,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Maui.Hosting;
 
 namespace Microsoft.Maui.Platforms.Tizen
 {
@@ -114,30 +112,4 @@ namespace Microsoft.Maui.Platforms.Tizen
 		}
 	}
 
-	/// <summary>
-	/// Registers the URI and font image source services.
-	/// </summary>
-	public static class TizenWaveBImageSourceServiceCollectionExtensions
-	{
-		/// <summary>
-		/// Adds the URI and font image source services, completing the set the core slice starts.
-		/// </summary>
-		/// <param name="services">The image source service collection.</param>
-		/// <returns>The collection, for chaining.</returns>
-		public static IImageSourceServiceCollection AddTizenUriAndFontImageSources(this IImageSourceServiceCollection services)
-		{
-			ArgumentNullException.ThrowIfNull(services);
-
-			// Resolve the loggers from DI. The constructors have always accepted an ILogger, but the
-			// previous registration passed none, so the parameter was dead and every diagnostic these
-			// services try to emit went nowhere.
-			services.AddService<IUriImageSource>(static provider =>
-				new TizenUriImageSourceService(provider.GetService<ILogger<TizenUriImageSourceService>>()));
-
-			services.AddService<IFontImageSource>(static provider =>
-				new TizenFontImageSourceService(provider.GetService<ILogger<TizenFontImageSourceService>>()));
-
-			return services;
-		}
-	}
 }

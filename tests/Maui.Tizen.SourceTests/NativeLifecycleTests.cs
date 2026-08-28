@@ -146,41 +146,17 @@ public class NativeLifecycleTests
 		Assert.Contains("_completionCts?.Cancel();", body, StringComparison.Ordinal);
 	}
 
-	/// <summary>
-	/// NUI signal cleanup is marshalled to the main loop and awaited.
-	/// </summary>
-	/// <remarks>
-	/// The continuation that unsubscribes <c>ResourceReady</c> resumes on a pool thread, or on
-	/// whichever thread cancelled. Posting the unsubscribe without awaiting it would let the
-	/// caller's disposal of the platform view overtake it.
-	/// </remarks>
-	[Fact]
-	public void ResourceReadyCleanupIsMarshalledAndAwaited()
-	{
-		var source = ReadCode("src", "Maui.Tizen.Core", "Platform", "Tizen", "TizenWaveBInterop.cs");
-
-		Assert.Contains("await UnsubscribeResourceReadyAsync(", source, StringComparison.Ordinal);
-		Assert.Contains("await dispatcher.DispatchAsync(() => imageView.ResourceReady -= handler)", source, StringComparison.Ordinal);
-
-		// The unguarded form must be gone from the apply path.
-		Assert.DoesNotContain("\t\t\t\timageView.ResourceReady -= OnResourceReady;", source, StringComparison.Ordinal);
-	}
-
-	/// <summary>Every image apply call site supplies a dispatcher.</summary>
-	/// <remarks>
-	/// The parameter is optional so the extension stays usable without one, which means a call site
-	/// that forgets it silently reverts to unmarshalled cleanup.
-	/// </remarks>
+	/// <summary>Every image call site captures Core's finalized commit dispatcher.</summary>
 	[Theory]
 	[InlineData("Image/TizenImageHandler.cs")]
 	[InlineData("ImageButton/TizenImageButtonHandler.cs")]
 	[InlineData("SwipeItemMenuItem/TizenSwipeItemMenuItemHandler.cs")]
-	public void EveryImageApplyCallSitePassesADispatcher(string relative)
+	public void EveryImageCallSiteCapturesTheCommitDispatcher(string relative)
 	{
 		var source = Read(new[] { "src", "Maui.Tizen.Core", "Handlers" }.Concat(relative.Split('/')).ToArray());
 
-		Assert.Contains("ApplyImageSourceAsync(", source, StringComparison.Ordinal);
-		Assert.Contains("GetService<Microsoft.Maui.Dispatching.IDispatcher>()", source, StringComparison.Ordinal);
+		Assert.Contains("TizenDispatchExtensions.CaptureDispatcher(handler)", source, StringComparison.Ordinal);
+		Assert.Contains("_sourceLoader.LoadPartAsync(", source, StringComparison.Ordinal);
 	}
 
 	/// <summary>

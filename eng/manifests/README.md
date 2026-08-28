@@ -21,7 +21,7 @@ Scale, from the pinned baselines. These are **blob** counts — see the counting
 | Category | Count | Baseline |
 |---|---|---|
 | Tizen-named files | 314 | `net11.0` (`ee4d06cde6`) |
-| Shared files with `#if TIZEN` | 136 | `net11.0` |
+| Shared files with `#if TIZEN` | 135 | `net11.0` |
 | Tizen-named files present at `9.0.120` but absent at the net11.0 pin | 87 | `9.0.120` (`c1f4f7d879`) |
 
 The 87 that exist only at `9.0.120`: `src/Compatibility/**` 70 (Core 48, Material 17,

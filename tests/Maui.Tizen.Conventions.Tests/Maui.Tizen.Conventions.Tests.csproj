@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsValidationTestProject>true</IsValidationTestProject>
+    <RootNamespace>Maui.Tizen.Conventions.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      The cross-platform half of handler parity is derived from the pinned MAUI packages rather
+      than from a hand-maintained list. Microsoft.Maui.Core ships a neutral lib/net11.0 asset, so
+      the EXPECTED key sets can be read on a hosted runner; only the Tizen side needs a device.
+    -->
+    <PackageReference Include="Microsoft.Maui.Core" />
+  </ItemGroup>
+
+</Project>

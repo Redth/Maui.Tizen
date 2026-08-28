@@ -31,8 +31,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			{
 			};
 
-		/// <summary>Cancels a superseded or disconnected image load.</summary>
-		readonly TizenImageSourceLoader _sourceLoader = new();
+		TizenImageLoader<TizenImageSource> _sourceLoader = new();
+		readonly TizenImageLoadEvents _sourceEvents = new();
 
 		public TizenImageHandler()
 			: base(Mapper, CommandMapper)
@@ -51,14 +51,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override Image CreatePlatformView() => new Image();
 
+		protected override void ConnectHandler(Image platformView)
+		{
+			var replacement = new TizenImageLoader<TizenImageSource>();
+
+			TizenCleanup.Run(
+				_sourceEvents.Invalidate,
+				_sourceLoader.Dispose,
+				() => _sourceLoader = replacement,
+				() => base.ConnectHandler(platformView));
+		}
 
 		protected override void DisconnectHandler(Image platformView)
 		{
-			// A pending load must not write to a view that is being released.
-			_sourceLoader.Cancel();
-
-			base.DisconnectHandler(platformView);
-			platformView.Clear();
+			TizenCleanup.Run(
+				_sourceEvents.Invalidate,
+				_sourceLoader.Dispose,
+				platformView.Clear,
+				() => base.DisconnectHandler(platformView));
 		}
 
 		public static void MapBackground(TizenImageHandler handler, IImage image)
@@ -83,42 +93,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			}
 
 			var provider = handler.GetRequiredService<IImageSourceServiceProvider>();
+			var source = image.Source;
+			var virtualView = handler.VirtualView;
+			var target = handler.PlatformView;
+			var commitOnUiThread = TizenDispatchExtensions.CaptureDispatcher(handler);
 
-			// The loader cancels any load still in flight, so a slow earlier source cannot
-			// finish last and overwrite this one.
-			return handler._sourceLoader.LoadAsync(
+			return handler._sourceLoader.LoadPartAsync(
 				image,
-				provider,
-				(platformImage, write, cancellationToken) =>
-				{
-					// The handler may have been disconnected while the source was resolving, in
-					// which case there is no view left to write to.
-					var platformView = handler.PlatformView;
-					if (platformView is null || cancellationToken.IsCancellationRequested)
-					{
-						return Task.FromResult(TizenImageApplyResult.Cancelled);
-					}
-
-					return platformView.ApplyImageSourceAsync(
-						platformImage,
-						// Routed through the loader's guard so the assignment cannot land on a view
-						// this load no longer owns. Returns false when it is refused.
-						image => image is not null
-							&& write(() => platformView.ResourceUrl = image.ResourceUrl),
-						// NUI signal cleanup must be marshalled to the main loop; see
-						// ApplyImageSourceAsync.
-						handler.GetService<Microsoft.Maui.Dispatching.IDispatcher>(),
-						cancellationToken);
-				},
+				handler._sourceEvents,
+				(imageSource, token) => provider.GetTizenImageAsync(imageSource, token),
+				commitOnUiThread,
+				platformImage => target.ResourceUrl = platformImage?.ResourceUrl,
 				() =>
-				{
-					// Nothing resolved, so the previous image must come down rather than linger.
-					var platformView = handler.PlatformView;
-					if (platformView is not null)
-					{
-						platformView.ResourceUrl = null;
-					}
-				});
+					ReferenceEquals(handler.VirtualView, virtualView) &&
+					ReferenceEquals(handler.PlatformView, target));
 		}
 	}
 }

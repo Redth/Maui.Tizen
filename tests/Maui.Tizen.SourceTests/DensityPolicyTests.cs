@@ -61,9 +61,9 @@ public class DensityPolicyTests
 		var interop = File.ReadAllText(
 			RepoPaths.Combine("src", "Maui.Tizen.Core", "Platform", "Tizen", "TizenWaveBInterop.cs"));
 
-		// The float overloads exist only because the core slice offers int and double. They must
-		// delegate rather than divide.
-		Assert.Contains("ToScaledPixel()", interop, StringComparison.Ordinal);
-		Assert.Contains("ToScaledDP()", interop, StringComparison.Ordinal);
+		// Core now owns the double-to-pixel overload. Wave B keeps only the missing float-to-DP
+		// overload, and forwards it to Core's double implementation.
+		Assert.DoesNotContain("ToPixel(this double", interop, StringComparison.Ordinal);
+		Assert.Contains("((double)pixel).ToScaledDP()", interop, StringComparison.Ordinal);
 	}
 }

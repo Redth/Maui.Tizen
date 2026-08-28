@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Package graph probe.
+
+    This project exists solely to make `dotnet restore` prove that the versions in
+    Directory.Packages.props and the mappings in nuget.config actually resolve. It
+    compiles nothing and ships nothing.
+
+    Why a separate project is needed: the real consumers of these packages are the
+    net11.0-tizen11.0 projects, and those cannot restore at all - the MAUITIZEN0001
+    workload gate fires before Restore. Without this probe a broken version pin stays
+    invisible until the Samsung workload ships, which could be months.
+
+    It caught a real one: Microsoft.AspNetCore.Components.WebView was pinned to MAUI's
+    version stamp (11.0.0-preview.7.26418.3), which does not exist for that package - it
+    is an ASP.NET Core package on its own version line. It also covers package source
+    mapping, since the transitive Microsoft.AspNetCore.Authorization and
+    Microsoft.JSInterop prereleases exist only on the dotnet11 feed.
+
+    All packages referenced here ship a neutral lib/net11.0 asset, which is what makes
+    probing them from a plain net11.0 project legitimate rather than a trick.
+
+    NOTE: Tizen-only packages (Tizen.UIExtensions.NUI) are deliberately NOT referenced.
+    They have no neutral asset, so referencing them would fail for reasons unrelated to
+    what this probe checks.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+    <IsPackable>false</IsPackable>
+
+    <!-- Nothing to compile; restore is the entire point. -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);NETSDK1057;CS2008</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Core" />
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Microsoft.Maui.Controls.Core" />
+    <PackageReference Include="Microsoft.Maui.Essentials" />
+    <PackageReference Include="Microsoft.Maui.Graphics" />
+    <PackageReference Include="Microsoft.Maui.Maps" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" />
+  </ItemGroup>
+
+</Project>

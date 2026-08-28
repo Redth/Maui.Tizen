@@ -22,6 +22,32 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <summary>Gets a value indicating whether <see cref="Dispose()"/> has been called.</summary>
 		public bool IsDisposed => _disposed;
 
+		/// <summary>
+		/// Records the mapper keys applied to this view.
+		/// </summary>
+		/// <remarks>
+		/// This is what makes the base-mapper tests <em>behavioural</em> rather than key-presence
+		/// checks. The defect being guarded against - chaining MAUI's neutral ViewMapper, whose
+		/// bodies are no-ops off-platform - leaves every key resolvable while nothing happens, so
+		/// only observing an effect can catch it.
+		/// </remarks>
+		public System.Collections.Generic.List<string> Applied { get; } = new();
+
+		/// <summary>Records that a mapper ran for the given key.</summary>
+		/// <param name="key">The mapper key.</param>
+		public void Record(string key) => Applied.Add(key);
+
+		/// <summary>
+		/// The last background colour applied, or <see langword="null"/> if none has been.
+		/// </summary>
+		/// <remarks>
+		/// Lets the background transition test observe colour -&gt; null clearing without a device.
+		/// </remarks>
+		public Microsoft.Maui.Graphics.Color? AppliedBackgroundColor { get; set; }
+
+		/// <summary>Whether a background clear was requested.</summary>
+		public bool BackgroundCleared { get; set; }
+
 		/// <inheritdoc />
 		public void Dispose()
 		{

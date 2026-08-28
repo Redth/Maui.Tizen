@@ -27,7 +27,7 @@ public class ImageSourceCompositionTests
 		// rather than from a hand-built container that might not resolve the way the product does.
 		var builder = MauiApp.CreateBuilder();
 		builder.UseMauiApp<HostApplication>();
-		builder.ConfigureImageSources(sources => sources.AddTizenUriAndFontImageSources());
+		builder.ConfigureImageSources(sources => sources.AddTizenImageSources());
 
 		configure?.Invoke(builder.Services);
 

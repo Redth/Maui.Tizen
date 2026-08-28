@@ -27,7 +27,7 @@ the platform. This repository separates the two.
 ### The blocker
 
 `net11.0-tizen11.0` cannot be restored or built by anyone right now. The workload manifest
-`samsung.net.sdk.tizen.manifest-11.0.100` has not been published to nuget.org — only the
+`Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7` has not been published to nuget.org — only the
 `9.0.100` and `10.0.100` bands exist.
 
 This is deliberately surfaced rather than worked around. There is no neutral `net11.0`
@@ -46,7 +46,9 @@ Details in [`docs/migration.md`](docs/migration.md).
 This runs everything that does not need the Tizen workload — SDK and package
 configuration, baseline consistency, import tooling integrity, and 20 repository
 invariant tests. It is the required CI lane, so that when the workload ships, the
-workload is the only thing that has to start working.
+workload is the only thing that has to start working. The external-gate job then installs
+through Samsung's supported workload installer and runs `eng/build-tizen.sh`; it cannot
+report success by skipping or masking a failed real Tizen restore/build/pack.
 
 Requires the .NET SDK pinned in [`global.json`](global.json) (11.0.100-preview.7).
 

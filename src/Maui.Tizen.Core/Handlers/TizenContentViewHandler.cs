@@ -12,21 +12,23 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// <remarks>
 	/// Ported from <c>Microsoft.Maui.Handlers.ContentViewHandler</c> (Tizen) in dotnet/maui.
 	/// </remarks>
-	public class TizenContentViewHandler : TizenViewHandler<IContentView, TizenContentViewGroup>, ITizenContentViewHandler
+	public class TizenContentViewHandler : TizenViewHandler<IContentView, TizenContentViewGroup>, IContentViewHandler
 	{
 		ITizenPlatformViewHandler? _contentHandler;
 
+		internal bool HasOwnedContent => _contentHandler is not null;
+
 		/// <summary>Property mapper for <see cref="IContentView"/> on Tizen.</summary>
-		public static readonly IPropertyMapper<IContentView, ITizenContentViewHandler> Mapper =
-			new PropertyMapper<IContentView, ITizenContentViewHandler>(ViewHandler.ViewMapper)
+		public static readonly IPropertyMapper<IContentView, IContentViewHandler> Mapper =
+			new PropertyMapper<IContentView, IContentViewHandler>(TizenViewMappers.ViewMapper, ContentViewHandler.Mapper)
 			{
 				[nameof(IContentView.Background)] = MapBackground,
 				[nameof(IContentView.Content)] = MapContent,
 			};
 
 		/// <summary>Command mapper for <see cref="IContentView"/> on Tizen.</summary>
-		public static readonly CommandMapper<IContentView, ITizenContentViewHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+		public static readonly CommandMapper<IContentView, IContentViewHandler> CommandMapper =
+			new(TizenViewMappers.ViewCommandMapper);
 
 		/// <summary>Initializes a new instance of the <see cref="TizenContentViewHandler"/> class.</summary>
 		public TizenContentViewHandler()
@@ -42,9 +44,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 		}
 
-		IContentView ITizenContentViewHandler.VirtualView => VirtualView;
+		IContentView IContentViewHandler.VirtualView => VirtualView;
 
-		TizenContentViewGroup ITizenContentViewHandler.PlatformView => PlatformView;
+		object IContentViewHandler.PlatformView => PlatformView;
 
 		/// <inheritdoc />
 		protected override TizenContentViewGroup CreatePlatformView()
@@ -71,17 +73,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>Maps <see cref="IView.Background"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="view">The content view.</param>
-		public static void MapBackground(ITizenContentViewHandler handler, IContentView view)
+		public static void MapBackground(IContentViewHandler handler, IContentView view)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateBackground(view);
+			((TizenContentViewGroup?)handler.PlatformView)?.UpdateBackground(view);
 #endif
 		}
 
 		/// <summary>Maps <see cref="IContentView.Content"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="view">The content view.</param>
-		public static void MapContent(ITizenContentViewHandler handler, IContentView view)
+		public static void MapContent(IContentViewHandler handler, IContentView view)
 		{
 			if (handler is TizenContentViewHandler contentViewHandler)
 				contentViewHandler.UpdateContent();
@@ -115,10 +117,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <inheritdoc />
 		protected override void Dispose(bool disposing)
 		{
-			if (disposing)
-				_contentHandler?.Dispose();
+			var contentHandler = disposing ? _contentHandler : null;
 
-			base.Dispose(disposing);
+			TizenCleanup.Run(
+				() =>
+				{
+					if (disposing)
+						_contentHandler = null;
+				},
+				() => contentHandler?.Dispose(),
+				() => base.Dispose(disposing));
 		}
 	}
 }

@@ -121,7 +121,7 @@ public class ServiceShadowingTests
 	{
 		var builder = MauiApp.CreateBuilder();
 		builder.UseMauiApp<HostApplication>();
-		builder.ConfigureImageSources(sources => sources.AddTizenUriAndFontImageSources());
+		builder.ConfigureImageSources(sources => sources.AddTizenImageSources());
 
 		var provider = builder.Build().Services.GetRequiredService<IImageSourceServiceProvider>();
 
@@ -144,7 +144,7 @@ public class ServiceShadowingTests
 
 		// Force MAUI's neutral font service to be registered first.
 		builder.ConfigureImageSources(sources => sources.AddService<IFontImageSource, FontImageSourceService>());
-		builder.ConfigureImageSources(sources => sources.AddTizenUriAndFontImageSources());
+		builder.ConfigureImageSources(sources => sources.AddTizenImageSources());
 
 		var provider = builder.Build().Services.GetRequiredService<IImageSourceServiceProvider>();
 

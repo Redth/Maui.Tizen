@@ -12,6 +12,7 @@ using Microsoft.Maui;
 using Microsoft.Maui.Controls.Handlers;
 
 using Microsoft.Maui.Platforms.Tizen;
+using Path = Microsoft.Maui.Controls.Shapes.Path;
 
 namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
@@ -35,18 +36,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public TizenPathHandler()
 			: base(Mapper, CommandMapper)
-		{{
-		}}
+		{
+			{
+			}
+		}
 
 		public TizenPathHandler(IPropertyMapper? mapper)
 			: base(mapper ?? Mapper, CommandMapper)
-		{{
-		}}
+		{
+			{
+			}
+		}
 
 		public TizenPathHandler(IPropertyMapper? mapper, CommandMapper? commandMapper)
 			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
-		{{
-		}}
+		{
+			{
+			}
+		}
 
 		/// <summary>Rebuilds the drawable for a new shape, preserving the render transform.</summary>
 		/// <remarks>

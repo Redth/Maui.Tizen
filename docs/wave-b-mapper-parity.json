@@ -212,7 +212,7 @@
     {
       "Handler": "TizenImageSourceServiceCollectionExtensions",
       "BaseType": "",
-      "File": "src/Maui.Tizen.Core/ImageSources/TizenImageSourceServices.cs",
+      "File": "src/Maui.Tizen.Core/ImageSources/TizenImageSourceServiceCollectionExtensions.cs",
       "PropertyMappers": [],
       "CommandMappers": [],
       "UncoveredNeutralKeys": []
@@ -700,14 +700,6 @@
     {
       "Handler": "TizenUriImageSourceService",
       "BaseType": "ITizenImageSourceService",
-      "File": "src/Maui.Tizen.Core/ImageSources/TizenWaveBImageSourceServices.cs",
-      "PropertyMappers": [],
-      "CommandMappers": [],
-      "UncoveredNeutralKeys": []
-    },
-    {
-      "Handler": "TizenWaveBImageSourceServiceCollectionExtensions",
-      "BaseType": "",
       "File": "src/Maui.Tizen.Core/ImageSources/TizenWaveBImageSourceServices.cs",
       "PropertyMappers": [],
       "CommandMappers": [],

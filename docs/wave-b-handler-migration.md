@@ -81,14 +81,14 @@ listed below is `rebuild`.
 
 `IImageSourceService` declared its Tizen `GetImageAsync` overload under `#if TIZEN` upstream, so the
 neutral interface in MAUI 11 has no Tizen member at all. Wave B introduces
-`ITizenImageSourceService`, its generic marker, and a `TizenImageSourceService` base, then migrates
-the four services onto them: `TizenFileImageSourceService`, `TizenUriImageSourceService`,
+`ITizenImageSourceService` as the typed contract used by all four services:
+`TizenFileImageSourceService`, `TizenUriImageSourceService`,
 `TizenStreamImageSourceService` and `TizenFontImageSourceService`.
 
-`ImageSourcePartExtensions.UpdateSourceAsync` — the existing Tizen loading path, including the
-`ResourceReady` await for image views — now resolves services through
-`GetRequiredTizenImageSourceService`. Handlers use that path directly instead of MAUI's
-`ImageSourcePartLoader`, whose platform setter has no Tizen shape in MAUI 11.
+The image-bearing handlers use Core's finalized `TizenImageLoader<TizenImageSource>` for
+supersession, source/target identity, UI-thread commit and native-result disposal. Wave B adds only
+the `IImageSourcePart` event adapter, so `LoadingStarted`, `LoadingCompleted`, `LoadingFailed` and
+`IsLoading` remain correct without retaining a second cancellation/disposal implementation.
 
 ### Polygon and polyline point subscriptions
 
@@ -228,35 +228,20 @@ source plus the ref-pack compile.
 
 ### Image loading is cancellation-aware
 
-Each image-bearing handler owns a `TizenImageSourceLoader`. It cancels any load still in flight when
-a new source arrives and when the handler is disconnected, and it refuses to apply a result that has
-been superseded — checked both by token and by re-reading `IImageSourcePart.Source`, because
-honouring a cancellation token is a convention a service may simply not follow.
+Each image-bearing handler owns Core's `TizenImageLoader<TizenImageSource>`. A new source cancels the
+previous load, and disconnect permanently disposes the loader before the native view is released.
+Reconnect installs a fresh loader. Source and target identity are rechecked after the queued commit
+reaches the UI thread, so a service that ignores cancellation still cannot overwrite a newer image.
 
-The loader has no `Tizen.NUI` dependency, so it is compiled into the host test project and executed.
-`ImageSourceLoaderTests` covers rapid source changes, cancellation on disconnect, a service that
-ignores its token, a failing service, and a load whose platform event never arrives.
-
-Two of those tests were initially **vacuous**, and it is worth recording why. The first supersede
-test passed even with the loader's source re-check deleted, because a well-behaved service throws
-from the cancelled token and unwinds before the re-check is reached. Only a service that *ignores*
-its token exercises that guard. Both tests were then verified by deleting the guard and confirming
-the suite goes red.
-
-### Image loading waits for the decode
-
-`UpdateSourceAsync` defers completion until NUI raises `ResourceReady` when the destination is a
-native image view, so `LoadingCompleted` and `IsLoading` describe a decoded image rather than a
-resolved URL — without that await a loading spinner disappears before anything is on screen. Two
-deliberate departures from upstream, both fixing bugs rather than changing behaviour: the completion
-source is linked to the cancellation token so a load that is cancelled or never signalled cannot
-hang the mapper, and `TrySetResult` replaces `SetResult`, which throws if NUI raises the event twice.
+`ImageLoaderTests` exercises the shared loader's supersession, dispatcher and disposal semantics.
+`ImageLoaderPartTests` covers Wave B's thin event adapter, including the same-source race where a
+stale completion must not clear `IsLoading` for the newer request.
 
 ### Composition
 
-`AddTizenUriAndFontImageSources` registers the URI and font services and resolves their loggers from
-DI. The constructors always accepted an `ILogger`, but the previous registration passed none, so the
-parameter was dead and every diagnostic these services emit went nowhere.
+Wave B extends the single public `AddTizenImageSources` seam through a private partial hook. The URI
+and font registrations resolve their loggers from DI; there is no second public composition method
+for a host to forget.
 
 `ImageSourceCompositionTests` resolves both services through a real `MauiApp` container and asserts
 they implement `ITizenImageSourceService` — without which `GetTizenImageAsync` silently returns null
@@ -280,7 +265,7 @@ the composition root registers everything:
   still resolves and lays out — it simply never reaches a Tizen handler and never draws.
   `ShapeCompositionTests` now reads the ref-pack lane's IL to assert the entry points really do call
   the registration.
-- `AddTizenImageSources` + `AddTizenUriAndFontImageSources` — all four image source services.
+- `AddTizenImageSources` — all four image source services through one public seam.
 - `AddTizenFontServices` — the embedded font loader, and the Tizen font manager.
 
 #### Why the composition root is a partial method
@@ -379,10 +364,10 @@ for whoever restores it once a Tizen-targeting lane exists.
 - `Platform/Tizen` helper *contents* are untouched apart from the one-line image-source resolution
   change, to keep the diff reviewable and avoid churn against other waves.
 
-## Mandatory steps at the final Wave A rebase
+## Final Wave A integration checklist (completed)
 
-Wave B is held pending a stable reviewed Wave A head. These steps are not optional and are not
-discoverable from the diff, so they are recorded here.
+The finalized merge completed each of these requirements. They remain here as the causal record for
+the conflict resolutions and regression tests.
 
 1. **Delete Wave B's three Core-owned extension methods.** Core owns all common `IView` mappings and
    extensions. Both trees currently define `UpdateVisibility(View, IView)`, `UpdateFlowDirection(View,
@@ -406,53 +391,32 @@ discoverable from the diff, so they are recorded here.
    mappings only after confirming behavioural equivalence, and add base behavioural tests
    (visibility, background, enabled, opacity).
 
-3. **Fold `AddTizenUriAndFontImageSources` into Wave A's `AddTizenImageSources` seam.** Approved as a
-   stacked-layer edit to that Wave A-owned file. Move the URI and font registrations in beside the
-   file and stream ones, **delete the second public entry point**, and leave
-   `ConfigurePlatformContent` calling `AddTizenImageSources` alone. Wave A's own source asks for
-   exactly this: *"Extending this is the supported path for the image workstream. Add the font and
-   URI registrations here so they are picked up by the single call in `ConfigureTizen`, rather than
-   introducing a second entry point that a host has to remember to call."*
-
-   Note that Wave A guards its registrations with `#if TIZEN`, so the folded registrations must sit
-   **inside** that guard to match, and a host-side container test can never prove this: without
-   `TIZEN`, `AddTizenImageSources` registers nothing and all four sources resolve to MAUI's neutral
-   services. `ImageSourceSeamTests` therefore reads the ref-pack lane's emitted IL — the one
-   workload-free place the `TIZEN` branches exist — and asserts the seam constructs all four Tizen
-   services. It is written against the union of the registration methods, so it stays green across
-   the fold and fails if a registration is dropped along the way.
+3. **Use Wave A's single `AddTizenImageSources` seam.** The second public entry point was deleted.
+   Wave B supplies URI and font registrations through a private partial implementation, while
+   `ConfigureTizen` remains the only public call site. Host tests resolve URI/font services through
+   the shared method, and `ImageSourceSeamTests` reads the ref-pack IL to prove the Tizen-only file
+   and stream registrations are present too.
 
    The device-side integration test must assert the resolved **implementation types** are the Tizen
    ones for file, stream, URI and font — not merely that a service resolves. Every one of them
    resolves regardless; MAUI's neutral package guarantees it.
 
-4. **Take Wave A's composition root wholesale — it fixes shadowing this branch's base copy still has.**
+4. **Take Wave A's composition root wholesale.**
    `MauiApp.CreateBuilder` registers defaults for `IFontManager`, `IEmbeddedFontLoader`,
    `IFontRegistrar`, `IDispatcherProvider`, `IDispatcher`, `ITicker` and `IAnimationManager` before
-   any backend configuration runs, so `TryAdd` for any of them is a guaranteed no-op. The copy of
-   `ConfigureTizen` on this branch predates Wave A's fix and still `TryAdd`s the dispatcher, ticker
-   and animation manager — measured on a real host, `TryAddTransient<ITicker, TizenTicker>()`
-   resolves to MAUI's `PlatformTicker`, so animations would not run on the Tizen ticker at all.
-   Wave A already uses `Replace` for all four; the rebase takes theirs and the problem disappears.
-   Wave B's own edit to that file is only the `ConfigurePlatformContent` hook, which must be
-   preserved.
+   any backend configuration runs, so `TryAdd` for any of them is a guaranteed no-op. Before
+   integration, Wave B's inherited copy still used those stale registrations — measured on a real
+   host, `TryAddTransient<ITicker, TizenTicker>()` resolved to MAUI's `PlatformTicker`.
+   The merge retained Wave A's `Replace` registrations and added only the
+   `ConfigurePlatformContent` hook used by the TizenFX-only Wave B source group.
 
 5. **Take Wave A's image-source implementations.** Do not carry stale `ConfigureAwait(false)` copies
    of `TizenImageSource` or the stream service across the rebase: Wave A's `GenerateUrl` has
    main-loop affinity that those copies would break.
 
-6. **Resolve only additive shared files.** Pre-flight against Wave A shows every other conflicting
-   path is byte-identical Wave A content (take theirs). The two genuinely shared files,
-   `Maui.Tizen.slnx` and `eng/Maui.Tizen.Core.Sources.props`, are additive on the Wave B side with
-   zero deleted lines, so both are keep-both.
-
-## Known issue outside Wave B's scope
-
-`eng/build-workload-free.sh` reports **"Samsung Tizen workload is installed"** when it is not. The
-gate greps `dotnet workload list` for `tizen`, which matches MAUI's own `maui-tizen` workload; the
-Samsung SDK (`samsung.net.sdk.tizen`) is absent. The correct check greps for
-`samsung.net.sdk.tizen`. The gate is foundation-owned, so it is reported rather than changed here —
-but it means the "Tizen lane can now be made required" line must not be believed.
+6. **Resolve shared source/project files additively.** The merged graph includes Wave B in the Core
+   and Controls product projects, both matching RefPack lanes, the host source tests and the
+   solution. Raw imported sources remain outside every compile item.
 
 
 ## A note on the metadata tests, and a bug they had
@@ -511,34 +475,15 @@ from the ref-pack lane's emitted IL instead.
 
 ## Atomicity of the native image write
 
-Every native mutation a load performs — assigning the image, and clearing it — goes through a single
-generation-guarded primitive on `TizenImageSourceLoader`, which performs the ownership check and the
-mutation **under the same lock that guards the generation**.
+Every native mutation a load performs — assigning the image, clearing it, and releasing the
+superseded result — goes through Core's `TizenImageLoader<TImage>`. The loader rechecks generation,
+source identity and target identity inside the dispatched commit, after queued work reaches the NUI
+thread. A check made only before dispatch leaves a window in which disconnect or a newer source can
+overtake the queued write.
 
-Checking ownership and then mutating as two steps is not sufficient, however close together they
-sit. A load can be superseded, or the handler disconnected, in the window between them; the stale
-write then lands on a view that now belongs to a newer load, or to nothing at all. `Cancel` and
-`LoadAsync` both take that lock to move the generation, so holding it across check-and-mutate closes
-the window.
-
-The mutation runs while the lock is held and therefore must not block or re-enter the loader. In
-practice it is a single property assignment on the platform view.
-
-This also changed the apply contract. The write callback now returns whether the write was
-*permitted*, and a refused write makes the apply step return immediately instead of awaiting
-`ResourceReady`. That is not a nicety: `ResourceReady` only fires because an image was assigned, so
-a refused write followed by an await would hang forever, holding the load's result.
-
-`ImageSourceLoaderTests` interposes deterministically at the exact instant a stale write would
-happen — cancelling, or starting a newer load, from inside the apply callback — and a concurrent
-test proves the guard and the mutation are indivisible by racing `Cancel` against a write and
-asserting the ordering. Each was mutation-verified: leaving the write unguarded fails the
-interposition tests, and releasing the lock before mutating fails the concurrency test.
-
-One consequence worth recording: the primitive reports **ownership**, not whether an action ran. An
-earlier revision conflated the two, which silently suppressed `LoadingFailed` whenever no clear
-action had been supplied — a caller with nothing to mutate could no longer tell whether it still
-owned the part.
+Wave B does not keep a parallel write lock, generation or cancellation token. Its event adapter
+tracks only which `IImageSourcePart` notification sequence is current; ownership of the image result
+and native mutation remains exclusively in the shared loader.
 
 
 ## Native lifecycle and third-party behaviour
@@ -589,13 +534,12 @@ the base class's completion animation — an `async void` with no cancellation �
 then touches the refresh icon the same teardown is disposing. Teardown now calls `Reset`, which
 abandons the state without producing a native write, and cancels any scheduled replay.
 
-### NUI signal cleanup belongs on the main loop
+### Image cleanup belongs on the main loop
 
-The `ResourceReady` unsubscribe ran in a `finally` whose continuation resumes on a pool thread —
-`ConfigureAwait(false)` with `RunContinuationsAsynchronously`, or on whichever thread cancelled. It
-is now marshalled to the dispatcher and **awaited**: the caller disposes the platform view once the
-apply returns, so a posted unsubscribe could otherwise be scheduled behind that disposal and touch a
-freed object.
+Image result disposal can release a NUI `ImageUrl`, so Core's loader captures the handler dispatcher
+before the asynchronous load starts and performs the commit, superseded-result disposal and failed
+dispatch recovery through that captured route. Disconnect invalidates Wave B's event sequence before
+disposing the loader, preventing a late completion from touching a detached part.
 
 ### Visibility is not the indicator's to decide alone
 

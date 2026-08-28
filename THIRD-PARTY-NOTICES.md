@@ -50,7 +50,6 @@ the git log itself, not just from this file.
 ---
 
 ## Samsung Tizen dependencies (referenced, not redistributed)
-
 > **No Samsung source code is copied into this repository.** The components below are
 > consumed exclusively as published NuGet packages and .NET SDK workload packs. They are
 > listed here because building and running this backend requires them, and because their
@@ -91,3 +90,54 @@ and limitations under the License.
 The full Apache-2.0 text is not reproduced here because no Apache-2.0-licensed source is
 distributed by this repository; the dependencies carry their own licence files inside
 their respective NuGet packages.
+
+---
+
+## Vendored tooling
+
+### git-filter-repo
+
+- **Project:** [newren/git-filter-repo](https://github.com/newren/git-filter-repo)
+- **File:** [`eng/import/git-filter-repo`](eng/import/git-filter-repo)
+- **Licence:** MIT
+- **Redistributed here:** **yes** — unlike the Samsung dependencies above, this one *is*
+  vendored into the repository.
+
+This single-file Python script performs the history rewrite described in
+[`PROVENANCE.md`](PROVENANCE.md). It is vendored rather than installed because the
+provenance claim "this history is reproducible" is only true if the exact tool that
+produced it travels with the repository; a system package that has since moved on would
+quietly invalidate it.
+
+Because it is redistributed, its licence obligations apply in full:
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2018-2024 Elijah Newren
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+The vendored copy is unmodified. To verify or refresh it:
+
+```bash
+curl -sL https://raw.githubusercontent.com/newren/git-filter-repo/main/git-filter-repo \
+  | diff - eng/import/git-filter-repo
+```

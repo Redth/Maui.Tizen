@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "generatedFrom": {
+    "sourceBaseline": "ee4d06cde6b49e297631b08426a33fb34f3152ef",
+    "behaviorBaseline": "c1f4f7d879f6126029009902289efd6a4bb1bda9"
+  },
+  "entries": [
+    { "path": "src/Core/src/Platform/Tizen/A.cs", "sourceRef": "both", "kind": "tizen-specific", "disposition": "move", "targetPath": "src/Maui.Tizen.Core/Platform/Tizen/Collide.cs" },
+    { "path": "src/Core/src/Platform/Tizen/B.cs", "sourceRef": "both", "kind": "tizen-specific", "disposition": "move", "targetPath": "src/Maui.Tizen.Core/Platform/Tizen/Collide.cs" }
+  ]
+}

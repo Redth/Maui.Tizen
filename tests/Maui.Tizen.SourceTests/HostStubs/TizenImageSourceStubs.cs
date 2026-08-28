@@ -8,7 +8,7 @@ namespace Microsoft.Maui.Platforms.Tizen;
 /// <remarks>
 /// <para>
 /// The real type wraps <c>Tizen.NUI.ImageUrl</c> and <c>Tizen.NUI.EncodedImageBuffer</c>, so it can
-/// only be compiled where TizenFX is available. <see cref="TizenImageSourceLoader"/> never inspects
+/// only be compiled where TizenFX is available. <see cref="TizenImageLoader{TImage}"/> never inspects
 /// an image — it only decides <em>whether</em> one should be applied — so a payload stand-in is
 /// enough to execute every cancellation path.
 /// </para>

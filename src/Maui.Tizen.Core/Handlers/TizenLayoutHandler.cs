@@ -16,13 +16,28 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// mapper keys intentionally match <c>Microsoft.Maui.ILayoutHandler</c> member names because
 	/// MAUI Controls raises child operations by key string.
 	/// </remarks>
-	public class TizenLayoutHandler : TizenViewHandler<ILayout, TizenLayoutViewGroup>, ITizenLayoutHandler
+	public class TizenLayoutHandler : TizenViewHandler<ILayout, TizenLayoutViewGroup>, ILayoutHandler
 	{
+		/// <summary>
+		/// The children in LOGICAL order - the same order as the layout's own collection.
+		/// </summary>
+		/// <remarks>
+		/// Deliberately NOT the native z-order. Update, Insert and Remove all receive logical
+		/// indices, and PlatformView.Children is sorted by ZIndex; those coincide only while every
+		/// child sits at ZIndex 0. This list previously mirrored the native order, so
+		/// <c>_children[index]</c> returned an unrelated child as soon as any ZIndex was set - and
+		/// Update then disposed it.
+		///
+		/// Native positions are derived when needed, from the virtual view's z-ordering, rather
+		/// than being conflated with this list.
+		/// </remarks>
 		readonly List<IView> _children = new();
 
+		internal int LogicalChildCount => _children.Count;
+
 		/// <summary>Property mapper for <see cref="ILayout"/> on Tizen.</summary>
-		public static readonly IPropertyMapper<ILayout, ITizenLayoutHandler> Mapper =
-			new PropertyMapper<ILayout, ITizenLayoutHandler>(ViewHandler.ViewMapper)
+		public static readonly IPropertyMapper<ILayout, ILayoutHandler> Mapper =
+			new PropertyMapper<ILayout, ILayoutHandler>(TizenViewMappers.ViewMapper, LayoutHandler.Mapper)
 			{
 				[nameof(ILayout.Background)] = MapBackground,
 				[nameof(ILayout.ClipsToBounds)] = MapClipsToBounds,
@@ -30,15 +45,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		/// <summary>Command mapper for <see cref="ILayout"/> on Tizen.</summary>
-		public static readonly CommandMapper<ILayout, ITizenLayoutHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper)
+		public static readonly CommandMapper<ILayout, ILayoutHandler> CommandMapper =
+			new(TizenViewMappers.ViewCommandMapper)
 			{
-				[nameof(ITizenLayoutHandler.Add)] = MapAdd,
-				[nameof(ITizenLayoutHandler.Remove)] = MapRemove,
-				[nameof(ITizenLayoutHandler.Clear)] = MapClear,
-				[nameof(ITizenLayoutHandler.Insert)] = MapInsert,
-				[nameof(ITizenLayoutHandler.Update)] = MapUpdate,
-				[nameof(ITizenLayoutHandler.UpdateZIndex)] = MapUpdateZIndex,
+				[nameof(ILayoutHandler.Add)] = MapAdd,
+				[nameof(ILayoutHandler.Remove)] = MapRemove,
+				[nameof(ILayoutHandler.Clear)] = MapClear,
+				[nameof(ILayoutHandler.Insert)] = MapInsert,
+				[nameof(ILayoutHandler.Update)] = MapUpdate,
+				[nameof(ILayoutHandler.UpdateZIndex)] = MapUpdateZIndex,
 			};
 
 		/// <summary>Initializes a new instance of the <see cref="TizenLayoutHandler"/> class.</summary>
@@ -55,9 +70,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 		}
 
-		ILayout ITizenLayoutHandler.VirtualView => VirtualView;
+		ILayout ILayoutHandler.VirtualView => VirtualView;
 
-		TizenLayoutViewGroup ITizenLayoutHandler.PlatformView => PlatformView;
+		object ILayoutHandler.PlatformView => PlatformView;
 
 		/// <inheritdoc />
 		protected override TizenLayoutViewGroup CreatePlatformView()
@@ -88,6 +103,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 #endif
 			_children.Clear();
 
+			// The NATIVE collection is filled in z-order, because that is what determines paint
+			// order. The LOGICAL list must not be: it is indexed by Update, Insert and Remove,
+			// which all receive logical positions.
+			//
+			// Both were previously filled from OrderByZIndex, so _children was z-ordered here even
+			// though every consumer treats it as logical - which is the same conflation that made
+			// Update dispose the wrong child.
 			foreach (var child in VirtualView.OrderByZIndex())
 			{
 #if TIZEN
@@ -95,8 +117,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 #else
 				_ = child.ToPlatform(MauiContext);
 #endif
-				_children.Add(child);
 			}
+
+			foreach (var child in VirtualView)
+				_children.Add(child);
 		}
 
 		/// <inheritdoc />
@@ -105,29 +129,42 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			_ = MauiContext ?? throw new InvalidOperationException(
 				$"{nameof(MauiContext)} should have been set by base class.");
 
+			// Native position comes from the z-ordering; the logical list simply appends.
 			var targetIndex = VirtualView.GetLayoutHandlerIndex(child);
 #if TIZEN
 			PlatformView.Children.Insert(targetIndex, child.ToPlatformView(MauiContext));
 #else
 			_ = child.ToPlatform(MauiContext);
 #endif
-			_children.Insert(Math.Clamp(targetIndex, 0, _children.Count), child);
+			_children.Add(child);
 			EnsureZIndexOrder(child);
 			PlatformView.SetNeedMeasureUpdate();
+		}
+
+		/// <summary>
+		/// Removes a child from the native tree and the logical list, disposing its handler.
+		/// </summary>
+		/// <remarks>
+		/// The native view is located through the child's OWN handler, never by position - which is
+		/// what makes this correct regardless of z-order. Disposing the handler disposes the native
+		/// view it owns, so the view is only unparented here and never disposed twice.
+		/// </remarks>
+		void RemoveChildCore(IView child)
+		{
+#if TIZEN
+			if (child.Handler.ToPlatformView() is TizenNativeView childView)
+				PlatformView.Children.Remove(childView);
+#endif
+
+			_children.Remove(child);
+			(child.Handler as ITizenPlatformViewHandler)?.Dispose();
 		}
 
 		/// <inheritdoc />
 		public void Remove(IView child)
 		{
-			if (child.Handler is ITizenPlatformViewHandler childHandler)
-			{
-#if TIZEN
-				if (child.Handler.ToPlatformView() is TizenNativeView childView)
-					PlatformView.Children.Remove(childView);
-#endif
-				_children.Remove(child);
-				childHandler.Dispose();
-			}
+			if (child.Handler is ITizenPlatformViewHandler)
+				RemoveChildCore(child);
 
 #if TIZEN
 			PlatformView.MarkChanged();
@@ -155,8 +192,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <inheritdoc />
 		public void Insert(int index, IView child)
 		{
-			_ = index;
-			Add(child);
+			_ = MauiContext ?? throw new InvalidOperationException(
+				$"{nameof(MauiContext)} should have been set by base class.");
+
+			var targetIndex = VirtualView.GetLayoutHandlerIndex(child);
+#if TIZEN
+			PlatformView.Children.Insert(targetIndex, child.ToPlatformView(MauiContext));
+#else
+			_ = child.ToPlatform(MauiContext);
+#endif
+
+			// Logical position for the logical list; the native insert above used the z-position.
+			_children.Insert(Math.Clamp(index, 0, _children.Count), child);
+			EnsureZIndexOrder(child);
+			PlatformView.SetNeedMeasureUpdate();
 		}
 
 		/// <inheritdoc />
@@ -165,23 +214,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			_ = MauiContext ?? throw new InvalidOperationException(
 				$"{nameof(MauiContext)} should have been set by base class.");
 
-#if TIZEN
-			if (index >= 0 && index < PlatformView.Children.Count)
-			{
-				var toBeRemoved = PlatformView.Children[index];
-				PlatformView.Children.RemoveAt(index);
-				toBeRemoved.Dispose();
-			}
-#endif
+			// `index` is a LOGICAL position, and _children is now kept in logical order, so this
+			// genuinely identifies the outgoing child. It previously indexed a z-ORDERED list,
+			// which returned an unrelated child the moment any ZIndex was non-zero - and this
+			// method then disposed it, leaving the child actually being replaced on screen with
+			// its handler intact. Nothing threw.
+			var outgoing = index >= 0 && index < _children.Count ? _children[index] : null;
 
-			if (index >= 0 && index < _children.Count)
+			if (ReferenceEquals(outgoing, child))
+				return;
+
+			if (outgoing is not null)
 			{
-				var childToBeRemoved = _children[index];
-				_children.RemoveAt(index);
-				(childToBeRemoved.Handler as ITizenPlatformViewHandler)?.Dispose();
+				// By identity, and the native view found through its own handler - never by
+				// position, which is exactly what was wrong.
+				RemoveChildCore(outgoing);
 			}
 
-			Add(child);
+			// Insert at the same LOGICAL position the outgoing child occupied; the native slot is
+			// re-derived from the z-ordering.
+			Insert(index, child);
 		}
 
 		/// <inheritdoc />
@@ -226,20 +278,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>Maps <see cref="IView.Background"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="layout">The layout.</param>
-		public static void MapBackground(ITizenLayoutHandler handler, ILayout layout)
+		public static void MapBackground(ILayoutHandler handler, ILayout layout)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateBackground(layout);
+			((TizenLayoutViewGroup?)handler.PlatformView)?.UpdateBackground(layout);
 #endif
 		}
 
 		/// <summary>Maps <see cref="ILayout.ClipsToBounds"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="layout">The layout.</param>
-		public static void MapClipsToBounds(ITizenLayoutHandler handler, ILayout layout)
+		public static void MapClipsToBounds(ILayoutHandler handler, ILayout layout)
 		{
 #if TIZEN
-			handler.PlatformView.ClippingMode = layout.ClipsToBounds
+			((TizenLayoutViewGroup)handler.PlatformView).ClippingMode = layout.ClipsToBounds
 				? global::Tizen.NUI.ClippingModeType.ClipToBoundingBox
 				: global::Tizen.NUI.ClippingModeType.Disabled;
 #endif
@@ -248,57 +300,70 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>Maps <see cref="IView.InputTransparent"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="layout">The layout.</param>
-		public static void MapInputTransparent(ITizenLayoutHandler handler, ILayout layout)
+		public static void MapInputTransparent(ILayoutHandler handler, ILayout layout)
 		{
 			if (handler.PlatformView is TizenLayoutViewGroup viewGroup)
 				viewGroup.InputTransparent = layout.InputTransparent;
 		}
 
-		static void MapAdd(ITizenLayoutHandler handler, ILayout layout, object? arg)
+		static void MapAdd(ILayoutHandler handler, ILayout layout, object? arg)
 		{
 			if (arg is LayoutHandlerUpdate args)
 				handler.Add(args.View);
 		}
 
-		static void MapRemove(ITizenLayoutHandler handler, ILayout layout, object? arg)
+		static void MapRemove(ILayoutHandler handler, ILayout layout, object? arg)
 		{
 			if (arg is LayoutHandlerUpdate args)
 				handler.Remove(args.View);
 		}
 
-		static void MapClear(ITizenLayoutHandler handler, ILayout layout, object? arg) =>
+		static void MapClear(ILayoutHandler handler, ILayout layout, object? arg) =>
 			handler.Clear();
 
-		static void MapInsert(ITizenLayoutHandler handler, ILayout layout, object? arg)
+		static void MapInsert(ILayoutHandler handler, ILayout layout, object? arg)
 		{
 			if (arg is LayoutHandlerUpdate args)
 				handler.Insert(args.Index, args.View);
 		}
 
-		static void MapUpdate(ITizenLayoutHandler handler, ILayout layout, object? arg)
+		static void MapUpdate(ILayoutHandler handler, ILayout layout, object? arg)
 		{
 			if (arg is LayoutHandlerUpdate args)
 				handler.Update(args.Index, args.View);
 		}
 
-		static void MapUpdateZIndex(ITizenLayoutHandler handler, ILayout layout, object? arg)
+		static void MapUpdateZIndex(ILayoutHandler handler, ILayout layout, object? arg)
 		{
-			if (arg is LayoutHandlerUpdate args)
-				handler.UpdateZIndex(args.View);
+			// The argument is the child IView itself, NOT a LayoutHandlerUpdate: both MAUI's
+			// ViewHandler.MapZIndex and this backend's TizenViewMappers.MapZIndex forward the view
+			// directly. Matching MAUI's own MapUpdateZIndex, which does `if (arg is IView view)`.
+			if (arg is IView view)
+				handler.UpdateZIndex(view);
 		}
 
 		/// <inheritdoc />
 		protected override void Dispose(bool disposing)
 		{
+			var cleanup = new List<Action>();
+
 			if (disposing)
 			{
-				foreach (var child in _children)
-					(child.Handler as ITizenPlatformViewHandler)?.Dispose();
+				var childHandlers = _children
+					.Select(child => child.Handler as ITizenPlatformViewHandler)
+					.Where(handler => handler is not null)
+					.ToArray();
 
-				_children.Clear();
+				// Relinquish ownership before invoking child code so a retry or reentrant Dispose
+				// cannot attempt the same child twice.
+				cleanup.Add(_children.Clear);
+
+				foreach (var childHandler in childHandlers)
+					cleanup.Add(childHandler!.Dispose);
 			}
 
-			base.Dispose(disposing);
+			cleanup.Add(() => base.Dispose(disposing));
+			TizenCleanup.Run(cleanup.ToArray());
 		}
 	}
 }

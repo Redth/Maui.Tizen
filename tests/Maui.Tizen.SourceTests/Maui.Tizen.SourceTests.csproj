@@ -33,6 +33,9 @@
 
   <ItemGroup>
     <Compile Include="@(MauiTizenWaveBPortableCompile)" LinkBase="WaveB" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/TizenCleanup.cs" LinkBase="Shared" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/TizenImageLoader.cs" LinkBase="Shared" />
+    <Compile Include="$(MauiTizenCoreDir)ImageSources/TizenImageSourceServiceCollectionExtensions.cs" LinkBase="WaveB" />
 
     <!--
       The Tizen-typed image source contract is NUI-free and is compiled as-is. The concrete
@@ -86,6 +89,8 @@
   -->
   <ItemGroup>
     <ProjectReference Include="../Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj"
+                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj"
                       ReferenceOutputAssembly="false" />
   </ItemGroup>
 

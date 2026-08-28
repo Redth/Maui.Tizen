@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Consumer-shaped fixture. It imports the buildTransitive contract exactly the way a package
+    consumer would, so the assertions exercise real MSBuild evaluation rather than a simulation.
+
+    It deliberately does NOT inherit the repository build configuration: the empty
+    Directory.Build.* files next to it stop CPM and the Tizen conventions from applying, which
+    keeps the fixture's behaviour attributable to the targets under test.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <Import Project="buildTransitive/Maui.Tizen.Contract.targets" />
+
+</Project>

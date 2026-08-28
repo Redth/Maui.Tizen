@@ -1,7 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!--
+      Compiles explicit shipping sources and exports a public API, so it documents them.
+
+      Must be set BEFORE the import below, which reads it. Setting it after looked identical and
+      silently did nothing.
+    -->
+    <MauiTizenGeneratesDocumentation>true</MauiTizenGeneratesDocumentation>
+  </PropertyGroup>
+
   <Import Project="$(MSBuildThisFileDirectory)../../eng/targets/TizenPackage.props" />
-  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
 
   <PropertyGroup>
     <RootNamespace>Microsoft.Maui.Controls</RootNamespace>
@@ -19,13 +28,40 @@
   </ItemGroup>
 
   <!--
-    The Controls-level shape handlers. Listed explicitly for the same reason as Maui.Tizen.Core:
-    the raw dotnet/maui import shares these directories, so a glob would sweep in sources that
-    cannot compile from here. See eng/Maui.Tizen.Core.Sources.props.
+    Explicit, like Maui.Tizen.Core: most of this project is still raw imported dotnet/maui source
+    that does not compile yet, so default globbing stays off and sources are opted in as they are
+    ported.
   -->
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
+
   <ItemGroup>
-    <Compile Include="@(MauiTizenWaveBControlsCompile)" />
+    <Compile Include="@(MauiTizenControlsCompile);@(MauiTizenWaveBControlsCompile)" />
     <None Remove="@(Compile)" />
   </ItemGroup>
+
+  <!--
+    Same arrangement as Maui.Tizen.Core: TizenPackage.props attaches the INHERITED dotnet/maui
+    baselines to every project, which describe a surface this assembly does not export. They are
+    detached and replaced with a baseline for the slice actually compiled here.
+
+    The inherited files stay on disk for the not-yet-ported sources and the API-comparison tooling.
+    Maui.Tizen.Controls.RefPackCompile enforces the same baseline, which is where it can actually
+    run until the Samsung workload ships.
+  -->
+  <ItemGroup>
+    <AdditionalFiles Remove="PublicAPI/net-tizen/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Remove="PublicAPI/net-tizen/PublicAPI.Unshipped.txt" />
+    <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+  <!--
+    The PublicApiAnalyzers reference is NOT declared here.
+
+    TizenPackage.props already adds it to every project that imports it, so declaring it again
+    produced two PackageReference items for the same package - NU1504 under CI product restore.
+    The analyzer is inert until a project supplies AdditionalFiles, which is what the block above
+    does; that is the whole opt-in, and no second reference is needed.
+  -->
 
 </Project>

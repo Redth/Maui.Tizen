@@ -20,28 +20,37 @@ namespace Maui.Tizen.SourceTests;
 /// </remarks>
 public static class RefPackAssembly
 {
-	const string AssemblyName = "Maui.Tizen.Core.RefPackCompile";
+	const string ProjectName = "Maui.Tizen.Core.RefPackCompile";
+	const string AssemblyName = "Maui.Tizen.Core";
 
 	/// <summary>The freshest built ref-pack assembly.</summary>
-	public static string Path { get; } = Locate();
+	public static string Path { get; } = Locate(
+		ProjectName,
+		AssemblyName,
+		"tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj",
+		"src/Maui.Tizen.Core");
 
-	static string Locate()
+	internal static string Locate(
+		string projectName,
+		string assemblyName,
+		string projectPath,
+		params string[] sourceDirectories)
 	{
 		var candidates = new[] { "Release", "Debug" }
 			.Select(configuration => RepoPaths.Combine(
-				"artifacts", "bin", AssemblyName, configuration, "net11.0", AssemblyName + ".dll"))
+				"artifacts", "bin", projectName, configuration, "net11.0", assemblyName + ".dll"))
 			.Where(File.Exists)
 			.OrderByDescending(File.GetLastWriteTimeUtc)
 			.ToList();
 
 		Assert.True(
 			candidates.Count > 0,
-			$"{AssemblyName} has not been built. Run: dotnet build tests/{AssemblyName}");
+			$"{projectName} has not been built. Run: dotnet build {projectPath}");
 
 		var assembly = candidates[0];
 		var built = File.GetLastWriteTimeUtc(assembly);
 
-		var stale = BuildInputs()
+		var stale = BuildInputs(projectPath, sourceDirectories)
 			.Where(source => File.GetLastWriteTimeUtc(source) > built)
 			.Select(source => System.IO.Path.GetFileName(source))
 			.Take(5)
@@ -49,9 +58,9 @@ public static class RefPackAssembly
 
 		Assert.True(
 			stale.Count == 0,
-			$"{AssemblyName} was built at {built:u} but these sources changed afterwards: "
+			$"{projectName} was built at {built:u} but these sources changed afterwards: "
 			+ $"{string.Join(", ", stale)}. Metadata assertions would be checking a stale assembly "
-			+ $"and could pass for code that no longer exists. Rebuild: dotnet build tests/{AssemblyName}");
+			+ $"and could pass for code that no longer exists. Rebuild: dotnet build {projectPath}");
 
 		return assembly;
 	}
@@ -66,7 +75,7 @@ public static class RefPackAssembly
 	/// project; this list is the second line, for the `--no-build` case where MSBuild is not
 	/// consulted.
 	/// </remarks>
-	static IEnumerable<string> BuildInputs()
+	static IEnumerable<string> BuildInputs(string projectPath, IReadOnlyList<string> sourceDirectories)
 	{
 		foreach (var manifest in new[]
 		{
@@ -75,7 +84,7 @@ public static class RefPackAssembly
 			"eng/targets/TizenPackage.props",
 			"Directory.Build.props",
 			"Directory.Packages.props",
-			"tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj",
+			projectPath,
 		})
 		{
 			var path = RepoPaths.Combine(manifest.Split('/'));
@@ -84,14 +93,14 @@ public static class RefPackAssembly
 				yield return path;
 		}
 
-		foreach (var source in SourceFiles())
+		foreach (var source in SourceFiles(sourceDirectories))
 			yield return source;
 	}
 
 	/// <summary>The product sources the ref-pack lane compiles.</summary>
-	static IEnumerable<string> SourceFiles()
+	static IEnumerable<string> SourceFiles(IReadOnlyList<string> sourceDirectories)
 	{
-		foreach (var directory in new[] { "src/Maui.Tizen.Core", "src/Maui.Tizen.Controls" })
+		foreach (var directory in sourceDirectories)
 		{
 			var root = RepoPaths.Combine(directory.Split('/'));
 
@@ -111,4 +120,15 @@ public static class RefPackAssembly
 			}
 		}
 	}
+}
+
+/// <summary>Locates the workload-free assembly that mirrors Maui.Tizen.Controls.</summary>
+public static class ControlsRefPackAssembly
+{
+	/// <summary>The freshest built Controls ref-pack assembly.</summary>
+	public static string Path { get; } = RefPackAssembly.Locate(
+		"Maui.Tizen.Controls.RefPackCompile",
+		"Maui.Tizen.Controls",
+		"tests/Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj",
+		"src/Maui.Tizen.Controls");
 }

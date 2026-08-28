@@ -1,0 +1,128 @@
+name: Dependency audit
+
+# Why this exists.
+#
+# The repository builds with NuGetAudit at level `low` and TreatWarningsAsErrors in CI,
+# which is deliberate: this code ships to Tizen devices, where patching is slow, so a
+# known-vulnerable transitive package is not something to carry around.
+#
+# The cost of that strictness is that a NEW advisory published against an existing
+# dependency turns every unrelated PR red, with no warning and no obvious owner. That
+# failure mode punishes whoever happens to open the next PR.
+#
+# This job moves the discovery out of band: it runs on a schedule, and when a new
+# advisory appears it opens an issue against the repository rather than ambushing a
+# contributor. The strict policy stays exactly as it is.
+
+on:
+  schedule:
+    # Mondays 07:00 UTC — early enough in the week that a fix can land before it blocks anyone.
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  audit:
+    name: Audit NuGet dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore with audit
+        id: audit
+        run: |
+          set +e
+          # The package graph probe carries the full dependency closure, so auditing it
+          # covers what the Tizen projects will consume once they can restore.
+          dotnet restore eng/tests/PackageGraphProbe/PackageGraphProbe.csproj \
+            -p:ContinuousIntegrationBuild=true > audit.log 2>&1
+          probe_status=$?
+
+          dotnet restore src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj \
+            -p:ContinuousIntegrationBuild=true >> audit.log 2>&1
+          tasks_status=$?
+          set -e
+
+          if [ $probe_status -eq 0 ] && [ $tasks_status -eq 0 ]; then
+            echo "clean=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "clean=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          {
+            echo "## Dependency audit"
+            echo
+            if [ $probe_status -eq 0 ] && [ $tasks_status -eq 0 ]; then
+              echo ":white_check_mark: No advisories at or above \`low\`."
+            else
+              echo ":warning: Advisories detected."
+              echo
+              echo '```'
+              grep -E 'NU19[0-9]{2}' audit.log | sort -u || tail -40 audit.log
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open an issue when advisories are found
+        if: steps.audit.outputs.clean == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TITLE="Dependency audit: new NuGet advisories detected"
+
+          # Avoid piling up duplicates week after week.
+          OPEN_COUNT="$(gh issue list --state open --search "$TITLE in:title" --json number --jq 'length')"
+          if [ "$OPEN_COUNT" != "0" ]; then
+            echo "An open advisory issue already exists; not filing another."
+            exit 0
+          fi
+
+          FENCE='```'
+          {
+            echo "The scheduled dependency audit found NuGet advisories at or above \`low\`."
+            echo
+            echo "$FENCE"
+            grep -E 'NU19[0-9]{2}' audit.log | sort -u | head -20 || echo "(see workflow log)"
+            echo "$FENCE"
+            echo
+            echo "**Why this is an issue rather than a red PR.** The repository audits at \`low\`"
+            echo "with warnings-as-errors, because this code ships to Tizen devices where patching"
+            echo "is slow. Without this scheduled run, a newly published advisory would surface as"
+            echo "an unexplained failure on whichever unrelated PR happened to be opened next."
+            echo
+            echo "**Resolving it**, in order of preference:"
+            echo
+            echo "1. **Bump the package** - usually a one-line change in \`Directory.Packages.props\`."
+            echo "2. **Bump the transitive dependency explicitly** - add a \`PackageVersion\` entry;"
+            echo "   central transitive pinning will apply it."
+            echo "3. **Suppress, with justification** - only when no patched version exists and the"
+            echo "   advisory is not reachable from our usage. In \`Directory.Packages.props\`:"
+            echo
+            echo "   $FENCE xml"
+            echo "   <ItemGroup>"
+            echo "     <!-- GHSA-xxxx: <why this is not exploitable here>. Re-review by <date>. -->"
+            echo "     <NuGetAuditSuppress Include=\"https://github.com/advisories/GHSA-xxxx\" />"
+            echo "   </ItemGroup>"
+            echo "   $FENCE"
+            echo
+            echo "Every suppression needs a reason and a re-review date. Do not lower"
+            echo "\`NuGetAuditLevel\` or disable \`NuGetAudit\` to make this go away - that turns one"
+            echo "known problem into an unknown number of them."
+            echo
+            echo "Run locally with \`./eng/build-workload-free.sh\`."
+          } > issue-body.md
+
+          gh issue create --title "$TITLE" --body-file issue-body.md

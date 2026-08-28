@@ -45,6 +45,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 				VerticalTextAlignment = TTextAlignment.Center,
 			};
 			_entry.KeyEvent += OnEntryKeyEvent;
+			_entry.FocusGained += OnEntryFocusGained;
+			_entry.FocusLost += OnEntryFocusLost;
 
 			_searchButton = new SkiaGraphicsView
 			{
@@ -66,6 +68,39 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <summary>Raised when the user commits the query.</summary>
 		public event EventHandler? SearchButtonPressed;
 
+		/// <summary>Raised when the inner text field gains focus.</summary>
+		/// <remarks>
+		/// A composite control is not itself focusable in any useful sense - focus lands on the
+		/// text field inside it. Surfacing the child's focus is what lets the handler keep
+		/// <see cref="IView.IsFocused"/> truthful; without it the virtual view believes the search
+		/// bar is unfocused while the user is typing into it.
+		/// </remarks>
+		public event EventHandler? EntryFocused;
+
+		/// <summary>Raised when the inner text field loses focus.</summary>
+		public event EventHandler? EntryUnfocused;
+
+		/// <summary>
+		/// Moves focus to the inner text field.
+		/// </summary>
+		/// <remarks>
+		/// Focusing the group itself would do nothing visible: the group draws no caret and
+		/// accepts no text. MAUI's focus request has to be forwarded to the child that can
+		/// actually take it.
+		/// </remarks>
+		/// <returns><see langword="true"/> if the field took focus.</returns>
+		public bool FocusEntry() =>
+			global::Tizen.NUI.FocusManager.Instance.SetCurrentFocusView(_entry);
+
+		/// <summary>
+		/// Removes focus from the inner text field, if it currently holds it.
+		/// </summary>
+		public void UnfocusEntry()
+		{
+			if (global::Tizen.NUI.FocusManager.Instance.GetCurrentFocusView() == _entry)
+				global::Tizen.NUI.FocusManager.Instance.ClearFocus();
+		}
+
 		/// <summary>
 		/// Detaches the event handlers this control owns.
 		/// </summary>
@@ -77,7 +112,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public void DisconnectEvents()
 		{
 			if (_entry.HasBody())
+			{
 				_entry.KeyEvent -= OnEntryKeyEvent;
+				_entry.FocusGained -= OnEntryFocusGained;
+				_entry.FocusLost -= OnEntryFocusLost;
+			}
 
 			if (_searchButton.HasBody())
 			{
@@ -104,6 +143,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			return new TSize(Math.Max(_entry.PixelSize + 10, availableWidth), minimumHeight);
 		}
+
+		void OnEntryFocusGained(object? sender, EventArgs e) => EntryFocused?.Invoke(this, EventArgs.Empty);
+
+		void OnEntryFocusLost(object? sender, EventArgs e) => EntryUnfocused?.Invoke(this, EventArgs.Empty);
 
 		bool OnEntryKeyEvent(object source, global::Tizen.NUI.BaseComponents.View.KeyEventArgs e)
 		{

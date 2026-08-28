@@ -33,6 +33,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		IApplication? _application;
 		IServiceProvider? _services;
 		IServiceScope? _windowScope;
+		TizenWindowLifecycleBridge? _lifecycleBridge;
 
 		/// <summary>Initializes a new instance of the <see cref="TizenMauiApplication"/> class.</summary>
 		protected TizenMauiApplication()
@@ -69,6 +70,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			var rootContext = new TizenMauiContext(mauiApp.Services);
 
 			var platformWindow = TizenCoreApplicationExtensions.GetDefaultWindow();
+			platformWindow.InitializePlatformWindow();
 			rootContext.AddSpecific(platformWindow);
 
 			_applicationContext = rootContext.MakeApplicationScope(this);
@@ -90,9 +92,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 				throw new InvalidOperationException($"The {nameof(IMauiContext)} instance was not found.");
 
 			_application = _services.GetRequiredService<IApplication>();
+			_lifecycleBridge = _services.GetService<TizenWindowLifecycleBridge>();
 
 			this.SetApplicationHandler(_application, _applicationContext);
 			_windowScope = this.CreatePlatformWindow(_application, _applicationContext);
+
+			// Raise IWindow.Created/Activated once the window exists. CoreApplication has no
+			// equivalent callbacks, so without this the cross-platform window lifecycle never
+			// fires at all on Tizen.
+			_lifecycleBridge?.OnCreate();
 
 			_services.InvokeTizenLifecycleEvents<TizenLifecycleEvents.OnCreate>(del => del(this));
 		}
@@ -143,6 +151,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		protected override void OnPause()
 		{
 			base.OnPause();
+			_lifecycleBridge?.OnPause();
 			_services?.InvokeTizenLifecycleEvents<TizenLifecycleEvents.OnPause>(del => del(this));
 		}
 
@@ -150,6 +159,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		protected override void OnResume()
 		{
 			base.OnResume();
+			_lifecycleBridge?.OnResume();
 			_services?.InvokeTizenLifecycleEvents<TizenLifecycleEvents.OnResume>(del => del(this));
 		}
 
@@ -157,6 +167,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		protected override void OnTerminate()
 		{
 			base.OnTerminate();
+			_lifecycleBridge?.OnTerminate();
 			_services?.InvokeTizenLifecycleEvents<TizenLifecycleEvents.OnTerminate>(del => del(this));
 
 			_windowScope?.Dispose();

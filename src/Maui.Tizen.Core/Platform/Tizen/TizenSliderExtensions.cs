@@ -3,7 +3,6 @@
 
 using Microsoft.Maui;
 using Microsoft.Maui.Platform;
-using System.Threading.Tasks;
 using Tizen.NUI.Components;
 
 namespace Microsoft.Maui.Platforms.Tizen
@@ -62,27 +61,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 			platformSlider.ThumbColor = slider.ThumbColor.ToTizenNativeColor();
 
 		/// <summary>
-		/// Resolves and applies the slider's thumb image.
+		/// Applies an already-resolved thumb image, or clears it.
 		/// </summary>
 		/// <remarks>
-		/// Clearing the image when the source becomes <see langword="null"/> is handled too, so
-		/// removing a thumb image at runtime restores the default thumb instead of leaving the
-		/// previous bitmap in place.
+		/// Resolution is deliberately not done here. It is asynchronous, and doing it inside an
+		/// extension leaves nowhere to hold the cancellation and ownership state that a correct
+		/// image load needs; the handler owns a <see cref="TizenImageLoader{TImage}"/> for that.
+		/// Clearing on a null image is what stops a removed source leaving the previous bitmap in
+		/// place.
 		/// </remarks>
-		public static async Task UpdateThumbImageSourceAsync(this Slider platformSlider, ISlider slider, IImageSourceServiceProvider? provider)
-		{
-			var thumbImageSource = slider.ThumbImageSource;
-
-			if (thumbImageSource is null || provider is null)
-			{
-				platformSlider.ThumbImageUrl = string.Empty;
-				return;
-			}
-
-			var result = await provider.GetTizenImageAsync(thumbImageSource).ConfigureAwait(false);
-
-			if (result?.Value?.ResourceUrl is string url)
-				platformSlider.ThumbImageUrl = url;
-		}
+		/// <param name="platformSlider">The platform slider.</param>
+		/// <param name="image">The resolved image, or <see langword="null"/> to clear.</param>
+		public static void UpdateThumbImageSource(this Slider platformSlider, TizenImageSource? image) =>
+			platformSlider.ThumbImageUrl = image?.ResourceUrl ?? string.Empty;
 	}
 }

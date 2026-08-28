@@ -33,9 +33,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		readonly StepperButton _less;
 		readonly StepperButton _more;
 
-		double _value;
-		double _minimum;
-		double _maximum = 10;
+		readonly TizenStepperRange _range = new();
 
 		public TizenStepperView()
 		{
@@ -50,6 +48,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_less.Clicked += OnLessClicked;
 			_more.Clicked += OnMoreClicked;
 
+			_less.FocusGained += OnButtonFocusGained;
+			_more.FocusGained += OnButtonFocusGained;
+			_less.FocusLost += OnButtonFocusLost;
+			_more.FocusLost += OnButtonFocusLost;
+
 			Add(_less);
 			Add(_more);
 
@@ -59,68 +62,112 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <summary>Raised when <see cref="Value"/> changes.</summary>
 		public event EventHandler? ValueChanged;
 
+		/// <summary>Raised when either button gains focus.</summary>
+		/// <remarks>
+		/// A stepper is a composite: focus lands on one of the two buttons, never on the group.
+		/// Surfacing it is what lets the handler keep <see cref="IView.IsFocused"/> truthful.
+		/// </remarks>
+		public event EventHandler? ButtonFocused;
+
+		/// <summary>Raised when focus leaves both buttons.</summary>
+		public event EventHandler? ButtonUnfocused;
+
 		/// <summary>
-		/// The current value, always within <see cref="Minimum"/>..<see cref="Maximum"/>.
+		/// Moves focus to the first button that can accept it.
 		/// </summary>
 		/// <remarks>
-		/// The change notification is suppressed when the clamped value is unchanged. Without
-		/// that, holding the increment button at the maximum would raise a change event per
-		/// click and push a redundant write back through the handler on every one.
+		/// Prefers whichever button is currently enabled. At a bound one of them is disabled, and
+		/// focusing a disabled button would silently leave the stepper unfocused.
 		/// </remarks>
+		/// <returns><see langword="true"/> if a button took focus.</returns>
+		public bool FocusButton()
+		{
+			var target = _more.IsEnabled ? _more : _less.IsEnabled ? _less : null;
+
+			return target is not null
+				&& global::Tizen.NUI.FocusManager.Instance.SetCurrentFocusView(target);
+		}
+
+		/// <summary>
+		/// Removes focus from whichever button holds it.
+		/// </summary>
+		public void UnfocusButton()
+		{
+			var focused = global::Tizen.NUI.FocusManager.Instance.GetCurrentFocusView();
+
+			if (focused == _more || focused == _less)
+				global::Tizen.NUI.FocusManager.Instance.ClearFocus();
+		}
+
+		/// <summary>The current value, always within <see cref="Minimum"/>..<see cref="Maximum"/>.</summary>
 		public double Value
 		{
-			get => _value;
-			set
-			{
-				var clamped = Math.Clamp(value, Minimum, Maximum);
-
-				if (clamped.Equals(_value))
-					return;
-
-				_value = clamped;
-				UpdateButtonState();
-				ValueChanged?.Invoke(this, EventArgs.Empty);
-			}
+			get => _range.Value;
+			set => Apply(_range.Minimum, _range.Maximum, value);
 		}
 
+		/// <summary>The lower bound.</summary>
+		/// <remarks>
+		/// Prefer <see cref="UpdateRange"/> when more than one of the bounds is changing, so the
+		/// range is never momentarily inconsistent. See <see cref="TizenStepperRange.Apply(double, double, double)"/>.
+		/// </remarks>
 		public double Minimum
 		{
-			get => _minimum;
-			set
-			{
-				_minimum = value;
-				Value = Math.Clamp(_value, Minimum, Maximum);
-				UpdateButtonState();
-			}
+			get => _range.Minimum;
+			set => Apply(value, _range.Maximum, _range.Value);
 		}
 
+		/// <summary>The upper bound.</summary>
+		/// <remarks>See <see cref="Minimum"/>.</remarks>
 		public double Maximum
 		{
-			get => _maximum;
-			set
-			{
-				_maximum = value;
-				Value = Math.Clamp(_value, Minimum, Maximum);
-				UpdateButtonState();
-			}
+			get => _range.Maximum;
+			set => Apply(_range.Minimum, value, _range.Value);
 		}
 
 		/// <summary>The amount a single press changes <see cref="Value"/> by.</summary>
-		public double Increment { get; set; } = 1;
+		public double Increment
+		{
+			get => _range.Increment;
+			set => _range.Increment = value;
+		}
 
 		public TSize Measure(double availableWidth, double availableHeight) =>
 			new(Math.Min(PreferredWidth.ToScaledPixel(), availableWidth), PreferredHeight.ToScaledPixel());
 
-		public void UpdateMinimum(IStepper stepper) => Minimum = stepper.Minimum;
-
-		public void UpdateMaximum(IStepper stepper) => Maximum = stepper.Maximum;
-
-		public void UpdateIncrement(IStepper stepper) => Increment = stepper.Interval;
-
-		public void UpdateValue(IStepper stepper)
+		/// <summary>
+		/// Applies the bounds and the value together, as one atomic change.
+		/// </summary>
+		/// <remarks>
+		/// The arithmetic lives in <see cref="TizenStepperRange"/>, which is platform-independent
+		/// and therefore actually covered by the host-side tests. This adds only the parts that
+		/// need the native control: refreshing the buttons and raising the event.
+		/// </remarks>
+		/// <param name="minimum">The lower bound.</param>
+		/// <param name="maximum">The upper bound.</param>
+		/// <param name="value">The requested value.</param>
+		public void Apply(double minimum, double maximum, double value)
 		{
-			if (!Value.Equals(stepper.Value))
-				Value = stepper.Value;
+			var changed = _range.Apply(minimum, maximum, value);
+
+			UpdateButtonState();
+
+			if (changed)
+				ValueChanged?.Invoke(this, EventArgs.Empty);
+		}
+
+		/// <summary>
+		/// Applies the stepper's bounds, interval and value in one atomic step.
+		/// </summary>
+		/// <param name="stepper">The cross-platform stepper.</param>
+		public void UpdateRange(IStepper stepper)
+		{
+			var changed = _range.Apply(stepper);
+
+			UpdateButtonState();
+
+			if (changed)
+				ValueChanged?.Invoke(this, EventArgs.Empty);
 		}
 
 		/// <summary>
@@ -129,10 +176,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public void DisconnectEvents()
 		{
 			if (_less.HasBody())
+			{
 				_less.Clicked -= OnLessClicked;
+				_less.FocusGained -= OnButtonFocusGained;
+				_less.FocusLost -= OnButtonFocusLost;
+			}
 
 			if (_more.HasBody())
+			{
 				_more.Clicked -= OnMoreClicked;
+				_more.FocusGained -= OnButtonFocusGained;
+				_more.FocusLost -= OnButtonFocusLost;
+			}
 		}
 
 		protected override void OnEnabled(bool enabled)
@@ -160,13 +215,37 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (!IsEnabled)
 				return;
 
-			_more.IsEnabled = Value < Maximum;
-			_less.IsEnabled = Value > Minimum;
+			_more.IsEnabled = _range.CanIncrease;
+			_less.IsEnabled = _range.CanDecrease;
 		}
 
-		void OnMoreClicked(object? sender, EventArgs e) => Value += Increment;
+		void OnButtonFocusGained(object? sender, EventArgs e) => ButtonFocused?.Invoke(this, EventArgs.Empty);
 
-		void OnLessClicked(object? sender, EventArgs e) => Value -= Increment;
+		/// <remarks>
+		/// Focus moving between the two buttons is still focus on the stepper, so a loss is only
+		/// reported once neither button holds it.
+		/// </remarks>
+		void OnButtonFocusLost(object? sender, EventArgs e)
+		{
+			var focused = global::Tizen.NUI.FocusManager.Instance.GetCurrentFocusView();
+
+			if (focused != _more && focused != _less)
+				ButtonUnfocused?.Invoke(this, EventArgs.Empty);
+		}
+
+		void OnMoreClicked(object? sender, EventArgs e) => Step(1);
+
+		void OnLessClicked(object? sender, EventArgs e) => Step(-1);
+
+		void Step(int direction)
+		{
+			var changed = _range.Step(direction);
+
+			UpdateButtonState();
+
+			if (changed)
+				ValueChanged?.Invoke(this, EventArgs.Empty);
+		}
 
 		/// <summary>One of the stepper's two buttons.</summary>
 		sealed class StepperButton : MaterialIconButton

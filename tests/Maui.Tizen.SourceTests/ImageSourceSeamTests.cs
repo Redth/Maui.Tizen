@@ -6,7 +6,7 @@ namespace Maui.Tizen.SourceTests;
 
 /// <summary>
 /// Proves, from compiled IL, that the image-source composition seam constructs Tizen-owned
-/// implementations for all four image source types.
+/// implementations for all four image source types through the finalized shared seam.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -23,24 +23,17 @@ namespace Maui.Tizen.SourceTests;
 /// error, no log and no missing-service exception. It produces a blank image.
 /// </para>
 /// <para>
-/// The assertion is deliberately written against the <em>union</em> of the registration methods
-/// rather than against one named method, so it holds both now and after Wave B's URI and font
-/// registrations are folded into Wave A's single <c>AddTizenImageSources</c> seam at the final
-/// rebase. What must never change is the set of implementations the seam constructs.
+/// Wave B extends Wave A's partial registration type, but the only public entry point remains
+/// <c>AddTizenImageSources</c>. What must never change is the set of implementations that one seam
+/// constructs.
 /// </para>
 /// </remarks>
 public class ImageSourceSeamTests
 {
-	/// <summary>The registration methods that make up the image-source seam.</summary>
-	/// <remarks>
-	/// After the fold this is expected to be just <c>AddTizenImageSources</c>. Both are listed so
-	/// the test does not have to change in the same commit as the fold — and so that deleting one
-	/// without moving its registrations fails loudly.
-	/// </remarks>
+	/// <summary>The single public image-source composition seam.</summary>
 	static readonly string[] SeamMethods =
 	{
 		"AddTizenImageSources",
-		"AddTizenUriAndFontImageSources",
 	};
 
 	/// <summary>Every Tizen image source service the seam must construct.</summary>

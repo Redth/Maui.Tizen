@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsValidationTestProject>true</IsValidationTestProject>
+    <RootNamespace>Maui.Tizen.DevFlow.Tests</RootNamespace>
+
+    <!--
+      Matches the opt-out in the diagnostics projects: DevFlow resolves SkiaSharp >= 3.119.2
+      while Directory.Packages.props centrally pins 3.116.1 for the product graph, and central
+      transitive pinning turns that into a hard NU1109 downgrade. The constraint travels through
+      the ProjectReference, so it has to be repeated here.
+    -->
+    <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      References the platform-neutral half of the agent, which transitively brings in DevFlow
+      itself so the contract guard asserts against the real published API rather than a copy.
+    -->
+    <ProjectReference Include="$(RepositoryRoot)src/Diagnostics/Maui.Tizen.DevFlow.Agent.Shared/Maui.Tizen.DevFlow.Agent.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Maui.Tizen.DevFlow.Agent" />
+  </ItemGroup>
+
+</Project>

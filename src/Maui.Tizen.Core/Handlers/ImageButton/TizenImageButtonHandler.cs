@@ -34,8 +34,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			{
 			};
 
-		/// <summary>Cancels a superseded or disconnected image load.</summary>
-		readonly TizenImageSourceLoader _sourceLoader = new();
+		TizenImageLoader<TizenImageSource> _sourceLoader = new();
+		readonly TizenImageLoadEvents _sourceEvents = new();
 
 		public TizenImageButtonHandler()
 			: base(Mapper, CommandMapper)
@@ -61,24 +61,39 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override void ConnectHandler(TizenImageButtonView platformView)
 		{
-			platformView.Clicked += OnClicked;
-			platformView.Pressed += OnPressed;
-			platformView.Released += OnReleased;
-			base.ConnectHandler(platformView);
+			var replacement = new TizenImageLoader<TizenImageSource>();
+
+			TizenCleanup.Run(
+				_sourceEvents.Invalidate,
+				_sourceLoader.Dispose,
+				() => _sourceLoader = replacement,
+				() => base.ConnectHandler(platformView),
+				() => platformView.Clicked += OnClicked,
+				() => platformView.Pressed += OnPressed,
+				() => platformView.Released += OnReleased);
 		}
 
 		protected override void DisconnectHandler(TizenImageButtonView platformView)
 		{
-			// A pending load must not write to a view that is being released.
-			_sourceLoader.Cancel();
-
-			if (!platformView.HasBody())
-				return;
-
-			platformView.Clicked -= OnClicked;
-			platformView.Pressed -= OnPressed;
-			platformView.Released -= OnReleased;
-			base.DisconnectHandler(platformView);
+			TizenCleanup.Run(
+				_sourceEvents.Invalidate,
+				_sourceLoader.Dispose,
+				() =>
+				{
+					if (platformView.HasBody())
+						platformView.Clicked -= OnClicked;
+				},
+				() =>
+				{
+					if (platformView.HasBody())
+						platformView.Pressed -= OnPressed;
+				},
+				() =>
+				{
+					if (platformView.HasBody())
+						platformView.Released -= OnReleased;
+				},
+				() => base.DisconnectHandler(platformView));
 		}
 
 		void OnReleased(object? sender, EventArgs e) => VirtualView?.Released();
@@ -104,42 +119,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			}
 
 			var provider = handler.GetRequiredService<IImageSourceServiceProvider>();
+			var source = imageButton.Source;
+			var virtualView = handler.VirtualView;
+			var target = handler.PlatformView;
+			var commitOnUiThread = TizenDispatchExtensions.CaptureDispatcher(handler);
 
-			// The loader cancels any load still in flight, so a slow earlier source cannot
-			// finish last and overwrite this one.
-			return handler._sourceLoader.LoadAsync(
+			return handler._sourceLoader.LoadPartAsync(
 				imageButton,
-				provider,
-				(platformImage, write, cancellationToken) =>
-				{
-					// The handler may have been disconnected while the source was resolving, in
-					// which case there is no view left to write to.
-					var platformView = handler.PlatformView;
-					if (platformView is null || cancellationToken.IsCancellationRequested)
-					{
-						return Task.FromResult(TizenImageApplyResult.Cancelled);
-					}
-
-					return platformView.ApplyImageSourceAsync(
-						platformImage,
-						// Routed through the loader's guard so the assignment cannot land on a view
-						// this load no longer owns. Returns false when it is refused.
-						image => image is not null
-							&& write(() => platformView.ResourceUrl = image.ResourceUrl),
-						// NUI signal cleanup must be marshalled to the main loop; see
-						// ApplyImageSourceAsync.
-						handler.GetService<Microsoft.Maui.Dispatching.IDispatcher>(),
-						cancellationToken);
-				},
+				handler._sourceEvents,
+				(imageSource, token) => provider.GetTizenImageAsync(imageSource, token),
+				commitOnUiThread,
+				platformImage => target.ResourceUrl = platformImage?.ResourceUrl,
 				() =>
-				{
-					// Nothing resolved, so the previous image must come down rather than linger.
-					var platformView = handler.PlatformView;
-					if (platformView is not null)
-					{
-						platformView.ResourceUrl = null;
-					}
-				});
+					ReferenceEquals(handler.VirtualView, virtualView) &&
+					ReferenceEquals(handler.PlatformView, target));
 		}
 
 		public static void MapStrokeColor(TizenImageButtonHandler handler, IButtonStroke buttonStroke) =>

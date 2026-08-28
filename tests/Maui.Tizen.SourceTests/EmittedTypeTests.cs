@@ -22,11 +22,15 @@ namespace Maui.Tizen.SourceTests;
 public class EmittedTypeTests
 {
 
-	static (IReadOnlyList<string> Defined, IReadOnlyList<string> Referenced) Metadata { get; } = ReadMetadata();
+	static (IReadOnlyList<string> Defined, IReadOnlyList<string> Referenced) CoreMetadata { get; } =
+		ReadMetadata(RefPackAssembly.Path);
 
-	static (IReadOnlyList<string>, IReadOnlyList<string>) ReadMetadata()
+	static (IReadOnlyList<string> Defined, IReadOnlyList<string> Referenced) ControlsMetadata { get; } =
+		ReadMetadata(ControlsRefPackAssembly.Path);
+
+	static (IReadOnlyList<string>, IReadOnlyList<string>) ReadMetadata(string path)
 	{
-		using var stream = File.OpenRead(RefPackAssembly.Path);
+		using var stream = File.OpenRead(path);
 		using var pe = new PEReader(stream);
 
 		var reader = pe.GetMetadataReader();
@@ -61,8 +65,8 @@ public class EmittedTypeTests
 	[Fact]
 	public void DoesNotEmitCollidingWrapperView()
 	{
-		Assert.DoesNotContain("Microsoft.Maui.Platform.WrapperView", Metadata.Defined);
-		Assert.Contains("Microsoft.Maui.Platforms.Tizen.TizenWrapperView", Metadata.Defined);
+		Assert.DoesNotContain("Microsoft.Maui.Platform.WrapperView", CoreMetadata.Defined);
+		Assert.Contains("Microsoft.Maui.Platforms.Tizen.TizenWrapperView", CoreMetadata.Defined);
 	}
 
 	/// <summary>
@@ -80,10 +84,12 @@ public class EmittedTypeTests
 
 		foreach (var name in banned)
 		{
-			Assert.DoesNotContain(name, Metadata.Defined);
-			Assert.DoesNotContain(name, Metadata.Referenced);
+			Assert.DoesNotContain(name, CoreMetadata.Defined.Concat(ControlsMetadata.Defined));
+			Assert.DoesNotContain(name, CoreMetadata.Referenced.Concat(ControlsMetadata.Referenced));
 		}
-		Assert.Contains("Microsoft.Maui.Platforms.Tizen.ITizenPlatformViewHandler", Metadata.Referenced.Concat(Metadata.Defined));
+		Assert.Contains(
+			"Microsoft.Maui.Platforms.Tizen.ITizenPlatformViewHandler",
+			CoreMetadata.Referenced.Concat(CoreMetadata.Defined));
 	}
 
 	/// <summary>
@@ -93,7 +99,8 @@ public class EmittedTypeTests
 	[Fact]
 	public void EmitsNothingIntoTheNeutralPlatformNamespace()
 	{
-		var offenders = Metadata.Defined
+		var offenders = CoreMetadata.Defined
+			.Concat(ControlsMetadata.Defined)
 			.Where(n => n.StartsWith("Microsoft.Maui.Platform.", StringComparison.Ordinal))
 			.ToList();
 
@@ -107,23 +114,31 @@ public class EmittedTypeTests
 	[Fact]
 	public void EmitsTheWaveBHandlers()
 	{
-		string[] expected =
+		string[] coreExpected =
 		{
 			"TizenScrollViewHandler", "TizenBorderHandler", "TizenImageHandler", "TizenImageButtonHandler",
 			"TizenGraphicsViewHandler", "TizenShapeViewHandler", "TizenRefreshViewHandler",
 			"TizenSwipeViewHandler", "TizenSwipeItemViewHandler", "TizenSwipeItemMenuItemHandler",
-			"TizenIndicatorViewHandler", "TizenBoxViewHandler", "TizenLineHandler", "TizenPathHandler",
+			"TizenIndicatorViewHandler",
+		};
+		string[] controlsExpected =
+		{
+			"TizenBoxViewHandler", "TizenLineHandler", "TizenPathHandler",
 			"TizenPolygonHandler", "TizenPolylineHandler", "TizenRectangleHandler", "TizenRoundRectangleHandler",
 		};
 
-		var emitted = Metadata.Defined
+		var coreEmitted = CoreMetadata.Defined
+			.Select(n => n.Contains('.', StringComparison.Ordinal) ? n[(n.LastIndexOf('.') + 1)..] : n)
+			.ToHashSet(StringComparer.Ordinal);
+		var controlsEmitted = ControlsMetadata.Defined
 			.Select(n => n.Contains('.', StringComparison.Ordinal) ? n[(n.LastIndexOf('.') + 1)..] : n)
 			.ToHashSet(StringComparer.Ordinal);
 
-		foreach (var name in expected)
-		{
-			Assert.Contains(name, emitted);
-		}
+		foreach (var name in coreExpected)
+			Assert.Contains(name, coreEmitted);
+
+		foreach (var name in controlsExpected)
+			Assert.Contains(name, controlsEmitted);
 	}
 
 	/// <summary>
@@ -146,13 +161,13 @@ public class EmittedTypeTests
 
 		foreach (var name in expected)
 		{
-			Assert.Contains(name, Metadata.Defined);
+			Assert.Contains(name, CoreMetadata.Defined);
 		}
 	}
 
-	static IReadOnlyList<string> ReadMethodNames(string declaringTypeFullName)
+	static IReadOnlyList<string> ReadMethodNames(string assemblyPath, string declaringTypeFullName)
 	{
-		using var stream = File.OpenRead(RefPackAssembly.Path);
+		using var stream = File.OpenRead(assemblyPath);
 		using var pe = new PEReader(stream);
 		var reader = pe.GetMetadataReader();
 
@@ -192,7 +207,9 @@ public class EmittedTypeTests
 	[Fact]
 	public void CompositionRootImplementsThePlatformContentHook()
 	{
-		var methods = ReadMethodNames("Microsoft.Maui.Platforms.Tizen.Hosting.TizenMauiAppBuilderExtensions");
+		var methods = ReadMethodNames(
+			RefPackAssembly.Path,
+			"Microsoft.Maui.Platforms.Tizen.Hosting.TizenMauiAppBuilderExtensions");
 
 		Assert.Contains("ConfigurePlatformContent", methods);
 	}
@@ -203,16 +220,23 @@ public class EmittedTypeTests
 	[Fact]
 	public void EmitsTheWaveBRegistrationEntryPoints()
 	{
-		string[] expected =
+		string[] coreExpected =
 		{
 			"Microsoft.Maui.Platforms.Tizen.Hosting.TizenContentHandlerCollectionExtensions",
-			"Microsoft.Maui.Platforms.Tizen.Hosting.TizenShapeHandlerCollectionExtensions",
 			"Microsoft.Maui.Platforms.Tizen.Hosting.TizenFontServiceCollectionExtensions",
 			"Microsoft.Maui.Platforms.Tizen.TizenEmbeddedFontLoader",
 			"Microsoft.Maui.Platforms.Tizen.TizenPlatformFontDirectoryProvider",
 		};
+		string[] controlsExpected =
+		{
+			"Microsoft.Maui.Platforms.Tizen.Hosting.TizenShapeHandlerCollectionExtensions",
+			"Microsoft.Maui.Platforms.Tizen.Hosting.TizenControlsMauiAppBuilderExtensions",
+		};
 
-		foreach (var name in expected)
-			Assert.Contains(name, Metadata.Defined);
+		foreach (var name in coreExpected)
+			Assert.Contains(name, CoreMetadata.Defined);
+
+		foreach (var name in controlsExpected)
+			Assert.Contains(name, ControlsMetadata.Defined);
 	}
 }
