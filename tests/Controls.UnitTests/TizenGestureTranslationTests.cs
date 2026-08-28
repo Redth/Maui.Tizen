@@ -51,6 +51,57 @@ public class TizenGestureTranslationTests
 	}
 
 	[Fact]
+	public void PanIncludesStartedDisplacementInTheFirstRunningTotal()
+	{
+		var recognizer = new PanGestureRecognizer();
+		var (handler, detector, dispatcher, _) = Build((d, disp, s) => new TizenPanGestureHandler(recognizer, d, disp, s));
+		using var _handler = handler;
+
+		detector.Raise(new TizenGestureEventArgs(TizenGestureKind.Pan, TizenGestureState.Started)
+		{
+			Displacement = new Point(6, 10),
+		});
+		detector.Raise(new TizenGestureEventArgs(TizenGestureKind.Pan, TizenGestureState.Continuing)
+		{
+			Displacement = new Point(4, 6),
+		});
+
+		Assert.Equal((TizenGestureState.Continuing, 5d, 8d, 1), dispatcher.Pans.Last());
+	}
+
+	[Theory]
+	[InlineData(1, 2)]
+	[InlineData(2, 1)]
+	public void PanRequiresTheConfiguredTouchCount(int required, int rejected)
+	{
+		var recognizer = new PanGestureRecognizer { TouchPoints = required };
+		var (handler, detector, dispatcher, _) = Build((d, disp, s) => new TizenPanGestureHandler(recognizer, d, disp, s));
+		using var _handler = handler;
+
+		detector.Raise(new TizenGestureEventArgs(TizenGestureKind.Pan, TizenGestureState.Started)
+		{
+			TouchCount = rejected,
+		});
+
+		Assert.Empty(dispatcher.Pans);
+
+		detector.Raise(new TizenGestureEventArgs(TizenGestureKind.Pan, TizenGestureState.Started)
+		{
+			TouchCount = required,
+		});
+		detector.Raise(new TizenGestureEventArgs(TizenGestureKind.Pan, TizenGestureState.Continuing)
+		{
+			TouchCount = required,
+			Displacement = new Point(10, 20),
+		});
+
+		Assert.Collection(
+			dispatcher.Pans,
+			p => Assert.Equal(TizenGestureState.Started, p.State),
+			p => Assert.Equal((TizenGestureState.Continuing, 5d, 10d, 1), p));
+	}
+
+	[Fact]
 	public void EachPanGetsItsOwnGestureIdAndFreshTotals()
 	{
 		var recognizer = new PanGestureRecognizer();
@@ -82,6 +133,29 @@ public class TizenGestureTranslationTests
 		Assert.Equal(TizenGestureState.Canceled, dispatcher.Pans.Last().State);
 	}
 
+	[Theory]
+	[InlineData(TizenGestureState.Finished, 0)]
+	[InlineData(TizenGestureState.Canceled, 1)]
+	public void AcceptedMultiTouchPanReportsTerminalStateAfterTouchesLift(
+		TizenGestureState terminalState,
+		int terminalTouchCount)
+	{
+		var recognizer = new PanGestureRecognizer { TouchPoints = 2 };
+		var (handler, detector, dispatcher, _) = Build((d, disp, s) => new TizenPanGestureHandler(recognizer, d, disp, s));
+		using var _handler = handler;
+
+		detector.Raise(new TizenGestureEventArgs(TizenGestureKind.Pan, TizenGestureState.Started)
+		{
+			TouchCount = 2,
+		});
+		detector.Raise(new TizenGestureEventArgs(TizenGestureKind.Pan, terminalState)
+		{
+			TouchCount = terminalTouchCount,
+		});
+
+		Assert.Equal(terminalState, dispatcher.Pans.Last().State);
+	}
+
 	[Fact]
 	public void PanLeavesTheNativeGestureUnconsumedSoOverlappingGesturesKeepWorking()
 	{
@@ -111,6 +185,38 @@ public class TizenGestureTranslationTests
 			s => Assert.Equal((TizenGestureState.Continuing, 20d, 0d), s),
 			s => Assert.Equal((TizenGestureState.Continuing, 40d, 0d), s),
 			s => Assert.Equal((TizenGestureState.Finished, 0d, 0d), s));
+	}
+
+	[Fact]
+	public void SwipeIncludesStartedDisplacementWhenApplyingTheThreshold()
+	{
+		var recognizer = new SwipeGestureRecognizer
+		{
+			Direction = SwipeDirection.Right,
+			Threshold = 100,
+		};
+		var detector = new FakeNativeGestureDetector();
+		var view = new Label();
+		using var handler = new TizenSwipeGestureHandler(
+			recognizer,
+			detector,
+			new TizenGestureDispatcher(),
+			new TizenPixelScaler(ScalingFactor));
+		var raised = false;
+		recognizer.Swiped += (_, _) => raised = true;
+		handler.Attach(new StubViewHandler(view));
+
+		detector.Raise(new TizenGestureEventArgs(TizenGestureKind.Swipe, TizenGestureState.Started)
+		{
+			Displacement = new Point(180, 0),
+		});
+		detector.Raise(new TizenGestureEventArgs(TizenGestureKind.Swipe, TizenGestureState.Continuing)
+		{
+			Displacement = new Point(30, 0),
+		});
+		detector.Raise(Event(TizenGestureKind.Swipe, TizenGestureState.Finished));
+
+		Assert.True(raised);
 	}
 
 	[Fact]

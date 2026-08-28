@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Controls.Internals;
 using Microsoft.Maui.Controls.Platform;
 
 namespace Microsoft.Maui.Platforms.Tizen
@@ -13,9 +15,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// <remarks>
 	/// <para>
 	/// This is the port of the NUI <c>GesturePlatformManager</c> from dotnet/maui. It watches the
-	/// element's <see cref="View.GestureRecognizers"/> collection plus its
+	/// element's <see cref="IGestureController.CompositeGestureRecognizers"/> collection plus its
 	/// <see cref="VisualElement.IsEnabled"/> and <see cref="VisualElement.InputTransparent"/>
-	/// state, and keeps the native detectors in sync.
+	/// state, and keeps the native detectors in sync. The composite collection includes both the
+	/// public <see cref="View.GestureRecognizers"/> and framework-added recognizers such as the
+	/// pointer recognizer that drives the <c>PointerOver</c> visual state.
 	/// </para>
 	/// <para>
 	/// .NET MAUI creates one instance per handler connection and disposes it when the handler
@@ -27,6 +31,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		readonly Lazy<TizenGestureDetector> _gestureDetector;
 
 		IViewHandler? _handler;
+		IList<IGestureRecognizer>? _gestureRecognizers;
 		bool _disposed;
 
 		/// <summary>
@@ -80,11 +85,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			if (oldElement is not null)
 			{
-				if (oldElement is View oldView && oldView.GestureRecognizers is INotifyCollectionChanged oldObservable)
+				if (_gestureRecognizers is INotifyCollectionChanged oldObservable)
 				{
 					oldObservable.CollectionChanged -= OnGestureRecognizerCollectionChanged;
 				}
 
+				_gestureRecognizers = null;
 				oldElement.PropertyChanged -= OnElementPropertyChanged;
 			}
 
@@ -93,13 +99,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
-			if (newElement is View newView && newView.GestureRecognizers is INotifyCollectionChanged newObservable)
+			if (newElement is View newView)
 			{
-				newObservable.CollectionChanged += OnGestureRecognizerCollectionChanged;
+				_gestureRecognizers = ((IGestureController)newView).CompositeGestureRecognizers;
 
-				if (newView.GestureRecognizers.Count > 0)
+				if (_gestureRecognizers is INotifyCollectionChanged newObservable)
 				{
-					_gestureDetector.Value.AddGestures(newView.GestureRecognizers);
+					newObservable.CollectionChanged += OnGestureRecognizerCollectionChanged;
+				}
+
+				if (_gestureRecognizers.Count > 0)
+				{
+					_gestureDetector.Value.AddGestures(_gestureRecognizers);
 				}
 			}
 

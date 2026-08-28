@@ -150,14 +150,22 @@ pointer — is sufficient. No new interface is required.
 
 Ported from the NUI `PanGestureHandler`. NUI reports **per-frame displacement**, while
 .NET MAUI expects the **running total** since the pan began, so the handler accumulates it
-and converts device pixels to device-independent units. Each pan gets a fresh gesture id.
+and converts device pixels to device-independent units. The `Started` sample already contains
+the movement that crossed NUI's recognition threshold, so that displacement seeds the running
+total rather than being discarded. Each pan gets a fresh gesture id.
+
+`PanGestureRecognizer.TouchPoints` configures both the minimum and maximum touch count on the
+native `PanGestureDetector`, enforcing an exact match. The managed handler repeats the check as a
+defensive boundary and makes the single- and multi-touch behavior executable in host tests.
 
 ### Swipe
 
 Tizen has no swipe detector. A `PanGestureDetector` backs swipe recognition and the
 accumulated movement is handed to `ISwipeGestureController`, which applies
 `SwipeGestureRecognizer.Threshold` and decides whether the movement qualifies. This
-matches the original NUI backend.
+matches the original NUI backend. As with pan, accumulation starts with the displacement in
+NUI's `Started` sample; otherwise a swipe that crosses the threshold during recognition can be
+misreported as below-threshold.
 
 Because pan and swipe share a detector type, a view carrying both recognizers allocates two
 independent detectors. Native gestures are left unconsumed (`Handled = false`) so they
@@ -239,9 +247,19 @@ mapping `PointStateType` onto pointer transitions:
 Events are never consumed, so the view's own handlers still run. Each transition is dispatched
 through its matching public send member.
 
-`PlatformPointerEventArgs` is left `null` and `ButtonsMask` at its default. Both parameters are
-optional; NUI reports neither a platform-native pointer event object nor a button mask for touch
-and hover, so supplying a fabricated value would be misleading.
+The platform manager observes `IGestureController.CompositeGestureRecognizers`, not only the
+public `View.GestureRecognizers` list. That composite collection is where MAUI adds the internal
+`PointerGestureRecognizer` that drives the `PointerOver` visual state, so framework-generated
+pointer behavior receives the same native events as application recognizers.
+
+NUI only reports `PointStateType.Leave` at a view boundary when `View.LeaveRequired` is enabled.
+Pointer detectors therefore share a per-view lease on that property. The first attached detector
+captures and enables it, intermediate detaches leave it enabled, and the last detach restores the
+original value so multiple pointer recognizers do not disable one another or overwrite application
+configuration.
+
+`PlatformPointerEventArgs` is left `null`. NUI reports no platform-native pointer event object, so
+supplying a fabricated value would be misleading.
 
 ### Drag and drop
 
@@ -299,8 +317,8 @@ factory can therefore refine this table without changing any other code.
 
 | Layer | How it is verified today |
 |---|---|
-| Gesture translation (totals, scaling, gesture identity, tap counts, pointer mapping) | `tests/Controls.UnitTests/TizenGestureTranslationTests.cs` |
-| Manager and detector lifecycle (attach, detach, enable, dispose, collection changes) | `tests/Controls.UnitTests/TizenGesturePlatformManagerTests.cs` |
+| Gesture translation (including `Started` displacement, pan touch counts, scaling, gesture identity, tap counts, pointer mapping) | `tests/Controls.UnitTests/TizenGestureTranslationTests.cs` |
+| Manager and detector lifecycle (attach, detach, enable, dispose, public/composite collection changes, PointerOver recognizers, shared pointer-leave leases) | `tests/Controls.UnitTests/TizenGesturePlatformManagerTests.cs` |
 | Dispatch through real MAUI recognizers, screen/local/unknown position resolution, button masks, long-press status mapping, and the one blocked gesture | `tests/Controls.UnitTests/TizenGestureDispatcherTests.cs` |
 | Pixel scaler registration and lazy display-factor lookup | `tests/Controls.UnitTests/TizenServiceRegistrationTests.cs` |
 | DI registration and lifetimes | `tests/Controls.UnitTests/TizenServiceRegistrationTests.cs` |

@@ -1,6 +1,9 @@
 using System;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Controls.Internals;
 using Microsoft.Maui.Controls.Platform;
 using Microsoft.Maui.Graphics;
 using Xunit;
@@ -30,6 +33,29 @@ public class TizenGesturePlatformManagerTests
 			label.GestureRecognizers.Add(recognizer);
 		}
 
+		return label;
+	}
+
+	static Label ViewWithPointerOverState()
+	{
+		var label = new Label { Opacity = 1d };
+		var normal = new VisualState { Name = VisualStateManager.CommonStates.Normal };
+		normal.Setters.Add(new Setter
+		{
+			Property = VisualElement.OpacityProperty,
+			Value = 1d,
+		});
+		var pointerOver = new VisualState { Name = VisualStateManager.CommonStates.PointerOver };
+		pointerOver.Setters.Add(new Setter
+		{
+			Property = VisualElement.OpacityProperty,
+			Value = 0.5d,
+		});
+		var commonStates = new VisualStateGroup { Name = nameof(VisualStateManager.CommonStates) };
+		commonStates.States.Add(normal);
+		commonStates.States.Add(pointerOver);
+		var groups = new VisualStateGroupList { commonStates };
+		VisualStateManager.SetVisualStateGroups(label, groups);
 		return label;
 	}
 
@@ -135,6 +161,112 @@ public class TizenGesturePlatformManagerTests
 
 		Assert.Single(detectors.Created);
 		Assert.True(detectors.Created[0].IsAttached);
+	}
+
+	[Fact]
+	public void FrameworkPointerOverRecognizerIsAttachedAndDispatched()
+	{
+		var detectors = new FakeNativeGestureDetectorFactory();
+		var handlerFactory = new TizenGestureHandlerFactory(
+			detectors,
+			new TizenGestureDispatcher(),
+			new TizenPixelScaler());
+		var factory = new TizenGesturePlatformManagerFactory(handlerFactory);
+		var view = ViewWithPointerOverState();
+		var handler = new StubViewHandler(view);
+
+		using var manager = factory.CreateGesturePlatformManager(handler);
+
+		Assert.Empty(view.GestureRecognizers);
+		var request = Assert.Single(detectors.Requests);
+		Assert.Equal(TizenGestureKind.Pointer, request.Kind);
+		Assert.IsType<PointerGestureRecognizer>(request.Recognizer);
+		Assert.True(request.Detector.IsAttached);
+
+		request.Detector.Raise(new TizenGestureEventArgs(TizenGestureKind.Pointer, TizenGestureState.Finished)
+		{
+			PointerAction = TizenPointerAction.Entered,
+		});
+		Assert.Equal(0.5d, view.Opacity);
+
+		request.Detector.Raise(new TizenGestureEventArgs(TizenGestureKind.Pointer, TizenGestureState.Finished)
+		{
+			PointerAction = TizenPointerAction.Exited,
+		});
+		Assert.Equal(1d, view.Opacity);
+	}
+
+	[Fact]
+	public void CompositeRecognizerUpdatesAreTrackedUntilDisposal()
+	{
+		var (factory, detectors) = CreateFactory();
+		var view = ViewWith();
+		var composite = ((IGestureController)view).CompositeGestureRecognizers;
+		var handler = new StubViewHandler(view);
+		var manager = factory.CreateGesturePlatformManager(handler);
+		var pointer = new PointerGestureRecognizer();
+
+		composite.Add(pointer);
+
+		var detector = Assert.Single(detectors.Created);
+		Assert.True(detector.IsAttached);
+
+		composite.Remove(pointer);
+
+		Assert.True(detector.Disposed);
+		Assert.False(detector.IsAttached);
+
+		manager.Dispose();
+		composite.Add(new PointerGestureRecognizer());
+
+		Assert.Single(detectors.Created);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void PointerLeaveRequirementIsSharedAndRestoresThePreviousValue(bool originalValue)
+	{
+		var requirement = new SharedBooleanPropertyLease<BooleanPropertyTarget>(
+			static target => target.Value,
+			static (target, value) => target.Value = value);
+		var target = new BooleanPropertyTarget { Value = originalValue };
+		var first = requirement.Acquire(target);
+		var second = requirement.Acquire(target);
+
+		Assert.True(target.Value);
+
+		first.Dispose();
+		first.Dispose();
+
+		Assert.True(target.Value);
+
+		second.Dispose();
+
+		Assert.Equal(originalValue, target.Value);
+	}
+
+	[Fact]
+	public async Task PointerLeaveRequirementLeaseCanBeDisposedConcurrently()
+	{
+		var requirement = new SharedBooleanPropertyLease<BooleanPropertyTarget>(
+			static target => target.Value,
+			static (target, value) => target.Value = value);
+		var target = new BooleanPropertyTarget();
+		var lease = requirement.Acquire(target);
+		using var start = new ManualResetEventSlim();
+		var disposals = Enumerable.Range(0, 32)
+			.Select(_ => Task.Run(() =>
+			{
+				start.Wait();
+				lease.Dispose();
+			}))
+			.ToArray();
+
+		start.Set();
+		await Task.WhenAll(disposals);
+
+		Assert.False(target.Value);
 	}
 
 	[Fact]
@@ -317,5 +449,10 @@ public class TizenGesturePlatformManagerTests
 
 	sealed class CustomRecognizer : Element, IGestureRecognizer
 	{
+	}
+
+	sealed class BooleanPropertyTarget
+	{
+		public bool Value { get; set; }
 	}
 }

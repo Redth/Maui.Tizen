@@ -1,6 +1,9 @@
 using System;
+using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Maui.Controls;
+using Microsoft.Maui.Controls.Internals;
 using Microsoft.Maui.Controls.Platform;
 using Microsoft.Maui.Hosting;
 
@@ -73,21 +76,56 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 			else
 			{
-				services.TryAddScoped<IAlertManagerSubscription>(static provider =>
-				{
-					var windowContext = provider.GetRequiredService<ITizenWindowContext>();
-
-					// Late-bound for the same reason as the full manager: the window may not be
-					// attached yet when this scope is first resolved.
-					return new TizenAlertManagerSubscription(
-						() => windowContext.PlatformWindow,
-						provider.GetRequiredService<ITizenAlertDialogFactory>(),
-						provider.GetRequiredService<ITizenModalHost>(),
-						provider.GetRequiredService<ITizenPlatformWindowProvider>());
-				});
+				services.TryAddScoped<IAlertManagerSubscription>(
+					static provider => CreateSubscriptionOnly(provider));
 			}
 
 			return services;
+		}
+
+		internal static IAlertManagerSubscription CreateSubscriptionOnly(IServiceProvider provider)
+		{
+			if (provider is not IKeyedServiceProvider keyedProvider)
+			{
+				return CreateAlertSubscription(provider);
+			}
+
+			var alertHandler = keyedProvider.GetKeyedService(
+				typeof(Func<Page, AlertArguments, Task<bool>>),
+				TizenDelegateAlertManagerSubscription.DisplayAlertServiceKey)
+				as Func<Page, AlertArguments, Task<bool>>;
+			var actionSheetHandler = keyedProvider.GetKeyedService(
+				typeof(Func<Page, ActionSheetArguments, Task<string?>>),
+				TizenDelegateAlertManagerSubscription.DisplayActionSheetServiceKey)
+				as Func<Page, ActionSheetArguments, Task<string?>>;
+			var promptHandler = keyedProvider.GetKeyedService(
+				typeof(Func<Page, PromptArguments, Task<string?>>),
+				TizenDelegateAlertManagerSubscription.DisplayPromptServiceKey)
+				as Func<Page, PromptArguments, Task<string?>>;
+
+			if (alertHandler is null && actionSheetHandler is null && promptHandler is null)
+			{
+				return CreateAlertSubscription(provider);
+			}
+
+			return new TizenDelegateAlertManagerSubscription(
+				alertHandler,
+				actionSheetHandler,
+				promptHandler,
+				() => CreateAlertSubscription(provider));
+		}
+
+		static TizenAlertManagerSubscription CreateAlertSubscription(IServiceProvider provider)
+		{
+			var windowContext = provider.GetRequiredService<ITizenWindowContext>();
+
+			// Late-bound for the same reason as the full manager: the window may not be attached
+			// yet when this scope is first resolved.
+			return new TizenAlertManagerSubscription(
+				() => windowContext.PlatformWindow,
+				provider.GetRequiredService<ITizenAlertDialogFactory>(),
+				provider.GetRequiredService<ITizenModalHost>(),
+				provider.GetRequiredService<ITizenPlatformWindowProvider>());
 		}
 
 		/// <summary>

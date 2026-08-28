@@ -1,5 +1,9 @@
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Maui.Controls;
+using Microsoft.Maui.Controls.Internals;
 using Microsoft.Maui.Controls.Platform;
 using Xunit;
 
@@ -86,6 +90,227 @@ public class TizenServiceRegistrationTests
 	}
 
 	[Fact]
+	public async Task SubscriptionOnlyModeInvokesTheKeyedAlertDelegate()
+	{
+		var services = PresentationServices()
+			.AddTizenAlerts(TizenAlertRegistrationMode.SubscriptionOnly);
+		var page = new ContentPage();
+		var calls = 0;
+
+		services.AddKeyedSingleton<Func<Page, AlertArguments, Task<bool>>>(
+			TizenDelegateAlertManagerSubscription.DisplayAlertServiceKey,
+			(sender, _) =>
+			{
+				Assert.Same(page, sender);
+				calls++;
+				return Task.FromResult(true);
+			});
+
+		using var provider = services.BuildServiceProvider();
+		using var scope = provider.CreateScope();
+		var args = new AlertArguments("Title", "Message", "OK", "Cancel");
+
+		scope.ServiceProvider.GetRequiredService<IAlertManagerSubscription>()
+			.OnAlertRequested(page, args);
+
+		Assert.True(await args.Result.Task.WaitAsync(TimeSpan.FromSeconds(10)));
+		Assert.Equal(1, calls);
+		Assert.Empty(
+			Assert.IsType<FakeAlertDialogFactory>(
+				scope.ServiceProvider.GetRequiredService<ITizenAlertDialogFactory>())
+			.AlertRequests);
+	}
+
+	[Fact]
+	public async Task SubscriptionOnlyModeInvokesTheKeyedActionSheetDelegate()
+	{
+		var services = PresentationServices()
+			.AddTizenAlerts(TizenAlertRegistrationMode.SubscriptionOnly);
+		var page = new ContentPage();
+		var calls = 0;
+
+		services.AddKeyedSingleton<Func<Page, ActionSheetArguments, Task<string?>>>(
+			TizenDelegateAlertManagerSubscription.DisplayActionSheetServiceKey,
+			(sender, _) =>
+			{
+				Assert.Same(page, sender);
+				calls++;
+				return Task.FromResult<string?>("Selected");
+			});
+
+		using var provider = services.BuildServiceProvider();
+		using var scope = provider.CreateScope();
+		var args = new ActionSheetArguments("Title", "Cancel", null, new[] { "Selected" });
+
+		scope.ServiceProvider.GetRequiredService<IAlertManagerSubscription>()
+			.OnActionSheetRequested(page, args);
+
+		Assert.Equal("Selected", await args.Result.Task.WaitAsync(TimeSpan.FromSeconds(10)));
+		Assert.Equal(1, calls);
+		Assert.Empty(
+			Assert.IsType<FakeAlertDialogFactory>(
+				scope.ServiceProvider.GetRequiredService<ITizenAlertDialogFactory>())
+			.ActionSheetRequests);
+	}
+
+	[Fact]
+	public async Task SubscriptionOnlyModeInvokesTheKeyedPromptDelegate()
+	{
+		var services = PresentationServices()
+			.AddTizenAlerts(TizenAlertRegistrationMode.SubscriptionOnly);
+		var page = new ContentPage();
+		var calls = 0;
+
+		services.AddKeyedSingleton<Func<Page, PromptArguments, Task<string?>>>(
+			TizenDelegateAlertManagerSubscription.DisplayPromptServiceKey,
+			(sender, _) =>
+			{
+				Assert.Same(page, sender);
+				calls++;
+				return Task.FromResult<string?>("Typed");
+			});
+
+		using var provider = services.BuildServiceProvider();
+		using var scope = provider.CreateScope();
+		var args = new PromptArguments(
+			"Title",
+			"Message",
+			"OK",
+			"Cancel",
+			"Placeholder",
+			10,
+			Keyboard.Default,
+			string.Empty);
+
+		scope.ServiceProvider.GetRequiredService<IAlertManagerSubscription>()
+			.OnPromptRequested(page, args);
+
+		Assert.Equal("Typed", await args.Result.Task.WaitAsync(TimeSpan.FromSeconds(10)));
+		Assert.Equal(1, calls);
+		Assert.Empty(
+			Assert.IsType<FakeAlertDialogFactory>(
+				scope.ServiceProvider.GetRequiredService<ITizenAlertDialogFactory>())
+			.PromptRequests);
+	}
+
+	[Fact]
+	public async Task SubscriptionOnlyModeFallsBackPerDialogAndDisposesTheFallback()
+	{
+		var dialogs = new FakeAlertDialogFactory();
+		var windowProvider = new FakeWindowProvider();
+		var services = new ServiceCollection();
+		services.AddSingleton<ITizenAlertDialogFactory>(dialogs);
+		services.AddSingleton<ITizenModalHost>(new FakeModalHost());
+		services.AddSingleton<ITizenPlatformWindowProvider>(windowProvider);
+		services.AddTizenAlerts(TizenAlertRegistrationMode.SubscriptionOnly);
+
+		var alertCalls = 0;
+		services.AddKeyedSingleton<Func<Page, AlertArguments, Task<bool>>>(
+			TizenDelegateAlertManagerSubscription.DisplayAlertServiceKey,
+			(_, _) =>
+			{
+				alertCalls++;
+				return Task.FromResult(true);
+			});
+
+		using var provider = services.BuildServiceProvider();
+		var scope = provider.CreateScope();
+		var context = new StubMauiContext(scope.ServiceProvider);
+		var window = new object();
+		((TizenWindowContext)scope.ServiceProvider.GetRequiredService<ITizenWindowContext>())
+			.Attach(context, window);
+		windowProvider.Map(context, window);
+		var page = new ContentPage { Handler = new StubViewHandler(mauiContext: context) };
+		var subscription = scope.ServiceProvider.GetRequiredService<IAlertManagerSubscription>();
+		var alert = new AlertArguments("Title", "Message", "OK", "Cancel");
+		var actionSheet = new ActionSheetArguments("Title", "Cancel", null, new[] { "Choice" });
+
+		subscription.OnAlertRequested(page, alert);
+		subscription.OnActionSheetRequested(page, actionSheet);
+
+		Assert.True(await alert.Result.Task.WaitAsync(TimeSpan.FromSeconds(10)));
+		Assert.Equal(1, alertCalls);
+		var dialog = dialogs.LastActionSheet!;
+		Assert.True(dialog.Opened);
+
+		scope.Dispose();
+
+		Assert.True(dialog.Closed);
+		Assert.True(dialog.Disposed);
+		Assert.Equal("Cancel", await actionSheet.Result.Task.WaitAsync(TimeSpan.FromSeconds(10)));
+	}
+
+	[Fact]
+	public async Task SubscriptionOnlyFallbackCreatedDuringDisposalIsStillDisposed()
+	{
+		using var creationStarted = new ManualResetEventSlim();
+		using var allowCreation = new ManualResetEventSlim();
+		using var disposeStarted = new ManualResetEventSlim();
+		var fallback = new DisposableAlertSubscription();
+		using var subscription = new TizenDelegateAlertManagerSubscription(
+			static (_, _) => Task.FromResult(true),
+			actionSheetHandler: null,
+			promptHandler: null,
+			() =>
+			{
+				creationStarted.Set();
+				allowCreation.Wait();
+				return fallback;
+			});
+		var args = new ActionSheetArguments("Title", "Cancel", null, new[] { "Choice" });
+		var page = new ContentPage();
+		var request = Task.Run(() => subscription.OnActionSheetRequested(page, args));
+
+		Assert.True(creationStarted.Wait(TimeSpan.FromSeconds(10)));
+
+		var dispose = Task.Run(() =>
+		{
+			disposeStarted.Set();
+			subscription.Dispose();
+		});
+
+		Assert.True(disposeStarted.Wait(TimeSpan.FromSeconds(10)));
+		await Task.Delay(100);
+		allowCreation.Set();
+		await Task.WhenAll(request, dispose).WaitAsync(TimeSpan.FromSeconds(10));
+
+		Assert.True(fallback.Disposed);
+		Assert.Equal("Fallback", await args.Result.Task.WaitAsync(TimeSpan.FromSeconds(10)));
+	}
+
+	[Fact]
+	public async Task SubscriptionOnlyFallbackAcceptsARequestBeforeConcurrentDisposal()
+	{
+		using var requestStarted = new ManualResetEventSlim();
+		using var allowRequest = new ManualResetEventSlim();
+		using var disposeStarted = new ManualResetEventSlim();
+		var fallback = new BlockingDisposableAlertSubscription(requestStarted, allowRequest);
+		using var subscription = new TizenDelegateAlertManagerSubscription(
+			static (_, _) => Task.FromResult(true),
+			actionSheetHandler: null,
+			promptHandler: null,
+			() => fallback);
+		var args = new ActionSheetArguments("Title", "Cancel", null, new[] { "Choice" });
+		var request = Task.Run(() => subscription.OnActionSheetRequested(new ContentPage(), args));
+
+		Assert.True(requestStarted.Wait(TimeSpan.FromSeconds(10)));
+
+		var dispose = Task.Run(() =>
+		{
+			disposeStarted.Set();
+			subscription.Dispose();
+		});
+
+		Assert.True(disposeStarted.Wait(TimeSpan.FromSeconds(10)));
+		await Task.Delay(100);
+		allowRequest.Set();
+		await Task.WhenAll(request, dispose).WaitAsync(TimeSpan.FromSeconds(10));
+
+		Assert.True(fallback.Disposed);
+		Assert.Equal("Fallback", await args.Result.Task.WaitAsync(TimeSpan.FromSeconds(10)));
+	}
+
+	[Fact]
 	public void SubscriptionOnlyModeIsAlsoPerWindow()
 	{
 		using var provider = PresentationServices()
@@ -115,6 +340,21 @@ public class TizenServiceRegistrationTests
 		var subscription = (TizenAlertManagerSubscription)scope.ServiceProvider.GetRequiredService<IAlertManagerSubscription>();
 
 		Assert.Same(window, subscription.PlatformWindow);
+	}
+
+	[Fact]
+	public void SubscriptionOnlyModeFallsBackWhenTheServiceProviderDoesNotSupportKeys()
+	{
+		using var provider = PresentationServices()
+			.AddTizenAlerts(TizenAlertRegistrationMode.SubscriptionOnly)
+			.BuildServiceProvider();
+		using var scope = provider.CreateScope();
+		var nonKeyedProvider = new NonKeyedServiceProvider(scope.ServiceProvider);
+
+		using var subscription = Assert.IsType<TizenAlertManagerSubscription>(
+			TizenControlsServiceCollectionExtensions.CreateSubscriptionOnly(nonKeyedProvider));
+
+		Assert.NotNull(subscription);
 	}
 
 	[Fact]
@@ -352,5 +592,75 @@ public class TizenServiceRegistrationTests
 	{
 		public IGesturePlatformManager CreateGesturePlatformManager(IViewHandler handler) =>
 			throw new NotSupportedException();
+	}
+
+	sealed class DisposableAlertSubscription : IAlertManagerSubscription, IDisposable
+	{
+		public bool Disposed { get; private set; }
+
+		public void OnAlertRequested(Page sender, AlertArguments arguments) =>
+			arguments.SetResult(false);
+
+		public void OnActionSheetRequested(Page sender, ActionSheetArguments arguments) =>
+			arguments.SetResult("Fallback");
+
+		public void OnPromptRequested(Page sender, PromptArguments arguments) =>
+			arguments.SetResult(null);
+
+		[Obsolete("Exercises the obsolete page-busy notification contract.")]
+		public void OnPageBusy(Page sender, bool enabled)
+		{
+		}
+
+		public void Dispose() => Disposed = true;
+	}
+
+	sealed class BlockingDisposableAlertSubscription : IAlertManagerSubscription, IDisposable
+	{
+		readonly ManualResetEventSlim _requestStarted;
+		readonly ManualResetEventSlim _allowRequest;
+
+		public BlockingDisposableAlertSubscription(
+			ManualResetEventSlim requestStarted,
+			ManualResetEventSlim allowRequest)
+		{
+			_requestStarted = requestStarted;
+			_allowRequest = allowRequest;
+		}
+
+		public bool Disposed { get; private set; }
+
+		public void OnAlertRequested(Page sender, AlertArguments arguments) =>
+			arguments.SetResult(false);
+
+		public void OnActionSheetRequested(Page sender, ActionSheetArguments arguments)
+		{
+			_requestStarted.Set();
+			_allowRequest.Wait();
+
+			if (!Disposed)
+			{
+				arguments.SetResult("Fallback");
+			}
+		}
+
+		public void OnPromptRequested(Page sender, PromptArguments arguments) =>
+			arguments.SetResult(null);
+
+		[Obsolete("Exercises the obsolete page-busy notification contract.")]
+		public void OnPageBusy(Page sender, bool enabled)
+		{
+		}
+
+		public void Dispose() => Disposed = true;
+	}
+
+	sealed class NonKeyedServiceProvider : IServiceProvider
+	{
+		readonly IServiceProvider _inner;
+
+		public NonKeyedServiceProvider(IServiceProvider inner) => _inner = inner;
+
+		public object? GetService(Type serviceType) => _inner.GetService(serviceType);
 	}
 }

@@ -60,6 +60,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 	public sealed class TizenPanGestureHandler : TizenGestureHandler
 	{
 		int _gestureId;
+		int _gestureTouchPoints;
+		bool _gestureActive;
 		double _totalX;
 		double _totalY;
 
@@ -81,6 +83,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		new PanGestureRecognizer Recognizer => (PanGestureRecognizer)base.Recognizer;
 
+		internal static int GetRequiredTouchPoints(PanGestureRecognizer recognizer) =>
+			Math.Max(1, recognizer.TouchPoints);
+
 		/// <inheritdoc/>
 		protected override void OnGestureDetected(View view, TizenGestureEventArgs args)
 		{
@@ -95,13 +100,27 @@ namespace Microsoft.Maui.Platforms.Tizen
 			switch (args.State)
 			{
 				case TizenGestureState.Started:
+					_gestureActive = false;
+					_gestureTouchPoints = GetRequiredTouchPoints(Recognizer);
+
+					if (args.TouchCount != _gestureTouchPoints)
+					{
+						return;
+					}
+
+					_gestureActive = true;
 					_gestureId++;
-					_totalX = 0;
-					_totalY = 0;
+					_totalX = args.Displacement.X;
+					_totalY = args.Displacement.Y;
 					Dispatcher.SendPan(Recognizer, view, TizenGestureState.Started, 0, 0, _gestureId);
 					break;
 
 				case TizenGestureState.Continuing:
+					if (!_gestureActive || args.TouchCount != _gestureTouchPoints)
+					{
+						return;
+					}
+
 					_totalX += args.Displacement.X;
 					_totalY += args.Displacement.Y;
 					Dispatcher.SendPan(
@@ -114,10 +133,22 @@ namespace Microsoft.Maui.Platforms.Tizen
 					break;
 
 				case TizenGestureState.Canceled:
+					if (!_gestureActive)
+					{
+						return;
+					}
+
+					_gestureActive = false;
 					Dispatcher.SendPan(Recognizer, view, TizenGestureState.Canceled, 0, 0, _gestureId);
 					break;
 
 				case TizenGestureState.Finished:
+					if (!_gestureActive)
+					{
+						return;
+					}
+
+					_gestureActive = false;
 					Dispatcher.SendPan(Recognizer, view, TizenGestureState.Finished, 0, 0, _gestureId);
 					break;
 			}
@@ -168,8 +199,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 			switch (args.State)
 			{
 				case TizenGestureState.Started:
-					_totalX = 0;
-					_totalY = 0;
+					_totalX = args.Displacement.X;
+					_totalY = args.Displacement.Y;
 					break;
 
 				case TizenGestureState.Continuing:

@@ -278,6 +278,8 @@ internal sealed class FakeNativeGestureDetectorFactory : ITizenNativeGestureDete
 
 	public List<FakeNativeGestureDetector> Created { get; } = new();
 
+	public List<(TizenGestureKind Kind, IGestureRecognizer Recognizer, FakeNativeGestureDetector Detector)> Requests { get; } = new();
+
 	public ITizenNativeGestureDetector? CreateDetector(TizenGestureKind kind, IGestureRecognizer recognizer)
 	{
 		if (_unsupported.Contains(kind))
@@ -287,6 +289,7 @@ internal sealed class FakeNativeGestureDetectorFactory : ITizenNativeGestureDete
 
 		var detector = new FakeNativeGestureDetector();
 		Created.Add(detector);
+		Requests.Add((kind, recognizer, detector));
 		return detector;
 	}
 }

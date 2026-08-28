@@ -151,11 +151,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 	{
 		readonly TizenGestureKind _kind;
 
-		public NuiPanGestureDetector(TizenGestureKind kind)
+		public NuiPanGestureDetector(TizenGestureKind kind, uint? touchesRequired = null)
 			: base(new PanGestureDetector())
 		{
 			_kind = kind;
-			((PanGestureDetector)NativeDetector).Detected += OnDetected;
+			var detector = (PanGestureDetector)NativeDetector;
+
+			if (touchesRequired is { } touchPoints)
+			{
+				detector.SetMinimumTouchesRequired(touchPoints);
+				detector.SetMaximumTouchesRequired(touchPoints);
+			}
+
+			detector.Detected += OnDetected;
 		}
 
 		void OnDetected(object? source, PanGestureDetector.DetectedEventArgs e)
@@ -237,11 +245,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 	/// <remarks>
 	/// NUI has no pointer gesture detector, so this adapter subscribes to the view's touch and
 	/// hover events directly. It is the one detector that has no upstream equivalent: the original
-	/// NUI backend had no <see cref="PointerGestureRecognizer"/> support at all.
+	/// NUI backend had no <see cref="PointerGestureRecognizer"/> support at all. While attached it
+	/// shares a lease on <see cref="NView.LeaveRequired"/> so NUI reports boundary exits; the final
+	/// pointer detector to detach restores the value that was present before the first attached.
 	/// </remarks>
 	internal sealed class NuiPointerGestureDetector : ITizenNativeGestureDetector
 	{
+		static readonly SharedBooleanPropertyLease<NView> s_leaveRequired = new(
+			static view => view.LeaveRequired,
+			static (view, value) => view.LeaveRequired = value);
+
 		NView? _view;
+		IDisposable? _leaveRequiredLease;
 		bool _disposed;
 
 		public event EventHandler<TizenGestureEventArgs>? Detected;
@@ -265,9 +280,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 				return;
 			}
 
+			var leaveRequiredLease = s_leaveRequired.Acquire(view);
 			_view = view;
-			view.TouchEvent += OnTouch;
-			view.HoverEvent += OnHover;
+			_leaveRequiredLease = leaveRequiredLease;
+
+			try
+			{
+				view.TouchEvent += OnTouch;
+				view.HoverEvent += OnHover;
+			}
+			catch
+			{
+				Detach();
+				throw;
+			}
 		}
 
 		public void Detach()
@@ -277,9 +303,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 				return;
 			}
 
-			_view.TouchEvent -= OnTouch;
-			_view.HoverEvent -= OnHover;
+			var view = _view;
+			var leaveRequiredLease = _leaveRequiredLease;
 			_view = null;
+			_leaveRequiredLease = null;
+
+			try
+			{
+				view.TouchEvent -= OnTouch;
+			}
+			finally
+			{
+				try
+				{
+					view.HoverEvent -= OnHover;
+				}
+				finally
+				{
+					leaveRequiredLease?.Dispose();
+				}
+			}
 		}
 
 		public void Dispose()
@@ -419,8 +462,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 				TizenGestureKind.Tap when recognizer is TapGestureRecognizer tap =>
 					new NuiTapGestureDetector((uint)Math.Max(1, tap.NumberOfTapsRequired)),
 
+				TizenGestureKind.Pan when recognizer is PanGestureRecognizer pan =>
+					new NuiPanGestureDetector(
+						kind,
+						(uint)TizenPanGestureHandler.GetRequiredTouchPoints(pan)),
+
 				// Swipe rides on the pan detector because Tizen has no swipe gesture of its own.
-				TizenGestureKind.Pan or TizenGestureKind.Swipe =>
+				TizenGestureKind.Swipe when recognizer is SwipeGestureRecognizer =>
 					new NuiPanGestureDetector(kind),
 
 				TizenGestureKind.Pinch =>
