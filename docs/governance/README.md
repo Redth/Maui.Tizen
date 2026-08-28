@@ -23,7 +23,7 @@ policy that CI, release automation, and reviewers are expected to enforce.
 - [`.github/CONTRIBUTING.md`](../../.github/CONTRIBUTING.md)
 - [`.github/SECURITY.md`](../../.github/SECURITY.md)
 - [`.github/SUPPORT.md`](../../.github/SUPPORT.md)
-- [`.github/workflows/release.yml`](../../.github/workflows/release.yml) — release automation skeleton, safely gated/disabled until publishing prerequisites are met
+- [`.github/workflows/release.yml`](../../.github/workflows/release.yml) — fail-closed release automation with exact artifact manifests, protected device/sign/publish gates, and publishing intentionally disabled until the executable policy is complete
 
 ## Status
 

@@ -21,16 +21,22 @@ experimental (see §4) is not covered by this policy.
 
 ## 2. Compatibility tooling
 
-- Public API surface is tracked via checked-in baseline files (e.g.
-  Microsoft.DotNet.ApiCompat / `PublicAPI.Shipped.txt` /
-  `PublicAPI.Unshipped.txt`-style tracking, consistent with the tooling
-  used by `dotnet/maui`). Wiring the actual analyzer/tool into the build is
-  coordinated with the core scaffolding workstream; this policy defines the
-  *rule*, not the build integration.
+- Public API surface is tracked via checked-in baseline files (for example
+  `PublicAPI.Shipped.txt` / `PublicAPI.Unshipped.txt`-style tracking,
+  consistent with the tooling used by `dotnet/maui`).
 - CI must run an API compatibility check comparing the current build
   against the last shipped stable version before a release candidate is
-  approved (tracked as a required check in
-  `.github/workflows/release.yml`'s `validate` job).
+  approved. `.github/workflows/release.yml` invokes the executable
+  `eng/release/release-contract.py verify-policies` gate against the exact
+  unsigned release artifact. It fails until
+  `eng/release/release-policy.json` names a concrete baseline version and
+  baseline directory. The baseline manifest must identify that same version
+  and hash every schema-v2 API dump plus every consumer-facing
+  `build*/*.props` / `build*/*.targets` file. The comparison rejects removed or changed public
+  types/members, delegate and enum shape changes, tighter generic
+  constraints, reduced property accessor visibility, newly sealed
+  overrides, added abstract requirements, and new base-interface
+  requirements.
 
 ## 3. Change classification
 

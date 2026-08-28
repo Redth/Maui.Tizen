@@ -22,10 +22,11 @@ both the transferring and receiving org.
 
 ## 2. Environments & secrets
 
-- [ ] GitHub Environments used by `.github/workflows/release.yml`
-      (`build`, `sign`, `publish` or equivalent) recreated under Samsung's
-      org with their own protection rules (required reviewers, wait
-      timers, deployment branch restrictions).
+- [ ] GitHub Environments used by the release workflows
+      (`tizen-device-lab`, `tizen-release`, `nuget-signing`, and
+      `nuget-publish`) recreated under Samsung's org with required
+      reviewers and protected-branch deployment restrictions. The
+      executable PUBLISH preflight must pass for all four.
 - [ ] No secrets/credentials carried over from the interim org "as-is"
       without rotation — every credential (signing cert, publishing
       trust config) is reissued fresh in the Samsung-owned environment.
@@ -39,10 +40,13 @@ both the transferring and receiving org.
 
 ## 3. Branch protection & repo settings
 
-- [ ] Branch protection rules on `main` (and any servicing branches)
-      recreated: required status checks, required reviews, required
-      CODEOWNERS review, linear history/merge strategy, restriction on
-      force-push/deletion.
+- [ ] An active ruleset protects `main` (and any servicing branches) with
+      required approving reviews, required status checks, CODEOWNERS review,
+      linear history/merge strategy, and force-push/deletion restrictions.
+- [ ] The PUBLISH preflight can read the ruleset's `bypass_actors` field and
+      confirms it is explicitly empty. If GitHub's default token cannot see
+      that field, provision an independently secured, environment-scoped
+      audit credential; an omitted field fails closed.
 - [ ] Required status checks list matches the workflow job names in
       `.github/workflows/release.yml` and any CI workflow owned by the
       foundation/CI workstream (avoid a gap where checks silently stop
@@ -76,9 +80,12 @@ both the transferring and receiving org.
 
 ## 6. Device runners / validation infrastructure
 
-- [ ] Physical Tizen device and/or emulator runners for CI validation
-      provisioned and reachable from the new org's Actions runners
-      (self-hosted runner registration, network/firewall rules).
+- [ ] Physical Tizen device and/or emulator capacity is exposed through
+      one-job JIT runners in the `maui-tizen-release` group. The group is
+      selected-repository-only, allows this public repository, is restricted
+      exclusively to `.github/workflows/tizen-device-validation.yml` on the
+      protected default branch, and has zero persistent registered runners
+      while idle.
 - [ ] `docs/governance/tizen-support-matrix.md` re-validated against the
       new runner fleet before the first Samsung-owned release — do not
       assume prior validation results carry over if the runner

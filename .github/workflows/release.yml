@@ -1,72 +1,29 @@
 name: Release Maui.Tizen packages
 
-# ---------------------------------------------------------------------------
-# STATUS: SKELETON / SAFELY GATED — DO NOT ENABLE PUBLISHING YET.
-#
-# This workflow defines the *shape* of the Maui.Tizen release pipeline:
-# build -> validate -> pack (unsigned, always runs) -> device-validation ->
-# release-gate -> sign -> publish, with organization environment approvals
-# gating the risk-bearing stages (release-gate, sign, publish). Ordinary
-# manual runs — build, validate, and pack — succeed with no credentials and
-# produce unsigned CI packages as workflow artifacts for inspection/testing.
-# It intentionally cannot publish a signed, real package today:
-#
-#   1. `device-validation`, `release-gate`, `sign` and `publish` all require
-#      the literal "PUBLISH" confirmation input - a typo-proof,
-#      accidental-trigger-proof confirmation, not just a boolean checkbox.
-#      Without it, the run stops after `pack` with unsigned artifacts only.
-#   2. `device-validation` calls the reusable
-#      `.github/workflows/tizen-device-validation.yml` workflow with
-#      `release_validation: true`, which fails unless every release-gating
-#      Tizen profile actually ran and passed on real hardware (see that
-#      workflow's own `release-gate` job and
-#      `eng/validation/scripts/evaluate-release-gate.sh`) - a real result,
-#      not a description of one.
-#   3. `release-gate` requires the `tizen-release` environment (human
-#      approval) and only runs once `device-validation` has actually
-#      succeeded.
-#   4. `sign` requires the `nuget-signing` environment and `publish`
-#      requires the `nuget-production` environment - none of the three
-#      environments referenced by this workflow (`tizen-release`,
-#      `nuget-signing`, `nuget-production`) exist in this repository yet
-#      (create them only after
-#      docs/governance/package-metadata-conventions.md's ownership/signing
-#      items are resolved).
-#   5. This workflow only runs on `workflow_dispatch` (manual) - it is not
-#      wired to tags/releases yet, so it cannot fire unintentionally from a
-#      push or PR.
-#
-# Before enabling real signing/publishing, complete:
-#   - docs/governance/package-metadata-conventions.md (package IDs, signing,
-#     trusted publishing)
-#   - docs/governance/samsung-transfer-checklist.md sections 2, 4, 5 (or the
-#     interim equivalents, if publishing before transfer)
-#   - Create the `tizen-release`, `nuget-signing` and `nuget-production`
-#     GitHub Environments with required reviewers configured.
-#   - Provision the self-hosted `[self-hosted, tizen]` device runners and
-#     the `tizen-device-lab` environment that
-#     `.github/workflows/tizen-device-validation.yml` depends on, and set
-#     `vars.TIZEN_DEVICE_LAB_ENABLED`/`vars.TIZEN_CATALOG_PROJECT`.
-# ---------------------------------------------------------------------------
+# Publishing remains intentionally disabled. This workflow can build an exact unsigned artifact,
+# but PUBLISH runs fail until the checked-in release policy, protected environments/rulesets,
+# Samsung workload activation, organization signing service, and NuGet trusted publishing are real.
 
 on:
   workflow_dispatch:
     inputs:
       package_version:
-        description: >-
-          Package version to build/pack (SemVer, e.g. 11.0.0-preview.1).
-          Must follow docs/governance/versioning-policy.md.
+        description: Package version to build (for example 11.0.0-preview.1)
+        required: true
+        type: string
+      reviewed_sha:
+        description: Full reviewed SHA at the current default-branch head
         required: true
         type: string
       confirm_publish:
-        description: >-
-          Type PUBLISH (all caps) to allow the device-validation,
-          release-gate, sign and publish jobs to run. Any other value stops
-          the run after producing unsigned, validated CI packages
-          (build/validate/pack only).
+        description: Type PUBLISH to request protected device/sign/publish gates
         required: false
-        type: string
         default: ""
+        type: string
+
+concurrency:
+  group: maui-tizen-release-${{ github.repository_id }}-${{ inputs.package_version }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -74,353 +31,629 @@ permissions:
 env:
   DOTNET_NOLOGO: "true"
   DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
 
 jobs:
-  # -------------------------------------------------------------------------
-  # Build & unit test. No environment gate - always safe to run.
-  #
-  # Delegates to the foundation workstream's own workload-free build lane
-  # (eng/build-workload-free.sh, the same entrypoint used by
-  # .github/workflows/ci.yml) instead of duplicating build logic here. That
-  # script builds/tests everything that does not require the Samsung Tizen
-  # workload; it does not build the net11.0-tizen11.0 packages themselves,
-  # because the Samsung workload manifest
-  # (samsung.net.sdk.tizen.manifest-11.0.100, see eng/baselines.json) is not
-  # yet published. See docs/migration.md for the external-gate status.
-  # -------------------------------------------------------------------------
-  build:
-    name: Build & test
+  source:
+    name: Verify reviewed default-branch source
     runs-on: ubuntu-latest
     outputs:
-      package_version: ${{ inputs.package_version }}
+      default_branch: ${{ steps.source.outputs.default_branch }}
+      package_version: ${{ steps.source.outputs.package_version }}
+      source_ref: ${{ steps.source.outputs.source_ref }}
+      source_sha: ${{ steps.source.outputs.source_sha }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Require the dispatched SHA
+        env:
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          if [[ "$REVIEWED_SHA" != "$GITHUB_SHA" ]]; then
+            echo "::error::reviewed_sha must equal the SHA selected for this workflow run."
+            exit 1
+          fi
+
+      - name: Checkout the reviewed SHA
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
+          ref: ${{ inputs.reviewed_sha }}
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Verify current protected default-branch head
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+          SOURCE_REF: ${{ github.ref }}
+          REF_PROTECTED: ${{ github.ref_protected }}
+          REQUIRE_PROTECTED: ${{ inputs.confirm_publish == 'PUBLISH' }}
+          PACKAGE_VERSION: ${{ inputs.package_version }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY" > repository.json
+          default_branch="$(python3 -c 'import json; print(json.load(open("repository.json"))["default_branch"])')"
+          gh api "repos/$GITHUB_REPOSITORY/branches/$default_branch" > branch.json
+          ./eng/release/release-contract.py validate-version --version "$PACKAGE_VERSION"
+          ./eng/release/release-contract.py verify-source \
+            --repository-json repository.json \
+            --branch-json branch.json \
+            --source-ref "$SOURCE_REF" \
+            --source-commit "$REVIEWED_SHA" \
+            --ref-protected "$REF_PROTECTED" \
+            --require-protected "$REQUIRE_PROTECTED"
+          {
+            echo "default_branch=$default_branch"
+            echo "package_version=$PACKAGE_VERSION"
+            echo "source_ref=$SOURCE_REF"
+            echo "source_sha=$REVIEWED_SHA"
+          } >> "$GITHUB_OUTPUT"
+
+  build-pack:
+    name: Build, test and pack once
+    needs: source
+    runs-on: ubuntu-latest
+    env:
+      PACKAGE_VERSION: ${{ needs.source.outputs.package_version }}
+      SOURCE_REF: ${{ needs.source.outputs.source_ref }}
+      SOURCE_SHA: ${{ needs.source.outputs.source_sha }}
+    outputs:
+      artifact_available: ${{ steps.stage.outputs.available }}
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      artifact_name: ${{ steps.identity.outputs.name }}
+      artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+      manifest_sha256: ${{ steps.stage.outputs.manifest_sha256 }}
+      run_attempt: ${{ steps.identity.outputs.run_attempt }}
+      workload_id: ${{ steps.stage.outputs.workload_id }}
+      workload_version: ${{ steps.stage.outputs.workload_version }}
+      workload_package_sha256: ${{ steps.stage.outputs.workload_package_sha256 }}
+      workload_signer_fingerprint: ${{ steps.stage.outputs.workload_signer_fingerprint }}
+    steps:
+      - name: Checkout the reviewed SHA
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.source.outputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           global-json-file: global.json
 
-      - name: Build and validate (workload-free lane)
+      - name: Build and validate workload-independent code
+        env:
+          Version: ${{ needs.source.outputs.package_version }}
+          PackageVersion: ${{ needs.source.outputs.package_version }}
+          RepositoryCommit: ${{ needs.source.outputs.source_sha }}
+          ContinuousIntegrationBuild: "true"
         run: ./eng/build-workload-free.sh
+
+      - name: Install the reviewed workload, then build and pack shipping packages once
         env:
-          ContinuousIntegrationBuild: true
-
-      - name: Note requested package version
-        run: |
-          echo "Requested package version: ${{ inputs.package_version }}"
-          echo "Actual net11.0-tizen11.0 build/pack remains blocked on the Samsung workload manifest - see eng/baselines.json."
-
-  # -------------------------------------------------------------------------
-  # API compatibility / support-matrix / metadata validation.
-  # No environment gate - read-only checks against the built output.
-  # -------------------------------------------------------------------------
-  validate:
-    name: Validate (API compat, support matrix, package metadata)
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Check governance docs are present
-        run: |
-          test -f docs/governance/versioning-policy.md
-          test -f docs/governance/api-compatibility-policy.md
-          test -f docs/governance/tizen-support-matrix.md
-          echo "Governance docs present."
-
-      - name: Check TFM/SDK-band alignment with eng/baselines.json
-        run: |
-          python3 - <<'PY'
-          import json
-
-          baselines = json.load(open("eng/baselines.json"))
-          target = baselines["target"]
-          print(f"eng/baselines.json target TFM: {target['targetFramework']}")
-          print(f"eng/baselines.json SDK band:   {target['sdkBand']}")
-          print(f"eng/baselines.json package ID prefix: {baselines['policy']['packageIdPrefix']}")
-
-          # docs/governance/versioning-policy.md documents net11.0-tizen11.0 as the
-          # primary versioned TFM - keep this check aligned with that policy so the
-          # two cannot silently drift apart.
-          expected_tfm = "net11.0-tizen11.0"
-          if target["targetFramework"] != expected_tfm:
-              raise SystemExit(
-                  f"eng/baselines.json targetFramework is '{target['targetFramework']}', "
-                  f"expected '{expected_tfm}' per docs/governance/versioning-policy.md"
-              )
-          PY
-
-      - name: API compatibility check (placeholder)
-        run: |
-          echo "TODO: run Microsoft.DotNet.ApiCompat (or equivalent) against the last shipped stable version."
-          echo "See docs/governance/api-compatibility-policy.md section 2."
-
-      - name: Support matrix freshness check (placeholder)
-        run: |
-          echo "TODO: fail this step if docs/governance/tizen-support-matrix.md still contains TBD"
-          echo "for any profile targeted by this release. Intentionally non-blocking until wired up."
-
-  # -------------------------------------------------------------------------
-  # Pack the validated build output into UNSIGNED .nupkg/.snupkg artifacts
-  # and upload them for inspection/testing. No environment gate - this is
-  # the normal end state of a manual run that does not request publishing,
-  # so contributors can produce and inspect CI packages without needing any
-  # signing credential or approval.
-  #
-  # The workload transition is delegated to the same fail-closed script used
-  # by CI. It probes the exact Samsung manifest IDs, installs a published
-  # manifest through Samsung's commit-pinned supported installer from #310,
-  # verifies the installed manifest through ReportTizenWorkload, and invokes
-  # eng/build-tizen.sh. It never uses the unrelated `tizen` workload alias.
-  # -------------------------------------------------------------------------
-  pack:
-    name: Pack (unsigned CI packages)
-    runs-on: ubuntu-latest
-    needs: [build, validate]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: global.json
-
-      - name: Install, verify, build and pack through the workload transition gate
-        env:
-          PackageVersion: ${{ needs.build.outputs.package_version }}
+          Version: ${{ needs.source.outputs.package_version }}
+          PackageVersion: ${{ needs.source.outputs.package_version }}
+          SOURCE_COMMIT: ${{ needs.source.outputs.source_sha }}
+          MAUI_TIZEN_PACKAGE_OUTPUT_PATH: ${{ github.workspace }}/artifacts/release-packages
+          MAUI_TIZEN_BUILD_TASKS_ALREADY_BUILT: "true"
+          ContinuousIntegrationBuild: "true"
         run: ./eng/ci/tizen-workload-gate.sh
 
-      - name: Stage the exact unsigned shipping artifact
-        id: unsigned
+      - name: Define attempt-bound artifact identity
+        id: identity
+        run: |
+          {
+            echo "name=maui-tizen-unsigned-${PACKAGE_VERSION}-run-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}"
+            echo "run_attempt=$GITHUB_RUN_ATTEMPT"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Generate the exact unsigned release manifest
+        id: stage
+        env:
+          ARTIFACT_NAME: ${{ steps.identity.outputs.name }}
         run: |
           set -euo pipefail
           shopt -s nullglob
-
-          packages=(
-            artifacts/packages/Maui.Tizen.*.nupkg
-            artifacts/packages/Maui.Tizen.*.snupkg
-          )
-
+          packages=(artifacts/release-packages/*.nupkg artifacts/release-packages/*.snupkg)
           if (( ${#packages[@]} == 0 )); then
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "No shipping packages were produced; the Samsung workload remains externally gated."
+            echo "No shipping packages exist because the reviewed Samsung workload activation is unavailable."
             exit 0
           fi
 
           rm -rf artifacts/release-unsigned
           mkdir -p artifacts/release-unsigned
           cp -- "${packages[@]}" artifacts/release-unsigned/
-          (
-            cd artifacts/release-unsigned
-            shasum -a 256 Maui.Tizen.*.nupkg Maui.Tizen.*.snupkg > SHA256SUMS
-          )
-          echo "available=true" >> "$GITHUB_OUTPUT"
+          ./eng/release/release-contract.py create-unsigned-manifest \
+            --packages-dir artifacts/release-unsigned \
+            --output artifacts/release-unsigned/release-manifest.json \
+            --repository "$GITHUB_REPOSITORY" \
+            --version "$PACKAGE_VERSION" \
+            --source-commit "$SOURCE_SHA" \
+            --source-ref "$SOURCE_REF" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --artifact-name "$ARTIFACT_NAME"
+          manifest_sha256="$(shasum -a 256 artifacts/release-unsigned/release-manifest.json | cut -d' ' -f1)"
+          {
+            echo "available=true"
+            echo "manifest_sha256=$manifest_sha256"
+          } >> "$GITHUB_OUTPUT"
+          python3 - "$GITHUB_OUTPUT" <<'PY'
+          import json
+          import sys
 
-      - name: Require real packages when publishing is requested
-        if: ${{ inputs.confirm_publish == 'PUBLISH' && steps.unsigned.outputs.available != 'true' }}
+          workload = json.load(open("artifacts/release-unsigned/release-manifest.json"))["workloadManifest"]
+          with open(sys.argv[1], "a", encoding="utf-8") as output:
+              output.write(f"workload_id={workload['id']}\n")
+              output.write(f"workload_version={workload['version']}\n")
+              output.write(f"workload_package_sha256={workload['packageSha256']}\n")
+              output.write(f"workload_signer_fingerprint={workload['signerFingerprint']}\n")
+          PY
+
+      - name: Require a complete artifact when publishing is requested
+        if: inputs.confirm_publish == 'PUBLISH' && steps.stage.outputs.available != 'true'
         run: |
-          echo "::error::Publishing was requested, but the exact unsigned shipping artifact does not exist."
+          echo "::error::PUBLISH requires the complete exact unsigned release artifact."
           exit 1
 
-      - name: Upload the exact unsigned package artifact
-        if: steps.unsigned.outputs.available == 'true'
-        uses: actions/upload-artifact@v4
+      - name: Upload the exact unsigned artifact
+        id: upload
+        if: steps.stage.outputs.available == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: maui-tizen-packages-unsigned-${{ needs.build.outputs.package_version }}
-          path: artifacts/release-unsigned
+          name: ${{ steps.identity.outputs.name }}
+          path: artifacts/release-unsigned/
           if-no-files-found: error
           retention-days: 90
+          compression-level: 0
 
-  # -------------------------------------------------------------------------
-  # Consume the real device validation gate. Only runs when publishing is
-  # requested (device runs are slow and require hardware, so they are not
-  # part of the always-safe build/validate/pack lane). This calls the
-  # reusable workflow directly - it does not merely describe a gate or
-  # trigger validation after the fact on a tag: `release_validation: true`
-  # makes that workflow's own `release-gate` job fail the call unless every
-  # release-gating Tizen profile (per
-  # eng/validation/profiles/tizen-profiles.json) actually ran on real
-  # hardware and passed - see
-  # .github/workflows/tizen-device-validation.yml and
-  # eng/validation/scripts/evaluate-release-gate.sh for how that job
-  # decides pass/fail (per-profile result artifacts, not job outputs, so a
-  # skipped/unavailable profile cannot masquerade as a pass).
-  # -------------------------------------------------------------------------
+  publish-preflight:
+    name: Publish policy and protection preflight
+    if: inputs.confirm_publish == 'PUBLISH'
+    needs: [source, build-pack]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    env:
+      ARTIFACT_DIGEST: ${{ needs.build-pack.outputs.artifact_digest }}
+      ARTIFACT_ID: ${{ needs.build-pack.outputs.artifact_id }}
+      ARTIFACT_NAME: ${{ needs.build-pack.outputs.artifact_name }}
+      DEFAULT_BRANCH: ${{ needs.source.outputs.default_branch }}
+      MANIFEST_SHA256: ${{ needs.build-pack.outputs.manifest_sha256 }}
+      PACKAGE_VERSION: ${{ needs.source.outputs.package_version }}
+      PRODUCER_RUN_ATTEMPT: ${{ needs.build-pack.outputs.run_attempt }}
+      SOURCE_REF: ${{ needs.source.outputs.source_ref }}
+      SOURCE_SHA: ${{ needs.source.outputs.source_sha }}
+    steps:
+      - name: Checkout the reviewed SHA
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.source.outputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          global-json-file: global.json
+
+      - name: Verify unsigned artifact API identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID" \
+            > artifact.json
+          ./eng/release/release-contract.py verify-artifact-metadata \
+            --metadata artifact.json \
+            --artifact-id "$ARTIFACT_ID" \
+            --name "$ARTIFACT_NAME" \
+            --digest "$ARTIFACT_DIGEST" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$PRODUCER_RUN_ATTEMPT" \
+            --source-commit "$SOURCE_SHA" \
+            --source-ref "$SOURCE_REF"
+
+      - name: Download the exact unsigned artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.build-pack.outputs.artifact_id }}
+          merge-multiple: true
+          path: artifacts/unsigned
+
+      - name: Verify manifest, API compatibility, support, version and package metadata
+        run: |
+          set -euo pipefail
+          test "$(shasum -a 256 artifacts/unsigned/release-manifest.json | cut -d' ' -f1)" \
+            = "$MANIFEST_SHA256"
+          ./eng/release/release-contract.py verify-policies \
+            --support-matrix docs/governance/tizen-support-matrix.md \
+            --packages-dir artifacts/unsigned \
+            --manifest artifacts/unsigned/release-manifest.json \
+            --repository "$GITHUB_REPOSITORY" \
+            --version "$PACKAGE_VERSION" \
+            --source-commit "$SOURCE_SHA" \
+            --source-ref "$SOURCE_REF" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$PRODUCER_RUN_ATTEMPT" \
+            --artifact-name "$ARTIFACT_NAME"
+
+      - name: Verify protected environments and default-branch ruleset
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./eng/release/release-contract.py verify-protections \
+            --repository "$GITHUB_REPOSITORY" \
+            --default-branch "$DEFAULT_BRANCH"
+
   device-validation:
-    name: Tizen device validation (release gate input)
-    needs: pack
-    if: ${{ inputs.confirm_publish == 'PUBLISH' }}
+    name: Validate exact unsigned artifact on Tizen devices
+    if: inputs.confirm_publish == 'PUBLISH'
+    needs: [source, build-pack, publish-preflight]
+    permissions:
+      actions: read
+      contents: read
     uses: ./.github/workflows/tizen-device-validation.yml
     with:
       release_validation: true
+      package_version: ${{ needs.source.outputs.package_version }}
+      unsigned_artifact_id: ${{ needs.build-pack.outputs.artifact_id }}
+      unsigned_artifact_name: ${{ needs.build-pack.outputs.artifact_name }}
+      unsigned_artifact_digest: ${{ needs.build-pack.outputs.artifact_digest }}
+      unsigned_manifest_sha256: ${{ needs.build-pack.outputs.manifest_sha256 }}
+      source_sha: ${{ needs.source.outputs.source_sha }}
+      source_ref: ${{ needs.source.outputs.source_ref }}
+      source_run_id: ${{ github.run_id }}
+      source_run_attempt: ${{ needs.build-pack.outputs.run_attempt }}
+      workload_id: ${{ needs.build-pack.outputs.workload_id }}
+      workload_version: ${{ needs.build-pack.outputs.workload_version }}
+      workload_package_sha256: ${{ needs.build-pack.outputs.workload_package_sha256 }}
+      workload_signer_fingerprint: ${{ needs.build-pack.outputs.workload_signer_fingerprint }}
 
-  # -------------------------------------------------------------------------
-  # Human approval gate. Requires the `tizen-release` GitHub Environment
-  # (required reviewers) and only runs once `device-validation` has
-  # actually succeeded - i.e. real hardware validation passed, not merely
-  # that this workflow was triggered from a tag. This environment does not
-  # exist in the repository yet; creating it (with real reviewers) is
-  # itself a transfer/activation-readiness action tracked in
-  # docs/governance/samsung-transfer-checklist.md.
-  # -------------------------------------------------------------------------
   release-gate:
     name: Release approval gate
+    if: inputs.confirm_publish == 'PUBLISH' && needs.device-validation.result == 'success'
+    needs: [device-validation]
     runs-on: ubuntu-latest
-    needs: device-validation
-    if: ${{ inputs.confirm_publish == 'PUBLISH' }}
     environment: tizen-release
     steps:
-      - name: Confirm device validation passed
+      - name: Require the explicit device gate output
+        env:
+          GATE_PASSED: ${{ needs.device-validation.outputs.gate_passed }}
         run: |
-          echo "Tizen device validation (.github/workflows/tizen-device-validation.yml release-gate job) succeeded."
-          echo "Approved to proceed to signing/publishing via the tizen-release environment."
+          set -euo pipefail
+          if [[ "$GATE_PASSED" != "true" ]]; then
+            echo "::error::The reusable device workflow did not return gate_passed=true."
+            exit 1
+          fi
 
-  # -------------------------------------------------------------------------
-  # Code + package signing. Only runs when the caller explicitly typed
-  # "PUBLISH" and only after the device validation / release approval gate
-  # above has succeeded. Requires the `nuget-signing` environment, which
-  # should be configured with required reviewers and an organization-owned
-  # signing credential (never a personal certificate - see
-  # docs/governance/package-metadata-conventions.md section 3). This
-  # environment does not exist in the repository yet, so this job cannot
-  # currently succeed even when "PUBLISH" is typed - that is intentional.
-  #
-  # Signing must happen before publish, never the reverse: this job
-  # downloads the exact UNSIGNED artifact `pack` produced (not a rebuild),
-  # so what gets signed is what was actually validated, and `publish` below
-  # can only ever download a SIGNED artifact - there is no path from
-  # `pack`'s unsigned output straight to `publish`.
-  # -------------------------------------------------------------------------
   sign:
-    name: Sign packages (production only)
-    runs-on: ubuntu-latest
-    needs: [release-gate, build]
-    if: ${{ inputs.confirm_publish == 'PUBLISH' }}
+    name: Sign exact packages (disabled until service is configured)
+    if: inputs.confirm_publish == 'PUBLISH'
+    needs: [source, build-pack, release-gate]
+    runs-on: windows-latest
     environment: nuget-signing
     permissions:
+      actions: read
+      attestations: write
       contents: read
       id-token: write
-      attestations: write
+    env:
+      PACKAGE_VERSION: ${{ needs.source.outputs.package_version }}
+      SOURCE_REF: ${{ needs.source.outputs.source_ref }}
+      SOURCE_SHA: ${{ needs.source.outputs.source_sha }}
+      UNSIGNED_ARTIFACT_DIGEST: ${{ needs.build-pack.outputs.artifact_digest }}
+      UNSIGNED_ARTIFACT_ID: ${{ needs.build-pack.outputs.artifact_id }}
+      UNSIGNED_ARTIFACT_NAME: ${{ needs.build-pack.outputs.artifact_name }}
+      UNSIGNED_MANIFEST_SHA256: ${{ needs.build-pack.outputs.manifest_sha256 }}
+      UNSIGNED_RUN_ATTEMPT: ${{ needs.build-pack.outputs.run_attempt }}
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      artifact_name: ${{ steps.identity.outputs.name }}
+      artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+      certificate_sha256: ${{ steps.certificate.outputs.sha256 }}
+      manifest_sha256: ${{ steps.signed.outputs.manifest_sha256 }}
+      run_attempt: ${{ steps.identity.outputs.run_attempt }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download the unsigned packages produced by pack
-        uses: actions/download-artifact@v4
+      - name: Checkout the reviewed SHA
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          name: maui-tizen-packages-unsigned-${{ needs.build.outputs.package_version }}
+          ref: ${{ needs.source.outputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          global-json-file: global.json
+
+      - name: Verify unsigned artifact API identity
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$env:GITHUB_REPOSITORY/actions/artifacts/$env:UNSIGNED_ARTIFACT_ID" |
+            Set-Content -LiteralPath artifact.json -Encoding utf8NoBOM
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python eng/release/release-contract.py verify-artifact-metadata `
+            --metadata artifact.json `
+            --artifact-id "$env:UNSIGNED_ARTIFACT_ID" `
+            --name "$env:UNSIGNED_ARTIFACT_NAME" `
+            --digest "$env:UNSIGNED_ARTIFACT_DIGEST" `
+            --run-id "$env:GITHUB_RUN_ID" `
+            --run-attempt "$env:UNSIGNED_RUN_ATTEMPT" `
+            --source-commit "$env:SOURCE_SHA" `
+            --source-ref "$env:SOURCE_REF"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Download the exact unsigned artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.build-pack.outputs.artifact_id }}
+          merge-multiple: true
           path: artifacts/unsigned
 
-      - name: Verify the exact unsigned artifact
+      - name: Verify the exact unsigned manifest
+        shell: pwsh
         run: |
-          set -euo pipefail
-          cd artifacts/unsigned
-          shasum -a 256 --check SHA256SUMS
+          $manifestHash = (Get-FileHash artifacts/unsigned/release-manifest.json -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($manifestHash -ne $env:UNSIGNED_MANIFEST_SHA256) {
+            throw "Unsigned release manifest digest mismatch."
+          }
+          python eng/release/release-contract.py verify-unsigned-manifest `
+            --packages-dir artifacts/unsigned `
+            --manifest artifacts/unsigned/release-manifest.json `
+            --repository "$env:GITHUB_REPOSITORY" `
+            --version "$env:PACKAGE_VERSION" `
+            --source-commit "$env:SOURCE_SHA" `
+            --source-ref "$env:SOURCE_REF" `
+            --run-id "$env:GITHUB_RUN_ID" `
+            --run-attempt "$env:UNSIGNED_RUN_ATTEMPT" `
+            --artifact-name "$env:UNSIGNED_ARTIFACT_NAME"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Sign (placeholder - fails closed)
+      - name: Require the reviewed environment-scoped signing certificate
+        id: certificate
+        shell: pwsh
+        env:
+          ENVIRONMENT_CERTIFICATE_SHA256: ${{ vars.NUGET_SIGNING_CERTIFICATE_SHA256 }}
         run: |
-          echo "No organization signing credential is configured yet."
-          echo "See docs/governance/package-metadata-conventions.md section 3."
-          echo "This step fails intentionally so packages cannot be mistaken for signed."
+          $policy = Get-Content eng/release/release-policy.json | ConvertFrom-Json
+          $environment = ($env:ENVIRONMENT_CERTIFICATE_SHA256 -replace '[^0-9A-Fa-f]', '').ToLowerInvariant()
+          $reviewed = ([string]$policy.signing.certificateSha256 -replace '[^0-9A-Fa-f]', '').ToLowerInvariant()
+          if ($environment -notmatch '^[0-9a-f]{64}$' -or $environment -ne $reviewed) {
+            throw "The nuget-signing environment certificate does not match the reviewed release policy."
+          }
+          "sha256=$environment" >> $env:GITHUB_OUTPUT
+
+      - name: Define signed attempt-bound artifact identity
+        id: identity
+        shell: pwsh
+        run: |
+          "name=maui-tizen-signed-${env:PACKAGE_VERSION}-run-${env:GITHUB_RUN_ID}-attempt-${env:GITHUB_RUN_ATTEMPT}" `
+            >> $env:GITHUB_OUTPUT
+          "run_attempt=$env:GITHUB_RUN_ATTEMPT" >> $env:GITHUB_OUTPUT
+
+      - name: Organization signing service is not configured
+        shell: pwsh
+        run: |
+          Write-Error "Publishing remains disabled: configure the organization signing service in the protected nuget-signing environment."
           exit 1
 
-      # Replace only the fail-closed step above with the organization signing
-      # service. It must write the signed copies to artifacts/signed; the active
-      # verification, provenance and upload steps below are intentionally not
-      # optional and must remain fail-closed.
+      # The organization signer must read artifacts/unsigned and write the same filenames to
+      # artifacts/signed. It must Authenticode-sign every managed DLL and NuGet-sign every archive
+      # with the reviewed certificate. The verification below is intentionally mandatory.
 
-      - name: Verify signed packages and record their exact hashes
+      - name: Verify signed output and create its one-to-one manifest
+        id: signed
+        shell: pwsh
+        env:
+          CERTIFICATE_SHA256: ${{ steps.certificate.outputs.sha256 }}
+          SIGNED_ARTIFACT_NAME: ${{ steps.identity.outputs.name }}
         run: |
-          set -euo pipefail
-          shopt -s nullglob
-          packages=(artifacts/signed/Maui.Tizen.*.nupkg artifacts/signed/Maui.Tizen.*.snupkg)
-          (( ${#packages[@]} > 0 ))
-          dotnet nuget verify --all "${packages[@]}"
-          (
-            cd artifacts/signed
-            shasum -a 256 Maui.Tizen.*.nupkg Maui.Tizen.*.snupkg > SHA256SUMS
-          )
+          $packages = Get-ChildItem artifacts/signed -File |
+            Where-Object { $_.Extension -in @('.nupkg', '.snupkg') }
+          if ($packages.Count -eq 0) { throw "The signing service produced no packages." }
+          foreach ($package in $packages) {
+            dotnet nuget verify --all --certificate-fingerprint $env:CERTIFICATE_SHA256 $package.FullName
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          ./eng/release/verify-authenticode.ps1 `
+            -PackagesDirectory artifacts/signed `
+            -CertificateSha256 $env:CERTIFICATE_SHA256 `
+            -Output artifacts/signed/authenticode-report.json
+          python eng/release/release-contract.py create-signed-manifest `
+            --unsigned-dir artifacts/unsigned `
+            --unsigned-manifest artifacts/unsigned/release-manifest.json `
+            --signed-dir artifacts/signed `
+            --authenticode-report artifacts/signed/authenticode-report.json `
+            --certificate-sha256 $env:CERTIFICATE_SHA256 `
+            --artifact-name "$env:SIGNED_ARTIFACT_NAME" `
+            --run-attempt "$env:GITHUB_RUN_ATTEMPT" `
+            --output artifacts/signed/release-manifest.json `
+            --attestation-checksums artifacts/signed/attestation-subjects.sha256
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $hash = (Get-FileHash artifacts/signed/release-manifest.json -Algorithm SHA256).Hash.ToLowerInvariant()
+          "manifest_sha256=$hash" >> $env:GITHUB_OUTPUT
 
-      - name: Generate build provenance for the signed packages
-        uses: actions/attest-build-provenance@v2
+      - name: Attest exact signed package digests
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
-          subject-path: |
-            artifacts/signed/Maui.Tizen.*.nupkg
-            artifacts/signed/Maui.Tizen.*.snupkg
+          subject-checksums: artifacts/signed/attestation-subjects.sha256
 
-      - name: Upload the exact signed package artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload the exact signed artifact
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: maui-tizen-packages-signed-${{ needs.build.outputs.package_version }}
-          path: artifacts/signed
+          name: ${{ steps.identity.outputs.name }}
+          path: artifacts/signed/
           if-no-files-found: error
           retention-days: 90
+          compression-level: 0
 
-  # -------------------------------------------------------------------------
-  # Publish. Double-gated: requires both the `nuget-production` environment
-  # (required reviewers) AND the literal "PUBLISH" confirmation input, and
-  # only runs after `sign` has produced signed artifacts. This environment
-  # does not exist in the repository yet - creating it is itself a
-  # transfer-readiness action tracked in
-  # docs/governance/samsung-transfer-checklist.md.
-  #
-  # This job can only ever push what `sign` uploaded under the
-  # `maui-tizen-packages-signed-*` artifact name - there is deliberately no
-  # fallback to the `pack` job's `maui-tizen-packages-unsigned-*` artifact,
-  # so an unsigned package can never reach nuget.org through this workflow.
-  # -------------------------------------------------------------------------
   publish:
-    name: Publish to NuGet (disabled until ownership/signing finalized)
+    name: Publish to NuGet (disabled until trusted publishing is configured)
+    if: inputs.confirm_publish == 'PUBLISH'
+    needs: [source, build-pack, sign]
     runs-on: ubuntu-latest
-    needs: [sign, build]
-    if: ${{ inputs.confirm_publish == 'PUBLISH' }}
-    environment: nuget-production
+    environment: nuget-publish
     permissions:
-      contents: read
-      id-token: write
+      actions: read
       attestations: read
+      contents: read
+    env:
+      CERTIFICATE_SHA256: ${{ needs.sign.outputs.certificate_sha256 }}
+      PACKAGE_VERSION: ${{ needs.source.outputs.package_version }}
+      SIGNED_ARTIFACT_DIGEST: ${{ needs.sign.outputs.artifact_digest }}
+      SIGNED_ARTIFACT_ID: ${{ needs.sign.outputs.artifact_id }}
+      SIGNED_ARTIFACT_NAME: ${{ needs.sign.outputs.artifact_name }}
+      SIGNED_MANIFEST_SHA256: ${{ needs.sign.outputs.manifest_sha256 }}
+      SIGNED_RUN_ATTEMPT: ${{ needs.sign.outputs.run_attempt }}
+      SOURCE_REF: ${{ needs.source.outputs.source_ref }}
+      SOURCE_SHA: ${{ needs.source.outputs.source_sha }}
+      UNSIGNED_ARTIFACT_DIGEST: ${{ needs.build-pack.outputs.artifact_digest }}
+      UNSIGNED_ARTIFACT_ID: ${{ needs.build-pack.outputs.artifact_id }}
+      UNSIGNED_ARTIFACT_NAME: ${{ needs.build-pack.outputs.artifact_name }}
+      UNSIGNED_MANIFEST_SHA256: ${{ needs.build-pack.outputs.manifest_sha256 }}
+      UNSIGNED_RUN_ATTEMPT: ${{ needs.build-pack.outputs.run_attempt }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download the signed packages produced by sign
-        uses: actions/download-artifact@v4
+      - name: Checkout the reviewed SHA
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          name: maui-tizen-packages-signed-${{ needs.build.outputs.package_version }}
-          path: artifacts/signed
+          ref: ${{ needs.source.outputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Verify signed artifact hashes, signatures and provenance
+      - name: Set up .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          global-json-file: global.json
+
+      - name: Verify unsigned and signed artifact API identities
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          cd artifacts/signed
-          shasum -a 256 --check SHA256SUMS
-          shopt -s nullglob
-          packages=(Maui.Tizen.*.nupkg Maui.Tizen.*.snupkg)
-          (( ${#packages[@]} > 0 ))
-          dotnet nuget verify --all "${packages[@]}"
-          for package in "${packages[@]}"; do
-            gh attestation verify "$package" --repo "$GITHUB_REPOSITORY"
+          verify_artifact() {
+            local id="$1" name="$2" digest="$3" metadata="$4" producer_attempt="$5"
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" > "$metadata"
+            ./eng/release/release-contract.py verify-artifact-metadata \
+              --metadata "$metadata" \
+              --artifact-id "$id" \
+              --name "$name" \
+              --digest "$digest" \
+              --run-id "$GITHUB_RUN_ID" \
+              --run-attempt "$producer_attempt" \
+              --source-commit "$SOURCE_SHA" \
+              --source-ref "$SOURCE_REF"
+          }
+          verify_artifact \
+            "$UNSIGNED_ARTIFACT_ID" \
+            "$UNSIGNED_ARTIFACT_NAME" \
+            "$UNSIGNED_ARTIFACT_DIGEST" \
+            unsigned-artifact.json \
+            "$UNSIGNED_RUN_ATTEMPT"
+          verify_artifact \
+            "$SIGNED_ARTIFACT_ID" \
+            "$SIGNED_ARTIFACT_NAME" \
+            "$SIGNED_ARTIFACT_DIGEST" \
+            signed-artifact.json \
+            "$SIGNED_RUN_ATTEMPT"
+
+      - name: Download exact unsigned input
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.build-pack.outputs.artifact_id }}
+          merge-multiple: true
+          path: artifacts/unsigned
+
+      - name: Download exact signed output
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.sign.outputs.artifact_id }}
+          merge-multiple: true
+          path: artifacts/signed
+
+      - name: Verify one-to-one signed bytes and approved certificate
+        run: |
+          set -euo pipefail
+          test "$(shasum -a 256 artifacts/unsigned/release-manifest.json | cut -d' ' -f1)" \
+            = "$UNSIGNED_MANIFEST_SHA256"
+          test "$(shasum -a 256 artifacts/signed/release-manifest.json | cut -d' ' -f1)" \
+            = "$SIGNED_MANIFEST_SHA256"
+          ./eng/release/release-contract.py verify-unsigned-manifest \
+            --packages-dir artifacts/unsigned \
+            --manifest artifacts/unsigned/release-manifest.json \
+            --repository "$GITHUB_REPOSITORY" \
+            --version "$PACKAGE_VERSION" \
+            --source-commit "$SOURCE_SHA" \
+            --source-ref "$SOURCE_REF" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$UNSIGNED_RUN_ATTEMPT" \
+            --artifact-name "$UNSIGNED_ARTIFACT_NAME"
+          ./eng/release/release-contract.py verify-signed-manifest \
+            --signed-dir artifacts/signed \
+            --manifest artifacts/signed/release-manifest.json \
+            --unsigned-manifest artifacts/unsigned/release-manifest.json \
+            --certificate-sha256 "$CERTIFICATE_SHA256" \
+            --repository "$GITHUB_REPOSITORY" \
+            --version "$PACKAGE_VERSION" \
+            --source-commit "$SOURCE_SHA" \
+            --source-ref "$SOURCE_REF" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$SIGNED_RUN_ATTEMPT" \
+            --artifact-name "$SIGNED_ARTIFACT_NAME"
+          for package in artifacts/signed/*.nupkg artifacts/signed/*.snupkg; do
+            dotnet nuget verify --all --certificate-fingerprint "$CERTIFICATE_SHA256" "$package"
           done
 
-      - name: Guard - publishing prerequisites
+      - name: Verify provenance against this signer workflow and attempt
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Publishing is not yet enabled for this repository."
-          echo "Prerequisites tracked in docs/governance/package-metadata-conventions.md"
-          echo "and docs/governance/samsung-transfer-checklist.md must be satisfied,"
-          echo "and this guard step must be replaced with a real check, before removing this exit."
+          set -euo pipefail
+          while read -r digest filename; do
+            report="attestation-${filename}.json"
+            gh attestation verify "artifacts/signed/$filename" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+              --signer-digest "$SOURCE_SHA" \
+              --source-digest "$SOURCE_SHA" \
+              --source-ref "$SOURCE_REF" \
+              --deny-self-hosted-runners \
+              --format json > "$report"
+            ./eng/release/release-contract.py verify-attestation-report \
+              --report "$report" \
+              --repository "$GITHUB_REPOSITORY" \
+              --source-commit "$SOURCE_SHA" \
+              --source-ref "$SOURCE_REF" \
+              --run-id "$GITHUB_RUN_ID" \
+              --run-attempt "$SIGNED_RUN_ATTEMPT" \
+              --subject-name "$filename" \
+              --subject-digest "$digest"
+          done < artifacts/signed/attestation-subjects.sha256
+
+      - name: Plan hash-verified idempotent publication
+        run: |
+          ./eng/release/release-contract.py plan-publication \
+            --manifest artifacts/signed/release-manifest.json \
+            --feed-base https://api.nuget.org/v3-flatcontainer \
+            --symbol-feed-base https://www.nuget.org/api/v2/symbolpackage \
+            --certificate-sha256 "$CERTIFICATE_SHA256" \
+            --output artifacts/publication-plan.json
+          cat artifacts/publication-plan.json
+
+      - name: Publishing remains disabled
+        run: |
+          echo "::error::NuGet trusted publishing is not configured and eng/release/release-policy.json remains fail-closed."
           exit 1
 
-      # The guard step above always exits 1 today. Once ownership and trusted
-      # publishing are configured, replace only that guard with the push:
-      #
-      # - name: Publish via trusted publishing
-      #   run: |
-      #     echo "dotnet nuget push using nuget.org Trusted Publishing (OIDC)."
-      #     echo "No API key secret should ever be added here - see"
-      #     echo "docs/governance/package-metadata-conventions.md section 4."
+      # Once trusted publishing is configured, replace only the fail-closed step above with a
+      # second plan-publication invocation using --execute, --source and the short-lived
+      # environment-scoped trusted-publishing token. It pushes entries marked "publish" and skips
+      # entries marked "skip"; a mismatched existing package fails before any push. Add
+      # `id-token: write` to this job only when the trusted-publishing login actually consumes it.

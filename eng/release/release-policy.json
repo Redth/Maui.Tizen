@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "status": "not-ready",
+  "publishingEnabled": false,
+  "defaultBranch": "main",
+  "apiCompatibility": {
+    "baselineVersion": null,
+    "baselineDirectory": null
+  },
+  "packageMetadata": {
+    "authors": null,
+    "company": null,
+    "icon": null
+  },
+  "signing": {
+    "certificateSha256": null,
+    "requireAuthenticode": true
+  },
+  "trustedPublishing": {
+    "enabled": false,
+    "repository": "Redth/Maui.Tizen",
+    "workflow": ".github/workflows/release.yml",
+    "environment": "nuget-publish"
+  },
+  "workloadManifest": {
+    "id": null,
+    "version": null,
+    "packageSha256": null,
+    "signerFingerprint": null
+  },
+  "protectedEnvironments": [
+    "tizen-device-lab",
+    "tizen-release",
+    "nuget-signing",
+    "nuget-publish"
+  ],
+  "runnerGroup": {
+    "name": "maui-tizen-release",
+    "requireJit": true
+  },
+  "requiredStatusChecks": [
+    "Build and test (no Tizen workload)",
+    "Hosted validation (no Tizen workload)",
+    "Tizen device lane (informational)",
+    "Verify imported history",
+    "Tizen workload availability (external gate)"
+  ]
+}

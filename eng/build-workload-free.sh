@@ -104,6 +104,9 @@ check "normalize script is syntactically valid" bash -n eng/import/normalize-lay
 check "Tizen workload gate script is syntactically valid" bash -n eng/ci/tizen-workload-gate.sh
 check "real Tizen lane script is syntactically valid" bash -n eng/build-tizen.sh
 check "Tizen workload transition tests are syntactically valid" bash -n eng/tests/test-ci-tizen-workload-gate.sh
+check "release contract tests are syntactically valid" bash -n eng/tests/test-release-contract.sh
+check "release contract helper is syntactically valid" \
+  python3 -c "import ast; ast.parse(open('eng/release/release-contract.py', encoding='utf-8').read())"
 
 # ---------------------------------------------------------------------------
 # 4. Restore and build the workload-independent projects.
@@ -155,7 +158,13 @@ check "restore package graph probe" "$DOTNET" restore eng/tests/PackageGraphProb
 # ---------------------------------------------------------------------------
 info "Packing"
 if check "pack README probe" "$DOTNET" pack eng/tests/PackReadmeProbe/PackReadmeProbe.csproj --no-restore -c Release; then
-  README_NUPKG="$(ls -t "$REPO_ROOT"/artifacts/packages/Maui.Tizen.Internal.PackReadmeProbe.*.nupkg 2>/dev/null | head -1 || true)"
+  README_NUPKG=""
+  for candidate in "$REPO_ROOT"/artifacts/packages/Maui.Tizen.Internal.PackReadmeProbe.*.nupkg; do
+    [[ -e "$candidate" ]] || continue
+    if [[ -z "$README_NUPKG" || "$candidate" -nt "$README_NUPKG" ]]; then
+      README_NUPKG="$candidate"
+    fi
+  done
   # NOTE: `unzip -l ... | grep -q` is deliberately avoided. Under `set -o pipefail`,
   # grep -q exits on first match and closes the pipe, so unzip can die with SIGPIPE and
   # poison the pipeline's status - reporting a missing README for a package that contains
@@ -222,7 +231,18 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 5b. Snapshot verification regressions.
+# 5b. Release workflow contract regressions.
+# ---------------------------------------------------------------------------
+info "Release workflow contract regressions"
+if "$REPO_ROOT/eng/tests/test-release-contract.sh"; then
+  :
+else
+  fail "release workflow contract regressions failed"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# ---------------------------------------------------------------------------
+# 5c. Snapshot verification regressions.
 #
 # eng/scripts/lib/Snapshot.ps1's Test-SnapshotIntegrity is what stands between "we downloaded
 # the right dotnet/maui commit" and "we scanned whatever happened to be on disk". These

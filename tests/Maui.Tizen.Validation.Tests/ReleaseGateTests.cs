@@ -20,6 +20,10 @@ namespace Maui.Tizen.Validation.Tests;
 /// </remarks>
 public class ReleaseGateTests
 {
+    const string PackageVersion = "11.0.0-preview.1";
+    const string ArtifactDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const string WorkloadManifest = "Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7/11.0.0-preview.7";
+
     static string ScriptPath =>
         Path.Combine(RepoLayout.ValidationConfig, "scripts", "evaluate-release-gate.sh");
 
@@ -54,6 +58,12 @@ public class ReleaseGateTests
         psi.ArgumentList.Add(consumerResult);
         psi.ArgumentList.Add("--required-profiles");
         psi.ArgumentList.Add(requiredProfiles);
+        psi.ArgumentList.Add("--package-version");
+        psi.ArgumentList.Add(PackageVersion);
+        psi.ArgumentList.Add("--artifact-digest");
+        psi.ArgumentList.Add(ArtifactDigest);
+        psi.ArgumentList.Add("--workload-manifest");
+        psi.ArgumentList.Add(WorkloadManifest);
         psi.ArgumentList.Add("--results-dir");
         psi.ArgumentList.Add(resultsDirectory);
 
@@ -68,8 +78,16 @@ public class ReleaseGateTests
     }
 
     /// <summary>Writes a per-profile result file of the shape the device job produces.</summary>
-    static void WriteResult(TempWorkspace workspace, string profile, string laneAvailable, string status) =>
-        workspace.WriteFile($"device-result-{profile}.txt", $"lane_available={laneAvailable}\nstatus={status}\n");
+    static void WriteResult(
+        TempWorkspace workspace,
+        string profile,
+        string laneAvailable,
+        string status,
+        string artifactDigest = ArtifactDigest) =>
+        workspace.WriteFile(
+            $"device-result-{profile}.txt",
+            $"package_version={PackageVersion}\nartifact_digest={artifactDigest}\n" +
+            $"workload_manifest={WorkloadManifest}\nlane_available={laneAvailable}\nstatus={status}\n");
 
     [Fact]
     public void ScriptExists()
@@ -154,6 +172,24 @@ public class ReleaseGateTests
 
         Assert.Equal(1, exitCode);
         Assert.Contains("status='fail'", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Release_IsBlockedWhenAProfileValidatedDifferentArtifactBytes()
+    {
+        using var workspace = TempWorkspace.Create("gate-artifact-mismatch");
+        WriteResult(
+            workspace,
+            "mobile",
+            laneAvailable: "true",
+            status: "pass",
+            artifactDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+
+        var (exitCode, output) = Evaluate(
+            "true", "true", "success", "mobile", workspace.Path);
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("did not validate the exact requested release inputs", output, StringComparison.Ordinal);
     }
 
     [Theory]

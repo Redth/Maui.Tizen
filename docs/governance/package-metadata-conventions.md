@@ -41,7 +41,7 @@ Every published package must set:
 | `PackageReadmeFile` | Package-level README shipped in the `.nupkg` |
 | `PublishRepositoryUrl` | `true`, to enable source link / repo association |
 | `EmbedUntrackedSources` | `true` |
-| `IncludeSymbols` + `SymbolPackageFormat=snupkg` | `true` / `snupkg`, so symbols publish to nuget.org's symbol server |
+| `IncludeSymbols` + `SymbolPackageFormat=snupkg` | `true` / `snupkg`, so runtime-library symbols publish to nuget.org's symbol server. `Maui.Tizen.Build.Tasks` is the explicit exception because its task assembly ships under `tasks/`, not a NuGet compile/runtime asset. |
 | `Deterministic` | `true` |
 | `ContinuousIntegrationBuild` | `true` when building in CI (required for reproducible/source-linked builds) |
 | `PackageIcon` | Shared org icon (added when finalized; do not use a placeholder that implies personal branding) |
@@ -60,13 +60,20 @@ session to avoid duplicate or conflicting edits).
 - Signing happens in the release workflow's `sign` job, gated behind a
   protected GitHub Environment (see `.github/workflows/release.yml`).
   Until an organization signing service/certificate is provisioned, the
-  `sign` job is a placeholder that fails closed (does not silently skip).
+  job fails closed before any signed artifact can be emitted.
 - The signer consumes the exact versioned unsigned workflow artifact emitted
-  by `pack`, verifies its SHA-256 manifest, and writes signed copies to a
-  separate directory. There is no rebuild and no unsigned fallback.
-- Signature verification, SHA-256 recording, GitHub build-provenance
-  attestation, and upload of the versioned signed artifact are mandatory
-  steps after the signer. They do not use `continue-on-error`.
+  by `build-pack`, selected by artifact ID and checked against its GitHub
+  artifact digest. Its release manifest pins every package ID, version,
+  filename, SHA-256, source commit, workflow run, and run attempt. There is
+  no rebuild and no unsigned fallback.
+- The signer must preserve filenames and package identities one-to-one,
+  Authenticode-sign every managed DLL, and NuGet-sign every `.nupkg` /
+  `.snupkg` with the SHA-256 certificate fingerprint reviewed in
+  `eng/release/release-policy.json`.
+- Authenticode and NuGet signature verification, signed/unsigned hash
+  mapping, GitHub build-provenance attestation, and upload of the
+  attempt-bound signed artifact are mandatory steps after the signer. They
+  do not use `continue-on-error`.
 
 ## 4. Ownership & trusted publishing
 
@@ -102,6 +109,16 @@ session to avoid duplicate or conflicting edits).
 - Release artifacts (`.nupkg`/`.snupkg`) produced by CI should be
   retained as workflow artifacts for audit, independent of whether the
   publish step actually runs.
-- Publishing downloads only the versioned signed artifact, then re-verifies
-  its hashes, NuGet signatures, and GitHub attestation before the disabled
-  publishing guard. It never reads the unsigned artifact from `pack`.
+- Publishing downloads the exact unsigned input and signed output by
+  artifact ID, verifies both artifact digests and the one-to-one hash
+  mapping, then pins attestation verification to this repository, the
+  release workflow and workflow SHA, source SHA/ref, subject digest, run ID,
+  and run attempt.
+- Partial retries are planned before any push. An existing package version
+  may be skipped only when every manifest-bound payload entry and the
+  approved author certificate match. NuGet.org's expected repository
+  countersignature may change only `.signature.p7s`; any other primary
+  package content change blocks the whole retry. The symbol-package endpoint
+  does not retain the author signature, so `.snupkg` retries compare every
+  non-signature payload entry exactly. Primary and symbol packages are
+  checked and retried independently.

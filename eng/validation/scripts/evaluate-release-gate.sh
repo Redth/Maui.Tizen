@@ -15,6 +15,9 @@
 #                            --matrix-result <success|failure|cancelled|skipped> \
 #                            --consumer-result <success|failure|cancelled|skipped> \
 #                            --required-profiles "mobile-mdpi mobile-hdpi mobile-xhdpi tv-fhd tv-uhd" \
+#                            --package-version <requested-version> \
+#                            --artifact-digest <sha256:digest> \
+#                            --workload-manifest <package-id/version> \
 #                            --results-dir <dir>
 #
 # <results-dir> holds one file per required visual target, named
@@ -33,6 +36,9 @@ LAB_ENABLED=false
 MATRIX_RESULT=skipped
 CONSUMER_RESULT=skipped
 REQUIRED_PROFILES=""
+PACKAGE_VERSION=""
+ARTIFACT_DIGEST=""
+WORKLOAD_MANIFEST=""
 RESULTS_DIR=""
 
 while [[ $# -gt 0 ]]; do
@@ -43,6 +49,9 @@ while [[ $# -gt 0 ]]; do
     --matrix-result)     MATRIX_RESULT="$2"; shift 2 ;;
     --consumer-result)   CONSUMER_RESULT="$2"; shift 2 ;;
     --required-profiles) REQUIRED_PROFILES="$2"; shift 2 ;;
+    --package-version)   PACKAGE_VERSION="$2"; shift 2 ;;
+    --artifact-digest)   ARTIFACT_DIGEST="$2"; shift 2 ;;
+    --workload-manifest) WORKLOAD_MANIFEST="$2"; shift 2 ;;
     --results-dir)       RESULTS_DIR="$2"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -89,6 +98,11 @@ if [[ -z "$REQUIRED_PROFILES" ]]; then
   exit 1
 fi
 
+if [[ -z "$PACKAGE_VERSION" || ! "$ARTIFACT_DIGEST" =~ ^(sha256:)?[0-9a-f]{64}$ || -z "$WORKLOAD_MANIFEST" ]]; then
+  fail "release package version, exact artifact digest, and reviewed workload manifest are required."
+  exit 1
+fi
+
 if [[ -z "$RESULTS_DIR" || ! -d "$RESULTS_DIR" ]]; then
   fail "results directory '$RESULTS_DIR' does not exist, so no profile can be verified."
   exit 1
@@ -107,6 +121,19 @@ for profile in $REQUIRED_PROFILES; do
 
   lane_available="$(grep -E '^lane_available=' "$result_file" | tail -1 | cut -d= -f2 || true)"
   status="$(grep -E '^status=' "$result_file" | tail -1 | cut -d= -f2 || true)"
+  result_version="$(grep -E '^package_version=' "$result_file" | tail -1 | cut -d= -f2 || true)"
+  result_digest="$(grep -E '^artifact_digest=' "$result_file" | tail -1 | cut -d= -f2- || true)"
+  result_workload="$(grep -E '^workload_manifest=' "$result_file" | tail -1 | cut -d= -f2- || true)"
+
+  if [[ "$result_version" != "$PACKAGE_VERSION" \
+      || "$result_digest" != "$ARTIFACT_DIGEST" \
+      || "$result_workload" != "$WORKLOAD_MANIFEST" ]]; then
+    fail "profile '$profile' did not validate the exact requested release inputs."
+    fail "  expected version=$PACKAGE_VERSION artifact=$ARTIFACT_DIGEST workload=$WORKLOAD_MANIFEST"
+    fail "  reported version=${result_version:-<missing>} artifact=${result_digest:-<missing>} workload=${result_workload:-<missing>}"
+    BLOCKED=1
+    continue
+  fi
 
   # The hole the review found: this is the check that makes a fully-skipped device job fail.
   if [[ "$lane_available" != "true" ]]; then

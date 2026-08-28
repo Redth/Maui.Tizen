@@ -114,7 +114,8 @@
       "status": "unavailable",
       "probedUtc": "2026-08-26",
       "activation": {
-        "$comment": "When Samsung publishes the manifest, set all three values in a reviewed commit before enabling installation. The gate verifies the exact package hash and NuGet signing certificate before executing Samsung's installer.",
+        "$comment": "When Samsung publishes the manifest, set all four values in a reviewed commit before enabling installation. The gate verifies the exact package ID, version, hash, and NuGet signing certificate before executing Samsung's installer.",
+        "packageId": null,
         "version": null,
         "packageSha256": null,
         "signerFingerprint": null

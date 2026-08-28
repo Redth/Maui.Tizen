@@ -133,26 +133,30 @@ if [[ -z "$PUBLISHED_ID" ]]; then
   exit 0
 fi
 
-IFS='|' read -r BASELINE_VERSION BASELINE_SHA256 BASELINE_SIGNER_FINGERPRINT < <("$PYTHON" - <<'PY'
+IFS='|' read -r BASELINE_ID BASELINE_VERSION BASELINE_SHA256 BASELINE_SIGNER_FINGERPRINT < <("$PYTHON" - <<'PY'
 import json
 
 with open("eng/baselines.json", encoding="utf-8") as stream:
     activation = json.load(stream)["target"]["workloadManifest"].get("activation", {})
 
 values = []
-for key in ("version", "packageSha256", "signerFingerprint"):
+for key in ("packageId", "version", "packageSha256", "signerFingerprint"):
     value = activation.get(key)
     values.append(value if isinstance(value, str) else "")
 print("|".join(values))
 PY
 )
 
+EXPECTED_ID="${TIZEN_EXPECTED_MANIFEST_ID:-$BASELINE_ID}"
 EXPECTED_VERSION="${TIZEN_EXPECTED_MANIFEST_VERSION:-$BASELINE_VERSION}"
 EXPECTED_SHA256="${TIZEN_EXPECTED_MANIFEST_SHA256:-$BASELINE_SHA256}"
 EXPECTED_SIGNER_FINGERPRINT="${TIZEN_EXPECTED_MANIFEST_SIGNER_FINGERPRINT:-$BASELINE_SIGNER_FINGERPRINT}"
 
-[[ -n "$EXPECTED_VERSION" && -n "$EXPECTED_SHA256" && -n "$EXPECTED_SIGNER_FINGERPRINT" ]] \
-  || fail "Samsung published a manifest, but eng/baselines.json does not yet pin its exact version, SHA-256, and signing certificate fingerprint."
+[[ -n "$EXPECTED_ID" && -n "$EXPECTED_VERSION" && -n "$EXPECTED_SHA256" && -n "$EXPECTED_SIGNER_FINGERPRINT" ]] \
+  || fail "Samsung published a manifest, but eng/baselines.json does not yet pin its exact package ID, version, SHA-256, and signing certificate fingerprint."
+
+[[ "$PUBLISHED_ID" == "$EXPECTED_ID" ]] \
+  || fail "The published manifest ID ${PUBLISHED_ID} does not match the reviewed activation pin ${EXPECTED_ID}."
 
 [[ "$PUBLISHED_VERSION" == "$EXPECTED_VERSION" ]] \
   || fail "The published manifest version ${PUBLISHED_VERSION} does not match the reviewed activation pin ${EXPECTED_VERSION}."

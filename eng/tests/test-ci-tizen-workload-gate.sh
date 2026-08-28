@@ -122,6 +122,11 @@ expect_contains \
   "-t:ReportTizenWorkload"
 
 expect_contains \
+  "published manifest activation requires a reviewed package ID" \
+  "$GATE_SCRIPT" \
+  "EXPECTED_ID"
+
+expect_contains \
   "published manifest activation requires a reviewed package hash" \
   "$GATE_SCRIPT" \
   "EXPECTED_SHA256"
@@ -270,6 +275,7 @@ CASE_FEATURE_STATUS=404
 CASE_INSTALL_FAIL=0
 CASE_INSTALL_NOOP=0
 CASE_BUILD_FAIL=0
+CASE_EXPECTED_ID=""
 LAST_STATUS=0
 LAST_SUMMARY=""
 LAST_OUTPUT=""
@@ -277,7 +283,15 @@ FAKE_MANIFEST_SHA256="$(printf 'transition manifest package\n' | shasum -a 256 |
 FAKE_SIGNER_FINGERPRINT="0123456789ABCDEF0123456789ABCDEF01234567"
 
 run_gate() {
-  local name="$1"
+  local name="$1" expected_id="$CASE_EXPECTED_ID"
+
+  if [[ -z "$expected_id" ]]; then
+    if [[ "$CASE_FULL_STATUS" == "200" ]]; then
+      expected_id="$FULL_ID"
+    else
+      expected_id="$FEATURE_ID"
+    fi
+  fi
 
   rm -rf "$INSTALL_DIRECTORY"
   rm -f "$INSTALL_MARKER" "$BUILD_MARKER" "$INSTALL_ARGS_LOG" "$HELPER_STATUS_LOG" \
@@ -295,6 +309,7 @@ run_gate() {
     NUGET_FLAT_CONTAINER_BASE="https://example.test/v3-flatcontainer" \
     TIZEN_WORKLOAD_INSTALLER_URL="https://example.test/workload-install.sh" \
     TIZEN_REAL_WORKLOAD_LANE="$FAKE_BUILD" \
+    TIZEN_EXPECTED_MANIFEST_ID="$expected_id" \
     TIZEN_EXPECTED_MANIFEST_VERSION="11.0.0-transition-test.1" \
     TIZEN_EXPECTED_MANIFEST_SHA256="$FAKE_MANIFEST_SHA256" \
     TIZEN_EXPECTED_MANIFEST_SIGNER_FINGERPRINT="$FAKE_SIGNER_FINGERPRINT" \
@@ -333,6 +348,12 @@ expect_contains "feature-band fallback ID is derived from baselines" "$CURL_LOG"
 CASE_FULL_STATUS=200
 CASE_FEATURE_STATUS=404
 CASE_BUILD_FAIL=0
+CASE_EXPECTED_ID="$FEATURE_ID"
+run_gate wrong-reviewed-id
+expect_failure "published manifest ID must match the reviewed activation pin" "$LAST_STATUS"
+expect_no_file "wrong manifest ID does not install a workload" "$INSTALL_MARKER"
+
+CASE_EXPECTED_ID=""
 run_gate available-preview
 expect_status "available preview manifest completes the real lane" 0 "$LAST_STATUS"
 expect_file "available preview manifest invokes Samsung installer" "$INSTALL_MARKER"
@@ -419,6 +440,13 @@ while IFS= read -r project; do
     fi
   fi
 done < <(find src samples -name '*.csproj' -type f | sort)
+SHIPPING_PROJECT_COUNT=$((TIZEN_PROJECT_COUNT + 1))
+
+if grep -Fq '"src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj"' "$REAL_LANE"; then
+  pass "real lane includes Maui.Tizen.Build.Tasks"
+else
+  fail "real lane includes Maui.Tizen.Build.Tasks"
+fi
 
 if [[ "$TIZEN_PROJECT_COUNT" -gt 0 ]]; then
   pass "real lane has at least one actual Tizen project"
@@ -435,12 +463,37 @@ expect_status "real lane succeeds when all dotnet phases succeed" 0 "$LANE_STATU
 
 for phase in restore build pack; do
   count="$(grep -c "^${phase} " "$LANE_LOG" || true)"
-  if [[ "$count" -eq "$TIZEN_PROJECT_COUNT" ]]; then
-    pass "real lane runs $phase for every Tizen project"
+  if [[ "$count" -eq "$SHIPPING_PROJECT_COUNT" ]]; then
+    pass "real lane runs $phase for every shipping project"
   else
-    fail "real lane runs $phase for every Tizen project -- expected $TIZEN_PROJECT_COUNT, got $count"
+    fail "real lane runs $phase for every shipping project -- expected $SHIPPING_PROJECT_COUNT, got $count"
   fi
 done
+
+: > "$LANE_LOG"
+set +e
+env \
+  DOTNET="$LANE_DOTNET" \
+  FAKE_DOTNET_LOG="$LANE_LOG" \
+  MAUI_TIZEN_BUILD_TASKS_ALREADY_BUILT=true \
+  "$REAL_LANE" > "$TEMP_ROOT/lane-reuse-build-tasks.out" 2>&1
+LANE_STATUS=$?
+set -e
+expect_status "release lane reuses the workload-free Build.Tasks build" 0 "$LANE_STATUS"
+for phase in restore build; do
+  count="$(grep -c "^${phase} " "$LANE_LOG" || true)"
+  if [[ "$count" -eq "$TIZEN_PROJECT_COUNT" ]]; then
+    pass "release lane does not rebuild Build.Tasks during $phase"
+  else
+    fail "release lane does not rebuild Build.Tasks during $phase -- expected $TIZEN_PROJECT_COUNT, got $count"
+  fi
+done
+count="$(grep -c '^pack ' "$LANE_LOG" || true)"
+if [[ "$count" -eq "$SHIPPING_PROJECT_COUNT" ]]; then
+  pass "release lane still packs every shipping project exactly once"
+else
+  fail "release lane still packs every shipping project exactly once -- expected $SHIPPING_PROJECT_COUNT, got $count"
+fi
 
 for phase in restore build pack; do
   : > "$LANE_LOG"

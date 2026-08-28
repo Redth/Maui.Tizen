@@ -248,6 +248,159 @@ public partial class WorkflowReferenceTests
     }
 }
 
+/// <summary>Release workflow supply-chain invariants that must remain fail-closed.</summary>
+public class ReleaseWorkflowSecurityTests
+{
+    static string ReadWorkflow(string name) =>
+        File.ReadAllText(Path.Combine(RepoLayout.Root, ".github", "workflows", name));
+
+    [Fact]
+    public void EveryExternalActionIsPinnedToAnImmutableCommit()
+    {
+        var workflowDirectory = Path.Combine(RepoLayout.Root, ".github", "workflows");
+        var mutable = new List<string>();
+        var pattern = new Regex(@"^\s*uses:\s+(?<target>\S+)", RegexOptions.Multiline);
+
+        foreach (var workflow in Directory.EnumerateFiles(workflowDirectory, "*.yml"))
+        {
+            foreach (Match match in pattern.Matches(File.ReadAllText(workflow)))
+            {
+                var target = match.Groups["target"].Value;
+                if (target.StartsWith("./", StringComparison.Ordinal))
+                    continue;
+
+                var at = target.LastIndexOf('@');
+                var reference = at >= 0 ? target[(at + 1)..] : string.Empty;
+                if (!Regex.IsMatch(reference, "^[0-9a-f]{40}$", RegexOptions.CultureInvariant))
+                    mutable.Add($"{Path.GetFileName(workflow)} -> {target}");
+            }
+        }
+
+        Assert.True(
+            mutable.Count == 0,
+            "External actions must be immutable commit pins:" + Environment.NewLine +
+            string.Join(Environment.NewLine, mutable.Select(item => "    " + item)));
+    }
+
+    [Fact]
+    public void ReleaseArtifactIsAttemptBoundAndPassedIntoReusableValidation()
+    {
+        var release = ReadWorkflow("release.yml");
+        var device = ReadWorkflow("tizen-device-validation.yml");
+
+        Assert.Contains("cancel-in-progress: false", release, StringComparison.Ordinal);
+        Assert.Contains("${{ inputs.package_version }}", release, StringComparison.Ordinal);
+        Assert.Contains("artifact-id", release, StringComparison.Ordinal);
+        Assert.Contains("artifact-digest", release, StringComparison.Ordinal);
+        Assert.Contains("-run-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}", release, StringComparison.Ordinal);
+        Assert.Contains("unsigned_artifact_id:", release, StringComparison.Ordinal);
+        Assert.Contains("unsigned_artifact_name:", release, StringComparison.Ordinal);
+        Assert.Contains("unsigned_artifact_digest:", release, StringComparison.Ordinal);
+        Assert.Contains("unsigned_manifest_sha256:", release, StringComparison.Ordinal);
+        Assert.Contains("source_run_attempt:", release, StringComparison.Ordinal);
+
+        Assert.Contains("artifact-ids: ${{ inputs.unsigned_artifact_id }}", device, StringComparison.Ordinal);
+        Assert.Contains("--digest \"$RELEASE_ARTIFACT_DIGEST\"", device, StringComparison.Ordinal);
+        Assert.Contains("--version \"$RELEASE_PACKAGE_VERSION\"", device, StringComparison.Ordinal);
+        Assert.Contains("verify-installed-workload", device, StringComparison.Ordinal);
+        Assert.DoesNotContain("tizen-device-lane.sh pack", device, StringComparison.Ordinal);
+        Assert.DoesNotContain("shipping-packages", device, StringComparison.Ordinal);
+
+        var combined = release + Environment.NewLine + device;
+        Assert.Equal(
+            Regex.Matches(combined, @"^\s+artifact-ids:", RegexOptions.Multiline).Count,
+            Regex.Matches(
+                combined,
+                @"^\s+artifact-ids:[^\n]*\n\s+merge-multiple:\s+true$",
+                RegexOptions.Multiline).Count);
+    }
+
+    [Fact]
+    public void WorkflowExpressionsAreNotInterpolatedIntoShellScripts()
+    {
+        foreach (var workflowName in new[] { "release.yml", "tizen-device-validation.yml" })
+        {
+            var lines = ReadWorkflow(workflowName).Split('\n');
+            var runIndent = -1;
+
+            for (var index = 0; index < lines.Length; index++)
+            {
+                var line = lines[index];
+                var indent = line.TakeWhile(char.IsWhiteSpace).Count();
+                if (runIndent >= 0 && line.Trim().Length > 0 && indent <= runIndent)
+                    runIndent = -1;
+
+                if (line.TrimStart().StartsWith("run:", StringComparison.Ordinal))
+                {
+                    runIndent = indent;
+                    continue;
+                }
+
+                Assert.False(
+                    runIndent >= 0 && line.Contains("${{", StringComparison.Ordinal),
+                    $"{workflowName}:{index + 1} interpolates a workflow expression directly into a script: {line.Trim()}");
+            }
+        }
+    }
+
+    [Fact]
+    public void ReusableDeviceWorkflowAuthenticatesItsCallerAndProtectsEverySelfHostedJob()
+    {
+        var workflow = ReadWorkflow("tizen-device-validation.yml");
+
+        Assert.Contains("expected_repository=\"Redth/Maui.Tizen\"", workflow, StringComparison.Ordinal);
+        Assert.Contains("CALLER_WORKFLOW_REF", workflow, StringComparison.Ordinal);
+        Assert.Contains("repository: Redth/Maui.Tizen", workflow, StringComparison.Ordinal);
+        Assert.Equal(2, Regex.Matches(workflow, @"group:\s+maui-tizen-release").Count);
+        Assert.Contains("NUGET_PACKAGES: ${{ runner.temp }}/maui-tizen-nuget-", workflow, StringComparison.Ordinal);
+
+        var consumerStart = workflow.IndexOf("\n  package-consumer:", StringComparison.Ordinal);
+        var gateStart = workflow.IndexOf("\n  release-gate:", consumerStart, StringComparison.Ordinal);
+        var consumer = workflow[consumerStart..gateStart];
+        Assert.Contains("environment: tizen-device-lab", consumer, StringComparison.Ordinal);
+        Assert.Contains("needs.device-matrix.result == 'success'", consumer, StringComparison.Ordinal);
+        Assert.DoesNotContain("always()", consumer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReleaseGatesSignerProvenanceAndPublishing()
+    {
+        var release = ReadWorkflow("release.yml");
+
+        Assert.Contains("GATE_PASSED", release, StringComparison.Ordinal);
+        Assert.Contains("!= \"true\"", release, StringComparison.Ordinal);
+        Assert.Contains("--signer-workflow", release, StringComparison.Ordinal);
+        Assert.Contains("--signer-digest", release, StringComparison.Ordinal);
+        Assert.Contains("--source-digest", release, StringComparison.Ordinal);
+        Assert.Contains("--source-ref", release, StringComparison.Ordinal);
+        Assert.Contains("--run-attempt", release, StringComparison.Ordinal);
+        Assert.Contains("--subject-digest", release, StringComparison.Ordinal);
+        Assert.Contains("UNSIGNED_RUN_ATTEMPT", release, StringComparison.Ordinal);
+        Assert.Contains("SIGNED_RUN_ATTEMPT", release, StringComparison.Ordinal);
+        Assert.Contains("environment: nuget-signing", release, StringComparison.Ordinal);
+        Assert.Contains("environment: nuget-publish", release, StringComparison.Ordinal);
+        Assert.DoesNotContain("nuget-production", release, StringComparison.Ordinal);
+        Assert.Contains("Publishing remains disabled", release, StringComparison.Ordinal);
+        Assert.Contains("exit 1", release, StringComparison.Ordinal);
+
+        var publish = release[release.IndexOf("\n  publish:", StringComparison.Ordinal)..];
+        Assert.DoesNotMatch(
+            new Regex(@"^\s+id-token:\s+write$", RegexOptions.Multiline),
+            publish);
+    }
+
+    [Fact]
+    public void ShippingProjectListIncludesBuildTasks()
+    {
+        var build = File.ReadAllText(Path.Combine(RepoLayout.Root, "eng", "build-tizen.sh"));
+        Assert.Contains(
+            "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj",
+            build,
+            StringComparison.Ordinal);
+        Assert.Contains("Pack shipping projects exactly once", build, StringComparison.Ordinal);
+    }
+}
+
 /// <summary>
 /// Ordering constraints in the device workflow.
 /// </summary>
@@ -309,7 +462,7 @@ public class WorkflowOrderingTests
             gate,
             "release-gate",
             "Download per-profile results",
-            "Download shipping packages",
+            "Download exact unsigned release artifact",
             "Release readiness gates",
             "Evaluate");
     }
