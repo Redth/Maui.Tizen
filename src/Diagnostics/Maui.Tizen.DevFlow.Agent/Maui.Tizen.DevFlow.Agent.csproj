@@ -1,0 +1,66 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Tizen-targeted half of the DevFlow agent.
+
+    THIS PROJECT CANNOT BE BUILT ON ANY RUNNER TODAY. The Samsung workload manifest
+    'samsung.net.sdk.tizen.manifest-11.0.100' is not published (eng/baselines.json >
+    target.workloadManifest.status == "unavailable"), so net11.0-tizen11.0 fails restore with
+    NETSDK1139. It is excluded from the workload-free lane and built only when the Tizen gate
+    lifts.
+
+    The project itself cannot be restored, but its Tizen source files are compiled against the API15
+    reference assemblies by eng/tests/Api15CompileProbe on the hosted lane. Runtime behaviour still
+    belongs to the device lane.
+
+    See docs/validation/devflow.md and docs/validation/blockers.md.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>$(MauiTizenTargetFramework)</TargetFramework>
+    <IsTizenProject>true</IsTizenProject>
+    <RootNamespace>Maui.Tizen.DevFlow.Agent</RootNamespace>
+    <AssemblyName>Maui.Tizen.DevFlow.Agent</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+
+    <!--
+      Opt out of central transitive pinning for this project only.
+
+      DevFlow resolves SkiaSharp >= 3.119.2 while Directory.Packages.props centrally pins
+      3.116.1 for the product graph, and transitive pinning turns that into a hard NU1109
+      downgrade error. Raising the central pin to satisfy a debug-only diagnostics package
+      would let a tool dependency dictate the version the shipping Graphics assemblies build
+      against, which is backwards.
+
+      DevFlow is referenced only by diagnostics projects and never by a shipping package, so
+      letting it resolve its own graph here has no effect on what Maui.Tizen publishes.
+    -->
+    <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <UseMaui>true</UseMaui>
+
+    <!--
+      CS8764: nullability of return type doesn't match the overridden member.
+      
+      DevFlow's preview assemblies are not nullable-annotated, so every one of its
+      "return null on success, or an error message" members is declared as an oblivious
+      `string`. Overriding them with the semantically correct `string?` therefore warns, and the
+      alternatives are worse: declaring `string` and returning `null!` would lie to our own
+      callers about a value that is null on the success path.
+      
+      Suppressed narrowly - CS8603 (possible null return) stays on, so genuine null-return bugs
+      are still errors.
+    -->
+    <NoWarn>$(NoWarn);CS8764</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Maui.Tizen.DevFlow.Agent.Shared/Maui.Tizen.DevFlow.Agent.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.DevFlow.Agent.Core" />
+  </ItemGroup>
+
+</Project>

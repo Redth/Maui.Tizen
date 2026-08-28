@@ -13,8 +13,8 @@ using Microsoft.Maui;
 using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Hosting;
 using Microsoft.Maui.Platforms.Tizen;
-using Microsoft.Maui.Platforms.Tizen.Hosting;
 using Microsoft.Maui.Platforms.Tizen.Handlers;
+using Microsoft.Maui.Platforms.Tizen.Hosting;
 using Xunit;
 
 namespace Microsoft.Maui.Platforms.Tizen.UnitTests
@@ -48,7 +48,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	/// </remarks>
 	public class CompositionRootTests
 	{
-		sealed class HostApp : Controls.Application
+		sealed class HostApp : MauiControls.Application
 		{
 		}
 

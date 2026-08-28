@@ -5,6 +5,7 @@ using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Hosting;
+using Microsoft.Maui.Platforms.Tizen.Controls;
 using Microsoft.Maui.Platforms.Tizen.Handlers;
 using Microsoft.Maui.Platforms.Tizen.Hosting;
 using Xunit;
@@ -31,26 +32,34 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	/// mapper to be typed against <c>ILabelHandler</c>.
 	/// </para>
 	/// </remarks>
+	[Collection(StaticMapperCollection.Name)]
 	public class ControlsRegistrationTests
 	{
+		/// <summary>
+		/// Builds an app through the PRODUCTION path only.
+		/// </summary>
+		/// <remarks>
+		/// This used to register the Tizen handlers by hand, which made every assertion below
+		/// vacuous: it proved the handlers work when someone wires them up, not that anything
+		/// wires them up. Under ConfigureTizenControls alone, Label resolved to MAUI's neutral
+		/// LabelHandler - the whole backend was unreachable from a real app and these tests were
+		/// green throughout.
+		///
+		/// Nothing is registered here that an application would not get from the two calls.
+		/// </remarks>
 		static MauiApp BuildControlsApp()
 		{
 			var builder = MauiApp.CreateBuilder();
 			builder.UseMauiApp<ControlsApp>();
 			builder.ConfigureTizen();
-			builder.ConfigureMauiHandlers(handlers =>
-			{
-				handlers.AddHandler<Label, TizenLabelHandler>();
-				handlers.AddHandler<ContentPage, TizenPageHandler>();
-				handlers.AddHandler<Microsoft.Maui.Controls.Layout, TizenLayoutHandler>();
-				handlers.AddHandler<Window, TizenWindowHandler>();
-			});
+			builder.ConfigureTizenControls();
 
 			return builder.Build();
 		}
 
 		[Theory]
 		[InlineData(typeof(Label), typeof(TizenLabelHandler))]
+		[InlineData(typeof(ContentView), typeof(TizenContentViewHandler))]
 		[InlineData(typeof(ContentPage), typeof(TizenPageHandler))]
 		[InlineData(typeof(VerticalStackLayout), typeof(TizenLayoutHandler))]
 		[InlineData(typeof(Grid), typeof(TizenLayoutHandler))]
@@ -91,32 +100,56 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[Fact]
 		public void NoParallelTizenHandlerInterfacesRemain()
 		{
-			// ITizenApplicationHandler is the sole survivor, and only because MAUI Core ships no
-			// IApplicationHandler to implement instead.
+			// Scoped to actual HANDLER contracts - interfaces deriving from IElementHandler -
+			// rather than to every exported ITizen* type.
 			//
-			// Wave A adds two more ITizen* names, and neither is a parallel handler hierarchy -
-			// this test's pattern is a name prefix, so it sees them:
-			//   ITizenFontManager - MAUI's neutral IFontManager carries only DefaultFontSize; the
-			//     font-resolution members exist solely in each platform's own build of MAUI, which
-			//     this backend does not consume, so the resolution contract is declared here.
-			//   ITizenModalHost   - the seam to the navigation wave's modal stack that Wave A's
-			//     pickers open through, pending that wave supplying a real implementation.
-			var backendInterfaces = typeof(TizenLabelHandler).Assembly
+			// The wider form asserted an exact list of all exported ITizen* interfaces, which made
+			// it fail for any downstream wave that added an unrelated ITizen* SERVICE interface.
+			// That is a real cost with no benefit: a service interface cannot be a parallel handler
+			// hierarchy, which is the only thing this test exists to prevent. The exported
+			// inventory is pinned separately by TizenPublicInterfaceInventoryTests, which is named
+			// for what it actually does.
+			var handlerInterfaces = typeof(TizenLabelHandler).Assembly
 				.GetExportedTypes()
-				.Where(t => t.IsInterface && t.Name.StartsWith("ITizen", StringComparison.Ordinal))
+				.Where(t => t.IsInterface)
+				.Where(t => typeof(IElementHandler).IsAssignableFrom(t))
+				.Where(t => t != typeof(IElementHandler))
 				.Select(t => t.Name)
 				.OrderBy(n => n, StringComparer.Ordinal)
 				.ToArray();
 
-			Assert.Equal(
-				new[]
-				{
-					"ITizenApplicationHandler",
-					"ITizenFontManager",
-					"ITizenModalHost",
-					"ITizenPlatformViewHandler",
-				},
-				backendInterfaces);
+			// ITizenApplicationHandler survives only because MAUI Core ships no IApplicationHandler
+			// to implement instead; ITizenPlatformViewHandler because MAUI's IPlatformViewHandler
+			// exists only inside the net*-tizen build and re-declaring the name would be CS0433.
+			// Every other handler contract is MAUI's own.
+			Assert.Equal(new[] { "ITizenApplicationHandler", "ITizenPlatformViewHandler" }, handlerInterfaces);
+		}
+
+		[Fact]
+		public void NoTizenPrefixedInterfaceShadowsAMauiHandlerInterface()
+		{
+			// The substance behind the name. A parallel hierarchy would show up as a Tizen-prefixed
+			// interface whose name matches one MAUI already ships - ITizenLabelHandler alongside
+			// ILabelHandler - which is what forced handlers to choose between the two and blocked
+			// Controls mapper composition.
+			var mauiHandlerInterfaces = typeof(ILabelHandler).Assembly
+				.GetExportedTypes()
+				.Where(t => t.IsInterface && typeof(IElementHandler).IsAssignableFrom(t))
+				.Select(t => t.Name)
+				.ToHashSet(StringComparer.Ordinal);
+
+			Assert.NotEmpty(mauiHandlerInterfaces);
+
+			var shadowing = typeof(TizenLabelHandler).Assembly
+				.GetExportedTypes()
+				.Where(t => t.IsInterface && t.Name.StartsWith("ITizen", StringComparison.Ordinal))
+				// ITizenLabelHandler shadows ILabelHandler.
+				.Where(t => mauiHandlerInterfaces.Contains("I" + t.Name["ITizen".Length..]))
+				.Select(t => t.Name)
+				.OrderBy(n => n, StringComparer.Ordinal)
+				.ToArray();
+
+			Assert.Empty(shadowing);
 		}
 
 		[Fact]

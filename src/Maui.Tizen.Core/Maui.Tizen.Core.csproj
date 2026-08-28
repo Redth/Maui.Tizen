@@ -1,5 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!--
+      Compiles explicit shipping sources and exports a public API, so it documents them.
+
+      Must be set BEFORE the import below, which reads it. Setting it after looked identical and
+      silently did nothing.
+    -->
+    <MauiTizenGeneratesDocumentation>true</MauiTizenGeneratesDocumentation>
+  </PropertyGroup>
+
   <Import Project="$(MSBuildThisFileDirectory)../../eng/targets/TizenPackage.props" />
   <Import Project="$(RepositoryRoot)eng/Maui.props" />
   <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />

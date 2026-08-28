@@ -53,7 +53,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				TizenPickerHandler.Mapper,
 				"Items",
 				mapper => new TizenPickerHandler(mapper),
-				new Controls.Picker(),
+				new MauiControls.Picker(),
 				"ItemsSource");
 
 			Assert.True(
@@ -79,7 +79,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				TizenStepperHandler.Mapper,
 				nameof(IStepper.Interval),
 				mapper => new TizenStepperHandler(mapper),
-				new Controls.Stepper(),
+				new MauiControls.Stepper(),
 				"Increment");
 
 			Assert.True(
@@ -106,7 +106,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[InlineData("HeadingLevel")]
 		public void SemanticPropertiesReachTheSemanticsMapping(string key)
 		{
-			var entry = new Controls.Entry();
+			var entry = new MauiControls.Entry();
 			var handler = new TizenEntryHandler();
 			handler.SetVirtualView(entry);
 
@@ -144,7 +144,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[InlineData("ExcludedWithChildren")]
 		public void KnownInertAccessibilityKeysAreStillInert(string key)
 		{
-			var entry = new Controls.Entry();
+			var entry = new MauiControls.Entry();
 			var handler = new TizenEntryHandler();
 			handler.SetVirtualView(entry);
 

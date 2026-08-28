@@ -251,7 +251,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		{
 			ControlsRemap.Force();
 
-			var label = new Controls.Label();
+			var label = new MauiControls.Label();
 			var labelHandler = new TizenLabelHandler();
 			labelHandler.SetVirtualView(label);
 
@@ -259,7 +259,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			DispatchProperty(labelHandler, label, "FormattedText");
 			DispatchProperty(labelHandler, label, "TextType");
 
-			var entry = new Controls.Entry();
+			var entry = new MauiControls.Entry();
 			var entryHandler = new TizenEntryHandler();
 			entryHandler.SetVirtualView(entry);
 
@@ -267,12 +267,12 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				DispatchCommand(entryHandler, entry, command, new FocusRequest());
 
 			// The two keys that were genuinely throwing before they were given Tizen bodies.
-			var picker = new Controls.Picker();
+			var picker = new MauiControls.Picker();
 			var pickerHandler = new TizenPickerHandler();
 			pickerHandler.SetVirtualView(picker);
 			DispatchProperty(pickerHandler, picker, "ItemsSource");
 
-			var stepper = new Controls.Stepper();
+			var stepper = new MauiControls.Stepper();
 			var stepperHandler = new TizenStepperHandler();
 			stepperHandler.SetVirtualView(stepper);
 			DispatchProperty(stepperHandler, stepper, "Increment");

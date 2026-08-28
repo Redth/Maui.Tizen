@@ -18,6 +18,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	/// no-op <c>Standard</c> extensions: every key resolves, every property silently does nothing,
 	/// and a key-presence test passes happily. Only observing an effect distinguishes the two.
 	/// </remarks>
+	[Collection(StaticMapperCollection.Name)]
 	public class ViewMapperBehaviorTests
 	{
 		static (TizenLabelHandler Handler, TizenPlatformView Platform, StubLabel View) CreateLabel()

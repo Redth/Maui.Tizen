@@ -406,7 +406,12 @@ public class RepositoryInvariantTests
 
 		var packages = ReadRepoFile("Directory.Packages.props");
 
+		// Microsoft.Maui.DevFlow.* is deliberately exempt. Those packages come from
+		// dotnet/maui-labs, not from the MAUI product build, and have their own independent
+		// version line (0.1.0-preview.*). Holding them to the MAUI baseline would be asserting
+		// that two unrelated release trains ship in lockstep, which they do not.
 		var mismatched = Regex.Matches(packages, @"Include=""(Microsoft\.Maui\.[^""]+)"" Version=""([^""]+)""")
+			.Where(m => !m.Groups[1].Value.StartsWith("Microsoft.Maui.DevFlow.", StringComparison.Ordinal))
 			.Where(m => m.Groups[2].Value != baseline)
 			.Select(m => $"{m.Groups[1].Value}={m.Groups[2].Value}")
 			.ToList();
@@ -444,6 +449,28 @@ public class RepositoryInvariantTests
 	}
 
 	[Fact]
+	public void ReadmePackItemIsDeclaredAfterProjectEvaluation()
+	{
+		// The README <None Pack="true"> item belongs in Directory.Build.targets, not
+		// Directory.Build.props.
+		//
+		// It is conditioned on $(IsPackable), which shipping projects opt into from their
+		// own body. From .props that still works - MSBuild evaluates all properties,
+		// including the project body, in an earlier pass than any item - and a
+		// shipping-shaped project does pack with README.md present. But two reviewers
+		// independently read the .props placement as an NU5039 bug, because it only works
+		// if you know the multi-pass rule.
+		//
+		// Correctness that depends on recalling evaluation-pass ordering is correctness
+		// nobody can review at a glance, so it lives after the project body where it is
+		// obviously right. eng/tests/PackReadmeProbe pins the behaviour itself.
+		var pack = new Regex(@"<None\s+Include=""\$\(RepositoryRoot\)README\.md""[^>]*Pack=""true""");
+
+		Assert.Matches(pack, ReadRepoFile("Directory.Build.targets"));
+		Assert.DoesNotMatch(pack, ReadRepoFile("Directory.Build.props"));
+	}
+
+	[Fact]
 	public void EveryProjectReferencedBySolutionExists()
 	{
 		var solution = ReadRepoFile("Maui.Tizen.slnx");
@@ -473,9 +500,18 @@ public class RepositoryInvariantTests
 			.Select(m => m.Groups[1].Value.Replace('/', Path.DirectorySeparatorChar))
 			.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+		// tests/fixtures/** is exempt. Those projects are INPUTS to tests - the MSBuild
+		// behaviour suite invokes `dotnet msbuild` on them directly and asserts on evaluated
+		// property values. They ship their own empty Directory.Build.props/targets specifically
+		// so they do NOT inherit this repository's conventions; adding them to the solution
+		// would build them as solution members and destroy the isolation that makes their
+		// results attributable to the targets under test.
+		var fixtures = $"{Path.DirectorySeparatorChar}fixtures{Path.DirectorySeparatorChar}";
+
 		var orphans = Directory
 			.EnumerateFiles(RepoRoot, "*.csproj", SearchOption.AllDirectories)
 			.Where(p => !p.Contains($"{Path.DirectorySeparatorChar}artifacts{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+			.Where(p => !p.Contains(fixtures, StringComparison.Ordinal))
 			.Select(p => Path.GetRelativePath(RepoRoot, p))
 			.Where(p => !referenced.Contains(p))
 			.ToList();
@@ -490,15 +526,107 @@ public class RepositoryInvariantTests
 	[Fact]
 	public void PublicApiAnalyzerIsReferencedSoBaselinesAreEnforced()
 	{
-		// PublicAPI.Shipped/Unshipped files travel with every package project. Without the
-		// analyzer they are inert text and the API surface this repository exists to
-		// preserve could drift silently.
+		// Without the analyzer, PublicAPI files are inert text and the API surface this
+		// repository exists to preserve could drift silently.
 		var props = ReadRepoFile("eng/targets/TizenPackage.props");
 
 		Assert.Contains("Microsoft.CodeAnalysis.PublicApiAnalyzers", props);
 		Assert.Matches(
 			new Regex(@"Microsoft\.CodeAnalysis\.PublicApiAnalyzers""\s+PrivateAssets=""all"""),
 			props);
+	}
+
+	[Fact]
+	public void PublicApiBaselinesAreNotAttachedAutomatically()
+	{
+		// A `PublicAPI/**` glob in shared props is wrong here in two independent ways, both
+		// measured before this test was written:
+		//
+		// 1. It attaches upstream's MONOLITHIC per-assembly baseline to our SPLIT assembly.
+		//    src/Maui.Tizen.Core's imported baseline has 3,268 entries; only 447 are the
+		//    Microsoft.Maui.Platform types this assembly will contain. The rest become
+		//    RS0017 the moment the project compiles - thousands of errors describing a
+		//    mismatch between two different assemblies, not an API regression.
+		//
+		// 2. It silently matched NOTHING for half the projects. Rooted at the project
+		//    directory, it found 2 items each for Core/Essentials/BlazorWebView and 0 each
+		//    for Controls/Maps/Graphics, whose baselines are nested a level deeper because
+		//    those packages merge two upstream assemblies. Enforcement that is silently
+		//    absent is worse than none, because it looks present.
+		//
+		// Opt-in is per project, with a baseline describing that assembly.
+		var props = ReadRepoFile("eng/targets/TizenPackage.props");
+
+		Assert.DoesNotMatch(new Regex(@"<AdditionalFiles\s+Include=""PublicAPI/\*\*"), props);
+	}
+
+	[Fact]
+	public void NoProjectConsumesTheImportedUpstreamBaselines()
+	{
+		// The imported src/**/PublicAPI/** files are provenance fixtures recording what
+		// upstream shipped for net-tizen. They are not this repository's API contract, and
+		// pointing a compiled assembly at one reintroduces the RS0017 flood above.
+		var offenders = new List<string>();
+
+		foreach (var project in Directory.EnumerateFiles(Path.Combine(RepoRoot, "src"), "*.csproj", SearchOption.AllDirectories))
+		{
+			if (project.Contains($"{Path.DirectorySeparatorChar}artifacts{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+				continue;
+
+			var text = File.ReadAllText(project);
+			foreach (Match m in Regex.Matches(text, @"<AdditionalFiles\s+Include=""([^""]+)"""))
+			{
+				// net-tizen is upstream's directory name for the imported baselines.
+				if (m.Groups[1].Value.Contains("net-tizen", StringComparison.OrdinalIgnoreCase))
+					offenders.Add($"{Path.GetRelativePath(RepoRoot, project)} -> {m.Groups[1].Value}");
+			}
+		}
+
+		Assert.True(
+			offenders.Count == 0,
+			"These projects point the analyzer at imported upstream baselines, which describe a "
+				+ "different (unsplit) assembly and will produce RS0017: " + string.Join(", ", offenders));
+	}
+
+	[Fact]
+	public void PublicApiAnalyzerDiagnosticsAreNotGloballySuppressed()
+	{
+		// RS0016 (public API not in the baseline) and RS0017 (baseline entry not in the
+		// assembly) are the entire value of the analyzer. Silencing them repo-wide to make
+		// a mismatched baseline quiet would discard the enforcement while leaving the
+		// wiring in place to look reassuring.
+		var editorconfig = ReadRepoFile(".editorconfig");
+
+		foreach (var rule in new[] { "RS0016", "RS0017" })
+			Assert.Matches(new Regex($@"dotnet_diagnostic\.{rule}\.severity\s*=\s*error"), editorconfig);
+
+		// A blanket NoWarn in shared props would defeat it just as effectively.
+		foreach (var file in new[] { "Directory.Build.props", "eng/targets/TizenPackage.props" })
+		{
+			foreach (Match m in Regex.Matches(ReadRepoFile(file), @"<NoWarn>([^<]*)</NoWarn>"))
+			{
+				Assert.DoesNotContain("RS0016", m.Groups[1].Value);
+				Assert.DoesNotContain("RS0017", m.Groups[1].Value);
+			}
+		}
+	}
+
+	[Fact]
+	public void WorkloadDetectionIsRestrictedToTheCurrentFeatureBand()
+	{
+		// An unrestricted `sdk-manifests/*/samsung.net.sdk.tizen/` glob treats a Samsung
+		// workload installed for .NET 9 or .NET 10 as satisfying net11 - the gate lifts and
+		// the build fails much later with an unrelated-looking missing-reference-pack error.
+		//
+		// The pattern is 11.0.* rather than the exact band, because this SDK
+		// (11.0.100-preview.7.26381.103) ships manifests under BOTH 11.0.100-preview.6 and
+		// 11.0.100-preview.7: bands drift within a feature line, and pinning the preview
+		// segment would be a false negative on a correctly configured machine.
+		Assert.Contains("TizenWorkloadBandPattern", ReadRepoFile("Directory.Build.props"));
+
+		var targets = ReadRepoFile("Directory.Build.targets");
+		Assert.DoesNotMatch(new Regex(@"sdk-manifests/\)?\*/samsung\.net\.sdk\.tizen"), targets);
+		Assert.Contains("$(TizenWorkloadBandPattern)/samsung.net.sdk.tizen", targets);
 	}
 
 	[Fact]

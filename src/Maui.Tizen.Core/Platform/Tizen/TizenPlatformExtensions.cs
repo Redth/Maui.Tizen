@@ -8,6 +8,8 @@ using NColor = Tizen.UIExtensions.Common.Color;
 using NPoint = Tizen.UIExtensions.Common.Point;
 using NRect = Tizen.UIExtensions.Common.Rect;
 using NSize = Tizen.UIExtensions.Common.Size;
+using NLineBreakMode = Tizen.UIExtensions.Common.LineBreakMode;
+using NStrikethrough = Tizen.NUI.Text.Strikethrough;
 using NTextDecorations = Tizen.UIExtensions.Common.TextDecorations;
 using Color = Microsoft.Maui.Graphics.Color;
 using NFontAttributes = Tizen.UIExtensions.Common.FontAttributes;
@@ -81,8 +83,19 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <summary>Converts a device-independent value to a scaled font point size.</summary>
 		/// <param name="dp">The device-independent value.</param>
 		/// <returns>The value in points.</returns>
+		/// <remarks>
+		/// Divides by the PHYSICAL dpi, not by the display scaling factor.
+		///
+		/// Upstream is <c>dp.ToScaledPixel() * 72 / DeviceInfo.DPI</c>. Using
+		/// <c>Current * BaselineDpi</c> instead happens to equal that in DP mode, where the scaling
+		/// factor IS dpi/160 - but in every other display resolution unit the two differ, and the
+		/// division then cancels exactly the scaling that ToScaledPixel just applied. Text came out
+		/// at its unscaled point size while every other dimension scaled, so fonts were wrong
+		/// precisely on the devices where scaling matters most.
+		/// </remarks>
 		public static double ToScaledPoint(this double dp) =>
-			dp.ToScaledPixel() * 72 / (TizenDisplayDensity.Current * TizenDisplayDensity.BaselineDpi);
+			TizenPropertyResolvers.ResolveFontPoint(
+				dp, TizenDisplayDensity.Current, TizenDisplayDensity.PhysicalScale);
 
 		// ---------------------------------------------------------------------------------------
 		// Colors (ported from ColorExtensions).
@@ -257,8 +270,30 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
+			// Gradients collapse to their representative colour, which is the best a backend can do
+			// without a container view to render into (gap G1).
 			if (paint.ToColor() is Color fallback)
+			{
 				platformView.UpdateBackgroundColor(fallback.ToTizen());
+				return;
+			}
+
+			// No representative colour. In practice this is an image brush: ImagePaint.ToColor()
+			// returns null, verified against Microsoft.Maui.Graphics.
+			//
+			// Leaving the previous colour in place would be the worst outcome - setting an image
+			// background would appear to do nothing while a stale colour stayed on screen. Clearing
+			// is honest: the image is unrendered either way, and the view ends up in a defined
+			// state rather than an arbitrary one.
+			//
+			// Rendering it properly needs the public consumption-only IImageSourcePaint contract,
+			// which is ABSENT from Microsoft.Maui 11.0.0-preview.7 - verified by reflection - plus
+			// a container view to draw into, whose setter is private protected. The concrete
+			// ImageSourcePaint is present but intentionally internal and is expected to stay so, so
+			// this waits on a new contract rather than on a type being opened up. Both are recorded
+			// as gaps; the raw imported ViewExtensions.cs that uses them stays uncompiled.
+			if (clearWhenNull)
+				platformView.UpdateBackgroundColor(NColor.Transparent);
 		}
 
 		/// <summary>Sets the platform view's background color.</summary>
@@ -376,10 +411,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ArgumentNullException.ThrowIfNull(platformView);
 			ArgumentNullException.ThrowIfNull(view);
 
-			if (!IsExplicitSet(view.MinimumWidth))
-				return;
+			// Clearing a minimum has to reset the native constraint, not be ignored. Returning
+			// early on an unset value meant the previous minimum stayed applied forever, so a view
+			// whose MinimumWidth was set once could never shrink below it again.
+			var width = TizenPropertyResolvers.ResolveMinimum(view.MinimumWidth, static v => v.ToScaledPixel());
 
-			platformView.MinimumSize = new Size2D(view.MinimumWidth.ToScaledPixel(), platformView.MinimumSize.Height);
+			platformView.MinimumSize = new Size2D(width, platformView.MinimumSize.Height);
 		}
 
 		/// <summary>Applies <see cref="IView.MinimumHeight"/>.</summary>
@@ -390,10 +427,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ArgumentNullException.ThrowIfNull(platformView);
 			ArgumentNullException.ThrowIfNull(view);
 
-			if (!IsExplicitSet(view.MinimumHeight))
-				return;
+			var height = TizenPropertyResolvers.ResolveMinimum(view.MinimumHeight, static v => v.ToScaledPixel());
 
-			platformView.MinimumSize = new Size2D(platformView.MinimumSize.Width, view.MinimumHeight.ToScaledPixel());
+			platformView.MinimumSize = new Size2D(platformView.MinimumSize.Width, height);
 		}
 
 		/// <summary>
@@ -590,14 +626,44 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			ArgumentNullException.ThrowIfNull(platformView);
 
-			if (platformView is TizenLayoutViewGroup layoutViewGroup)
-				layoutViewGroup.SetNeedMeasureUpdate();
-			else if (platformView is TizenContentViewGroup contentViewGroup)
-				contentViewGroup.SetNeedMeasureUpdate();
-			else if (platformView is ViewGroup viewGroup)
-				viewGroup.MarkChanged();
-			else
-				platformView.Layout?.RequestLayout();
+			// Walk up to the nearest group that caches a measurement and tell it the measurement is
+			// stale. MarkChanged alone is not enough: TizenLayoutViewGroup and TizenContentViewGroup
+			// keep a _needMeasureUpdate flag, and their measure pass reuses the cached intrinsic
+			// size until that flag is set. Marking such a parent merely "changed" re-lays-out the
+			// children at the size it had already computed, so a label whose text grew repaints
+			// clipped and the containing stack never reflows.
+			//
+			// The walk starts at the view itself, because a group invalidating its own measure is
+			// the common case, and continues through the parents, because leaf natives are not
+			// groups at all - TizenLabelView is a NUI TextLabel with a null Layout, which makes
+			// RequestLayout() on it a silent no-op.
+			for (TizenNativeView? candidate = platformView; candidate is not null; candidate = candidate.GetParent() as TizenNativeView)
+			{
+				switch (candidate)
+				{
+					case TizenLayoutViewGroup layoutViewGroup:
+						// SetNeedMeasureUpdate already marks changed and requests layout.
+						layoutViewGroup.SetNeedMeasureUpdate();
+						return;
+
+					case TizenContentViewGroup contentViewGroup:
+						contentViewGroup.SetNeedMeasureUpdate();
+						return;
+				}
+			}
+
+			// No measure-caching ancestor. Fall back to the nearest plain group, then to the view's
+			// own layout.
+			for (TizenNativeView? candidate = platformView; candidate is not null; candidate = candidate.GetParent() as TizenNativeView)
+			{
+				if (candidate is ViewGroup viewGroup)
+				{
+					viewGroup.MarkChanged();
+					return;
+				}
+			}
+
+			platformView.Layout?.RequestLayout();
 		}
 
 		static bool IsExplicitSet(double value) => !double.IsNaN(value) && value >= 0;
@@ -605,6 +671,49 @@ namespace Microsoft.Maui.Platforms.Tizen
 		// ---------------------------------------------------------------------------------------
 		// Label (ported from LabelExtensions).
 		// ---------------------------------------------------------------------------------------
+
+		/// <summary>
+		/// Applies MAUI Controls' accessibility annotations to the platform view.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// Takes BOTH annotations, deliberately. They resolve onto the same two NUI flags, so
+		/// applying them through separate calls means the later one overwrites the earlier - an
+		/// element excluded with its children would silently become reachable again purely because
+		/// IsInAccessibleTree happened to be mapped afterwards.
+		/// </para>
+		/// <para>
+		/// The values live on Controls types, so the binding itself is Controls-side - see
+		/// <c>TizenControlsMappings</c> in Maui.Tizen.Controls. This is the native half.
+		/// </para>
+		/// </remarks>
+		/// <param name="platformView">The platform view.</param>
+		/// <param name="isInAccessibleTree">AutomationProperties.IsInAccessibleTree, if set.</param>
+		/// <param name="excludedWithChildren">AutomationProperties.ExcludedWithChildren, if set.</param>
+		public static void UpdateAccessibility(
+			this TizenNativeView platformView,
+			bool? isInAccessibleTree,
+			bool? excludedWithChildren)
+		{
+			ArgumentNullException.ThrowIfNull(platformView);
+
+			var (hidden, highlightable) = TizenPropertyResolvers.ResolveAccessibility(
+				isInAccessibleTree, excludedWithChildren);
+
+			// Remember what the view looked like BEFORE this backend first overrode it, so
+			// clearing an annotation can put it back.
+			//
+			// Skipping the write on null was not enough: once an annotation had been applied, the
+			// override stayed on the native view forever. Setting IsInAccessibleTree=false and then
+			// clearing it left the element permanently unreachable, with nothing in the tree to
+			// explain why. Null now means "restore the default", not "leave whatever is there".
+			var defaults = AccessibilityDefaults.GetValue(platformView, static view =>
+				new AccessibilityState(view.AccessibilityHidden, view.AccessibilityHighlightable));
+
+			platformView.AccessibilityHidden = hidden ?? defaults.Hidden;
+			platformView.AccessibilityHighlightable = highlightable ?? defaults.Highlightable;
+		}
+
 
 		/// <summary>Applies <see cref="ILabel.Text"/>.</summary>
 		/// <param name="platformLabel">The platform label.</param>
@@ -689,12 +798,83 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ArgumentNullException.ThrowIfNull(platformLabel);
 			ArgumentNullException.ThrowIfNull(label);
 
-			platformLabel.TextDecorations = label.TextDecorations switch
+			// TextDecorations is a [Flags] enum, so Underline|Strikethrough is a legal combination.
+			// A switch on the whole value matched neither arm and fell through to None, dropping
+			// BOTH decorations. The flag arithmetic lives in TizenPropertyResolvers so it can be
+			// tested on the host; this is just the native assignment.
+			var resolved = TizenPropertyResolvers.ResolveTextDecorations(label.TextDecorations);
+
+			platformLabel.TextDecorations = (NTextDecorations)resolved;
+
+			// Strikethrough must be applied directly, because the property above will not do it.
+			// Tizen.UIExtensions' Label.TextDecorations setter reads ONLY the Underline flag: it
+			// stores the value and applies an underline PropertyMap, and the Strikethrough bit is
+			// dropped without a word.
+			//
+			// So computing the combined flags correctly - which is what the earlier fix to
+			// ResolveTextDecorations did - still rendered no strikethrough, because the value
+			// reached a sink that ignores it. TextLabel.SetStrikethrough is the API that works, and
+			// it is available on API15.
+			platformLabel.SetStrikethrough(new NStrikethrough
 			{
-				TextDecorations.Strikethrough => NTextDecorations.Strikethrough,
-				TextDecorations.Underline => NTextDecorations.Underline,
-				_ => NTextDecorations.None,
-			};
+				Enable = (resolved & TizenPropertyResolvers.StrikethroughDecoration) != 0,
+			});
+		}
+
+		/// <summary>
+		/// The accessibility state a view had before this backend first overrode it.
+		/// </summary>
+		/// <remarks>
+		/// Captured lazily on the first write and keyed weakly, so a discarded view takes its
+		/// entry with it. Without this there is nothing to restore TO: NUI exposes no "unset" for
+		/// these flags, and assuming a fixed default would stamp over whatever a control had
+		/// configured for itself.
+		/// </remarks>
+		static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TizenNativeView, AccessibilityState>
+			AccessibilityDefaults = new();
+
+		sealed class AccessibilityState
+		{
+			public AccessibilityState(bool hidden, bool highlightable)
+			{
+				Hidden = hidden;
+				Highlightable = highlightable;
+			}
+
+			public bool Hidden { get; }
+
+			public bool Highlightable { get; }
+		}
+
+		/// <summary>Applies a line break mode to the platform label.</summary>
+		/// <remarks>
+		/// <para>
+		/// <c>LineBreakMode</c> is declared in Microsoft.Maui, so this backend can own the
+		/// conversion - but the PROPERTY is <c>Microsoft.Maui.Controls.Label.LineBreakMode</c>.
+		/// <see cref="ILabel"/> carries only TextDecorations and LineHeight, so the backend has no
+		/// way to read it and the binding stays Controls-owned, exactly as with the accessibility
+		/// annotations in gap G10.
+		/// </para>
+		/// <para>
+		/// This is the native half, so whoever owns the Controls binding has something correct to
+		/// call. Correct matters here: the two enums are not ordinal-compatible, and casting
+		/// between them turns NoWrap into None and shifts everything after it.
+		/// </para>
+		/// </remarks>
+		/// <param name="platformLabel">The platform label.</param>
+		/// <param name="lineBreakMode">The cross-platform line break mode.</param>
+		public static void UpdateLineBreakMode(this Label platformLabel, LineBreakMode lineBreakMode)
+		{
+			ArgumentNullException.ThrowIfNull(platformLabel);
+
+			platformLabel.LineBreakMode =
+				(NLineBreakMode)TizenPropertyResolvers.ResolveLineBreakMode(lineBreakMode);
+
+			// UIExtensions maps all three truncation modes to the same native state and leaves
+			// EllipsisPosition at its End default, so head and middle truncation both rendered as
+			// tail truncation. Setting it explicitly is the only way to get what was asked for.
+			if (TizenPropertyResolvers.ResolveEllipsisPosition(lineBreakMode) is int position)
+				platformLabel.EllipsisPosition = (global::Tizen.NUI.EllipsisPosition)position;
 		}
 
 		/// <summary>Applies <see cref="ITextStyle.CharacterSpacing"/>.</summary>

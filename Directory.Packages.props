@@ -87,10 +87,47 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.4" />
   </ItemGroup>
 
+  <ItemGroup Label="Migration tooling">
+    <!-- Used by eng/tools/PackageVerify to perform real NuGet package signature verification
+         (integrity + trust chain), not just a bare SignedCms check on the .signature.p7s blob in
+         isolation. See eng/tools/PackageVerify/Program.cs for why that distinction matters. -->
+    <PackageVersion Include="NuGet.Packaging" Version="7.9.0" />
+  </ItemGroup>
+
   <ItemGroup Label="Testing">
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageVersion Include="xunit" Version="2.9.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <!-- Used by tests/Migration.Tooling.Tests to validate eng/manifests/source-disposition.json
+         against eng/manifests/source-disposition.schema.json. -->
+    <PackageVersion Include="JsonSchema.Net" Version="7.3.4" />
+  </ItemGroup>
+
+  <ItemGroup Label="Validation lane">
+    <!--
+      The validation suites use xunit v3, which runs on Microsoft.Testing.Platform. The
+      .NET 10+ SDK removed VSTest support for that platform, so these projects are executed
+      as binaries by eng/validation/run-hosted-validation.sh rather than through
+      `dotnet test`. tests/UnitTests stays on xunit v2 + VSTest until the two are
+      consolidated. See docs/validation/hosted-lane.md.
+    -->
+    <PackageVersion Include="xunit.v3" Version="4.0.0" />
+    <PackageVersion Include="xunit.v3.assert" Version="4.0.0" />
+
+    <!--
+      DevFlow is consumed from published maui-labs packages; nothing from it is vendored.
+      The Tizen agent plugs into these abstractions, and DevFlowContractTests pins the
+      exact override surface so an upstream change fails the hosted lane immediately.
+    -->
+    <PackageVersion Include="Microsoft.Maui.DevFlow.Agent.Core" Version="0.1.0-preview.12.26421.1" />
+
+    <!--
+      Samsung's API15 reference assemblies, consumed as an ordinary package so the Tizen agent
+      sources can be COMPILED against the real platform surface without the Samsung workload.
+      Version mirrors eng/baselines.json > target.referencePack; a test asserts they match.
+    -->
+    <PackageVersion Include="Samsung.Tizen.Ref.API15" Version="15.0.0.19396" />
   </ItemGroup>
 
 </Project>

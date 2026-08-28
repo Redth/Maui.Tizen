@@ -1,0 +1,30 @@
+# Package content contract for Maui.Tizen.Core
+#
+# Format: '<require|forbid> <glob>' - see Maui.Tizen.TestUtils.PackageContentContract.
+# Evaluated by Maui.Tizen.Build.Tests.PackagingTests against the produced .nupkg.
+#
+# These describe the bytes that actually ship. They are written now, before the Samsung
+# workload makes packing possible, so the intended package shape is reviewable and the
+# assertions activate the moment a package can be produced.
+
+# The single supported target framework. eng/baselines.json > target.targetFramework.
+require  lib/net11.0-tizen11.0/Maui.Tizen.Core.dll
+
+# Assembly names follow the package id so a Maui.Tizen package can never collide with the
+# real Microsoft.Maui.* assemblies at runtime or in the NuGet graph.
+forbid   lib/**/Microsoft.Maui.*.dll
+
+# This repository is net11-only by policy (eng/baselines.json > policy.supportsDotNet10).
+# A stray older lib folder would let a consumer silently bind to a framework we do not build.
+forbid   lib/net6.0/**
+forbid   lib/net7.0/**
+forbid   lib/net8.0/**
+forbid   lib/net9.0/**
+forbid   lib/net10.0/**
+forbid   lib/netstandard*/**
+
+# Symbols ship in the .snupkg, never inside the main package.
+forbid   **/*.pdb
+
+# Documentation and licensing must travel with the package.
+require  README.md

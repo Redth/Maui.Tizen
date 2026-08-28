@@ -66,7 +66,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			}
 		}
 
-		sealed class RemapApp : Controls.Application
+		sealed class RemapApp : MauiControls.Application
 		{
 		}
 
@@ -79,21 +79,21 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		/// </remarks>
 		public static IReadOnlyList<Type> ControlTypes { get; } =
 		[
-			typeof(Controls.Button),
-			typeof(Controls.CheckBox),
-			typeof(Controls.DatePicker),
-			typeof(Controls.Editor),
-			typeof(Controls.Entry),
-			typeof(Controls.Label),
-			typeof(Controls.Picker),
-			typeof(Controls.ProgressBar),
-			typeof(Controls.RadioButton),
-			typeof(Controls.SearchBar),
-			typeof(Controls.Slider),
-			typeof(Controls.Stepper),
-			typeof(Controls.Switch),
-			typeof(Controls.TimePicker),
-			typeof(Controls.ActivityIndicator),
+			typeof(MauiControls.Button),
+			typeof(MauiControls.CheckBox),
+			typeof(MauiControls.DatePicker),
+			typeof(MauiControls.Editor),
+			typeof(MauiControls.Entry),
+			typeof(MauiControls.Label),
+			typeof(MauiControls.Picker),
+			typeof(MauiControls.ProgressBar),
+			typeof(MauiControls.RadioButton),
+			typeof(MauiControls.SearchBar),
+			typeof(MauiControls.Slider),
+			typeof(MauiControls.Stepper),
+			typeof(MauiControls.Switch),
+			typeof(MauiControls.TimePicker),
+			typeof(MauiControls.ActivityIndicator),
 		];
 	}
 }

@@ -1,0 +1,110 @@
+{
+  "$comment": [
+    "Validation matrix for the Tizen device lane and visual baselines.",
+    "",
+    "This file deliberately does NOT restate the target-framework contract. That lives in",
+    "eng/baselines.json > target (targetFramework, sdkBand, tizenManifestApiVersion,",
+    "tizenFxApiLevel, referencePack) and is the single source of truth. Duplicating it here",
+    "is how the two drift. Tests read the target contract via RepositoryBaselines and the",
+    "profile/baseline conventions via TizenProfiles.",
+    "",
+    "'alsoValidTargets' below lists platform versions the workload may additionally accept.",
+    "Only entries with confirmed=true participate in release gating; the rest are exercised",
+    "opportunistically and reported, because they have not been verified against real Samsung",
+    "tooling yet (see docs/validation/blockers.md)."
+  ],
+
+  "schemaVersion": 1,
+
+  "alsoValidTargets": [
+    { "targetFramework": "net11.0-tizen10.1", "tizenPlatformVersion": "10.1", "confirmed": false },
+    { "targetFramework": "net11.0-tizen10.0", "tizenPlatformVersion": "10.0", "confirmed": false },
+    { "targetFramework": "net11.0-tizen9.0", "tizenPlatformVersion": "9.0", "confirmed": false },
+    { "targetFramework": "net11.0-tizen8.0", "tizenPlatformVersion": "8.0", "confirmed": false }
+  ],
+
+  "profiles": [
+    {
+      "id": "mobile",
+      "displayName": "Tizen mobile / handset",
+      "gatesRelease": true,
+      "primaryInput": "touch",
+      "inputMethods": ["touch", "key"],
+      "requiresFocusNavigation": false,
+      "themes": ["system"],
+      "densities": ["mdpi", "hdpi", "xhdpi"],
+      "visualTargets": {
+        "mdpi": { "width": 360, "height": 640, "displayDensity": 1.0 },
+        "hdpi": { "width": 540, "height": 960, "displayDensity": 1.5 },
+        "xhdpi": { "width": 720, "height": 1280, "displayDensity": 2.0 }
+      },
+      "screen": { "width": 720, "height": 1280 },
+      "emulator": {
+        "kind": "tizen-emulator",
+        "imageFamily": "mobile",
+        "notes": "Provisioned on the self-hosted runner by eng/validation/scripts/tizen-device-lane.sh. Never pinned to a named machine or account in this repository."
+      }
+    },
+    {
+      "id": "tv",
+      "displayName": "Tizen TV",
+      "gatesRelease": true,
+      "primaryInput": "remote",
+      "inputMethods": ["remote", "key"],
+      "requiresFocusNavigation": true,
+      "themes": ["system"],
+      "densities": ["fhd", "uhd"],
+      "visualTargets": {
+        "fhd": { "width": 1920, "height": 1080, "displayDensity": 1.0 },
+        "uhd": { "width": 3840, "height": 2160, "displayDensity": 2.0 }
+      },
+      "screen": { "width": 1920, "height": 1080 },
+      "emulator": {
+        "kind": "tizen-emulator",
+        "imageFamily": "tv",
+        "notes": "TV emulator images come from Tizen Studio's TV extension; see docs/validation/device-lane.md."
+      }
+    }
+  ],
+
+  "dependencyPolicy": {
+    "$comment": [
+      "Evaluated on the hosted lane against restored dependency graphs (obj/project.assets.json).",
+      "These catch transitive resolutions that would only fail at runtime on a device."
+    ],
+    "bannedResolutions": [
+      {
+        "id": "graphics-6x-via-uiextensions",
+        "packageId": "Microsoft.Maui.Graphics",
+        "bannedVersionPrefixes": ["6."],
+        "reason": "Tizen.UIExtensions still carries .NET 6-era Microsoft.Maui.Graphics dependencies (eng/baselines.json > target.notes). Those resolve into the net11.0-tizen11.0 graph and surface as missing-type failures on device rather than as build errors. Tizen.UIExtensions must be republished without them.",
+        "commonSources": ["Tizen.UIExtensions.NUI", "Tizen.UIExtensions.Common", "Tizen.UIExtensions.ElmSharp"],
+
+        "$expectedStatusComment": [
+          "'known-violation' means the banned resolution is currently PRESENT in the published",
+          "package and is a tracked external prerequisite (eng/baselines.json > target.notes:",
+          "Tizen.UIExtensions must be republished to drop its .NET 6-era Graphics dependencies).",
+          "The tripwire test asserts reality matches this field in BOTH directions, so when",
+          "Samsung republishes, CI fails and tells us to flip it to 'clean' and make the rule",
+          "enforcing."
+        ],
+        "expectedStatus": "known-violation",
+        "probePackage": { "id": "Tizen.UIExtensions.NUI", "version": "0.9.2" }
+      }
+    ]
+  },
+
+  "visualBaselines": {
+    "$comment": [
+      "Baseline images are addressed by profile/apiLevel/theme/density so that a single control",
+      "can hold several legitimately different renderings without ambiguity.",
+      "Layout: tests/VisualBaselines/<profile>/<apiLevel>/<theme>/<density>/<caseId>.png",
+      "with a sibling <caseId>.json carrying capture metadata."
+    ],
+    "layout": "tests/VisualBaselines/{profile}/{apiLevel}/{theme}/{density}/{caseId}.png",
+    "defaultTolerance": {
+      "maxChannelDelta": 2,
+      "maxDifferingPixelRatio": 0.001
+    }
+  }
+}

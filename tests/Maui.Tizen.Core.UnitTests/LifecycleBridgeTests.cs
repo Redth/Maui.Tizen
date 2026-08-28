@@ -160,15 +160,72 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Fact]
-		public void StartupOrderIsCreatedThenResumedThenActivated()
+		public void ColdStartupIsCreatedThenActivatedWithNoResumed()
 		{
-			// The real Tizen startup sequence, in order.
+			// A cold start must NOT raise Resumed. Resumed means "came back from being stopped",
+			// which is how MAUI defines it and what Android does - it raises Resumed from
+			// OnRestart, not from the first OnStart.
+			//
+			// Tizen delivers OnResume on both a cold start and a return to the foreground, and
+			// says nothing about which it is, so the bridge has to remember. It previously raised
+			// Resumed unconditionally, making every cold start look like a return from the
+			// background - so an app restoring state in Resumed did it on first launch too.
 			var (bridge, window) = CreateBridge();
 
 			bridge.OnCreate();
 			bridge.OnResume();
 
-			Assert.Equal(new[] { "Created", "Resumed", "Activated" }, window.Events);
+			Assert.Equal(new[] { "Created", "Activated" }, window.Events);
+		}
+
+		[Fact]
+		public void ResumedIsRaisedOnlyAfterARealStopped()
+		{
+			var (bridge, window) = CreateBridge();
+
+			bridge.OnCreate();
+			bridge.OnResume();
+			Assert.DoesNotContain("Resumed", window.Events);
+
+			bridge.OnPause();
+			window.Events.Clear();
+
+			bridge.OnResume();
+
+			Assert.Equal(new[] { "Resumed", "Activated" }, window.Events);
+		}
+
+		[Fact]
+		public void DuplicateStoppedIsSuppressed()
+		{
+			// Tizen can deliver OnPause more than once with no OnResume in between. A second
+			// Stopped is observable to anything pairing Stopped with Resumed.
+			var (bridge, window) = CreateBridge();
+
+			bridge.OnCreate();
+			bridge.OnResume();
+			bridge.OnPause();
+			window.Events.Clear();
+
+			bridge.OnPause();
+
+			Assert.Empty(window.Events);
+		}
+
+		[Fact]
+		public void DuplicateResumedIsSuppressed()
+		{
+			var (bridge, window) = CreateBridge();
+
+			bridge.OnCreate();
+			bridge.OnResume();
+			bridge.OnPause();
+			bridge.OnResume();
+			window.Events.Clear();
+
+			bridge.OnResume();
+
+			Assert.Empty(window.Events);
 		}
 
 		[Fact]
@@ -254,8 +311,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(
 				new[]
 				{
-					"Created",
-					"Resumed", "Activated",
+					"Created", "Activated",
 					"Deactivated", "Stopped",
 					"Resumed", "Activated",
 					"Deactivated", "Destroying",

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RootNamespace>Migration.SourceInventory</RootNamespace>
+    <AssemblyName>maui-tizen-source-inventory</AssemblyName>
+    <!-- Internal build tool, not a shipped/documented library. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- Pure file-system + text scan of a source checkout. Never restores, builds, or loads the
+         scanned project, so no Tizen workload is required to run this tool. -->
+  </PropertyGroup>
+
+</Project>

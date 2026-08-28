@@ -1,0 +1,521 @@
+using System.Text.Json;
+using System.Security;
+
+namespace Maui.Tizen.Consumer.Tests;
+
+/// <summary>
+/// Verifies that the packages this repository produces can actually be consumed.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A source build proves the code compiles. It does not prove that the resulting package restores,
+/// that its dependency graph is sane, or that its MSBuild logic works from the outside. Those only
+/// fail for consumers, which is the worst place to find out.
+/// </para>
+/// <para>
+/// The synthetic case exercises the full consumer path today: pack, publish to a local feed,
+/// generate a consumer project, restore it, and evaluate the dependency policy against the restored
+/// graph. The real packages bind to the same harness once they can be produced.
+/// </para>
+/// </remarks>
+public class ConsumerRestoreTests
+{
+    const string ProducerProject =
+        """
+        <Project Sdk="Microsoft.NET.Sdk">
+          <PropertyGroup>
+            <TargetFramework>netstandard2.0</TargetFramework>
+            <PackageId>Maui.Tizen.ConsumerProbe</PackageId>
+            <AssemblyName>Maui.Tizen.ConsumerProbe</AssemblyName>
+            <Version>1.0.0</Version>
+            <Authors>Maui.Tizen Contributors</Authors>
+            <Description>Synthetic package used to verify the consumer restore harness.</Description>
+            <IncludeSymbols>false</IncludeSymbols>
+            <EnableDefaultNoneItems>true</EnableDefaultNoneItems>
+          </PropertyGroup>
+          <ItemGroup>
+            <None Include="buildTransitive/Maui.Tizen.ConsumerProbe.targets" Pack="true" PackagePath="buildTransitive/" />
+          </ItemGroup>
+        </Project>
+        """;
+
+    /// <summary>
+    /// Writes the isolation files that keep a generated project away from this repository's own
+    /// build configuration.
+    /// </summary>
+    /// <remarks>
+    /// Without these, the generated project inherits central package management and the Tizen
+    /// conventions from the repository root, and the test stops being a consumer test.
+    /// </remarks>
+    /// <summary>
+    /// Environment that gives a workspace its own NuGet package cache.
+    /// </summary>
+    /// <remarks>
+    /// Without this the tests are not hermetic. A package produced by one test lands in the shared
+    /// global cache and then resolves in another test even when it is absent from the feed under
+    /// test, which silently turns a negative restore test into a false pass. That happened here.
+    /// </remarks>
+    static Dictionary<string, string?> IsolatedNuGetEnvironment(TempWorkspace workspace) =>
+        new() { ["NUGET_PACKAGES"] = workspace.CreateSubdirectory("nuget-cache") };
+
+    static void WriteIsolation(TempWorkspace workspace)
+    {
+        workspace.WriteFile("Directory.Build.props", "<Project />");
+        workspace.WriteFile("Directory.Build.targets", "<Project />");
+        workspace.WriteFile(
+            "Directory.Packages.props",
+            "<Project><PropertyGroup><ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally></PropertyGroup></Project>");
+    }
+
+    static void WriteLocalFeedConfig(TempWorkspace workspace, string feedPath)
+    {
+        // Three things here are load-bearing:
+        //
+        //   <clear/> in packageSources    - without it the consumer falls back to nuget.org, and a
+        //                                   package missing from the local feed looks like a
+        //                                   successful restore of something else entirely.
+        //   <clear/> in disabledPackageSources
+        //                                 - a developer or agent whose user-level NuGet config
+        //                                   disables a source by the same key would otherwise get a
+        //                                   registered-but-disabled feed and an NU1101 that looks
+        //                                   like a packaging bug. This was a real failure here.
+        //   a distinctive key             - keeps the source from colliding with a user-level entry
+        //                                   such as "local".
+        workspace.WriteFile(
+            "nuget.config",
+            $"""
+             <?xml version="1.0" encoding="utf-8"?>
+             <configuration>
+               <packageSources>
+                 <clear />
+                 <add key="maui-tizen-validation-feed" value="{feedPath}" />
+               </packageSources>
+               <disabledPackageSources>
+                 <clear />
+               </disabledPackageSources>
+             </configuration>
+             """);
+    }
+
+    static void WriteMappedFeedConfig(
+        TempWorkspace workspace,
+        string producedFeed,
+        IEnumerable<string> producedPackageIds,
+        string? externalFeed = null)
+    {
+        var producedMappings = string.Join(
+            Environment.NewLine,
+            producedPackageIds
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+                .Select(id => $"""      <package pattern="{SecurityElement.Escape(id)}" />"""));
+        var externalSource = externalFeed is null
+            ? """
+                  <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
+                  <add key="dotnet11" value="https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet11/nuget/v3/index.json" protocolVersion="3" />
+              """
+            : $"""      <add key="approved-external" value="{SecurityElement.Escape(externalFeed)}" />""";
+        var externalMappings = externalFeed is null
+            ? """
+                    <packageSource key="nuget.org">
+                      <package pattern="*" />
+                      <package pattern="Microsoft.AspNetCore.*" />
+                      <package pattern="Microsoft.Extensions.*" />
+                      <package pattern="Microsoft.JSInterop*" />
+                      <package pattern="Microsoft.Maui.*" />
+                      <package pattern="Microsoft.Maui.DevFlow.*" />
+                    </packageSource>
+                    <packageSource key="dotnet11">
+                      <package pattern="Microsoft.Maui.*" />
+                      <package pattern="Microsoft.AspNetCore.*" />
+                      <package pattern="Microsoft.Extensions.*" />
+                      <package pattern="Microsoft.JSInterop*" />
+                      <package pattern="Microsoft.Dotnet.*" />
+                    </packageSource>
+              """
+            : """
+                    <packageSource key="approved-external">
+                      <package pattern="*" />
+                    </packageSource>
+              """;
+
+        workspace.WriteFile(
+            "nuget.config",
+            $"""
+             <?xml version="1.0" encoding="utf-8"?>
+             <configuration>
+               <packageSources>
+                 <clear />
+                 <add key="maui-tizen-produced" value="{SecurityElement.Escape(producedFeed)}" />
+             {externalSource}
+               </packageSources>
+               <disabledPackageSources>
+                 <clear />
+               </disabledPackageSources>
+               <packageSourceMapping>
+                 <packageSource key="maui-tizen-produced">
+             {producedMappings}
+                 </packageSource>
+             {externalMappings}
+               </packageSourceMapping>
+             </configuration>
+             """);
+    }
+
+    [Fact]
+    public async Task ConsumerHarness_RestoresAPackageFromALocalFeedAndAppliesItsTargets()
+    {
+        using var workspace = TempWorkspace.Create("consumer-probe");
+        WriteIsolation(workspace);
+
+        workspace.WriteFile("Producer/Producer.csproj", ProducerProject);
+        workspace.WriteFile("Producer/Lib.cs", "namespace Probe { public static class Marker { } }");
+        workspace.WriteFile(
+            "Producer/buildTransitive/Maui.Tizen.ConsumerProbe.targets",
+            """
+            <Project>
+              <PropertyGroup>
+                <MauiTizenConsumerProbeApplied>true</MauiTizenConsumerProbeApplied>
+              </PropertyGroup>
+            </Project>
+            """);
+
+        var feed = workspace.CreateSubdirectory("feed");
+        var environment = IsolatedNuGetEnvironment(workspace);
+
+        (await DotNetCli
+            .RunAsync(["pack", workspace.Combine("Producer", "Producer.csproj"), "--nologo", "--output", feed],
+                workingDirectory: workspace.Path, environment: environment,
+                cancellationToken: TestContext.Current.CancellationToken)
+            .ConfigureAwait(true))
+            .EnsureSucceeded();
+
+        WriteLocalFeedConfig(workspace, feed);
+
+        workspace.WriteFile("Consumer/Consumer.csproj",
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>netstandard2.0</TargetFramework>
+                <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+              </PropertyGroup>
+              <ItemGroup>
+                <PackageReference Include="Maui.Tizen.ConsumerProbe" Version="1.0.0" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        var consumer = workspace.Combine("Consumer", "Consumer.csproj");
+
+        (await DotNetCli.RunAsync(["restore", consumer], workingDirectory: workspace.Path, environment: environment,
+                cancellationToken: TestContext.Current.CancellationToken)
+            .ConfigureAwait(true))
+            .EnsureSucceeded();
+
+        // The package resolved...
+        var graph = RestoreGraph.LoadFromProjectDirectory(workspace.Combine("Consumer"));
+        Assert.Contains(graph.AllPackages, p => p.Id == "Maui.Tizen.ConsumerProbe");
+
+        // ...and its buildTransitive targets actually reached the consumer's evaluation.
+        var evaluation = await DotNetCli
+            .RunAsync(["msbuild", consumer, "-getProperty:MauiTizenConsumerProbeApplied", "-v:q"],
+                workingDirectory: workspace.Path, environment: environment,
+                cancellationToken: TestContext.Current.CancellationToken)
+            .ConfigureAwait(true);
+
+        evaluation.EnsureSucceeded();
+        Assert.Equal("true", evaluation.StandardOutput.Trim());
+    }
+
+    [Fact]
+    public async Task ConsumerHarness_FailsWhenThePackageIsAbsentFromTheFeed()
+    {
+        // Proves the harness can fail. A restore test that silently falls back to another source
+        // would pass forever regardless of what this repository produces.
+        using var workspace = TempWorkspace.Create("consumer-missing");
+        WriteIsolation(workspace);
+
+        var feed = workspace.CreateSubdirectory("feed");
+        WriteLocalFeedConfig(workspace, feed);
+
+        workspace.WriteFile("Consumer/Consumer.csproj",
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>netstandard2.0</TargetFramework>
+                <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+              </PropertyGroup>
+              <ItemGroup>
+                <PackageReference Include="Maui.Tizen.ConsumerProbe" Version="1.0.0" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        var result = await DotNetCli
+            .RunAsync(["restore", workspace.Combine("Consumer", "Consumer.csproj")],
+                workingDirectory: workspace.Path, environment: IsolatedNuGetEnvironment(workspace),
+                cancellationToken: TestContext.Current.CancellationToken)
+            .ConfigureAwait(true);
+
+        Assert.False(result.Succeeded);
+        Assert.True(
+            result.OutputContains("NU1101") || result.OutputContains("Unable to find package"),
+            $"Expected a package-not-found failure but got:{Environment.NewLine}{result.CombinedOutput}");
+    }
+
+    [Fact]
+    public async Task ConsumerHarness_RestoresExactPrereleaseIdentityWithExternalDependenciesFromAnEmptyCache()
+    {
+        using var workspace = TempWorkspace.Create("consumer-prerelease");
+        WriteIsolation(workspace);
+
+        var producedFeed = workspace.CreateSubdirectory("produced-feed");
+        var externalFeed = workspace.CreateSubdirectory("external-feed");
+        var environment = IsolatedNuGetEnvironment(workspace);
+
+        workspace.WriteFile(
+            "External/External.csproj",
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+             <PropertyGroup>
+               <TargetFramework>netstandard2.0</TargetFramework>
+               <PackageId>Approved.External.Dependency</PackageId>
+               <Version>2.3.4</Version>
+               <Authors>Maui.Tizen Contributors</Authors>
+               <Description>External dependency for the consumer restore regression.</Description>
+             </PropertyGroup>
+            </Project>
+            """);
+        workspace.WriteFile("External/Marker.cs", "namespace Approved.External { public sealed class Marker { } }");
+
+        (await DotNetCli.RunAsync(
+               ["pack", workspace.Combine("External", "External.csproj"), "--nologo", "--output", externalFeed],
+               workingDirectory: workspace.Path,
+               environment: environment,
+               cancellationToken: TestContext.Current.CancellationToken)
+            .ConfigureAwait(true))
+            .EnsureSucceeded();
+
+        workspace.WriteFile(
+            "Prerelease/Prerelease.csproj",
+            $"""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>netstandard2.0</TargetFramework>
+                <PackageId>Maui.Tizen.PrereleaseProbe</PackageId>
+                <Version>11.0.0-alpha.7</Version>
+                <Authors>Maui.Tizen Contributors</Authors>
+                <Description>Prerelease package used to verify exact consumer restore identities.</Description>
+                <RestoreSources>{externalFeed}</RestoreSources>
+              </PropertyGroup>
+              <ItemGroup>
+                <PackageReference Include="Approved.External.Dependency" Version="2.3.4" />
+              </ItemGroup>
+            </Project>
+            """);
+        workspace.WriteFile("Prerelease/Marker.cs", "namespace Maui.Tizen.Prerelease { public sealed class Marker { } }");
+
+        (await DotNetCli.RunAsync(
+               ["pack", workspace.Combine("Prerelease", "Prerelease.csproj"), "--nologo", "--output", producedFeed],
+               workingDirectory: workspace.Path,
+               environment: environment,
+               cancellationToken: TestContext.Current.CancellationToken)
+            .ConfigureAwait(true))
+            .EnsureSucceeded();
+
+        using var package = NuPkg.OpenFromDirectory(producedFeed, "Maui.Tizen.PrereleaseProbe");
+        var identity = package.ReadIdentity();
+        Assert.Equal(new PackageIdentity("Maui.Tizen.PrereleaseProbe", "11.0.0-alpha.7"), identity);
+
+        WriteMappedFeedConfig(workspace, producedFeed, [identity.Id], externalFeed);
+        workspace.WriteFile(
+            "Consumer/Consumer.csproj",
+            $"""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>netstandard2.0</TargetFramework>
+                <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+              </PropertyGroup>
+              <ItemGroup>
+                <PackageReference Include="{identity.Id}" Version="{identity.Version}" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        (await DotNetCli.RunAsync(
+               ["restore", workspace.Combine("Consumer", "Consumer.csproj"), "--no-http-cache"],
+               workingDirectory: workspace.Path,
+               environment: environment,
+               cancellationToken: TestContext.Current.CancellationToken)
+            .ConfigureAwait(true))
+            .EnsureSucceeded();
+
+        var graph = RestoreGraph.LoadFromProjectDirectory(workspace.Combine("Consumer"));
+        Assert.Contains(graph.AllPackages, p => p.Id == identity.Id && p.Version == identity.Version);
+        Assert.Contains(graph.AllPackages, p => p.Id == "Approved.External.Dependency" && p.Version == "2.3.4");
+    }
+
+    [Fact]
+    public async Task ProducedPackages_RestoreIntoAConsumerProject()
+    {
+        var packagesDirectory = Path.Combine(RepoLayout.Root, "artifacts", "packages");
+
+        // As in PackagingTests: a non-empty artifacts/packages does not mean the SHIPPING packages
+        // exist. Other probes pack internal artifacts into the same directory, and restoring a
+        // net11.0-tizen11.0 consumer without the workload fails with NETSDK1139 - which would look
+        // like a packaging defect rather than the absent workload it actually is.
+        var declared = PackageContentContract.EnumerateDeclaredPackageIds();
+
+        var produced = declared
+            .Select(id => NuPkg.FindPackagePaths(packagesDirectory, id))
+            .Where(paths => paths.Count > 0)
+            .Select(paths =>
+            {
+                Assert.Single(paths);
+                using var package = NuPkg.Open(paths[0]);
+                return package.ReadIdentity();
+            })
+            .ToList();
+
+        var completePackageSet = produced.Count == declared.Count && declared.Count > 0;
+        ValidationSkip.When(
+            !completePackageSet &&
+            Environment.GetEnvironmentVariable("MAUI_TIZEN_RELEASE_VALIDATION") != "1",
+            $"Only {produced.Count} of {declared.Count} declared shipping package(s) have been " +
+            "produced. A consumer restore needs the full set, and they cannot be packed until the " +
+            "Samsung workload is available; see docs/validation/blockers.md.");
+        Assert.True(
+            completePackageSet,
+            $"Release validation requires every declared shipping package, but only {produced.Count} " +
+            $"of {declared.Count} were downloaded.");
+
+        using var workspace = TempWorkspace.Create("consumer-real");
+        WriteIsolation(workspace);
+        WriteMappedFeedConfig(workspace, packagesDirectory, produced.Select(package => package.Id));
+
+        var references = string.Join(
+            Environment.NewLine,
+            produced.Select(package =>
+                $"""    <PackageReference Include="{package.Id}" Version="{package.Version}" />"""));
+
+        workspace.WriteFile("Consumer/Consumer.csproj",
+            $"""
+             <Project Sdk="Microsoft.NET.Sdk">
+               <PropertyGroup>
+                 <TargetFramework>{RepoLayout.TizenTargetFramework}</TargetFramework>
+                 <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+               </PropertyGroup>
+               <ItemGroup>
+             {references}
+               </ItemGroup>
+             </Project>
+             """);
+
+        var result = await DotNetCli
+            .RunAsync(["restore", workspace.Combine("Consumer", "Consumer.csproj")],
+                workingDirectory: workspace.Path, environment: IsolatedNuGetEnvironment(workspace),
+                cancellationToken: TestContext.Current.CancellationToken)
+            .ConfigureAwait(true);
+
+        result.EnsureSucceeded();
+
+        var graph = RestoreGraph.LoadFromProjectDirectory(workspace.Combine("Consumer"));
+        var violations = graph.EvaluatePolicy(TizenProfiles.Matrix.DependencyPolicy);
+
+        Assert.True(
+            violations.Count == 0,
+            string.Join(Environment.NewLine, violations.Select(v => v.Describe())));
+    }
+}
+
+/// <summary>
+/// Validates the MAUI.Sherpa handoff contract.
+/// </summary>
+/// <remarks>
+/// Sherpa is deliberately validated as a separate consumer head and is not modified by this work.
+/// What this repository owns is the contract: which packages Sherpa consumes, how the feed is
+/// supplied, and what the smoke run must prove. Checking it here stops the handoff from drifting
+/// out of sync with the packages actually produced.
+/// </remarks>
+public class SherpaSmokeContractTests
+{
+    static readonly string ContractPath =
+        Path.Combine(RepoLayout.ValidationConfig, "consumers", "sherpa-smoke-contract.json");
+
+    static JsonDocument Load()
+    {
+        Assert.True(File.Exists(ContractPath), $"Missing {RepoLayout.Relative(ContractPath)}");
+        return JsonDocument.Parse(File.ReadAllText(ContractPath));
+    }
+
+    [Fact]
+    public void ContractIsWellFormedAndComplete()
+    {
+        using var document = Load();
+        var root = document.RootElement;
+
+        Assert.Equal(1, root.GetProperty("schemaVersion").GetInt32());
+        Assert.NotEqual(0, root.GetProperty("packages").GetArrayLength());
+        Assert.NotEqual(0, root.GetProperty("smokeSteps").GetArrayLength());
+
+        foreach (var step in root.GetProperty("smokeSteps").EnumerateArray())
+        {
+            Assert.False(string.IsNullOrWhiteSpace(step.GetProperty("id").GetString()));
+            Assert.False(string.IsNullOrWhiteSpace(step.GetProperty("description").GetString()));
+
+            // Every step must say what a failure means. "The smoke test failed" tells the Sherpa
+            // side nothing about whether the defect is theirs or ours.
+            Assert.False(
+                string.IsNullOrWhiteSpace(step.GetProperty("failureMeaning").GetString()),
+                $"Smoke step '{step.GetProperty("id").GetString()}' does not say what a failure means.");
+        }
+    }
+
+    [Fact]
+    public void ContractPackagesAllHaveAContentContract()
+    {
+        using var document = Load();
+
+        var declared = PackageContentContract.EnumerateDeclaredPackageIds().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        ValidationSkip.When(declared.Count == 0, "No package-content contracts are declared yet.");
+
+        foreach (var package in document.RootElement.GetProperty("packages").EnumerateArray())
+        {
+            var id = package.GetString()!;
+
+            Assert.True(
+                declared.Contains(id),
+                $"The Sherpa contract consumes '{id}' but this repository declares no package-content " +
+                "contract for it. Either it is not actually shipped, or its contents are unverified.");
+        }
+    }
+
+    [Fact]
+    public void ContractCarriesNoCredentialsOrPrivateInfrastructure()
+    {
+        // The feed is supplied as a pipeline parameter. A URL or token committed here would be both
+        // a leak and a hard-coded dependency on one organisation's infrastructure.
+        var raw = File.ReadAllText(ContractPath);
+
+        Assert.DoesNotContain("https://", raw, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("http://", raw, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("pkgs.dev.azure.com", raw, StringComparison.OrdinalIgnoreCase);
+
+        using var document = Load();
+        Assert.Equal("parameter", document.RootElement.GetProperty("packageFeed").GetProperty("kind").GetString());
+    }
+
+    [Fact]
+    public void DeviceDependentStepsAreMarked()
+    {
+        using var document = Load();
+
+        var launch = document.RootElement.GetProperty("smokeSteps")
+            .EnumerateArray()
+            .Single(s => s.GetProperty("id").GetString() == "launch");
+
+        // Steps needing hardware must be identifiable so the Sherpa pipeline can report them as
+        // "not run" rather than failing when no device lab is attached.
+        Assert.True(launch.GetProperty("requiresDeviceInfrastructure").GetBoolean());
+    }
+}

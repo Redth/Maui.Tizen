@@ -18,7 +18,22 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// </remarks>
 	public class TizenLayoutHandler : TizenViewHandler<ILayout, TizenLayoutViewGroup>, ILayoutHandler
 	{
+		/// <summary>
+		/// The children in LOGICAL order - the same order as the layout's own collection.
+		/// </summary>
+		/// <remarks>
+		/// Deliberately NOT the native z-order. Update, Insert and Remove all receive logical
+		/// indices, and PlatformView.Children is sorted by ZIndex; those coincide only while every
+		/// child sits at ZIndex 0. This list previously mirrored the native order, so
+		/// <c>_children[index]</c> returned an unrelated child as soon as any ZIndex was set - and
+		/// Update then disposed it.
+		///
+		/// Native positions are derived when needed, from the virtual view's z-ordering, rather
+		/// than being conflated with this list.
+		/// </remarks>
 		readonly List<IView> _children = new();
+
+		internal int LogicalChildCount => _children.Count;
 
 		/// <summary>Property mapper for <see cref="ILayout"/> on Tizen.</summary>
 		public static readonly IPropertyMapper<ILayout, ILayoutHandler> Mapper =
@@ -88,6 +103,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 #endif
 			_children.Clear();
 
+			// The NATIVE collection is filled in z-order, because that is what determines paint
+			// order. The LOGICAL list must not be: it is indexed by Update, Insert and Remove,
+			// which all receive logical positions.
+			//
+			// Both were previously filled from OrderByZIndex, so _children was z-ordered here even
+			// though every consumer treats it as logical - which is the same conflation that made
+			// Update dispose the wrong child.
 			foreach (var child in VirtualView.OrderByZIndex())
 			{
 #if TIZEN
@@ -95,8 +117,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 #else
 				_ = child.ToPlatform(MauiContext);
 #endif
-				_children.Add(child);
 			}
+
+			foreach (var child in VirtualView)
+				_children.Add(child);
 		}
 
 		/// <inheritdoc />
@@ -105,29 +129,42 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			_ = MauiContext ?? throw new InvalidOperationException(
 				$"{nameof(MauiContext)} should have been set by base class.");
 
+			// Native position comes from the z-ordering; the logical list simply appends.
 			var targetIndex = VirtualView.GetLayoutHandlerIndex(child);
 #if TIZEN
 			PlatformView.Children.Insert(targetIndex, child.ToPlatformView(MauiContext));
 #else
 			_ = child.ToPlatform(MauiContext);
 #endif
-			_children.Insert(Math.Clamp(targetIndex, 0, _children.Count), child);
+			_children.Add(child);
 			EnsureZIndexOrder(child);
 			PlatformView.SetNeedMeasureUpdate();
+		}
+
+		/// <summary>
+		/// Removes a child from the native tree and the logical list, disposing its handler.
+		/// </summary>
+		/// <remarks>
+		/// The native view is located through the child's OWN handler, never by position - which is
+		/// what makes this correct regardless of z-order. Disposing the handler disposes the native
+		/// view it owns, so the view is only unparented here and never disposed twice.
+		/// </remarks>
+		void RemoveChildCore(IView child)
+		{
+#if TIZEN
+			if (child.Handler.ToPlatformView() is TizenNativeView childView)
+				PlatformView.Children.Remove(childView);
+#endif
+
+			_children.Remove(child);
+			(child.Handler as ITizenPlatformViewHandler)?.Dispose();
 		}
 
 		/// <inheritdoc />
 		public void Remove(IView child)
 		{
-			if (child.Handler is ITizenPlatformViewHandler childHandler)
-			{
-#if TIZEN
-				if (child.Handler.ToPlatformView() is TizenNativeView childView)
-					PlatformView.Children.Remove(childView);
-#endif
-				_children.Remove(child);
-				childHandler.Dispose();
-			}
+			if (child.Handler is ITizenPlatformViewHandler)
+				RemoveChildCore(child);
 
 #if TIZEN
 			PlatformView.MarkChanged();
@@ -155,8 +192,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <inheritdoc />
 		public void Insert(int index, IView child)
 		{
-			_ = index;
-			Add(child);
+			_ = MauiContext ?? throw new InvalidOperationException(
+				$"{nameof(MauiContext)} should have been set by base class.");
+
+			var targetIndex = VirtualView.GetLayoutHandlerIndex(child);
+#if TIZEN
+			PlatformView.Children.Insert(targetIndex, child.ToPlatformView(MauiContext));
+#else
+			_ = child.ToPlatform(MauiContext);
+#endif
+
+			// Logical position for the logical list; the native insert above used the z-position.
+			_children.Insert(Math.Clamp(index, 0, _children.Count), child);
+			EnsureZIndexOrder(child);
+			PlatformView.SetNeedMeasureUpdate();
 		}
 
 		/// <inheritdoc />
@@ -165,23 +214,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			_ = MauiContext ?? throw new InvalidOperationException(
 				$"{nameof(MauiContext)} should have been set by base class.");
 
-#if TIZEN
-			if (index >= 0 && index < PlatformView.Children.Count)
-			{
-				var toBeRemoved = PlatformView.Children[index];
-				PlatformView.Children.RemoveAt(index);
-				toBeRemoved.Dispose();
-			}
-#endif
+			// `index` is a LOGICAL position, and _children is now kept in logical order, so this
+			// genuinely identifies the outgoing child. It previously indexed a z-ORDERED list,
+			// which returned an unrelated child the moment any ZIndex was non-zero - and this
+			// method then disposed it, leaving the child actually being replaced on screen with
+			// its handler intact. Nothing threw.
+			var outgoing = index >= 0 && index < _children.Count ? _children[index] : null;
 
-			if (index >= 0 && index < _children.Count)
+			if (ReferenceEquals(outgoing, child))
+				return;
+
+			if (outgoing is not null)
 			{
-				var childToBeRemoved = _children[index];
-				_children.RemoveAt(index);
-				(childToBeRemoved.Handler as ITizenPlatformViewHandler)?.Dispose();
+				// By identity, and the native view found through its own handler - never by
+				// position, which is exactly what was wrong.
+				RemoveChildCore(outgoing);
 			}
 
-			Add(child);
+			// Insert at the same LOGICAL position the outgoing child occupied; the native slot is
+			// re-derived from the z-ordering.
+			Insert(index, child);
 		}
 
 		/// <inheritdoc />

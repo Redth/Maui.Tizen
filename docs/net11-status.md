@@ -12,13 +12,40 @@ centrally configurable in [`eng/Maui.props`](../eng/Maui.props).
 
 The product assembly targets `net11.0-tizen11.0` only. It **cannot be restored or built anywhere**
 until Samsung publishes the 11.0.100 workload manifest (see blocker B1). Rather than weaken that
-contract with a neutral fallback, verification is done by two projects that compile the *same*
-sources.
+contract with a neutral fallback, verification is split across two **complementary** lanes. They do
+not compile identical sets - that would be impossible, since the platform sources need real TizenFX:
+
+| Lane | Compiles | Assembly | `TIZEN` |
+| --- | --- | --- | --- |
+| `Maui.Tizen.Core.UnitTests` | portable + handler | test host | no |
+| `Maui.Tizen.Core.RefPackCompile` | portable + handler + platform | `Maui.Tizen.Core` | yes |
+| `Maui.Tizen.Sample.RefPackCompile` | sample only, references the above | `Maui.Tizen.Sample` | yes |
+| `Maui.Tizen.Core` (product) | portable + handler + platform | `Maui.Tizen.Core` | yes |
+
+Between them every owned source is compiled by at least one lane, and everything the product
+compiles is also compiled by the ref-pack lane. `SourceLaneCoverageTests` pins that invariant.
+
+The sample gets its **own** lane rather than being folded into the backend's, and that separation is
+load-bearing in two ways an MSBuild review had to point out:
+
+* The sample must cross a real assembly boundary. Compiled into the backend lane it produced one
+  merged Core+sample assembly, so a sample that reached for a backend internal - or for anything
+  invisible across a package reference - compiled clean. It now reaches the backend through a
+  `ProjectReference` to an assembly carrying the real product `AssemblyName`.
+* PublicAPI ownership is only meaningful while each compilation is checked against its own baseline.
+  With both pairs attached to one merged surface, moving `TizenFlyoutView` out of the backend
+  baseline and into the *sample's* still built successfully. It now fails RS0016.
+
+The real `samples/Maui.Tizen.Sample` separately evaluated `Compile=[]` - `TizenPackage.props`
+defaults `EnableDefaultCompileItems` to false for the not-yet-ported projects and the sample never
+opted back in, so it was an application head that built successfully while containing no code.
+`PackageBoundaryTests` asserts the evaluated item lists of the real sample and its lane are
+identical, so neither can drift from the other.
 
 | Lane | Command | What it proves |
 | --- | --- | --- |
-| Unit tests | `dotnet test tests/Maui.Tizen.Core.UnitTests` | Mapper + command-mapper registration, DI/handler registration, hosting, dispatcher/timer/provider semantics, density conversion, layout z-index ordering, `IMauiContext` scoping. **102 tests, all passing.** |
-| Compile validation | `dotnet build tests/Maui.Tizen.Core.RefPackCompile` | Every `#if TIZEN` source - including `TizenMauiApplication`, the NUI view groups and all the ported platform extensions - type-checks against the **real** TizenFX reference assemblies from `Samsung.Tizen.Ref.API15` (`ref/net8.0`), plus the sample head's managed code. **Builds clean.** |
+| Unit tests | `dotnet test tests/Maui.Tizen.Core.UnitTests` | Mapper + command-mapper registration, DI/handler registration, hosting, dispatcher/timer/provider semantics, density conversion, layout z-index ordering, `IMauiContext` scoping. **417 tests at this head, all passing.** |
+| Compile validation | `dotnet build tests/Maui.Tizen.Core.RefPackCompile` | Every Core `#if TIZEN` source - including `TizenMauiApplication`, the NUI view groups and all the ported platform extensions - type-checks against the **real** TizenFX reference assemblies from `Samsung.Tizen.Ref.API15` (`ref/net8.0`). The sample is compiled separately by `Maui.Tizen.Sample.RefPackCompile`. **Both build cleanly.** |
 | Product | `dotnet build src/Maui.Tizen.Core` | Fails with actionable `MAUITIZEN0001` from `Directory.Build.targets`. This is the intended behaviour. |
 
 Both lanes are wired into `eng/build-workload-free.sh`, so they run in the workload-free CI lane
@@ -32,6 +59,101 @@ exists so `#if TIZEN` code is checked by a compiler rather than by inspection.
 > runtime behaviour on Tizen.
 
 ---
+
+### G11. The public `IImageSourcePaint` contract has not shipped yet
+
+Verified by reflection over `Microsoft.Maui` 11.0.0-preview.7.26426.4:
+
+| Type | Assembly | State |
+| --- | --- | --- |
+| `Microsoft.Maui.IImageSourcePaint` | Microsoft.Maui | **absent from this package** |
+| `Microsoft.Maui.ImageSourcePaint` | Microsoft.Maui | present, internal **by design** |
+| `Microsoft.Maui.Graphics.ImagePaint` | Microsoft.Maui.Graphics | public |
+
+The concrete `ImageSourcePaint` is intentionally internal and is expected to stay that way, so this
+is not a class waiting to be made public. What is missing is the public **consumption-only**
+interface `IImageSourcePaint` (upstream PR #37864), which a backend would match on to recognise an
+image background. Until that ships in a package this repository pins, an out-of-repo backend cannot
+detect an image background at all.
+
+`ImagePaint` is public but carries no image source, and `ImagePaint.ToColor()` returns `null` - so
+an image background produced no colour, the mapper did nothing, and the previously painted colour
+silently stayed on screen. The background mapper now clears instead, which at least leaves the view
+in a defined state.
+
+Rendering it properly needs that interface **and** a container view to draw into (G1). The raw
+imported `Platform/Tizen/ViewExtensions.cs`, which uses `ImageSourcePaint` and
+`UpdateBackgroundImageSourceAsync`, stays uncompiled for that reason, and the adoption guard stays
+in place.
+
+### G10. Controls owns several Tizen bindings, and upstream never implemented them
+
+This affects accessibility **and** three Label properties. The shape is identical in every case:
+the value lives on a Controls type, so a backend package cannot read it without referencing
+Controls and inverting the dependency direction.
+
+| Property | Declared on | Upstream Tizen implementation |
+| --- | --- | --- |
+| `AutomationProperties.IsInAccessibleTree` | Controls | `//TODO : Need to impl` |
+| `AutomationProperties.ExcludedWithChildren` | Controls | `//TODO : Need to impl` |
+| `Label.LineBreakMode` | Controls | implemented, via a Controls-side extension |
+| `Label.MaxLines` | Controls | `[MissingMapper]`, empty |
+| `Label.FormattedText` | Controls (`FormattedString`) | not mapped |
+
+`ILabel` carries only `TextDecorations` and `LineHeight` - verified by reflection over the shipped
+`Microsoft.Maui` assembly - so none of the three Label properties is reachable from this backend.
+
+**These are now bound**, in `src/Maui.Tizen.Controls/Platform/TizenControlsMappings.cs` - a real
+product assembly that legitimately references Controls, compiled by
+`tests/Maui.Tizen.Controls.RefPackCompile` against real TizenFX. It appends to the static Controls
+mappers, which is the same public mechanism Controls' own `RemapForControls` uses, because an
+out-of-repo backend cannot contribute to Controls' per-platform partial classes.
+
+`LineBreakMode` and both accessibility annotations are bound and working - the accessibility pair
+through a **single** mapper action, since both write to the same two NUI flags and binding them
+separately let whichever ran last overwrite the other.
+
+`MaxLines` and `FormattedText` are **not** bound, and no inert key is registered for either.
+`MaxLines` has no native equivalent at all. `FormattedText` requires converting Controls'
+`FormattedString` into the native markup form; upstream does not implement it on Tizen and neither
+does this backend yet - it is an explicit Wave A requirement before the sample can claim Label
+parity.
+
+Core ships the native halves it owns: `UpdateAccessibility` (both annotations at once) and
+`UpdateLineBreakMode`. The last one matters because the two `LineBreakMode` enums are **not**
+ordinal-compatible - `Microsoft.Maui.LineBreakMode.NoWrap` is 0 while
+`Tizen.UIExtensions.Common.LineBreakMode.NoWrap` is 1 - so casting between them turns NoWrap into
+None and shifts every value after it.
+
+`MaxLines` has deliberately **no** Core primitive: there is no native equivalent. `TextLabel`
+exposes `LineCount` (read-only), `MultiLine` and `Ellipsis`, none of which caps rendered lines, and
+`Tizen.UIExtensions.NUI.Label` exposes only `LineBreakMode`. That is almost certainly why upstream
+marks its mapper `[MissingMapper]`. A resolver here would be dead code dressed up as coverage.
+
+Closing the gap needs a Controls-side change or an explicit owner in a later wave.
+
+### G10a. Original accessibility note
+
+`AutomationProperties.IsInAccessibleTree` and `ExcludedWithChildren` arrive as their own mapper
+keys, and the action behind those keys lives in **Controls'** per-platform code
+(`src/Controls/src/Core/Element/Tizen.cs`), not in Core. A backend package cannot supply it without
+referencing Controls, which would invert the dependency direction.
+
+Upstream both methods are empty:
+
+```csharp
+public static void MapAutomationPropertiesIsInAccessibleTree(IElementHandler handler, Element element)
+{
+    //TODO : Need to impl
+}
+```
+
+So these annotations have never worked on Tizen, and the stub disappears entirely when dotnet/maui
+drops its Tizen target. Core now ships the native half - `UpdateIsInAccessibleTree` and
+`UpdateExcludedWithChildren`, built on NUI's `AccessibilityHighlightable` and
+`AccessibilityHidden` - so whoever ends up owning the Controls binding has something correct to
+call. Closing the gap needs either a Controls-side change or an explicit owner in a later wave.
+
 
 ## 2. External blockers
 
@@ -306,9 +428,10 @@ anything built on them are therefore absent.
 **Container-backed decoration.** See G1 - gradient/image backgrounds, clip and shadow are not
 rendered, because the container hook is not reachable from outside MAUI.
 
-**Controls-level remapping.** `Layout.RemapForControls` and friends append to MAUI's *static*
-`LayoutHandler.Mapper`, not to this backend's mappers, so Controls-specific mappings do not reach
-these handlers. Wiring that up belongs with the `Maui.Tizen.Controls` layer.
+**Remaining Controls-level mappings.** `Maui.Tizen.Controls` now composes MAUI's static Controls
+mappers into the Tizen handlers, so the implemented LineBreakMode and accessibility mappings reach
+real Controls apps. `MaxLines` and `FormattedText` remain unsupported as described in G10 and belong
+to Wave A.
 
 **Everything else.** All other handlers (button, entry, image, scroll view, web view, navigation,
 shell, ...) remain raw imported sources and are not yet ported.
@@ -324,10 +447,19 @@ the raw imported originals to stay uncompiled.
 | `Platform/Tizen/MauiToolbar.cs` | `TizenToolbarView` | `Microsoft.Maui.Platform.MauiToolbar` exists in MAUI's Tizen build |
 | (same file) `IToolbarContainer` | `ITizenToolbarContainer` | same |
 | `Platform/Tizen/StackNavigationManager.cs` | `TizenStackNavigationManager` | `Microsoft.Maui.Platform.StackNavigationManager` exists in MAUI's Tizen build |
-| `Platform/Tizen/NaviPage.cs` | `TizenNaviPage` | `Microsoft.Maui.NaviPage` sits in the **neutral** namespace - the highest-risk collision of the three |
+| `Platform/Tizen/NaviPage.cs` | `TizenNaviPage` | `Microsoft.Maui.NaviPage` sits in the **neutral** namespace - the highest-risk collision |
+| `Platform/Tizen/MauiFlyoutView.cs` | `TizenFlyoutView` | `Microsoft.Maui.Platform.MauiFlyoutView` exists in MAUI's Tizen build |
+| `Platform/Tizen/MauiTVFlyoutView.cs` | `TizenTVFlyoutView` | same |
+| `Platform/Tizen/FlyoutViewExtensions.cs` | `TizenFlyoutViewExtensions` + `TizenFlyoutBehaviorExtensions` | same; the `ToPlatform(FlyoutBehavior)` overload became `ToTizenDrawerBehavior` to avoid ambiguity with MAUI's large `ToPlatform` family |
+| `Platform/Tizen/ToolbarExtensions.cs` | instance methods on `TizenToolbarView` | same |
 
 `NaviPage` was not in the assigned list; it came in because `StackNavigationManager` cannot compile
 without it. Porting it was the only way to avoid compiling the raw original.
+
+`ToolbarExtensions.UpdateTitle` / `UpdateMenuButton` became **instance methods** on
+`TizenToolbarView` rather than extension methods. They only ever applied to that one type, and as
+extensions they would have been ambiguous at any call site that also imported MAUI's
+`Microsoft.Maui.Platform`.
 
 All three are type-checked against real TizenFX by the reference-pack lane and pinned by
 `CorePlatformPrimitiveTests`, which also asserts that no Wave C handler has leaked into this

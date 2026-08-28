@@ -47,18 +47,15 @@ Two keys are `excluded` throughout, both inherited from the core slice's base ma
   and states it will be removed; border rendering is driven by the stroke and shape
   properties that replaced it.
 
-`TextTransform`, `ContentLayout` and `Button.LineBreakMode` are `inherited`, and that is
-a deliberate answer to a review question rather than an oversight. They are properties
-of **Controls** types, not of the `Microsoft.Maui.*` interfaces this package consumes,
-and upstream applies them from `Microsoft.Maui.Controls.Platform` rather than from a Core
-handler - implementing them here would mean referencing Controls from the product
-package, which this repository does not do. Matching sources do exist under
-`src/Maui.Tizen.Controls`, but **that project is in no compiled lane**, so they are
-unbuilt, unexecuted and untested. An earlier revision gave them a distinct `controls`
-state on the strength of existing on disk; that overstated reality, because source
-nobody compiles cannot be known to work. They are therefore reported exactly as what
-they are today - reachable and inert - and `MapperParityMatrixTests` fails if the
-project ever gains a lane, so the question gets revisited on evidence.
+`TextTransform`, `ContentLayout` and `Button.LineBreakMode` remain `inherited` after
+re-measuring the compiled Controls bridge. They are Controls properties that upstream
+applies from `Microsoft.Maui.Controls.Platform`, not from the Core interfaces consumed
+by these handlers. The shipping `Maui.Tizen.Controls` assembly currently compiles only
+its startup/mapping bridge. That bridge maps **Label** `LineBreakMode` and accessibility;
+it does not map **Button** `LineBreakMode`, `ContentLayout`, or `TextTransform`, and the
+raw imported files that mention those keys remain outside the compile closure.
+`ControlsLayerFollowUpMatchesCompiledBridge` pins that closure so adding an implementation
+forces this matrix to be re-measured.
 
 ## Common view properties
 
@@ -324,4 +321,3 @@ Serves `ITimePicker`; compared against MAUI's `TimePickerHandler`.
 | `IsOpen` | mapped | tizen |
 | `TextColor` | mapped | tizen |
 | `Time` | mapped | tizen |
-

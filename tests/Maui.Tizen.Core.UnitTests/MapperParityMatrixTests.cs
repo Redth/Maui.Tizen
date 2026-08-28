@@ -32,7 +32,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 		/// <summary>
 		/// Keys that resolve through MAUI's chain here, are inert today, and whose implementation
-		/// belongs to the <b>Controls</b> layer rather than to this backend.
+		/// would belong to the <b>Controls</b> layer rather than to this backend.
 		/// </summary>
 		/// <remarks>
 		/// <para>
@@ -44,15 +44,10 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		/// deliberately does not do.
 		/// </para>
 		/// <para>
-		/// <b>They are still reported as <c>inherited</c>, not as a separate "covered" state.</b>
-		/// Matching sources do exist under <c>src/Maui.Tizen.Controls</c>, but that project is in no
-		/// compiled lane - it is raw imported source that only
-		/// <c>eng/import/normalize-layout.sh</c> refers to. Source present on disk but never
-		/// compiled, never executed and never tested is not coverage, and a distinct state would
-		/// have read as though these properties work on Tizen today. They do not.
-		/// <see cref="ControlsLayerFollowUpIsNotMistakenForCoverage"/> keeps that honest by failing
-		/// if the project ever does enter a lane, at which point the state can be revisited on
-		/// evidence.
+		/// The shipping Controls project now compiles a narrow startup/mapping bridge. That bridge
+		/// maps Label.LineBreakMode and accessibility, but not Button.LineBreakMode, ContentLayout,
+		/// or TextTransform. The raw imported files that mention these keys remain outside its
+		/// compile closure, so these Wave A keys are still reported as <c>inherited</c>.
 		/// </para>
 		/// </remarks>
 		public static readonly IReadOnlyDictionary<string, string> ControlsLayerFollowUp =
@@ -64,30 +59,35 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			};
 
 		/// <summary>
-		/// The Controls-layer follow-up must not be presented as coverage while that project is not
-		/// compiled anywhere.
+		/// The Controls-layer follow-up must match the shipping Controls compile closure.
 		/// </summary>
 		/// <remarks>
-		/// <para>
-		/// This encodes a review correction. An earlier revision gave these keys their own
-		/// <c>controls</c> state in the matrix on the strength of the sources existing, which
-		/// overstated reality: unbuilt source cannot be known to work, so the honest state is
-		/// <c>inherited</c> - reachable, inert.
-		/// </para>
-		/// <para>
-		/// The test fails in both directions. If the referenced files vanish, the follow-up note is
-		/// stale. If <c>src/Maui.Tizen.Controls</c> gains a build lane, the demotion is no longer
-		/// justified and the matrix should be revisited.
-		/// </para>
+		/// If the bridge starts compiling or binding any of these implementations, this fails and
+		/// forces the matrix to be re-measured rather than silently retaining stale <c>inherited</c>
+		/// classifications.
 		/// </remarks>
 		[Fact]
-		public void ControlsLayerFollowUpIsNotMistakenForCoverage()
+		public void ControlsLayerFollowUpMatchesCompiledBridge()
 		{
 			var controlsRoot = FindRepositoryDirectory(Path.Combine("src", "Maui.Tizen.Controls"));
+			var compiled = MSBuildEvaluation
+				.GetItemRelativePaths("src/Maui.Tizen.Controls/Maui.Tizen.Controls.csproj", "Compile")
+				.OrderBy(path => path, StringComparer.Ordinal)
+				.ToArray();
+
+			Assert.Equal(
+				new[]
+				{
+					"src/Maui.Tizen.Controls/Platform/TizenControlsHostingExtensions.cs",
+					"src/Maui.Tizen.Controls/Platform/TizenControlsMappings.cs",
+				},
+				compiled);
 
 			foreach (var (key, relativePath) in ControlsLayerFollowUp)
 			{
 				var file = Path.Combine(controlsRoot, relativePath);
+				var repositoryRelativePath = Path.GetRelativePath(TestRepositoryPaths.Root, file)
+					.Replace('\\', '/');
 
 				Assert.True(
 					File.Exists(file),
@@ -97,30 +97,16 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 					File.ReadAllText(file).Contains(key, StringComparison.Ordinal),
 					$"'{key}' is documented as Controls-layer follow-up in {relativePath}, but that " +
 					"file never mentions it - the note is stale.");
+
+				Assert.DoesNotContain(repositoryRelativePath, compiled);
 			}
 
-			// The demotion to `inherited` is only correct while the project really is uncompiled.
-			var lanes = new[]
-			{
-				Path.Combine("eng", "build-workload-free.sh"),
-				Path.Combine("tests", "Maui.Tizen.Core.RefPackCompile", "Maui.Tizen.Core.RefPackCompile.csproj"),
-				Path.Combine("tests", "Maui.Tizen.Core.UnitTests", "Maui.Tizen.Core.UnitTests.csproj"),
-				Path.Combine("eng", "Maui.Tizen.Core.Sources.props"),
-			};
+			var mappings = File.ReadAllText(Path.Combine(
+				controlsRoot, "Platform", "TizenControlsMappings.cs"));
 
-			foreach (var lane in lanes)
-			{
-				var path = Path.Combine(TestRepositoryPaths.Root, lane);
-				if (!File.Exists(path))
-					continue;
-
-				Assert.False(
-					File.ReadAllText(path).Contains("Maui.Tizen.Controls", StringComparison.Ordinal),
-					$"{lane} now builds src/Maui.Tizen.Controls. These keys were reported as " +
-					"`inherited` precisely because that project was never compiled, so the evidence " +
-					"has changed - re-measure them and update the matrix rather than leaving a " +
-					"stale demotion in place.");
-			}
+			Assert.DoesNotContain("ButtonHandler.Mapper.AppendToMapping", mappings, StringComparison.Ordinal);
+			Assert.DoesNotContain("ContentLayout", mappings, StringComparison.Ordinal);
+			Assert.DoesNotContain("TextTransform", mappings, StringComparison.Ordinal);
 		}
 
 		[Fact]
@@ -230,18 +216,15 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			sb.AppendLine("  and states it will be removed; border rendering is driven by the stroke and shape");
 			sb.AppendLine("  properties that replaced it.");
 			sb.AppendLine();
-			sb.AppendLine("`TextTransform`, `ContentLayout` and `Button.LineBreakMode` are `inherited`, and that is");
-			sb.AppendLine("a deliberate answer to a review question rather than an oversight. They are properties");
-			sb.AppendLine("of **Controls** types, not of the `Microsoft.Maui.*` interfaces this package consumes,");
-			sb.AppendLine("and upstream applies them from `Microsoft.Maui.Controls.Platform` rather than from a Core");
-			sb.AppendLine("handler - implementing them here would mean referencing Controls from the product");
-			sb.AppendLine("package, which this repository does not do. Matching sources do exist under");
-			sb.AppendLine("`src/Maui.Tizen.Controls`, but **that project is in no compiled lane**, so they are");
-			sb.AppendLine("unbuilt, unexecuted and untested. An earlier revision gave them a distinct `controls`");
-			sb.AppendLine("state on the strength of existing on disk; that overstated reality, because source");
-			sb.AppendLine("nobody compiles cannot be known to work. They are therefore reported exactly as what");
-			sb.AppendLine("they are today - reachable and inert - and `MapperParityMatrixTests` fails if the");
-			sb.AppendLine("project ever gains a lane, so the question gets revisited on evidence.");
+			sb.AppendLine("`TextTransform`, `ContentLayout` and `Button.LineBreakMode` remain `inherited` after");
+			sb.AppendLine("re-measuring the compiled Controls bridge. They are Controls properties that upstream");
+			sb.AppendLine("applies from `Microsoft.Maui.Controls.Platform`, not from the Core interfaces consumed");
+			sb.AppendLine("by these handlers. The shipping `Maui.Tizen.Controls` assembly currently compiles only");
+			sb.AppendLine("its startup/mapping bridge. That bridge maps **Label** `LineBreakMode` and accessibility;");
+			sb.AppendLine("it does not map **Button** `LineBreakMode`, `ContentLayout`, or `TextTransform`, and the");
+			sb.AppendLine("raw imported files that mention those keys remain outside the compile closure.");
+			sb.AppendLine("`ControlsLayerFollowUpMatchesCompiledBridge` pins that closure so adding an implementation");
+			sb.AppendLine("forces this matrix to be re-measured.");
 			sb.AppendLine();
 
 			var viewKeys = TizenViewMappers.ViewMapper.GetKeys().ToHashSet(StringComparer.Ordinal);
@@ -298,7 +281,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				sb.AppendLine();
 			}
 
-			return sb.ToString();
+			return sb.ToString().TrimEnd() + Environment.NewLine;
 		}
 
 		static string FindRepositoryFile(string relativePath) =>
