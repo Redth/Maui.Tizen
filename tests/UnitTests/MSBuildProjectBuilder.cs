@@ -74,6 +74,33 @@ public sealed class MSBuildProjectBuilder
 	/// </summary>
 	public bool LateOptIn { get; set; }
 
+	/// <summary>
+	/// When true, the backend arrives as a real <c>PackageReference</c> to the nupkg this test run
+	/// produced, rather than through explicit imports of the props and targets in the source tree.
+	/// </summary>
+	/// <remarks>
+	/// The explicit-import projects are the right shape for testing the build LOGIC: they are fast,
+	/// they need no pack, and they isolate the targets from packaging concerns. What they cannot
+	/// see is whether an application that merely references the package gets any of it. That
+	/// depends on NuGet's automatic import of <c>buildTransitive/*.props</c> and
+	/// <c>buildTransitive/*.targets</c>, on the file names matching the package id exactly, and on
+	/// the task assembly and its native dependencies being laid out where the packaged targets
+	/// look for them - none of which the source-tree imports exercise, because they hand the tasks
+	/// an explicit assembly path.
+	/// </remarks>
+	public bool ConsumeProducedPackage { get; set; }
+
+	/// <summary>
+	/// An isolated NuGet global-packages folder for the build, used by package-consuming projects.
+	/// </summary>
+	/// <remarks>
+	/// The produced package always carries the same version, so restoring it into the developer's
+	/// real global packages folder would install it once and then reuse that first extraction
+	/// forever - a later run would silently validate a package built from older sources. A stale
+	/// pass is worse than a failure, so these builds get their own folder.
+	/// </remarks>
+	public string? PackagesFolder { get; set; }
+
 	public MSBuildProjectBuilder WithProperty(string name, string value)
 	{
 		_properties.Add($"    <{name}>{value}</{name}>");
@@ -160,7 +187,9 @@ public sealed class MSBuildProjectBuilder
 		File.WriteAllText(Path.Combine(_root, "Directory.Build.props"), "<Project />");
 		File.WriteAllText(Path.Combine(_root, "Directory.Build.targets"), "<Project />");
 		File.WriteAllText(Path.Combine(_root, "Directory.Packages.props"), "<Project><PropertyGroup><ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally></PropertyGroup></Project>");
-		File.WriteAllText(Path.Combine(_root, "NuGet.config"), TestBase.ReadRepositoryNuGetConfig());
+		File.WriteAllText(
+			Path.Combine(_root, "NuGet.config"),
+			ConsumeProducedPackage ? TestBase.ReadNuGetConfigWithProducedPackages() : TestBase.ReadRepositoryNuGetConfig());
 
 		var propsImport = TestBase.Escape(Path.Combine(TestBase.BuildTransitiveDirectory, "Maui.Tizen.Build.Tasks.props"));
 		var targetsImport = TestBase.Escape(Path.Combine(TestBase.BuildTransitiveDirectory, "Maui.Tizen.Build.Tasks.targets"));
@@ -172,7 +201,11 @@ public sealed class MSBuildProjectBuilder
 		builder.AppendLine("    <OutputType>Exe</OutputType>");
 		builder.AppendLine("    <Nullable>disable</Nullable>");
 		builder.AppendLine("    <ImplicitUsings>disable</ImplicitUsings>");
-		builder.AppendLine($"    <_MauiTizenBuildTasksAssembly>{TestBase.Escape(TestBase.BuildTasksAssemblyPath)}</_MauiTizenBuildTasksAssembly>");
+
+		// A package-consuming project must NOT redirect the task assembly: the point is to load
+		// the one the package laid out, from the path the packaged targets compute themselves.
+		if (!ConsumeProducedPackage)
+			builder.AppendLine($"    <_MauiTizenBuildTasksAssembly>{TestBase.Escape(TestBase.BuildTasksAssemblyPath)}</_MauiTizenBuildTasksAssembly>");
 
 		if (!LateOptIn)
 			builder.AppendLine("    <ResizetizerPlatformType>tizen</ResizetizerPlatformType>");
@@ -182,10 +215,17 @@ public sealed class MSBuildProjectBuilder
 
 		builder.AppendLine("  </PropertyGroup>");
 
-		if (!LateOptIn)
+		if (!LateOptIn && !ConsumeProducedPackage)
 			builder.AppendLine($"""  <Import Project="{propsImport}" />""");
 
 		builder.AppendLine("  <ItemGroup>");
+		if (ConsumeProducedPackage)
+		{
+			// No Import anywhere for this package: NuGet's own buildTransitive auto-import is the
+			// mechanism under test.
+			builder.AppendLine($"""    <PackageReference Include="Maui.Tizen.Build.Tasks" Version="{TestBase.PackageVersion}" />""");
+		}
+
 		if (LateOptIn)
 		{
 			// Suppress NuGet's automatic import so the test controls the order explicitly.
@@ -230,7 +270,7 @@ public sealed class MSBuildProjectBuilder
 			builder.AppendLine("  </ItemGroup>");
 		}
 
-		if (!LateOptIn)
+		if (!LateOptIn && !ConsumeProducedPackage)
 			builder.AppendLine($"""  <Import Project="{targetsImport}" />""");
 
 		// After this package's targets, so a provider can append to MauiTizenAssetProviderTargets
@@ -280,6 +320,7 @@ public sealed class MSBuildProjectBuilder
 		      <_DumpProperty Include="MauiTizenUseBuiltInResizetizerSupport=$(MauiTizenUseBuiltInResizetizerSupport)" />
 		      <_DumpProperty Include="TizenManifestFile=$(TizenManifestFile)" />
 		      <_DumpProperty Include="MauiTizenIntermediateOutputPath=$(MauiTizenIntermediateOutputPath)" />
+		      <_DumpProperty Include="_MauiTizenBuildTasksAssembly=$(_MauiTizenBuildTasksAssembly)" />
 		    </ItemGroup>
 		    <WriteLinesToFile File="$(MSBuildProjectDirectory)/dump-properties.txt" Lines="@(_DumpProperty)" Overwrite="true" WriteOnlyWhenDifferent="false" />
 		  </Target>
@@ -305,6 +346,9 @@ public sealed class MSBuildProjectBuilder
 		// Keep the build hermetic, quiet, and off the machine-wide MSBuild node/server pool.
 		foreach (var isolation in TestBase.ConfigureIsolatedMSBuild(startInfo))
 			startInfo.ArgumentList.Add(isolation);
+
+		if (!string.IsNullOrEmpty(PackagesFolder))
+			startInfo.Environment["NUGET_PACKAGES"] = PackagesFolder;
 
 		using var process = Process.Start(startInfo)!;
 		var output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();

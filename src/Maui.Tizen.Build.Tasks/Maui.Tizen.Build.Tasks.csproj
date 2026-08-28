@@ -161,8 +161,30 @@
 
   <Target Name="_MauiTizenAddPackageAssemblies" BeforeTargets="_GetPackageFiles" DependsOnTargets="$(_MauiTizenPackDependsOn)">
     <ItemGroup>
-      <None Include="$(TargetDir)Maui.Tizen.Build.Tasks.dll" Pack="true" PackagePath="buildTransitive\" />
-      <None Include="$(TargetDir)SkiaSharp.dll" Pack="true" PackagePath="buildTransitive\" />
+      <!--
+        The whole managed runtime closure, not just the two assemblies whose names we happen to
+        know.
+
+        $(TargetDir) is that closure: CopyLocalLockFileAssemblies=true above makes the build copy
+        every runtime dependency next to the task assembly, and MSBuild resolves a task's
+        dependencies by probing the directory the task was loaded from. Listing files by hand
+        shipped Maui.Tizen.Build.Tasks.dll and SkiaSharp.dll only, and SkiaSharp's netstandard2.0
+        build additionally needs System.Memory, System.Buffers, System.Numerics.Vectors and
+        System.Runtime.CompilerServices.Unsafe. Those are types the .NET Core MSBuild carries in
+        its shared framework, so `dotnet build` never noticed - while msbuild.exe on .NET Framework,
+        which is what Visual Studio runs, has no such guarantee and would fail to load the task.
+
+        A glob rather than a longer hand-written list, because the failure mode of the hand-written
+        list is not "the build breaks", it is "the build breaks on someone else's host": the next
+        SkiaSharp bump that adds a dependency would silently reintroduce exactly this gap.
+        PackageContentTests asserts the closure is complete by reading the shipped assemblies'
+        references, so a package with a hole in it fails here rather than on a consumer's machine.
+
+        libSkiaSharp is excluded: on Windows the host native is copied flat into $(TargetDir) as a
+        .dll, and it is architecture specific - the packed natives are laid out per architecture
+        below.
+      -->
+      <None Include="$(TargetDir)*.dll" Exclude="$(TargetDir)libSkiaSharp*.dll" Pack="true" PackagePath="buildTransitive\" />
 
       <!-- macOS -->
       <None Include="$(PkgSkiaSharp_NativeAssets_macOS)\runtimes\osx\native\libSkiaSharp.dylib"

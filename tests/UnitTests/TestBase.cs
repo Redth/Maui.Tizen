@@ -92,6 +92,19 @@ public abstract class TestBase : IDisposable
 	public static string ReadRepositoryNuGetConfig()
 		=> File.ReadAllText(Path.Combine(RepositoryRoot, "nuget.config"));
 
+	/// <summary>
+	/// The repository's NuGet configuration plus this run's produced packages, offered as a local
+	/// source that is mapped so it can only ever serve this repository's own package IDs.
+	/// </summary>
+	internal static string ReadNuGetConfigWithProducedPackages()
+		=> ReadRepositoryNuGetConfig()
+			.Replace(
+				"</packageSources>",
+				$"    <add key=\"produced\" value=\"{Escape(ProducedPackages.Directory)}\" />{Environment.NewLine}  </packageSources>")
+			.Replace(
+				"</packageSourceMapping>",
+				$"    <packageSource key=\"produced\">{Environment.NewLine}      <package pattern=\"Maui.Tizen.*\" />{Environment.NewLine}    </packageSource>{Environment.NewLine}  </packageSourceMapping>");
+
 	private static string ReadMetadata(string key)
 	{
 		var value = typeof(TestBase).Assembly

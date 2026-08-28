@@ -4,12 +4,13 @@
     TEST FIXTURE. This is not a shipping file and is imported by nothing except
     tests/UnitTests/TizenBlazorAssetHandoffTests.cs.
 
-    The real implementation lives in Maui.Tizen.BlazorWebView:
-    src/Maui.Tizen.BlazorWebView/buildTransitive/Maui.Tizen.BlazorWebView.targets, which owns the
-    StaticWebAsset -> MauiAsset half and ships it to applications. This fixture is a stand-in for
-    "some package registers an asset provider", kept deliberately close to that implementation so
-    the tests exercise a realistic provider, but it is NOT a second source of truth: if the two
-    disagree, the shipping one in Maui.Tizen.BlazorWebView wins.
+    It is a stand-in for "some package registers an asset provider", written in the shape the
+    Blazor provider is intended to take when Maui.Tizen.BlazorWebView can ship one:
+    a buildTransitive targets file in that package, owning the StaticWebAsset -> MauiAsset half.
+    NOTE that no such file exists in this repository yet - Maui.Tizen.BlazorWebView cannot be
+    packed at all while the Samsung workload gate stands - so this fixture is not a duplicate of
+    a shipping implementation, and docs/asset-providers.md says so rather than describing files
+    an application could reference today.
 
     What these tests actually own is the half on this side of the boundary:
 

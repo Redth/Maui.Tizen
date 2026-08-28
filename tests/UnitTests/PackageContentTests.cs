@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Reflection.Metadata;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Xunit;
@@ -371,6 +372,162 @@ public class PackageContentTests : TestBase
 			.GetFiles(destination, "*", SearchOption.AllDirectories)
 			.Select(p => (Name: Path.GetFileName(p), Path: p))
 			.ToList();
+	}
+
+	/// <summary>
+	/// The task assembly's full managed dependency closure must ship beside it.
+	/// </summary>
+	/// <remarks>
+	/// These four are SkiaSharp's netstandard2.0 dependencies. They are present in the .NET Core
+	/// MSBuild's shared framework, so <c>dotnet build</c> loads the task with or without them -
+	/// which is exactly why their absence was invisible here. On .NET Framework msbuild.exe, the
+	/// host Visual Studio uses, nothing guarantees them next to a task assembly loaded from a
+	/// package folder, and the task fails to load.
+	/// </remarks>
+	[Theory]
+	[InlineData("buildTransitive/System.Memory.dll")]
+	[InlineData("buildTransitive/System.Buffers.dll")]
+	[InlineData("buildTransitive/System.Numerics.Vectors.dll")]
+	[InlineData("buildTransitive/System.Runtime.CompilerServices.Unsafe.dll")]
+	public void BuildTasksPackageShipsTheManagedDependencyClosure(string entry)
+	{
+		Assert.Contains(entry, EntriesOf("Maui.Tizen.Build.Tasks"));
+	}
+
+	/// <summary>
+	/// Assemblies the MSBuild host is guaranteed to provide on BOTH .NET Core MSBuild and .NET
+	/// Framework msbuild.exe. Anything else a shipped assembly references has to be in the package.
+	/// </summary>
+	private static readonly HashSet<string> HostProvidedAssemblies = new(StringComparer.OrdinalIgnoreCase)
+	{
+		// The netstandard2.0 facade and the .NET Framework core, both present in either host.
+		"netstandard",
+		"mscorlib",
+		"System",
+		"System.Core",
+
+		// MSBuild's own contract, which is by definition loaded by whatever is running the task.
+		"Microsoft.Build.Framework",
+		"Microsoft.Build.Utilities.Core",
+		"Microsoft.Build.Tasks.Core",
+	};
+
+	/// <summary>
+	/// Every assembly reference of every managed assembly in the package must resolve, either
+	/// inside the package or from the MSBuild host.
+	/// </summary>
+	/// <remarks>
+	/// The named-entry assertions above pin today's closure; this one pins the RULE, so the next
+	/// SkiaSharp bump that introduces a new dependency fails here instead of on a consumer's
+	/// machine. It reads the shipped assemblies' metadata rather than the project file, so it
+	/// cannot be satisfied by a packing declaration that did not actually take effect.
+	/// </remarks>
+	[Fact]
+	public void EveryShippedAssemblyCanResolveItsReferences()
+	{
+		// Flat, beside the task assembly: that is the folder MSBuild probes for a task's
+		// dependencies. Architecture sub-folders hold natives, which have no managed references.
+		var managed = ExtractedPackageFiles("Maui.Tizen.Build.Tasks")
+			.Where(f => f.Name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+			.Where(f => string.Equals(Path.GetFileName(Path.GetDirectoryName(f.Path)), "buildTransitive", StringComparison.Ordinal))
+			.ToList();
+
+		Assert.NotEmpty(managed);
+
+		var shipped = new HashSet<string>(
+			managed.Select(f => Path.GetFileNameWithoutExtension(f.Name)),
+			StringComparer.OrdinalIgnoreCase);
+
+		// The task assembly itself must be one of them, otherwise this test is asserting nothing.
+		Assert.Contains("Maui.Tizen.Build.Tasks", shipped);
+
+		var unsatisfied = new List<string>();
+
+		foreach (var (name, path) in managed)
+		{
+			foreach (var reference in AssemblyReferencesOf(path))
+			{
+				if (!shipped.Contains(reference) && !HostProvidedAssemblies.Contains(reference))
+					unsatisfied.Add($"{name} -> {reference}");
+			}
+		}
+
+		Assert.True(
+			unsatisfied.Count == 0,
+			"The package does not ship the full managed dependency closure of its MSBuild task. "
+				+ "These references resolve on .NET Core MSBuild only by accident of the shared framework "
+				+ "and would fail to load under .NET Framework msbuild.exe: "
+				+ string.Join(", ", unsatisfied));
+	}
+
+	/// <summary>Assembly reference names of a managed assembly; empty for a native binary.</summary>
+	private static IReadOnlyList<string> AssemblyReferencesOf(string path)
+	{
+		using var stream = File.OpenRead(path);
+		using var peReader = new System.Reflection.PortableExecutable.PEReader(stream);
+
+		if (!peReader.HasMetadata)
+			return Array.Empty<string>();
+
+		var reader = peReader.GetMetadataReader();
+
+		return reader.AssemblyReferences
+			.Select(handle => reader.GetString(reader.GetAssemblyReference(handle).Name))
+			.ToList();
+	}
+
+	/// <summary>
+	/// The documented build host matrix and the shipped natives must agree, in both directions.
+	/// </summary>
+	/// <remarks>
+	/// A host matrix is only useful if it is true, and a table in a markdown file rots silently.
+	/// Asserting it both ways means a native that is dropped from the package fails here, and so
+	/// does one that is added without being written down - which is the case that matters for
+	/// musl ARM64, where the honest answer is "no binary exists upstream" and the build has to
+	/// fail with MAUITIZEN1012 rather than load a glibc binary.
+	/// </remarks>
+	[Fact]
+	public void TheDocumentedHostMatrixMatchesTheShippedNatives()
+	{
+		var architecture = File.ReadAllText(Path.Combine(RepositoryRoot, "docs", "architecture.md"));
+
+		var matrix = Regex.Match(
+			architecture,
+			@"## Build host matrix(?<body>.*?)^## ",
+			RegexOptions.Singleline | RegexOptions.Multiline);
+
+		Assert.True(matrix.Success, "docs/architecture.md no longer documents a build host matrix.");
+
+		var body = matrix.Groups["body"].Value;
+
+		// The unsupported host is named, with the diagnostic a developer will actually see.
+		Assert.Contains("linux-musl-arm64", body, StringComparison.Ordinal);
+		Assert.Contains("MAUITIZEN1012", body, StringComparison.Ordinal);
+
+		var documented = Regex
+			.Matches(body, @"`(buildTransitive/[^`]+)`")
+			.Select(m => m.Groups[1].Value)
+			.ToHashSet(StringComparer.Ordinal);
+
+		Assert.NotEmpty(documented);
+
+		var shippedNatives = EntriesOf("Maui.Tizen.Build.Tasks")
+			.Where(e => Path.GetFileName(e).StartsWith("libSkiaSharp", StringComparison.Ordinal))
+			.ToList();
+
+		Assert.NotEmpty(shippedNatives);
+
+		// Everything the matrix promises is in the package...
+		foreach (var entry in documented.Where(d => Path.GetFileName(d).StartsWith("libSkiaSharp", StringComparison.Ordinal)))
+			Assert.Contains(entry, shippedNatives);
+
+		// ...and the package ships no native the matrix does not mention.
+		foreach (var entry in shippedNatives)
+		{
+			Assert.True(
+				documented.Contains(entry),
+				$"'{entry}' ships but is absent from the build host matrix in docs/architecture.md.");
+		}
 	}
 
 	private static string ReadNuspec(string packageId)

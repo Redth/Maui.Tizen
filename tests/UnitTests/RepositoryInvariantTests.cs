@@ -838,4 +838,38 @@ public class RepositoryInvariantTests
 		// It has to invoke msbuild.exe; `dotnet build` would run on .NET and prove nothing.
 		Assert.Matches(new Regex(@"^\s*msbuild ", RegexOptions.Multiline), workflow);
 	}
+
+	/// <summary>
+	/// The full-framework lane must consume the PACKAGE, not the build output directory.
+	/// </summary>
+	/// <remarks>
+	/// The lane previously built the tasks and pointed <c>_MauiTizenBuildTasksAssembly</c> at
+	/// artifacts/bin/.../netstandard2.0, which carries the whole runtime closure because of
+	/// CopyLocalLockFileAssemblies. Every dependency therefore resolved from beside the task
+	/// assembly regardless of whether the package shipped it - and the package did not ship
+	/// System.Memory and its three companions, which .NET Framework MSBuild does not provide.
+	/// The only lane that could have observed the gap was arranged so that it could not, which
+	/// is the failure mode this test pins shut.
+	/// </remarks>
+	[Fact]
+	public void TheFullFrameworkLaneConsumesTheProducedPackage()
+	{
+		var workflow = ReadRepoFile(Path.Combine(".github", "workflows", "ci.yml"));
+
+		var job = workflow[workflow.IndexOf("windows-full-framework:", StringComparison.Ordinal)..];
+
+		// Comment lines are stripped: the job explains the defect below in prose, and naming a
+		// thing in order to say it must not be used is not the same as using it.
+		var executable = string.Join(
+			'\n',
+			job.Replace("\r\n", "\n").Split('\n').Where(l => !l.TrimStart().StartsWith("#", StringComparison.Ordinal)));
+
+		Assert.Contains("dotnet pack src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj", executable);
+		Assert.Contains("""<PackageReference Include="Maui.Tizen.Build.Tasks" Version="$version" />""", executable);
+
+		// No redirect to a build output folder, and no import of the source-tree targets: both
+		// would bypass exactly what the package has to get right.
+		Assert.DoesNotContain("_MauiTizenBuildTasksAssembly", executable);
+		Assert.DoesNotContain("Maui.Tizen.Build.Tasks.targets", executable);
+	}
 }

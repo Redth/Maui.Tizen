@@ -122,7 +122,15 @@ jobs:
   # Windows agent. It is deliberately NOT faked locally with a stub host or a conditional
   # skip: a green check that proves nothing is worse than a missing one.
   #
-  # This is the last lane rather than a required one because it depends on the Visual Studio
+  # What it runs is the PACKAGE, not the source tree: the probe project references the nupkg
+  # this job packs, so the buildTransitive auto-import, the packaged task assembly path and
+  # the shipped managed dependency closure are all exercised as a consumer would get them.
+  #
+  # ENFORCEMENT of that closure does not live here. `PackageContentTests` reads the produced
+  # package's assemblies and fails the required workload-free lane if any reference resolves
+  # neither inside the package nor from the MSBuild host, which is a check that runs on every
+  # platform. This job is the EXECUTION proof of the same property on the host where it
+  # actually matters, and it stays advisory only because it depends on the Visual Studio
   # MSBuild present on the runner image. Promote it to required once it has been stable for
   # a few runs.
   # ---------------------------------------------------------------------------
@@ -140,8 +148,16 @@ jobs:
 
       - uses: microsoft/setup-msbuild@v2
 
-      - name: Build the tasks
-        run: dotnet build src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj -c Release
+      - name: Pack the tasks
+        # PACK, not just build.
+        #
+        # This lane used to build the tasks and then point the probe project's
+        # _MauiTizenBuildTasksAssembly at artifacts/bin/.../netstandard2.0. That directory
+        # holds the FULL runtime closure (CopyLocalLockFileAssemblies), so the probe loaded
+        # System.Memory and friends from beside the task assembly whether or not the package
+        # shipped them - and the package did not. The one lane that could have caught the
+        # gap was arranged so that it could not.
+        run: dotnet pack src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj -c Release -o "${{ runner.temp }}/local-feed"
 
       - name: Rasterize through MSBuild.exe
         shell: pwsh
@@ -149,13 +165,36 @@ jobs:
           # A minimal project that opts into the external-backend contract and drives the
           # image, splash and manifest generators - i.e. the code paths that call into
           # native SkiaSharp from inside the task assembly.
+          #
+          # The backend arrives as a PackageReference to the nupkg produced above, so what
+          # runs here is the packaged layout: NuGet's automatic buildTransitive import, the
+          # task assembly at the path the packaged targets compute, and the managed
+          # dependency closure the package ships. On .NET Framework MSBuild that closure is
+          # not optional - System.Memory, System.Buffers, System.Numerics.Vectors and
+          # System.Runtime.CompilerServices.Unsafe are provided by the .NET MSBuild's shared
+          # framework and by nothing here.
           $ErrorActionPreference = 'Stop'
+
+          $feed = Join-Path $env:RUNNER_TEMP 'local-feed'
+          $nupkg = Get-ChildItem $feed -Filter 'Maui.Tizen.Build.Tasks.*.nupkg' |
+            Where-Object { $_.Name -notlike '*.symbols.nupkg' } |
+            Select-Object -First 1
+          if (-not $nupkg) { throw "No Maui.Tizen.Build.Tasks package was produced in $feed." }
+
+          $version = $nupkg.BaseName -replace '^Maui\.Tizen\.Build\.Tasks\.', ''
+          Write-Host "Consuming Maui.Tizen.Build.Tasks $version from $feed"
 
           $probe = Join-Path $env:RUNNER_TEMP 'fullframework-probe'
           New-Item -ItemType Directory -Force -Path $probe | Out-Null
-          Copy-Item nuget.config (Join-Path $probe 'NuGet.config')
           Set-Content (Join-Path $probe 'Directory.Build.props')   '<Project />'
           Set-Content (Join-Path $probe 'Directory.Build.targets') '<Project />'
+
+          # The repository's own feeds plus the local one, mapped so the local feed can only
+          # ever serve this repository's package IDs.
+          $config = Get-Content nuget.config -Raw
+          $config = $config -replace '</packageSources>', ("    <add key=""local"" value=""$feed"" />`r`n  </packageSources>")
+          $config = $config -replace '</packageSourceMapping>', ("    <packageSource key=""local"">`r`n      <package pattern=""Maui.Tizen.*"" />`r`n    </packageSource>`r`n  </packageSourceMapping>")
+          Set-Content (Join-Path $probe 'NuGet.config') $config
 
           $app = Join-Path $probe 'TizenApp'
           New-Item -ItemType Directory -Force -Path (Join-Path $app 'Resources\AppIcon') | Out-Null
@@ -180,9 +219,9 @@ jobs:
 
           $resizetizer = ([xml](Get-Content Directory.Packages.props)).
             SelectSingleNode("//PackageVersion[@Include='Microsoft.Maui.Resizetizer']").Version
-          $tasks = Join-Path $PWD 'artifacts\bin\Maui.Tizen.Build.Tasks\Release\netstandard2.0\Maui.Tizen.Build.Tasks.dll'
-          $transitive = Join-Path $PWD 'src\Maui.Tizen.Build.Tasks\buildTransitive'
 
+          # No Import of this package and no _MauiTizenBuildTasksAssembly override: the
+          # buildTransitive auto-import is part of what is being tested.
           @"
           <Project Sdk="Microsoft.NET.Sdk">
             <PropertyGroup>
@@ -191,19 +230,21 @@ jobs:
               <ResizetizerPlatformType>tizen</ResizetizerPlatformType>
               <ApplicationId>com.contoso.fullframework</ApplicationId>
               <ApplicationTitle>Contoso</ApplicationTitle>
-              <_MauiTizenBuildTasksAssembly>$tasks</_MauiTizenBuildTasksAssembly>
             </PropertyGroup>
-            <Import Project="$transitive\Maui.Tizen.Build.Tasks.props" />
             <ItemGroup>
               <PackageReference Include="Microsoft.Maui.Resizetizer" Version="$resizetizer" />
+              <PackageReference Include="Maui.Tizen.Build.Tasks" Version="$version" />
             </ItemGroup>
             <ItemGroup>
               <MauiIcon Include="Resources\AppIcon\appicon.svg" Color="#512BD4" />
               <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
             </ItemGroup>
-            <Import Project="$transitive\Maui.Tizen.Build.Tasks.targets" />
           </Project>
           "@ | Set-Content (Join-Path $app 'TizenApp.csproj')
+
+          # An isolated packages folder: the produced package's version does not change
+          # between runs, so a shared folder could serve an older extraction of it.
+          $env:NUGET_PACKAGES = Join-Path $env:RUNNER_TEMP 'packages'
 
           dotnet restore (Join-Path $app 'TizenApp.csproj')
           if ($LASTEXITCODE -ne 0) { throw 'restore failed' }

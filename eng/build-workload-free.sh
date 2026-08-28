@@ -54,6 +54,25 @@ check() {
   return 1
 }
 
+# ---------------------------------------------------------------------------
+# Package output for this lane.
+#
+# ISOLATED, and emptied on every run.
+#
+# Packing used to land in the shared $(PackageOutputPath) (artifacts/packages/), which every
+# other pack in the repository also writes to, and the README probe then picked its package
+# with `ls -t | head -1`. That reads whatever happened to be newest: a package from a
+# different branch, from before a fix, or from a partially completed run. The check would
+# then pass or fail on the strength of an artifact this run did not produce - and because
+# the version string never changes, the file name gives nothing away.
+#
+# A private directory that starts empty means every assertion below is about THIS run's
+# output, and the provenance check that follows can hold the packages to the current commit.
+# ---------------------------------------------------------------------------
+PACK_OUTPUT="$REPO_ROOT/artifacts/packages/workload-free"
+rm -rf "$PACK_OUTPUT"
+mkdir -p "$PACK_OUTPUT"
+
 info "SDK"
 "$DOTNET" --version | sed 's/^/  /'
 
@@ -178,8 +197,8 @@ check "restore package graph probe" "$DOTNET" restore eng/tests/PackageGraphProb
 # about incorrectly in either direction.
 # ---------------------------------------------------------------------------
 info "Packing"
-if check "pack README probe" "$DOTNET" pack eng/tests/PackReadmeProbe/PackReadmeProbe.csproj --no-restore -c Release; then
-  README_NUPKG="$(ls -t "$REPO_ROOT"/artifacts/packages/Maui.Tizen.Internal.PackReadmeProbe.*.nupkg 2>/dev/null | head -1 || true)"
+if check "pack README probe" "$DOTNET" pack eng/tests/PackReadmeProbe/PackReadmeProbe.csproj --no-restore -c Release "-p:PackageOutputPath=$PACK_OUTPUT"; then
+  README_NUPKG="$(ls -t "$PACK_OUTPUT"/Maui.Tizen.Internal.PackReadmeProbe.*.nupkg 2>/dev/null | head -1 || true)"
   # Read the archive with python3 rather than unzip. python3 is already a hard dependency
   # of this script, whereas unzip is not present in the dotnet/sdk container images - and a
   # missing unzip is indistinguishable from a missing README, so this check reported a
@@ -253,8 +272,65 @@ fi
 # ---------------------------------------------------------------------------
 info "Package shape"
 for proj in "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj" "src/Maui.Tizen.Templates/Maui.Tizen.Templates.csproj"; do
-  check "pack    $(basename "$proj")" "$DOTNET" pack "$proj" --no-build -c Release
+  check "pack    $(basename "$proj")" "$DOTNET" pack "$proj" --no-build -c Release "-p:PackageOutputPath=$PACK_OUTPUT"
 done
+
+# ---------------------------------------------------------------------------
+# 5c. Provenance of the packages just produced.
+#
+# Every package carries a <repository commit="..."> stamp, and consumers use it to find the
+# sources a binary came from. A stamp that does not match the commit being built is worse
+# than none: it points confidently at the wrong tree.
+#
+# The isolated output directory above is what makes this checkable - in a shared directory
+# the newest matching file may be from another branch entirely, and the assertion would be
+# about that package instead. Here every .nupkg present was produced by this run, so all of
+# them must name this HEAD.
+#
+# It also catches the case where the stamp goes missing altogether (SourceLink failing to
+# resolve the git directory in a worktree or a shallow CI clone, say), because a package
+# with no repository element fails the comparison rather than skipping it.
+# ---------------------------------------------------------------------------
+info "Package provenance"
+if HEAD_COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null)" && [[ -n "$HEAD_COMMIT" ]]; then
+  check "packed nuspec repository commit is $HEAD_COMMIT" env "MAUI_TIZEN_HEAD=$HEAD_COMMIT" "MAUI_TIZEN_PACK_OUTPUT=$PACK_OUTPUT" python3 - <<'PY'
+import glob, os, re, sys, zipfile
+
+expected = os.environ["MAUI_TIZEN_HEAD"]
+output = os.environ["MAUI_TIZEN_PACK_OUTPUT"]
+
+packages = sorted(
+    p for p in glob.glob(os.path.join(output, "*.nupkg"))
+    if not p.endswith(".symbols.nupkg")
+)
+
+if not packages:
+    sys.exit(f"no packages were produced in '{output}'")
+
+problems = []
+for package in packages:
+    with zipfile.ZipFile(package) as archive:
+        names = [n for n in archive.namelist() if n.endswith(".nuspec")]
+        if not names:
+            problems.append(f"{os.path.basename(package)}: no .nuspec")
+            continue
+        nuspec = archive.read(names[0]).decode("utf-8-sig")
+
+    match = re.search(r'<repository\b[^>]*\bcommit="([0-9a-f]+)"', nuspec)
+    if not match:
+        problems.append(f"{os.path.basename(package)}: no repository commit stamp")
+    elif match.group(1) != expected:
+        problems.append(f"{os.path.basename(package)}: stamped {match.group(1)}, expected {expected}")
+
+if problems:
+    sys.exit("stale or missing provenance:\n  " + "\n  ".join(problems))
+
+print(f"{len(packages)} package(s) stamped with {expected}")
+PY
+else
+  fail "could not resolve HEAD, so package provenance could not be checked"
+  FAILURES=$((FAILURES + 1))
+fi
 
 # ---------------------------------------------------------------------------
 # 6. Report the Tizen gate explicitly.

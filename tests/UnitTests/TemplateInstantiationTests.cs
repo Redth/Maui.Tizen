@@ -395,21 +395,7 @@ public class TemplateInstantiationTests : TestBase
 	/// this test run produced.
 	/// </summary>
 	private static void WriteRestoreConfiguration(string directory)
-	{
-		var repositoryConfig = ReadRepositoryNuGetConfig();
-
-		// The produced packages are added as a local source, and mapped so they can only serve
-		// the repository's own IDs.
-		var withLocal = repositoryConfig
-			.Replace(
-				"</packageSources>",
-				$"    <add key=\"produced\" value=\"{Escape(ProducedPackages.Directory)}\" />{Environment.NewLine}  </packageSources>")
-			.Replace(
-				"</packageSourceMapping>",
-				$"    <packageSource key=\"produced\">{Environment.NewLine}      <package pattern=\"Maui.Tizen.*\" />{Environment.NewLine}    </packageSource>{Environment.NewLine}  </packageSourceMapping>");
-
-		File.WriteAllText(Path.Combine(directory, "NuGet.config"), withLocal);
-	}
+		=> File.WriteAllText(Path.Combine(directory, "NuGet.config"), ReadNuGetConfigWithProducedPackages());
 
 	private static (int ExitCode, string Output) TryRestore(string projectPath, string packagesFolder, params string[] extraArguments)
 	{

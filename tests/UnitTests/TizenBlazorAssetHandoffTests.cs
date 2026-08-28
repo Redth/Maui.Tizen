@@ -25,16 +25,18 @@ namespace Maui.Tizen.UnitTests;
 public class TizenBlazorAssetHandoffTests : TestBase
 {
 	/// <summary>
-	/// A stand-in for a package that registers an asset provider. The shipping implementation of
-	/// this half lives in Maui.Tizen.BlazorWebView; see the fixture's own header.
+	/// A stand-in for a package that registers an asset provider. No shipping implementation of
+	/// this half exists yet - it is intended to live in Maui.Tizen.BlazorWebView, which cannot be
+	/// packed while the Samsung workload gate stands. See the fixture's own header and
+	/// docs/asset-providers.md.
 	/// </summary>
 	private static string AssetProviderFixture =>
 		Path.Combine(RepositoryRoot, "tests", "UnitTests", "fixtures", "BlazorAssetProvider.targets");
 
 	/// <summary>
 	/// Builds a Razor application that references the WebView package and imports both the
-	/// reference asset provider and this package's targets, exactly as a real app would end up
-	/// after referencing Maui.Tizen.BlazorWebView.
+	/// reference asset provider and this package's targets, which is the arrangement a real app
+	/// would end up with once Maui.Tizen.BlazorWebView ships that provider.
 	/// </summary>
 	private (MSBuildProjectBuilder App, BuildResult Result) BuildBlazorApp(
 		bool includeDuplicateProvider = false,

@@ -18,12 +18,7 @@ public class TizenTargetsTests : TestBase
 	{
 		var builder = new MSBuildProjectBuilder(root ?? CreateTempDirectory("maui-tizen-msbuild")) { LateOptIn = lateOptIn };
 
-		builder.WriteSvg("Resources/AppIcon/appicon.svg");
-		builder.WriteSvg("Resources/Splash/splash.svg", "#FFFFFF");
-		builder.WriteSvg("Resources/Images/logo.svg", "#00FF00");
-		builder.WriteText("Resources/Fonts/TestFont.ttf", "not-a-real-font-but-a-stable-file");
-		builder.WriteText("Resources/Raw/data.json", "{}");
-		builder.WriteTizenManifest();
+		WriteAppSources(builder);
 
 		builder
 			.WithProperty("ApplicationId", "com.contoso.tizenapp")
@@ -38,8 +33,75 @@ public class TizenTargetsTests : TestBase
 		return builder;
 	}
 
+	/// <summary>
+	/// Writes the application's resource files. Separate from <see cref="CreateApp"/> so a
+	/// two-build test can lay the sources down once and then re-declare the project without
+	/// touching them.
+	/// </summary>
+	private static void WriteAppSources(MSBuildProjectBuilder builder)
+	{
+		builder.WriteSvg("Resources/AppIcon/appicon.svg");
+		builder.WriteSvg("Resources/Splash/splash.svg", "#FFFFFF");
+		builder.WriteSvg("Resources/Images/logo.svg", "#00FF00");
+		builder.WriteText("Resources/Fonts/TestFont.ttf", "not-a-real-font-but-a-stable-file");
+		builder.WriteText("Resources/Raw/data.json", "{}");
+		builder.WriteTizenManifest();
+	}
+
 	private static void AssertBuildSucceeded(BuildResult result)
 		=> Assert.True(result.Success, "Build failed:" + Environment.NewLine + result.Output);
+
+	/// <summary>
+	/// Re-declares the same application in a directory an earlier build already used, WITHOUT
+	/// rewriting any source file.
+	/// </summary>
+	/// <remarks>
+	/// This is what makes the two-build mutation tests below mean anything. <see cref="CreateApp"/>
+	/// writes the SVGs and the manifest every time it is called, so calling it twice bumps their
+	/// timestamps and the whole pipeline is out of date for a reason that has nothing to do with
+	/// the metadata under test - the test would then pass with or without the fix. Here only the
+	/// project file changes, which is exactly the state a user reaches by editing an item's
+	/// metadata in their .csproj: no content changed, only what the build was told about it.
+	/// </remarks>
+	private static MSBuildProjectBuilder RedeclareApp(
+		string root,
+		(string Name, string Value)[]? icon = null,
+		(string Name, string Value)[]? splash = null,
+		bool withSplash = true)
+	{
+		var builder = new MSBuildProjectBuilder(root);
+
+		builder
+			.WithProperty("ApplicationId", "com.contoso.tizenapp")
+			.WithProperty("ApplicationTitle", "Contoso Tizen")
+			.WithProperty("ApplicationDisplayVersion", "1.2.3")
+			.WithItem("MauiIcon", "Resources\\AppIcon\\appicon.svg", icon ?? new[] { ("Color", "#512BD4") });
+
+		if (withSplash)
+			builder.WithItem("MauiSplashScreen", "Resources\\Splash\\splash.svg", splash ?? new[] { ("Color", "#512BD4"), ("BaseSize", "128,128") });
+
+		builder
+			.WithItem("MauiImage", "Resources\\Images\\logo.svg")
+			.WithItem("MauiFont", "Resources\\Fonts\\TestFont.ttf")
+			.WithItem("MauiAsset", "Resources\\Raw\\data.json", ("LogicalName", "data.json"));
+
+		return builder;
+	}
+
+	private static string IntermediateDirectory(MSBuildProjectBuilder app, BuildResult result)
+		=> Path.Combine(app.ProjectDirectory, result.Property("MauiTizenIntermediateOutputPath"));
+
+	private static string SplashDirectory(MSBuildProjectBuilder app, BuildResult result)
+		=> Path.Combine(IntermediateDirectory(app, result), GenerateTizenSplashScreens.SplashDirectoryName);
+
+	/// <summary>File name to content hash for every composed splash image.</summary>
+	private static IReadOnlyDictionary<string, string> HashSplashImages(string splashDirectory)
+		=> Directory
+			.GetFiles(splashDirectory, "*.png")
+			.ToDictionary(
+				f => Path.GetFileName(f),
+				f => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(f))),
+				StringComparer.Ordinal);
 
 	[Fact]
 	public void EarlyOptInProducesTizenTpkInputs()
@@ -852,5 +914,277 @@ public class TizenTargetsTests : TestBase
 		AssertBuildSucceeded(renamed.Build());
 
 		Assert.Contains("com.contoso.renamedapp", File.ReadAllText(manifestPath));
+	}
+
+	/// <summary>
+	/// Changing only <c>MauiIcon</c>'s <c>Link</c> alias must regenerate the manifest so it names
+	/// the icon the build now produces.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The manifest's icon element is <c>xhdpi/&lt;OutputName&gt;.xhigh.png</c>, and OutputName is
+	/// the <c>Link</c> alias when one is present. Link was not recorded in the manifest inputs
+	/// file, so this mutation changed no file the manifest target watched: the manifest was
+	/// skipped as up to date and kept pointing at <c>appicon.xhigh.png</c> while the Resizetizer
+	/// had renamed every generated icon to <c>brandicon.*</c> and deleted the old ones. The
+	/// application then installed with an icon element resolving to nothing.
+	/// </para>
+	/// <para>
+	/// Same intermediate directory, no source file rewritten - only the metadata changes, which is
+	/// the only state in which the defect exists.
+	/// </para>
+	/// <para>
+	/// The application deliberately has NO splash screen. With one, the renamed icon images make
+	/// splash composition out of date, which rewrites the splash map, which is itself a manifest
+	/// input - so the manifest would be regenerated for an unrelated reason and the test would
+	/// pass against the defect it exists to catch. An icon-only application is a perfectly
+	/// ordinary shape and is the one that isolates this input.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void ChangingTheIconAliasRegeneratesTheManifestAndDropsTheOldIcon()
+	{
+		var root = CreateTempDirectory("maui-tizen-icon-alias");
+
+		var app = RedeclareApp(root, withSplash: false);
+		WriteAppSources(app);
+		app.Generate();
+
+		var first = app.Build();
+		AssertBuildSucceeded(first);
+
+		var manifestPath = Path.Combine(app.ProjectDirectory, first.Property("TizenManifestFile"));
+		Assert.Contains("xhdpi/appicon.xhigh.png", File.ReadAllText(manifestPath));
+		Assert.Contains(first.ItemsOf("TizenTpkUserIncludeFiles"), i => Path.GetFileName(i.Identity) == "appicon.xhigh.png");
+
+		var renamedIcon = RedeclareApp(
+			root,
+			icon: new[] { ("Color", "#512BD4"), ("Link", "brandicon.svg") },
+			withSplash: false);
+		renamedIcon.Generate();
+
+		var second = renamedIcon.Build();
+		AssertBuildSucceeded(second);
+
+		var manifest = File.ReadAllText(manifestPath);
+		Assert.Contains("xhdpi/brandicon.xhigh.png", manifest);
+		Assert.DoesNotContain("xhdpi/appicon.xhigh.png", manifest);
+
+		// The manifest names a file the build actually produced...
+		Assert.Contains(second.ItemsOf("TizenTpkUserIncludeFiles"), i => Path.GetFileName(i.Identity) == "brandicon.xhigh.png");
+
+		// ...and the icon it stopped producing is gone from both the package inputs and disk.
+		Assert.DoesNotContain(second.ItemsOf("TizenTpkUserIncludeFiles"), i =>
+			Path.GetFileName(i.Identity).StartsWith("appicon.", StringComparison.Ordinal));
+
+		var strayIcons = Directory
+			.GetFiles(Path.Combine(app.ProjectDirectory, "obj"), "appicon.*.png", SearchOption.AllDirectories)
+			.ToList();
+
+		Assert.True(
+			strayIcons.Count == 0,
+			"Generated icons from the previous alias survived: " + string.Join(", ", strayIcons));
+	}
+
+	// =====================================================================================
+	// Splash-screen incrementality
+	// =====================================================================================
+
+	/// <summary>
+	/// Changing only <c>MauiSplashScreen</c>'s <c>Color</c> must recompose the splash images.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Color is painted into every generated PNG as the letterbox background, but it is not a
+	/// file, and the composition target's inputs were files alone. The SVG did not change; the
+	/// Resizetizer's own image inputs file did not change either, because @(MauiSplashScreen) is
+	/// only added to @(MauiImage) after mauiimage.inputs has been written. So nothing was out of
+	/// date, generation was skipped, and the previous colour's images were re-declared and
+	/// packaged.
+	/// </para>
+	/// <para>
+	/// Asserted on CONTENT - the hash of every generated image, plus the actual background pixel -
+	/// rather than on timestamps, because "the file was rewritten" is not the claim being made.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void ChangingTheSplashScreenColorRecomposesTheSplashImages()
+	{
+		var root = CreateTempDirectory("maui-tizen-splash-color");
+
+		var app = CreateApp(root: root);
+		app.Generate();
+
+		var first = app.Build();
+		AssertBuildSucceeded(first);
+
+		var splashDirectory = SplashDirectory(app, first);
+		var before = HashSplashImages(splashDirectory);
+		Assert.NotEmpty(before);
+
+		using (var purple = SkiaSharp.SKBitmap.Decode(Path.Combine(splashDirectory, before.Keys.First())))
+		{
+			Assert.Equal(new SkiaSharp.SKColor(0x51, 0x2B, 0xD4), purple.GetPixel(0, 0));
+		}
+
+		var recoloured = RedeclareApp(root, splash: new[] { ("Color", "#00FF00"), ("BaseSize", "128,128") });
+		recoloured.Generate();
+
+		var second = recoloured.Build();
+		AssertBuildSucceeded(second);
+
+		var after = HashSplashImages(splashDirectory);
+
+		// The same set of images, all of them different.
+		Assert.Equal(before.Keys.OrderBy(k => k, StringComparer.Ordinal), after.Keys.OrderBy(k => k, StringComparer.Ordinal));
+		foreach (var (name, hash) in before)
+			Assert.False(after[name] == hash, $"'{name}' still has the splash screen composed for the previous colour.");
+
+		// And the new colour is the one on the canvas.
+		foreach (var name in after.Keys)
+		{
+			using var bitmap = SkiaSharp.SKBitmap.Decode(Path.Combine(splashDirectory, name));
+			Assert.Equal(new SkiaSharp.SKColor(0x00, 0xFF, 0x00), bitmap.GetPixel(0, 0));
+		}
+
+		// The packaged inputs are the recomposed files, not a stale set left on disk.
+		var packaged = second.ItemsOf("TizenTpkUserIncludeFiles")
+			.Where(i => i.Metadata1.Replace('\\', '/').TrimEnd('/') == "shared/res/splash")
+			.Select(i => Path.GetFileName(i.Identity))
+			.OrderBy(n => n, StringComparer.Ordinal)
+			.ToList();
+
+		Assert.Equal(after.Keys.OrderBy(k => k, StringComparer.Ordinal), packaged);
+	}
+
+	/// <summary>
+	/// An application that only REFERENCES the package must get the whole backend, through NuGet's
+	/// own automatic import of <c>buildTransitive</c>.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Every other MSBuild test here imports the props and targets from the source tree by path and
+	/// points <c>_MauiTizenBuildTasksAssembly</c> at a build output folder. That is the right shape
+	/// for testing build logic, and those tests are kept, but it means none of them can see the
+	/// step a real consumer depends on: NuGet auto-imports <c>buildTransitive/&lt;package id&gt;.props</c>
+	/// and <c>.targets</c> BY NAME, and the packaged targets then resolve the task assembly and its
+	/// native SkiaSharp from the package layout. Rename either file, drop one from the package, or
+	/// ship the managed closure incompletely, and every source-tree test still passes while an
+	/// application gets nothing - or fails inside SkiaSharp's initializer.
+	/// </para>
+	/// <para>
+	/// The restore uses an isolated packages folder because the produced package's version never
+	/// changes: reusing the developer's global folder would pin the first extraction forever and
+	/// later runs would validate a package built from older sources.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void ThePackagedBackendActivatesThroughNuGetsAutomaticImport()
+	{
+		var app = CreateApp();
+		app.ConsumeProducedPackage = true;
+		app.PackagesFolder = CreateTempDirectory("maui-tizen-package-consumer-packages");
+		app.WithProperty("SingleProject", "true");
+		app.Generate();
+
+		// No import of this package anywhere in the generated project - only a PackageReference.
+		var projectText = File.ReadAllText(app.ProjectPath);
+		Assert.DoesNotContain("Maui.Tizen.Build.Tasks.targets", projectText);
+		Assert.DoesNotContain("Maui.Tizen.Build.Tasks.props", projectText);
+		Assert.Contains("""<PackageReference Include="Maui.Tizen.Build.Tasks" """, projectText);
+
+		var result = app.Build();
+		AssertBuildSucceeded(result);
+
+		// The .props ran: this item is declared there and nowhere else.
+		Assert.Contains(result.ItemsOf("MauiPlatformSpecificFolder"), i =>
+			i.Identity.Replace('\\', '/').TrimEnd('/') == "Platforms/Tizen" && i.Metadata1 == "tizen");
+
+		// The .targets ran, and the tasks inside them executed: manifest, res.xml, fonts, splash.
+		Assert.Contains("maui-tizen/tizen-manifest.xml", result.Property("TizenManifestFile").Replace('\\', '/'));
+
+		var tpkFiles = result.ItemsOf("TizenTpkUserIncludeFiles").ToList();
+		Assert.Contains(tpkFiles, i => Path.GetFileName(i.Identity) == "res.xml");
+		Assert.Contains(tpkFiles, i => Path.GetFileName(i.Identity) == "TestFont.ttf");
+		Assert.Contains(tpkFiles, i => i.Metadata1.Replace('\\', '/').TrimEnd('/') == "shared/res/splash");
+		Assert.Contains(result.ItemsOf("TizenResource"), i => Path.GetFileName(i.Identity) == "data.json");
+
+		// The task really was loaded out of the restored package, not from a build output folder.
+		var taskAssembly = result.Property("_MauiTizenBuildTasksAssembly").Replace('\\', '/');
+		Assert.Contains("maui.tizen.build.tasks/", taskAssembly.ToLowerInvariant());
+		Assert.Contains("/buildTransitive/Maui.Tizen.Build.Tasks.dll", taskAssembly);
+
+		// And it rasterized: the natives resolved from the package's own layout.
+		foreach (var splash in tpkFiles.Where(i => i.Metadata1.Replace('\\', '/').TrimEnd('/') == "shared/res/splash"))
+		{
+			using var bitmap = SkiaSharp.SKBitmap.Decode(splash.Identity);
+			Assert.NotNull(bitmap);
+			Assert.True(bitmap!.Width > 0 && bitmap.Height > 0);
+		}
+	}
+
+	/// <summary>
+	/// A file this package did not generate must never be packaged as a splash screen, even when
+	/// it is sitting in the splash cache directory.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// When the composition target is up to date it produces no items, so the outputs have to be
+	/// re-declared from somewhere. That used to be a wildcard over the splash directory, which
+	/// cannot tell this package's images apart from anything else in there - and an intermediate
+	/// directory is not private space. Whatever was found was given
+	/// <c>TizenTpkSubDir="shared\res\splash\"</c> and packed, so a stray file shipped to the
+	/// device as a splash resource.
+	/// </para>
+	/// <para>
+	/// Both halves are asserted together on purpose: excluding the stray file is only a fix if the
+	/// cache is still trusted. A build that "fixed" this by recomposing everything would delete
+	/// the sentinel, so the surviving sentinel is the proof that incrementality was preserved.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void UnownedFilesInTheSplashCacheAreNotPackaged()
+	{
+		var app = CreateApp();
+		app.Generate();
+
+		var first = app.Build();
+		AssertBuildSucceeded(first);
+
+		var splashDirectory = SplashDirectory(app, first);
+		var sentinel = Path.Combine(splashDirectory, "cache-sentinel.txt");
+		File.WriteAllText(sentinel, "generation did not rerun");
+
+		var second = app.Build();
+		AssertBuildSucceeded(second);
+
+		// Incrementality preserved: a complete cache was not regenerated.
+		Assert.True(File.Exists(sentinel), "A complete splash cache was unnecessarily regenerated.");
+
+		// A third build covers the replay-to-replay transition as well as generate-to-replay. A
+		// metadata-state file that encoded item ORDER would differ between the build that runs
+		// image processing and the build that replays its outputs from a file, and the splash
+		// screens would then recompose on alternate builds forever.
+		AssertBuildSucceeded(app.Build());
+		Assert.True(File.Exists(sentinel), "The splash cache was regenerated on a third, unchanged build.");
+
+		var splashInputs = second.ItemsOf("TizenTpkUserIncludeFiles")
+			.Where(i => i.Metadata1.Replace('\\', '/').TrimEnd('/') == "shared/res/splash")
+			.Select(i => Path.GetFileName(i.Identity))
+			.ToList();
+
+		Assert.DoesNotContain("cache-sentinel.txt", splashInputs);
+		Assert.All(splashInputs, n => Assert.EndsWith(".png", n, StringComparison.Ordinal));
+
+		// Everything the map promises is still packaged - the filter removed the stray file only.
+		var mapped = File
+			.ReadAllLines(Path.Combine(IntermediateDirectory(app, first), GenerateTizenSplashScreens.SplashMapFileName))
+			.Where(l => !string.IsNullOrWhiteSpace(l))
+			.Select(l => Path.GetFileName(l.Split('|').Last()))
+			.OrderBy(n => n, StringComparer.Ordinal)
+			.ToList();
+
+		Assert.NotEmpty(mapped);
+		Assert.Equal(mapped, splashInputs.OrderBy(n => n, StringComparer.Ordinal).ToList());
 	}
 }

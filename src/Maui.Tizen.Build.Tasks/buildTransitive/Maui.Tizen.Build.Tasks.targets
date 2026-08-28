@@ -172,6 +172,7 @@
     <PropertyGroup>
       <MauiTizenIntermediateOutputPath Condition=" '$(MauiTizenIntermediateOutputPath)' == '' ">$(IntermediateOutputPath)maui-tizen\</MauiTizenIntermediateOutputPath>
       <_MauiTizenSplashMapFile>$(MauiTizenIntermediateOutputPath)tizen-splash.map</_MauiTizenSplashMapFile>
+      <_MauiTizenSplashInputsFile>$(MauiTizenIntermediateOutputPath)tizen-splash.inputs</_MauiTizenSplashInputsFile>
       <_MauiTizenGeneratedManifest>$(MauiTizenIntermediateOutputPath)tizen-manifest.xml</_MauiTizenGeneratedManifest>
       <_MauiTizenManifestInputsFile>$(MauiTizenIntermediateOutputPath)tizen-manifest.inputs</_MauiTizenManifestInputsFile>
       <_MauiTizenSplashDirectory>$(MauiTizenIntermediateOutputPath)splash\</_MauiTizenSplashDirectory>
@@ -271,6 +272,12 @@
     <RemoveDir Directories="$(_MauiTizenSplashDirectory)" Condition=" Exists('$(_MauiTizenSplashDirectory)') " />
     <RemoveDir Directories="$(_MauiTizenResizetizerSplashDirectory)" Condition=" Exists('$(_MauiTizenResizetizerSplashDirectory)') " />
     <Delete Files="$(_MauiTizenSplashMapFile)" Condition=" Exists('$(_MauiTizenSplashMapFile)') " />
+    <!--
+      The recorded metadata state goes too. Leaving it behind would make the FIRST build after
+      splash screens are re-enabled see an inputs file that still matches, so generation would be
+      skipped against a map and an image set that no longer exist.
+    -->
+    <Delete Files="$(_MauiTizenSplashInputsFile)" Condition=" Exists('$(_MauiTizenSplashInputsFile)') " />
   </Target>
 
   <!--
@@ -310,13 +317,94 @@
   </Target>
 
   <!--
+    Records the NON-FILE inputs of splash composition so that Inputs/Outputs can see them.
+
+    MSBuild's up-to-date check compares timestamps, so a target keyed on files alone is blind to
+    the item metadata the composition actually reads. GenerateTizenSplashScreens consumes
+    @(MauiSplashScreen) metadata through TizenImageInfo: Color decides the letterbox background
+    that is painted into every generated PNG, and Link decides OutputName and therefore the file
+    NAMES in both the splash directory and the map. Changing only
+
+      <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" />
+
+    to Color="#00FF00" touches no file at all: the SVG is unchanged, and the Resizetizer's own
+    image inputs file does not carry it either, because @(MauiSplashScreen) is added to
+    @(MauiImage) by MauiTizenCollectSplashScreenImages AFTER ResizetizeCollectItems has written
+    mauiimage.inputs. Nothing downstream was out of date, so the previous build's purple images
+    were re-discovered and packaged - a green build shipping the wrong splash screen.
+
+    The Resizetizer does write an equivalent mauisplash.inputs, but both the file and the property
+    that names it ($(_MauiSplashInputsFile)) are private, undeclared implementation details of
+    another package. Depending on them would put this package's incrementality at the mercy of an
+    upstream rename, so the state is recorded here instead.
+
+    WriteOnlyWhenDifferent is what keeps a no-op build a no-op: an unconditional write would
+    re-stamp this file every build and recompose every splash screen every time.
+  -->
+  <Target Name="_MauiTizenComputeSplashScreenInputs"
+          DependsOnTargets="_MauiTizenResolveBuiltInSupport"
+          Condition=" '$(_MauiTizenSplashScreensExpected)' == 'true' ">
+
+    <MakeDir Directories="$(MauiTizenIntermediateOutputPath)" />
+
+    <!--
+      Counts are computed into properties first: an Include attribute cannot concatenate a literal
+      with an item expression (MSB4012); only a pure transform may appear there.
+    -->
+    <PropertyGroup>
+      <_MauiTizenProcessedImageCount>@(MauiProcessedImage->Count())</_MauiTizenProcessedImageCount>
+      <_MauiTizenSplashScreenCount>@(MauiSplashScreen->Count())</_MauiTizenSplashScreenCount>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <!--
+        Every metadata field TizenImageInfo.Parse reads (Identity, Link, Color, DarkColor) plus
+        the neighbouring Resizetizer metadata that decides what the processed source looks like.
+        Recording more than the task reads today is deliberate: an unrecorded field is a silent
+        staleness bug, while a redundant one only costs a rebuild that was already cheap.
+      -->
+      <_MauiTizenSplashInput Include="@(MauiSplashScreen->'MauiSplashScreen=%(Identity)|Link=%(Link)|Color=%(Color)|DarkColor=%(DarkColor)|DarkFile=%(DarkFile)|DarkTintColor=%(DarkTintColor)|TintColor=%(TintColor)|BaseSize=%(BaseSize)|Resize=%(Resize)|ForegroundScale=%(ForegroundScale)')" />
+
+      <!--
+        A COUNT rather than the identities. Removing a processed image cannot be seen by a
+        timestamp comparison, so the set size has to be recorded - but the identity LIST would
+        also encode item ORDER, which differs between the build that runs ResizetizeImages and the
+        build that replays its outputs from a file. That would rewrite this file on alternate
+        builds and recompose the splash screens forever. Additions are already covered: a new
+        processed image is a new Inputs file with a newer timestamp.
+      -->
+      <_MauiTizenSplashInput Include="ProcessedImageCount=$(_MauiTizenProcessedImageCount)" />
+      <_MauiTizenSplashInput Include="SplashScreenCount=$(_MauiTizenSplashScreenCount)" />
+    </ItemGroup>
+
+    <WriteLinesToFile File="$(_MauiTizenSplashInputsFile)"
+                      Lines="@(_MauiTizenSplashInput)"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+
+    <!--
+      The file inputs of splash composition, declared here rather than inline on the target below.
+      DependsOnTargets runs before a target's up-to-date check, so items created here are visible
+      to its Inputs.
+    -->
+    <ItemGroup>
+      <FileWrites Include="$(_MauiTizenSplashInputsFile)" />
+
+      <_MauiTizenSplashUpToDateInput Include="@(MauiSplashScreen)" />
+      <_MauiTizenSplashUpToDateInput Include="@(MauiProcessedImage)" />
+      <_MauiTizenSplashUpToDateInput Include="$(_MauiTizenSplashInputsFile)" />
+      <_MauiTizenSplashUpToDateInput Include="$(_MauiTizenBuildTasksAssembly)" Condition=" Exists('$(_MauiTizenBuildTasksAssembly)') " />
+    </ItemGroup>
+  </Target>
+
+  <!--
     Composes the HD / FHD splash images. The map file is the declared output; a missing image is
     caught by the validation target above rather than by this up-to-date check.
   -->
   <Target Name="_MauiTizenGenerateSplashScreens"
-          DependsOnTargets="_MauiTizenResolveBuiltInSupport"
+          DependsOnTargets="_MauiTizenResolveBuiltInSupport;_MauiTizenComputeSplashScreenInputs"
           Condition=" '$(_MauiTizenSplashScreensExpected)' == 'true' "
-          Inputs="@(MauiSplashScreen);@(MauiProcessedImage)"
+          Inputs="@(_MauiTizenSplashUpToDateInput)"
           Outputs="$(_MauiTizenSplashMapFile)">
 
     <MakeDir Directories="$(MauiTizenIntermediateOutputPath)" />
@@ -335,14 +423,41 @@
     </ItemGroup>
   </Target>
 
-  <!-- Re-discovers the generated splash files when the composition target was skipped. -->
+  <!--
+    Re-declares the generated splash files when the composition target was skipped.
+
+    The set is read back from the MAP, which is the record of what this package generated, rather
+    than from a wildcard over the splash directory.
+
+    A glob cannot distinguish the images this build owns from anything else that happens to sit in
+    that folder, and an intermediate directory is not a private space: an editor, an antivirus
+    quarantine stub, a half-written file from an interrupted build, or a developer's own scratch
+    file all end up inside it. Every one of them was previously promoted to
+    TizenTpkUserIncludeFiles with TizenTpkSubDir="shared\res\splash\" and packed into the TPK, so
+    an unrelated stray file shipped to the device as a splash resource. Only the paths named in
+    tizen-splash.map are owned by this package; anything else is left alone (it is not deleted
+    either - this package does not own it, and deleting other tools' files from a shared folder is
+    not a decision to take blind).
+  -->
   <Target Name="_MauiTizenCollectSplashScreenOutputs"
           DependsOnTargets="_MauiTizenGenerateSplashScreens"
           Condition=" '$(_MauiTizenSplashScreensExpected)' == 'true' ">
+
+    <ReadLinesFromFile File="$(_MauiTizenSplashMapFile)"
+                       Condition=" '@(_MauiTizenSplashScreenFile)' == '' And Exists('$(_MauiTizenSplashMapFile)') ">
+      <Output TaskParameter="Lines" ItemName="_MauiTizenOwnedSplashMapLine" />
+    </ReadLinesFromFile>
+
     <ItemGroup Condition=" '@(_MauiTizenSplashScreenFile)' == '' ">
-      <_MauiTizenRediscoveredSplashScreen Include="$(_MauiTizenSplashDirectory)*" />
+      <!-- Each line is "resolution|orientation|splash/<file>"; the third field is relative to the
+           generated splash directory. -->
+      <_MauiTizenOwnedSplashMapLine>
+        <RelativePath>$([System.Text.RegularExpressions.Regex]::Replace('%(_MauiTizenOwnedSplashMapLine.Identity)', '^[^|]*\|[^|]*\|', ''))</RelativePath>
+      </_MauiTizenOwnedSplashMapLine>
+      <_MauiTizenOwnedSplashScreen Include="$(MauiTizenIntermediateOutputPath)%(_MauiTizenOwnedSplashMapLine.RelativePath)"
+                                   Condition=" Exists('$(MauiTizenIntermediateOutputPath)%(_MauiTizenOwnedSplashMapLine.RelativePath)') " />
       <!-- Absolute, to match the identities the splash task itself produces. -->
-      <_MauiTizenSplashScreenFile Include="@(_MauiTizenRediscoveredSplashScreen->'%(FullPath)')"
+      <_MauiTizenSplashScreenFile Include="@(_MauiTizenOwnedSplashScreen->'%(FullPath)')"
                                   TizenTpkSubDir="shared\res\splash\" />
     </ItemGroup>
 
@@ -424,6 +539,11 @@
 
     <MakeDir Directories="$(MauiTizenIntermediateOutputPath)" />
 
+    <!-- A count cannot be concatenated with a literal inside an Include (MSB4012). -->
+    <PropertyGroup>
+      <_MauiTizenIconCount>@(MauiIcon->Count())</_MauiTizenIconCount>
+    </PropertyGroup>
+
     <ItemGroup>
       <!--
         Splash entries only reach the manifest when splash screens are enabled, so the switch is
@@ -436,7 +556,19 @@
       <_MauiTizenManifestInput Include="ApplicationDisplayVersion=$(ApplicationDisplayVersion)" />
       <_MauiTizenManifestInput Include="ApplicationVersion=$(ApplicationVersion)" />
       <_MauiTizenManifestInput Include="SplashScreensEnabled=$(_MauiTizenSplashScreensExpected)" />
-      <_MauiTizenManifestInput Include="@(MauiIcon->'MauiIcon=%(Identity)|%(Color)|%(ForegroundFile)')" />
+      <!--
+        Every metadata field the manifest is derived from, which is every field
+        TizenImageInfo.Parse reads plus the ForegroundFile that decides what the icon looks like.
+
+        Link is the one that matters most and was missing. GenerateTizenManifest writes
+        <icon>xhdpi/<OutputName>.xhigh.png</icon>, and OutputName is the Link ALIAS when one is
+        set, falling back to the source file name. Adding Link="brandicon.svg" therefore renames
+        every generated icon while touching no file this target watched: the manifest stayed up to
+        date and kept pointing at appicon.xhigh.png, a file the build had just stopped producing,
+        so the application installed with a missing icon.
+      -->
+      <_MauiTizenManifestInput Include="@(MauiIcon->'MauiIcon=%(Identity)|Link=%(Link)|Color=%(Color)|DarkColor=%(DarkColor)|ForegroundFile=%(ForegroundFile)')" />
+      <_MauiTizenManifestInput Include="MauiIconCount=$(_MauiTizenIconCount)" />
       <_MauiTizenManifestInput Include="@(_MauiTizenManifestSplashScreen->'MauiSplashScreen=%(Identity)')" />
       <!--
         @(_MauiTizenSplashScreenEntry) is deliberately NOT recorded. It only exists on builds
