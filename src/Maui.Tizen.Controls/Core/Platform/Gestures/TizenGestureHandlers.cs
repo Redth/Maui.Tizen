@@ -59,8 +59,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// </remarks>
 	public sealed class TizenPanGestureHandler : TizenGestureHandler
 	{
+		readonly int _requiredTouchPoints;
+
 		int _gestureId;
-		int _gestureTouchPoints;
 		bool _gestureActive;
 		double _totalX;
 		double _totalY;
@@ -79,6 +80,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ITizenPixelScaler scaler)
 			: base(recognizer, detector, dispatcher, scaler)
 		{
+			_requiredTouchPoints = GetRequiredTouchPoints(recognizer);
 		}
 
 		new PanGestureRecognizer Recognizer => (PanGestureRecognizer)base.Recognizer;
@@ -101,9 +103,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 			{
 				case TizenGestureState.Started:
 					_gestureActive = false;
-					_gestureTouchPoints = GetRequiredTouchPoints(Recognizer);
 
-					if (args.TouchCount != _gestureTouchPoints)
+					if (args.TouchCount != _requiredTouchPoints)
 					{
 						return;
 					}
@@ -116,7 +117,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 					break;
 
 				case TizenGestureState.Continuing:
-					if (!_gestureActive || args.TouchCount != _gestureTouchPoints)
+					if (!_gestureActive || args.TouchCount != _requiredTouchPoints)
 					{
 						return;
 					}

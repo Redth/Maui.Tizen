@@ -102,6 +102,30 @@ public class TizenGestureTranslationTests
 	}
 
 	[Fact]
+	public void PanTouchPointChangesAfterAttachmentKeepTheNativeConfiguration()
+	{
+		var recognizer = new PanGestureRecognizer { TouchPoints = 2 };
+		var (handler, detector, dispatcher, _) = Build((d, disp, s) => new TizenPanGestureHandler(recognizer, d, disp, s));
+		using var _handler = handler;
+
+		recognizer.TouchPoints = 1;
+		detector.Raise(new TizenGestureEventArgs(TizenGestureKind.Pan, TizenGestureState.Started)
+		{
+			TouchCount = 2,
+		});
+		detector.Raise(new TizenGestureEventArgs(TizenGestureKind.Pan, TizenGestureState.Continuing)
+		{
+			TouchCount = 2,
+			Displacement = new Point(10, 20),
+		});
+
+		Assert.Collection(
+			dispatcher.Pans,
+			p => Assert.Equal(TizenGestureState.Started, p.State),
+			p => Assert.Equal((TizenGestureState.Continuing, 5d, 10d, 1), p));
+	}
+
+	[Fact]
 	public void EachPanGetsItsOwnGestureIdAndFreshTotals()
 	{
 		var recognizer = new PanGestureRecognizer();

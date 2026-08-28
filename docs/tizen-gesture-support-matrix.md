@@ -156,7 +156,9 @@ total rather than being discarded. Each pan gets a fresh gesture id.
 
 `PanGestureRecognizer.TouchPoints` configures both the minimum and maximum touch count on the
 native `PanGestureDetector`, enforcing an exact match. The managed handler repeats the check as a
-defensive boundary and makes the single- and multi-touch behavior executable in host tests.
+defensive boundary and makes the single- and multi-touch behavior executable in host tests. Both
+snapshot the value when the per-recognizer detector/handler pair is created, so later property
+changes cannot make native detection and managed dispatch disagree.
 
 ### Swipe
 
