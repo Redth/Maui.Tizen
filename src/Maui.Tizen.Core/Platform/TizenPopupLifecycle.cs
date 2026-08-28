@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,9 +15,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 		where TPopup : class, IDisposable
 	{
 		readonly object _gate = new();
+		readonly List<Session> _pendingUiCleanup = new();
 
-		TPopup? _activePopup;
-		CancellationTokenSource? _activeCancellation;
+		Session? _active;
 		long _generation;
 
 		public bool IsOpen
@@ -24,7 +25,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			get
 			{
 				lock (_gate)
-					return _activePopup is not null;
+					return _active is not null;
 			}
 		}
 
@@ -36,11 +37,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 			TPlatformView platformView,
 			Func<TVirtualView?> getCurrentVirtualView,
 			Func<TPlatformView?> getCurrentPlatformView,
+			Func<TVirtualView, bool> isOpenRequested,
 			Func<TPopup> createPopup,
 			Func<TPopup, CancellationToken, Task<TResult>> openPopup,
 			Action<TPopup> closePopup,
 			Func<Action, Task> dispatchOnUiThread,
-			Action<TVirtualView, TResult> apply)
+			Action<TVirtualView, TResult> apply,
+			Action<TVirtualView> setClosed)
 			where TVirtualView : class
 			where TPlatformView : class
 		{
@@ -48,154 +51,274 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ArgumentNullException.ThrowIfNull(platformView);
 			ArgumentNullException.ThrowIfNull(getCurrentVirtualView);
 			ArgumentNullException.ThrowIfNull(getCurrentPlatformView);
+			ArgumentNullException.ThrowIfNull(isOpenRequested);
 			ArgumentNullException.ThrowIfNull(createPopup);
 			ArgumentNullException.ThrowIfNull(openPopup);
 			ArgumentNullException.ThrowIfNull(closePopup);
 			ArgumentNullException.ThrowIfNull(dispatchOnUiThread);
 			ArgumentNullException.ThrowIfNull(apply);
+			ArgumentNullException.ThrowIfNull(setClosed);
 
-			TPopup popup;
-			CancellationTokenSource cancellation;
-			long generation;
+			DrainPendingCleanupOnUiThread();
+
+			Session session;
 
 			lock (_gate)
 			{
-				if (_activePopup is not null ||
+				if (_active is not null ||
 					!ReferenceEquals(getCurrentVirtualView(), virtualView) ||
-					!ReferenceEquals(getCurrentPlatformView(), platformView))
+					!ReferenceEquals(getCurrentPlatformView(), platformView) ||
+					!isOpenRequested(virtualView))
 				{
 					return;
 				}
 
-				popup = createPopup();
-				cancellation = new CancellationTokenSource();
-				generation = ++_generation;
-				_activePopup = popup;
-				_activeCancellation = cancellation;
+				session = new Session(
+					createPopup(),
+					new CancellationTokenSource(),
+					++_generation,
+					dispatchOnUiThread,
+					closePopup,
+					() => setClosed(virtualView),
+					SynchronizationContext.Current,
+					Environment.CurrentManagedThreadId);
+				_active = session;
 			}
+
+			var errors = new List<Exception>();
+			var completed = false;
+			TResult result = default!;
 
 			try
 			{
-				TResult result;
+				result = await openPopup(session.Popup, session.Cancellation.Token);
+				completed = true;
+			}
+			catch (OperationCanceledException)
+			{
+				// User dismissal and programmatic close both end the same active generation.
+			}
+			catch (Exception exception)
+			{
+				TizenCleanup.Add(errors, exception);
+			}
 
+			if (completed)
+			{
 				try
 				{
-					result = await openPopup(popup, cancellation.Token);
-				}
-				catch (OperationCanceledException)
-				{
-					return;
-				}
-
-				await dispatchOnUiThread(() =>
-				{
-					lock (_gate)
+					await session.DispatchOnUiThread(() =>
 					{
-						if (!IsCurrent(popup, cancellation, generation) ||
-							!ReferenceEquals(getCurrentVirtualView(), virtualView) ||
-							!ReferenceEquals(getCurrentPlatformView(), platformView))
+						lock (_gate)
 						{
-							return;
-						}
+							if (!IsCurrent(session) ||
+								!ReferenceEquals(getCurrentVirtualView(), virtualView) ||
+								!ReferenceEquals(getCurrentPlatformView(), platformView) ||
+								!isOpenRequested(virtualView))
+							{
+								return;
+							}
 
-						// The view pair cannot be replaced or cancelled between this final check
-						// and the property write.
-						apply(virtualView, result);
-					}
-				});
+							apply(virtualView, result);
+						}
+					});
+				}
+				catch (Exception exception)
+				{
+					TizenCleanup.Add(errors, exception);
+				}
 			}
-			finally
-			{
-				await dispatchOnUiThread(() =>
-					CompleteOnUiThread(popup, cancellation, generation, closePopup));
-			}
+
+			foreach (var exception in await FinalizeAsync(session))
+				TizenCleanup.Add(errors, exception);
+
+			TizenCleanup.ThrowIfAny(errors);
 		}
 
 		/// <summary>
-		/// Invalidates, closes and disposes the active popup from a handler's UI-thread teardown.
+		/// Programmatically closes the active generation through its captured UI dispatcher.
 		/// </summary>
-		public void CancelOnUiThread(Action<TPopup> closePopup)
+		public async Task CancelAsync()
 		{
-			ArgumentNullException.ThrowIfNull(closePopup);
+			Session? session;
 
-			TPopup? popup;
-			CancellationTokenSource? cancellation;
+			lock (_gate)
+				session = _active;
+
+			if (session is null)
+				return;
+
+			var errors = await FinalizeAsync(session);
+			TizenCleanup.ThrowIfAny(errors);
+		}
+
+		/// <summary>
+		/// Closes from a handler's UI-thread disconnect path, even after an earlier dispatch failed.
+		/// </summary>
+		public void CancelOnUiThread()
+		{
+			var errors = new List<Exception>();
+			DrainPendingCleanupOnUiThread(errors);
+
+			Session? session;
 
 			lock (_gate)
 			{
-				popup = _activePopup;
-				cancellation = _activeCancellation;
+				session = _active;
 
-				if (popup is null)
-					return;
-
-				_generation++;
-				_activePopup = null;
-				_activeCancellation = null;
+				if (session is not null)
+					Detach(session);
 			}
 
-			try
+			if (session is not null)
 			{
-				cancellation?.Cancel();
+				Try(errors, session.Cancellation.Cancel);
+				Try(errors, () => CleanupOnUiThread(session));
 			}
-			finally
-			{
-				CloseAndDispose(popup, cancellation, closePopup);
-			}
+
+			TizenCleanup.ThrowIfAny(errors);
 		}
 
-		bool IsCurrent(TPopup popup, CancellationTokenSource cancellation, long generation) =>
-			_generation == generation &&
-			ReferenceEquals(_activePopup, popup) &&
-			ReferenceEquals(_activeCancellation, cancellation) &&
-			!cancellation.IsCancellationRequested;
-
-		void CompleteOnUiThread(
-			TPopup popup,
-			CancellationTokenSource cancellation,
-			long generation,
-			Action<TPopup> closePopup)
+		async Task<IReadOnlyList<Exception>> FinalizeAsync(Session session)
 		{
+			var errors = new List<Exception>();
+
 			lock (_gate)
 			{
-				if (!IsCurrent(popup, cancellation, generation))
-					return;
+				if (!IsCurrent(session))
+					return errors;
 
-				_generation++;
-				_activePopup = null;
-				_activeCancellation = null;
+				Detach(session);
 			}
+
+			Try(errors, session.Cancellation.Cancel);
 
 			try
 			{
-				cancellation.Cancel();
+				await session.DispatchOnUiThread(() => CleanupOnUiThread(session));
 			}
-			finally
+			catch (Exception exception)
 			{
-				CloseAndDispose(popup, cancellation, closePopup);
+				TizenCleanup.Add(errors, exception);
 			}
+
+			if (Volatile.Read(ref session.CleanupStarted) == 0)
+			{
+				if (IsOnOpeningThread(session))
+					Try(errors, () => CleanupOnUiThread(session));
+				else
+					QueuePendingCleanup(session);
+			}
+
+			return errors;
 		}
 
-		static void CloseAndDispose(
-			TPopup popup,
-			CancellationTokenSource? cancellation,
-			Action<TPopup> closePopup)
+		bool IsCurrent(Session session) =>
+			ReferenceEquals(_active, session) &&
+			_generation == session.Generation &&
+			!session.Cancellation.IsCancellationRequested;
+
+		void Detach(Session session)
+		{
+			_active = null;
+			_generation++;
+		}
+
+		void CleanupOnUiThread(Session session)
+		{
+			if (Interlocked.Exchange(ref session.CleanupStarted, 1) != 0)
+				return;
+
+			TizenCleanup.Run(
+				() => session.ClosePopup(session.Popup),
+				session.Popup.Dispose,
+				session.Cancellation.Dispose,
+				session.SetClosed);
+		}
+
+		void QueuePendingCleanup(Session session)
+		{
+			lock (_gate)
+				_pendingUiCleanup.Add(session);
+		}
+
+		void DrainPendingCleanupOnUiThread()
+		{
+			var errors = new List<Exception>();
+			DrainPendingCleanupOnUiThread(errors);
+			TizenCleanup.ThrowIfAny(errors);
+		}
+
+		void DrainPendingCleanupOnUiThread(ICollection<Exception> errors)
+		{
+			Session[] pending;
+
+			lock (_gate)
+			{
+				pending = _pendingUiCleanup.ToArray();
+				_pendingUiCleanup.Clear();
+			}
+
+			foreach (var session in pending)
+				Try(errors, () => CleanupOnUiThread(session));
+		}
+
+		static bool IsOnOpeningThread(Session session) =>
+			Environment.CurrentManagedThreadId == session.OpeningThreadId ||
+			(session.OpeningContext is not null &&
+				ReferenceEquals(SynchronizationContext.Current, session.OpeningContext));
+
+		static void Try(ICollection<Exception> errors, Action action)
 		{
 			try
 			{
-				closePopup(popup);
+				action();
 			}
-			finally
+			catch (Exception exception)
 			{
-				try
-				{
-					popup.Dispose();
-				}
-				finally
-				{
-					cancellation?.Dispose();
-				}
+				TizenCleanup.Add(errors, exception);
 			}
+		}
+
+		sealed class Session
+		{
+			public Session(
+				TPopup popup,
+				CancellationTokenSource cancellation,
+				long generation,
+				Func<Action, Task> dispatchOnUiThread,
+				Action<TPopup> closePopup,
+				Action setClosed,
+				SynchronizationContext? openingContext,
+				int openingThreadId)
+			{
+				Popup = popup;
+				Cancellation = cancellation;
+				Generation = generation;
+				DispatchOnUiThread = dispatchOnUiThread;
+				ClosePopup = closePopup;
+				SetClosed = setClosed;
+				OpeningContext = openingContext;
+				OpeningThreadId = openingThreadId;
+			}
+
+			public TPopup Popup { get; }
+
+			public CancellationTokenSource Cancellation { get; }
+
+			public long Generation { get; }
+
+			public Func<Action, Task> DispatchOnUiThread { get; }
+
+			public Action<TPopup> ClosePopup { get; }
+
+			public Action SetClosed { get; }
+
+			public SynchronizationContext? OpeningContext { get; }
+
+			public int OpeningThreadId { get; }
+
+			public int CleanupStarted;
 		}
 	}
 }

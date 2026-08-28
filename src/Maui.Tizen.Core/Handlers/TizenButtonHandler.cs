@@ -141,15 +141,22 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void DisconnectHandler(TizenButtonView platformView)
 		{
 #if TIZEN
-			// Cancels any load in flight and releases the native image it had loaded.
-			_iconLoader.Dispose();
-			if (platformView.HasBody())
-			{
-				platformView.TouchEvent -= OnTouch;
-				platformView.Clicked -= OnClicked;
-			}
-#endif
+			TizenCleanup.Run(
+				_iconLoader.Dispose,
+				() =>
+				{
+					if (platformView.HasBody())
+						platformView.TouchEvent -= OnTouch;
+				},
+				() =>
+				{
+					if (platformView.HasBody())
+						platformView.Clicked -= OnClicked;
+				},
+				() => base.DisconnectHandler(platformView));
+#else
 			base.DisconnectHandler(platformView);
+#endif
 		}
 
 		public static void MapText(IButtonHandler handler, IButton button)
@@ -246,13 +253,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			// thread, not merely before queueing there.
 			var virtualView = handler.VirtualView;
 			var target = Platform(handler);
+			var commitOnUiThread = TizenDispatchExtensions.CaptureDispatcher(handler);
 
 			return AsHandler(handler)._iconLoader.LoadAsync(
 				source,
 				(imageSource, token) => provider is null
 					? Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(null)
 					: provider.GetTizenImageAsync(imageSource, token),
-				handler.DispatchIfRequiredAsync,
+				commitOnUiThread,
 				image => target?.UpdateImageSource(image),
 				() => ReferenceEquals((handler.VirtualView as IImage)?.Source, source),
 				() =>

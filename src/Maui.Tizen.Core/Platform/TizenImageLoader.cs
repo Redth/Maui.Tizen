@@ -32,13 +32,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// load is in flight; applying then would write an image onto a view that has moved on.
 	/// </description></item>
 	/// <item><description>
-	/// <b>Failure clearing.</b> A failed or cancelled load must clear the image rather than leave
-	/// the previous one, which would silently show stale content for the new source.
+	/// <b>Failure clearing.</b> A failed load, including cancellation initiated by the current
+	/// source service, must clear the image. Cancellation from supersession or disposal stays
+	/// silent so it cannot clear the newer image.
 	/// </description></item>
 	/// <item><description>
 	/// <b>Ownership.</b> The service result holds a native handle. Whoever replaces it must
 	/// dispose the one it replaced, and disconnecting must dispose the last one - otherwise every
-	/// source change leaks a NUI image buffer.
+	/// source change leaks a NUI image buffer. Result disposal runs on the same captured dispatcher
+	/// as apply because <c>TizenImageSource.Dispose</c> releases its NUI <c>ImageUrl</c>.
 	/// </description></item>
 	/// </list>
 	/// <para>
@@ -99,6 +101,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ArgumentNullException.ThrowIfNull(isTargetCurrent);
 
 			CancellationTokenSource cts;
+			CancellationTokenSource? supersededPending;
 			long generation;
 
 			lock (_gate)
@@ -107,11 +110,17 @@ namespace Microsoft.Maui.Platforms.Tizen
 					return;
 
 				// Supersede: whatever was in flight is now stale.
-				_pending?.Cancel();
-				_pending?.Dispose();
+				supersededPending = _pending;
 				_pending = cts = new CancellationTokenSource();
 				_pendingSource = source;
 				generation = ++_generation;
+			}
+
+			if (supersededPending is not null)
+			{
+				TizenCleanup.Run(
+					supersededPending.Cancel,
+					supersededPending.Dispose);
 			}
 
 			if (source is null)
@@ -135,9 +144,25 @@ namespace Microsoft.Maui.Platforms.Tizen
 			{
 				loaded = await load(source, cts.Token).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (cts.IsCancellationRequested)
 			{
 				// Superseded by a newer request; the newer one owns the view now.
+				return;
+			}
+			catch (OperationCanceledException)
+			{
+				// The current service cancelled for its own reason. This is a current-source
+				// failure, not supersession, so clear the image exactly like any other failure.
+				await CommitAsync(
+					result: null,
+					requestSource: source,
+					appliedSource: null,
+					commitOnUiThread,
+					apply,
+					isSourceCurrent,
+					isTargetCurrent,
+					cts,
+					generation).ConfigureAwait(false);
 				return;
 			}
 			catch (Exception)
@@ -182,50 +207,64 @@ namespace Microsoft.Maui.Platforms.Tizen
 			CancellationTokenSource cts,
 			long generation)
 		{
-			IImageSourceServiceResult<TImage>? previous = null;
-			var committed = false;
-
-			try
+			await commitOnUiThread(() =>
 			{
-				await commitOnUiThread(() =>
+				IImageSourceServiceResult<TImage>? dispose = null;
+				Exception? applyError = null;
+
+				lock (_gate)
 				{
-					lock (_gate)
+					var superseded =
+						_disposed ||
+						_generation != generation ||
+						!ReferenceEquals(_pending, cts) ||
+						!ReferenceEquals(_pendingSource, requestSource) ||
+						cts.IsCancellationRequested;
+
+					// These checks run after a queued callback reaches the UI thread. Checking
+					// them before dispatch leaves a window in which a newer load or disconnect
+					// can invalidate the result while the callback is still waiting.
+					if (superseded || !isSourceCurrent() || !isTargetCurrent())
 					{
-						var superseded =
-							_disposed ||
-							_generation != generation ||
-							!ReferenceEquals(_pending, cts) ||
-							!ReferenceEquals(_pendingSource, requestSource) ||
-							cts.IsCancellationRequested;
-
-						// These checks run after a queued callback reaches the UI thread. Checking
-						// them before dispatch leaves a window in which a newer load or disconnect
-						// can invalidate the result while the callback is still waiting.
-						if (superseded || !isSourceCurrent() || !isTargetCurrent())
-							return;
-
+						dispose = result;
+					}
+					else
+					{
 						// Keep both results alive until the platform has accepted the new image.
 						// Holding the gate across this short UI-thread write prevents a concurrent
 						// supersession or Dispose from releasing the new result underneath apply.
-						apply(result?.Value);
+						try
+						{
+							apply(result?.Value);
+						}
+						catch (Exception exception)
+						{
+							applyError = exception;
+							dispose = result;
+						}
 
-						previous = _active;
-						_active = result;
-						_activeSource = appliedSource;
-						committed = true;
+						if (applyError is null)
+						{
+							dispose = ReferenceEquals(_active, result) ? null : _active;
+							_active = result;
+							_activeSource = appliedSource;
+						}
 					}
-				}).ConfigureAwait(false);
-			}
-			finally
-			{
-				if (committed)
+				}
+
+				// Native image results are dispatcher-bound. Rejected new results and replaced old
+				// results are both released before this awaited UI callback completes.
+				if (applyError is not null)
 				{
-					if (!ReferenceEquals(previous, result))
-						previous?.Dispose();
+					TizenCleanup.Run(
+						() => throw applyError,
+						() => dispose?.Dispose());
 				}
 				else
-					result?.Dispose();
-			}
+				{
+					dispose?.Dispose();
+				}
+			}).ConfigureAwait(false);
 		}
 
 		/// <summary>
@@ -255,9 +294,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 				_pendingSource = null;
 			}
 
-			pending?.Cancel();
-			pending?.Dispose();
-			active?.Dispose();
+			TizenCleanup.Run(
+				() => pending?.Cancel(),
+				() => pending?.Dispose(),
+				() => active?.Dispose());
 		}
 	}
 }

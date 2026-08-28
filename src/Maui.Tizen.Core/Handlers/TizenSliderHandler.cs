@@ -97,16 +97,27 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void DisconnectHandler(TizenSliderView platformView)
 		{
 #if TIZEN
-			// Cancels any load in flight and releases the native image it had loaded.
-			_thumbLoader.Dispose();
-			if (platformView.HasBody())
-			{
-				platformView.ValueChanged -= OnControlValueChanged;
-				platformView.SlidingStarted -= OnSlidingStarted;
-				platformView.SlidingFinished -= OnSlidingFinished;
-			}
-#endif
+			TizenCleanup.Run(
+				_thumbLoader.Dispose,
+				() =>
+				{
+					if (platformView.HasBody())
+						platformView.ValueChanged -= OnControlValueChanged;
+				},
+				() =>
+				{
+					if (platformView.HasBody())
+						platformView.SlidingStarted -= OnSlidingStarted;
+				},
+				() =>
+				{
+					if (platformView.HasBody())
+						platformView.SlidingFinished -= OnSlidingFinished;
+				},
+				() => base.DisconnectHandler(platformView));
+#else
 			base.DisconnectHandler(platformView);
+#endif
 		}
 
 		public static void MapMinimum(ISliderHandler handler, ISlider slider)
@@ -186,13 +197,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			var source = slider.ThumbImageSource;
 			var virtualView = handler.VirtualView;
 			var target = Platform(handler);
+			var commitOnUiThread = TizenDispatchExtensions.CaptureDispatcher(handler);
 
 			return AsHandler(handler)._thumbLoader.LoadAsync(
 				source,
 				(imageSource, token) => provider is null
 					? Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(null)
 					: provider.GetTizenImageAsync(imageSource, token),
-				handler.DispatchIfRequiredAsync,
+				commitOnUiThread,
 				image => target?.UpdateThumbImageSource(image),
 				() => ReferenceEquals(handler.VirtualView?.ThumbImageSource, source),
 				() =>

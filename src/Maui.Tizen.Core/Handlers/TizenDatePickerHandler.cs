@@ -35,7 +35,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(IDatePicker.Font)] = MapFont,
 				[nameof(IDatePicker.TextColor)] = MapTextColor,
 				[nameof(IDatePicker.CharacterSpacing)] = MapCharacterSpacing,
-				["IsOpen"] = MapIsOpen,
+				[nameof(IDatePicker.IsOpen)] = MapIsOpen,
 			};
 
 		/// <summary>The complete command mapper for <see cref="IDatePicker"/>.</summary>
@@ -84,7 +84,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void ConnectHandler(TizenPickerView platformView)
 		{
 #if TIZEN
-			_popupLifecycle.CancelOnUiThread(static popup => popup.Close());
+			_popupLifecycle.CancelOnUiThread();
 #endif
 			base.ConnectHandler(platformView);
 #if TIZEN
@@ -96,15 +96,34 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void DisconnectHandler(TizenPickerView platformView)
 		{
 #if TIZEN
-			_popupLifecycle.CancelOnUiThread(static popup => popup.Close());
+			var originatingView = VirtualView;
 
-			if (platformView.HasBody())
-			{
-				platformView.TouchEvent -= OnTouch;
-				platformView.KeyEvent -= OnKeyEvent;
-			}
-#endif
+			TizenCleanup.Run(
+				_popupLifecycle.CancelOnUiThread,
+				() =>
+				{
+					if (originatingView is not null &&
+						ReferenceEquals(VirtualView, originatingView) &&
+						ReferenceEquals(PlatformView, platformView) &&
+						originatingView.IsOpen)
+					{
+						originatingView.IsOpen = false;
+					}
+				},
+				() =>
+				{
+					if (platformView.HasBody())
+						platformView.TouchEvent -= OnTouch;
+				},
+				() =>
+				{
+					if (platformView.HasBody())
+						platformView.KeyEvent -= OnKeyEvent;
+				},
+				() => base.DisconnectHandler(platformView));
+#else
 			base.DisconnectHandler(platformView);
+#endif
 		}
 
 		public static void MapFormat(IDatePickerHandler handler, IDatePicker datePicker)
@@ -166,13 +185,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 #endif
 		}
 
-		/// <summary>Not supported on Tizen.</summary>
-		/// <remarks>
-		/// <c>IsOpen</c> is internal to <c>IDatePicker</c>, so an out-of-tree backend cannot
-		/// read it. Deliberate no-op; the key is present so the mapper stays complete.
-		/// </remarks>
+		/// <summary>Opens or closes the active popup from <see cref="IDatePicker.IsOpen"/>.</summary>
 		public static void MapIsOpen(IDatePickerHandler handler, IDatePicker datePicker)
 		{
+#if TIZEN
+			var concrete = AsHandler(handler);
+
+			if (!datePicker.IsOpen)
+			{
+				concrete._popupLifecycle.CancelAsync().FireAndForget(handler);
+				return;
+			}
+
+			if (Platform(handler) is { } platformView)
+			{
+				concrete.OpenPopupAsync(
+					datePicker,
+					platformView,
+					TizenDispatchExtensions.CaptureDispatcher(handler)).FireAndForget(handler);
+			}
+#endif
 		}
 
 #if TIZEN
@@ -181,10 +213,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (e.Touch.GetState(0) != global::Tizen.NUI.PointStateType.Up)
 				return false;
 
-			if (VirtualView is null)
+			if (VirtualView is not { } datePicker)
 				return false;
 
-			OpenPopupAsync().FireAndForget(this);
+			datePicker.IsOpen = true;
 			return true;
 		}
 #endif
@@ -195,20 +227,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (!e.Key.IsAcceptKeyEvent())
 				return false;
 
-			OpenPopupAsync().FireAndForget(this);
+			if (VirtualView is not { } datePicker)
+				return false;
+
+			datePicker.IsOpen = true;
 			return true;
 		}
 #endif
 
 #if TIZEN
-		async Task OpenPopupAsync()
+		async Task OpenPopupAsync(
+			IDatePicker virtualView,
+			TizenPickerView platformView,
+			Func<Action, Task> dispatchOnUiThread)
 		{
-			var virtualView = VirtualView;
-			var platformView = PlatformView;
-
-			if (virtualView is null || platformView is null)
-				return;
-
 			var date = virtualView.Date ?? DateTime.Today;
 			var minimum = virtualView.MinimumDate;
 			var maximum = virtualView.MaximumDate;
@@ -219,11 +251,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 					platformView,
 					() => VirtualView,
 					() => PlatformView,
+					static picker => picker.IsOpen,
 					() => new TizenDateTimePicker(date, isTimePicker: false, minimum, maximum),
 					static (popup, _) => popup.Open(),
 					static popup => popup.Close(),
-					this.DispatchIfRequiredAsync,
-					static (picker, selected) => picker.Date = selected));
+					dispatchOnUiThread,
+					static (picker, selected) => picker.Date = selected,
+					picker =>
+					{
+						if (ReferenceEquals(VirtualView, picker) &&
+							ReferenceEquals(PlatformView, platformView) &&
+							picker.IsOpen)
+						{
+							picker.IsOpen = false;
+						}
+					}));
 		}
 #endif
 	}

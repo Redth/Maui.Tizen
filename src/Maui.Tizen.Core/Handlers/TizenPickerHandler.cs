@@ -39,7 +39,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(IPicker.CharacterSpacing)] = MapCharacterSpacing,
 				[nameof(IPicker.HorizontalTextAlignment)] = MapHorizontalTextAlignment,
 				[nameof(IPicker.VerticalTextAlignment)] = MapVerticalTextAlignment,
-				["IsOpen"] = MapIsOpen,
+				[nameof(IPicker.IsOpen)] = MapIsOpen,
 			};
 
 		/// <summary>The complete command mapper for <see cref="IPicker"/>.</summary>
@@ -90,7 +90,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 #if TIZEN
 			// Defensive replacement: a handler may be reconnected without the old popup having
 			// completed. ConnectHandler runs on the UI thread, so native teardown is safe here.
-			_popupLifecycle.CancelOnUiThread(static popup => popup.Close());
+			_popupLifecycle.CancelOnUiThread();
 #endif
 			base.ConnectHandler(platformView);
 #if TIZEN
@@ -102,15 +102,34 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void DisconnectHandler(TizenPickerView platformView)
 		{
 #if TIZEN
-			_popupLifecycle.CancelOnUiThread(static popup => popup.Close());
+			var originatingView = VirtualView;
 
-			if (platformView.HasBody())
-			{
-				platformView.TouchEvent -= OnTouch;
-				platformView.KeyEvent -= OnKeyEvent;
-			}
-#endif
+			TizenCleanup.Run(
+				_popupLifecycle.CancelOnUiThread,
+				() =>
+				{
+					if (originatingView is not null &&
+						ReferenceEquals(VirtualView, originatingView) &&
+						ReferenceEquals(PlatformView, platformView) &&
+						originatingView.IsOpen)
+					{
+						originatingView.IsOpen = false;
+					}
+				},
+				() =>
+				{
+					if (platformView.HasBody())
+						platformView.TouchEvent -= OnTouch;
+				},
+				() =>
+				{
+					if (platformView.HasBody())
+						platformView.KeyEvent -= OnKeyEvent;
+				},
+				() => base.DisconnectHandler(platformView));
+#else
 			base.DisconnectHandler(platformView);
+#endif
 		}
 
 		/// <summary>Re-renders the displayed text after the item collection changed.</summary>
@@ -197,16 +216,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 #endif
 		}
 
-		/// <summary>Not supported on Tizen.</summary>
-		/// <remarks>
-		/// MAUI declares <c>IsOpen</c> as an internal member of <c>IPicker</c>, so an
-		/// out-of-tree backend cannot read it; the key is mapped by string purely so this
-		/// mapper remains a complete replacement for the neutral one. Tizen's action sheet also
-		/// has no programmatic dismiss, so even a readable value could only be honoured in one
-		/// direction. Deliberate no-op - see docs/wave-a-handlers.md.
-		/// </remarks>
+		/// <summary>Opens or closes the active popup from <see cref="IPicker.IsOpen"/>.</summary>
 		public static void MapIsOpen(IPickerHandler handler, IPicker picker)
 		{
+#if TIZEN
+			var concrete = AsHandler(handler);
+
+			if (!picker.IsOpen)
+			{
+				concrete._popupLifecycle.CancelAsync().FireAndForget(handler);
+				return;
+			}
+
+			if (Platform(handler) is { } platformView)
+			{
+				concrete.OpenPopupAsync(
+					picker,
+					platformView,
+					TizenDispatchExtensions.CaptureDispatcher(handler)).FireAndForget(handler);
+			}
+#endif
 		}
 
 #if TIZEN
@@ -219,10 +248,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (e.Touch.GetState(0) != global::Tizen.NUI.PointStateType.Up)
 				return false;
 
-			if (VirtualView is null)
+			if (VirtualView is not { } picker)
 				return false;
 
-			OpenPopupAsync().FireAndForget(this);
+			picker.IsOpen = true;
 			return true;
 		}
 #endif
@@ -233,7 +262,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (!e.Key.IsAcceptKeyEvent())
 				return false;
 
-			OpenPopupAsync().FireAndForget(this);
+			if (VirtualView is not { } picker)
+				return false;
+
+			picker.IsOpen = true;
 			return true;
 		}
 #endif
@@ -250,14 +282,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// discarded rather than treated as an error.
 		/// </para>
 		/// </remarks>
-		async System.Threading.Tasks.Task OpenPopupAsync()
+		async System.Threading.Tasks.Task OpenPopupAsync(
+			IPicker virtualView,
+			TizenPickerView platformView,
+			Func<Action, System.Threading.Tasks.Task> dispatchOnUiThread)
 		{
-			var virtualView = VirtualView;
-			var platformView = PlatformView;
-
-			if (virtualView is null || platformView is null)
-				return;
-
 			var items = GetItems(virtualView);
 			var title = virtualView.Title;
 
@@ -267,16 +296,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 					platformView,
 					() => VirtualView,
 					() => PlatformView,
+					static picker => picker.IsOpen,
 					() => new ActionSheetPopup(title, "Cancel", null, items),
 					static (popup, _) => popup.Open(),
 					static popup => popup.Close(),
-					this.DispatchIfRequiredAsync,
+					dispatchOnUiThread,
 					(picker, chosen) =>
 					{
 						var index = items.IndexOf(chosen);
 
 						if (index >= 0)
 							picker.SelectedIndex = index;
+					},
+					picker =>
+					{
+						if (ReferenceEquals(VirtualView, picker) &&
+							ReferenceEquals(PlatformView, platformView) &&
+							picker.IsOpen)
+						{
+							picker.IsOpen = false;
+						}
 					}));
 		}
 #endif

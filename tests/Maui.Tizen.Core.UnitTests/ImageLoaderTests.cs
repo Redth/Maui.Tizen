@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -32,14 +33,20 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		sealed class FakeResult : IImageSourceServiceResult<FakeImage>
 		{
 			readonly FakeImage _value;
+			readonly bool _throwOnDispose;
 
-			public FakeResult(FakeImage value) => _value = value;
+			public FakeResult(FakeImage value, bool throwOnDispose = false)
+			{
+				_value = value;
+				_throwOnDispose = throwOnDispose;
+			}
 
 			public FakeImage Value
 			{
 				get
 				{
 					ValueAccessCount++;
+					ValueAccessThreadIds.Add(Environment.CurrentManagedThreadId);
 
 					if (IsDisposed)
 						throw new ObjectDisposedException(nameof(FakeResult));
@@ -54,12 +61,20 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			public int ValueAccessCount { get; private set; }
 
+			public List<int> ValueAccessThreadIds { get; } = new();
+
+			public List<int> DisposeThreadIds { get; } = new();
+
 			public bool IsDisposed => DisposeCount != 0;
 
 			public void Dispose()
 			{
 				DisposeCount++;
+				DisposeThreadIds.Add(Environment.CurrentManagedThreadId);
 				_value.IsDisposed = true;
+
+				if (_throwOnDispose)
+					throw new InvalidOperationException("result dispose");
 			}
 		}
 
@@ -94,6 +109,67 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				catch (Exception exception)
 				{
 					pending.Completion.SetException(exception);
+				}
+			}
+		}
+
+		sealed class DedicatedThreadCommit : IDisposable
+		{
+			readonly BlockingCollection<(Action Action, TaskCompletionSource Completion)> _queue = new();
+			readonly ManualResetEventSlim _release = new(initialState: false);
+			readonly ManualResetEventSlim _started = new(initialState: false);
+			readonly Thread _thread;
+
+			public DedicatedThreadCommit()
+			{
+				_thread = new Thread(Run)
+				{
+					IsBackground = true,
+					Name = nameof(DedicatedThreadCommit),
+				};
+				_thread.Start();
+				_started.Wait();
+			}
+
+			public int ThreadId { get; private set; }
+
+			public Task Invoke(Action action)
+			{
+				var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+				_queue.Add((action, completion));
+				return completion.Task;
+			}
+
+			public void Release() => _release.Set();
+
+			public void Dispose()
+			{
+				_release.Set();
+				_queue.CompleteAdding();
+				_thread.Join();
+				_queue.Dispose();
+				_release.Dispose();
+				_started.Dispose();
+			}
+
+			void Run()
+			{
+				ThreadId = Environment.CurrentManagedThreadId;
+				_started.Set();
+
+				foreach (var work in _queue.GetConsumingEnumerable())
+				{
+					_release.Wait();
+
+					try
+					{
+						work.Action();
+						work.Completion.SetResult();
+					}
+					catch (Exception exception)
+					{
+						work.Completion.SetException(exception);
+					}
 				}
 			}
 		}
@@ -429,6 +505,41 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(["current"], applied);
 		}
 
+		[Fact]
+		public async Task CurrentSourceCancellationClearsAndDisposesPreviousImage()
+		{
+			using var loader = new TizenImageLoader<FakeImage>();
+			var previousSource = new FakeSource();
+			var currentSource = new FakeSource();
+			IImageSource selectedSource = previousSource;
+			var previous = new FakeResult(new FakeImage { Name = "previous" });
+			var applied = new List<string?>();
+
+			await loader.LoadAsync(
+				previousSource,
+				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(previous),
+				RunInline,
+				image => applied.Add(image?.Name),
+				() => ReferenceEquals(selectedSource, previousSource),
+				static () => true);
+
+			selectedSource = currentSource;
+
+			await loader.LoadAsync(
+				currentSource,
+				(_, _) => Task.FromException<IImageSourceServiceResult<FakeImage>?>(
+					new OperationCanceledException("service cancelled its current request")),
+				RunInline,
+				image => applied.Add(image?.Name),
+				() => ReferenceEquals(selectedSource, currentSource),
+				static () => true);
+
+			Assert.Equal(["previous", null], applied);
+			Assert.Equal(1, previous.DisposeCount);
+			Assert.Null(loader.Current);
+			Assert.Null(loader.CurrentSource);
+		}
+
 		/// <summary>
 		/// A commit that was queued first but executes after a newer commit cannot win.
 		/// </summary>
@@ -481,6 +592,60 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(0, firstResult.ValueAccessCount);
 			Assert.False(secondResult.IsDisposed);
 			Assert.Equal("new", loader.Current?.Name);
+		}
+
+		[Fact]
+		public async Task ApplyAndRejectedOrReplacedDisposalUseCapturedDispatcherThread()
+		{
+			var loader = new TizenImageLoader<FakeImage>();
+			using var dispatcher = new DedicatedThreadCommit();
+			var staleSource = new FakeSource();
+			var currentSource = new FakeSource();
+			var replacementSource = new FakeSource();
+			IImageSource selectedSource = staleSource;
+			var stale = new FakeResult(new FakeImage { Name = "stale" });
+			var current = new FakeResult(new FakeImage { Name = "current" });
+			var replacement = new FakeResult(new FakeImage { Name = "replacement" });
+			var applyThreadIds = new List<int>();
+
+			var staleLoad = loader.LoadAsync(
+				staleSource,
+				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(stale),
+				dispatcher.Invoke,
+				_ => applyThreadIds.Add(Environment.CurrentManagedThreadId),
+				() => ReferenceEquals(selectedSource, staleSource),
+				static () => true);
+
+			selectedSource = currentSource;
+			var currentLoad = loader.LoadAsync(
+				currentSource,
+				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(current),
+				dispatcher.Invoke,
+				_ => applyThreadIds.Add(Environment.CurrentManagedThreadId),
+				() => ReferenceEquals(selectedSource, currentSource),
+				static () => true);
+
+			dispatcher.Release();
+			await Task.WhenAll(staleLoad, currentLoad);
+
+			Assert.Equal([dispatcher.ThreadId], stale.DisposeThreadIds);
+			Assert.Equal(0, stale.ValueAccessCount);
+			Assert.Equal([dispatcher.ThreadId], applyThreadIds);
+
+			selectedSource = replacementSource;
+			await loader.LoadAsync(
+				replacementSource,
+				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(replacement),
+				dispatcher.Invoke,
+				_ => applyThreadIds.Add(Environment.CurrentManagedThreadId),
+				() => ReferenceEquals(selectedSource, replacementSource),
+				static () => true);
+
+			Assert.Equal([dispatcher.ThreadId], current.DisposeThreadIds);
+			Assert.Equal([dispatcher.ThreadId, dispatcher.ThreadId], applyThreadIds);
+
+			await dispatcher.Invoke(loader.Dispose);
+			Assert.Equal([dispatcher.ThreadId], replacement.DisposeThreadIds);
 		}
 
 		/// <summary>
@@ -573,6 +738,50 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(1, result.DisposeCount);
 		}
 
+		[Fact]
+		public async Task DisposeRunsAllCleanupAndAggregatesCancellationAndResultFailures()
+		{
+			var loader = new TizenImageLoader<FakeImage>();
+			var active = new FakeResult(new FakeImage { Name = "active" }, throwOnDispose: true);
+			var activeSource = new FakeSource();
+			var pendingSource = new FakeSource();
+
+			await loader.LoadAsync(
+				activeSource,
+				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(active),
+				RunInline,
+				static _ => { },
+				static () => true,
+				static () => true);
+
+			var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+			var pending = loader.LoadAsync(
+				pendingSource,
+				async (_, token) =>
+				{
+					using var registration = token.Register(
+						static () => throw new InvalidOperationException("cancel callback"));
+					started.SetResult();
+					await Task.Delay(Timeout.InfiniteTimeSpan, token);
+					return null;
+				},
+				RunInline,
+				static _ => { },
+				static () => true,
+				static () => true);
+
+			await started.Task;
+
+			var failure = Assert.Throws<AggregateException>(loader.Dispose);
+
+			Assert.Contains(failure.InnerExceptions, exception => exception.Message == "cancel callback");
+			Assert.Contains(failure.InnerExceptions, exception => exception.Message == "result dispose");
+			Assert.Equal(1, active.DisposeCount);
+			Assert.Null(loader.Current);
+
+			await pending;
+		}
+
 		/// <summary>
 		/// Negative control: the old check-then-dispatch shape is sensitive to this ordering.
 		/// </summary>
@@ -637,6 +846,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var connect = source[connectStart..disconnectStart];
 			Assert.Contains($"{fieldName}.Dispose();", connect, StringComparison.Ordinal);
 			Assert.Contains($"{fieldName} = new();", connect, StringComparison.Ordinal);
+			Assert.Contains("TizenDispatchExtensions.CaptureDispatcher(handler)", source, StringComparison.Ordinal);
 		}
 	}
 }

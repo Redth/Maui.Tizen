@@ -33,7 +33,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(ITimePicker.Font)] = MapFont,
 				[nameof(ITimePicker.TextColor)] = MapTextColor,
 				[nameof(ITimePicker.CharacterSpacing)] = MapCharacterSpacing,
-				["IsOpen"] = MapIsOpen,
+				[nameof(ITimePicker.IsOpen)] = MapIsOpen,
 			};
 
 		/// <summary>The complete command mapper for <see cref="ITimePicker"/>.</summary>
@@ -82,7 +82,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void ConnectHandler(TizenPickerView platformView)
 		{
 #if TIZEN
-			_popupLifecycle.CancelOnUiThread(static popup => popup.Close());
+			_popupLifecycle.CancelOnUiThread();
 #endif
 			base.ConnectHandler(platformView);
 #if TIZEN
@@ -94,15 +94,34 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void DisconnectHandler(TizenPickerView platformView)
 		{
 #if TIZEN
-			_popupLifecycle.CancelOnUiThread(static popup => popup.Close());
+			var originatingView = VirtualView;
 
-			if (platformView.HasBody())
-			{
-				platformView.TouchEvent -= OnTouch;
-				platformView.KeyEvent -= OnKeyEvent;
-			}
-#endif
+			TizenCleanup.Run(
+				_popupLifecycle.CancelOnUiThread,
+				() =>
+				{
+					if (originatingView is not null &&
+						ReferenceEquals(VirtualView, originatingView) &&
+						ReferenceEquals(PlatformView, platformView) &&
+						originatingView.IsOpen)
+					{
+						originatingView.IsOpen = false;
+					}
+				},
+				() =>
+				{
+					if (platformView.HasBody())
+						platformView.TouchEvent -= OnTouch;
+				},
+				() =>
+				{
+					if (platformView.HasBody())
+						platformView.KeyEvent -= OnKeyEvent;
+				},
+				() => base.DisconnectHandler(platformView));
+#else
 			base.DisconnectHandler(platformView);
+#endif
 		}
 
 		public static void MapFormat(ITimePickerHandler handler, ITimePicker timePicker)
@@ -140,13 +159,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 #endif
 		}
 
-		/// <summary>Not supported on Tizen.</summary>
-		/// <remarks>
-		/// <c>IsOpen</c> is internal to <c>ITimePicker</c>, so an out-of-tree backend cannot
-		/// read it. Deliberate no-op; the key is present so the mapper stays complete.
-		/// </remarks>
+		/// <summary>Opens or closes the active popup from <see cref="ITimePicker.IsOpen"/>.</summary>
 		public static void MapIsOpen(ITimePickerHandler handler, ITimePicker timePicker)
 		{
+#if TIZEN
+			var concrete = AsHandler(handler);
+
+			if (!timePicker.IsOpen)
+			{
+				concrete._popupLifecycle.CancelAsync().FireAndForget(handler);
+				return;
+			}
+
+			if (Platform(handler) is { } platformView)
+			{
+				concrete.OpenPopupAsync(
+					timePicker,
+					platformView,
+					TizenDispatchExtensions.CaptureDispatcher(handler)).FireAndForget(handler);
+			}
+#endif
 		}
 
 #if TIZEN
@@ -155,10 +187,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (e.Touch.GetState(0) != global::Tizen.NUI.PointStateType.Up)
 				return false;
 
-			if (VirtualView is null)
+			if (VirtualView is not { } timePicker)
 				return false;
 
-			OpenPopupAsync().FireAndForget(this);
+			timePicker.IsOpen = true;
 			return true;
 		}
 #endif
@@ -169,7 +201,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (!e.Key.IsAcceptKeyEvent())
 				return false;
 
-			OpenPopupAsync().FireAndForget(this);
+			if (VirtualView is not { } timePicker)
+				return false;
+
+			timePicker.IsOpen = true;
 			return true;
 		}
 #endif
@@ -181,14 +216,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// the time-of-day component is taken, so a dialog that rolls past midnight cannot
 		/// produce a value greater than 24 hours.
 		/// </remarks>
-		async Task OpenPopupAsync()
+		async Task OpenPopupAsync(
+			ITimePicker virtualView,
+			TizenPickerView platformView,
+			Func<Action, Task> dispatchOnUiThread)
 		{
-			var virtualView = VirtualView;
-			var platformView = PlatformView;
-
-			if (virtualView is null || platformView is null)
-				return;
-
 			var time = virtualView.Time ?? TimeSpan.Zero;
 
 			await this.GetModalHost().RunModalAsync(() =>
@@ -197,11 +229,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 					platformView,
 					() => VirtualView,
 					() => PlatformView,
+					static picker => picker.IsOpen,
 					() => new TizenDateTimePicker(default(DateTime) + time, isTimePicker: true),
 					static (popup, _) => popup.Open(),
 					static popup => popup.Close(),
-					this.DispatchIfRequiredAsync,
-					static (picker, selected) => picker.Time = selected.TimeOfDay));
+					dispatchOnUiThread,
+					static (picker, selected) => picker.Time = selected.TimeOfDay,
+					picker =>
+					{
+						if (ReferenceEquals(VirtualView, picker) &&
+							ReferenceEquals(PlatformView, platformView) &&
+							picker.IsOpen)
+						{
+							picker.IsOpen = false;
+						}
+					}));
 		}
 #endif
 	}

@@ -47,6 +47,7 @@
     <!-- Wave A: registration, fonts and image-source contracts (no NUI dependency). -->
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Hosting/TizenControlHandlerCollectionExtensions.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenModalHost.cs" />
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenCleanup.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenStepperRange.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenHandlerMappers.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenImageLoader.cs" />

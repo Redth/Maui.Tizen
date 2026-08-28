@@ -13,7 +13,7 @@ using Xunit;
 namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 {
 	/// <summary>
-	/// Keeps the unsupported classification equal to the real explicit no-op mapper bodies.
+	/// Keeps unsupported classifications equal to direct and delegated terminal no-op bodies.
 	/// </summary>
 	public class UnsupportedMapperClassificationTests
 	{
@@ -22,13 +22,13 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			RegexOptions.Compiled);
 
 		[Fact]
-		public void ExplicitEmptyMapperBodiesMatchUnsupportedClassification()
+		public void MapperTerminalsMatchUnsupportedClassification()
 		{
 			var expected = UnsupportedMapperMappings.All
 				.Select(ToIdentity)
 				.Order(StringComparer.Ordinal)
 				.ToArray();
-			var observed = FindExplicitEmptyMappings()
+			var observed = FindUnsupportedMappings()
 				.Select(ToIdentity)
 				.Order(StringComparer.Ordinal)
 				.ToArray();
@@ -64,10 +64,41 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				Assert.True(
 					mapper is not null,
 					$"{mapping.Owner}.{mapping.Key} is not reachable from a public property mapper.");
+
+				var mapperSource = ReadHandlerSource(mapping.Owner);
+				var mapperBody = GetMethodBody(StripComments(mapperSource), mapping.Method);
+
+				if (mapping.TerminalMethod is null)
+				{
+					Assert.True(
+						string.IsNullOrWhiteSpace(mapperBody),
+						$"{mapping.Owner}.{mapping.Method} gained behavior but is still unsupported.");
+					continue;
+				}
+
+				Assert.Contains(mapping.TerminalMethod, mapperBody, StringComparison.Ordinal);
+
+				var terminalPath = Path.Combine(
+					TestRepositoryPaths.Root,
+					"src",
+					"Maui.Tizen.Core",
+					"Platform",
+					"Tizen",
+					mapping.TerminalFile!);
+				Assert.True(
+					IsCompiledTerminal(mapping.TerminalFile!),
+					$"{mapping.TerminalFile} is classified as a terminal but is not in the product compile closure.");
+				var terminalSource = StripComments(File.ReadAllText(terminalPath));
+				var terminalBody = GetMethodBody(terminalSource, mapping.TerminalMethod);
+
+				Assert.True(
+					string.IsNullOrWhiteSpace(terminalBody),
+					$"{mapping.TerminalFile}.{mapping.TerminalMethod} gained behavior but " +
+					$"{mapping.Owner}.{mapping.Key} is still unsupported.");
 			}
 		}
 
-		static IEnumerable<UnsupportedMapperMappings.UnsupportedMapping> FindExplicitEmptyMappings()
+		static IEnumerable<UnsupportedMapperMappings.UnsupportedMapping> FindUnsupportedMappings()
 		{
 			var handlers = Path.Combine(
 				TestRepositoryPaths.Root,
@@ -85,21 +116,56 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				{
 					var key = entry.Groups[1].Success ? entry.Groups[1].Value : entry.Groups[2].Value;
 					var method = entry.Groups[3].Value;
-
-					if (!MethodBodyIsEmpty(stripped, method))
-						continue;
+					var mapperBody = GetMethodBody(stripped, method);
 
 					var kind = source.LastIndexOf("CommandMapper", entry.Index, StringComparison.Ordinal) >
 						source.LastIndexOf("PropertyMapper", entry.Index, StringComparison.Ordinal)
 						? "command"
 						: "property";
 
-					yield return new(owner, key, method, kind, Evidence: string.Empty);
+					if (string.IsNullOrWhiteSpace(mapperBody))
+					{
+						yield return new(owner, key, method, kind, Evidence: string.Empty);
+						continue;
+					}
+
+					foreach (Match terminal in Regex.Matches(mapperBody, @"\b(Update\w+)\s*\("))
+					{
+						var terminalMethod = terminal.Groups[1].Value;
+						var terminalFile = ResolveTerminalFile(owner, mapperBody, terminalMethod);
+
+						if (terminalFile is null)
+							continue;
+
+						var terminalPath = Path.Combine(
+							TestRepositoryPaths.Root,
+							"src",
+							"Maui.Tizen.Core",
+							"Platform",
+							"Tizen",
+							terminalFile);
+						var terminalSource = StripComments(File.ReadAllText(terminalPath));
+
+						if (!HasMethod(terminalSource, terminalMethod))
+							continue;
+
+						if (!string.IsNullOrWhiteSpace(GetMethodBody(terminalSource, terminalMethod)))
+							continue;
+
+						yield return new(
+							owner,
+							key,
+							method,
+							kind,
+							Evidence: string.Empty,
+							terminalFile,
+							terminalMethod);
+					}
 				}
 			}
 		}
 
-		static bool MethodBodyIsEmpty(string strippedSource, string method)
+		static string GetMethodBody(string strippedSource, string method)
 		{
 			var declaration = Regex.Match(
 				strippedSource,
@@ -107,12 +173,17 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			Assert.True(declaration.Success, $"Could not find mapper method {method}.");
 
-			var openBrace = strippedSource.IndexOf('{', declaration.Index + declaration.Length);
-			Assert.True(openBrace >= 0, $"Could not find body for mapper method {method}.");
-
 			var expressionBody = strippedSource.IndexOf("=>", declaration.Index + declaration.Length, StringComparison.Ordinal);
-			if (expressionBody >= 0 && expressionBody < openBrace)
-				return false;
+			var openBrace = strippedSource.IndexOf('{', declaration.Index + declaration.Length);
+
+			if (expressionBody >= 0 && (openBrace < 0 || expressionBody < openBrace))
+			{
+				var semicolon = strippedSource.IndexOf(';', expressionBody);
+				Assert.True(semicolon >= 0, $"Unterminated expression body for mapper method {method}.");
+				return strippedSource[(expressionBody + 2)..semicolon];
+			}
+
+			Assert.True(openBrace >= 0, $"Could not find body for mapper method {method}.");
 
 			var depth = 0;
 
@@ -127,16 +198,60 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 						depth--;
 
 						if (depth == 0)
-						{
-							var body = strippedSource[(openBrace + 1)..i];
-							return string.IsNullOrWhiteSpace(body);
-						}
+							return strippedSource[(openBrace + 1)..i];
 						break;
 				}
 			}
 
 			throw new InvalidOperationException($"Unterminated body for mapper method {method}.");
 		}
+
+		static bool HasMethod(string strippedSource, string method) =>
+			Regex.IsMatch(
+				strippedSource,
+				$@"\bstatic\s+[\w<>,?.\[\]\s]+\b{Regex.Escape(method)}\s*\(");
+
+		static string? ResolveTerminalFile(string owner, string mapperBody, string terminalMethod)
+		{
+			string fileName;
+
+			if (owner == "TizenViewMappers")
+				fileName = "TizenPlatformExtensions.cs";
+			else if (mapperBody.Contains($".Entry.{terminalMethod}", StringComparison.Ordinal))
+				fileName = "TizenEntryExtensions.cs";
+			else
+				fileName = owner.Replace("Handler", "Extensions", StringComparison.Ordinal) + ".cs";
+
+			var path = Path.Combine(
+				TestRepositoryPaths.Root,
+				"src",
+				"Maui.Tizen.Core",
+				"Platform",
+				"Tizen",
+				fileName);
+
+			return File.Exists(path) && IsCompiledTerminal(fileName) ? fileName : null;
+		}
+
+		static bool IsCompiledTerminal(string fileName)
+		{
+			var sources = File.ReadAllText(Path.Combine(
+				TestRepositoryPaths.Root,
+				"eng",
+				"Maui.Tizen.Core.Sources.props"));
+
+			return sources.Contains(
+				$"Platform/Tizen/{fileName}",
+				StringComparison.Ordinal);
+		}
+
+		static string ReadHandlerSource(string owner) =>
+			File.ReadAllText(Path.Combine(
+				TestRepositoryPaths.Root,
+				"src",
+				"Maui.Tizen.Core",
+				"Handlers",
+				owner + ".cs"));
 
 		static string StripComments(string source)
 		{
@@ -153,6 +268,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		static string ToIdentity(UnsupportedMapperMappings.UnsupportedMapping mapping) =>
-			$"{mapping.Owner}|{mapping.Kind}|{mapping.Key}|{mapping.Method}";
+			$"{mapping.Owner}|{mapping.Kind}|{mapping.Key}|{mapping.Method}|" +
+			$"{mapping.TerminalFile}|{mapping.TerminalMethod}";
 	}
 }

@@ -60,10 +60,21 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// A fire-and-forget dispatch leaves a gap in which newer state can supersede queued work.
 		/// </remarks>
 		public static Task DispatchIfRequiredAsync(this IElementHandler? handler, Action action)
+			=> DispatchIfRequiredAsync(handler.GetDispatcher(), action);
+
+		/// <summary>
+		/// Captures the current dispatcher so asynchronous ownership cleanup cannot silently fall
+		/// back to a different thread after the handler disconnects.
+		/// </summary>
+		internal static Func<Action, Task> CaptureDispatcher(IElementHandler? handler)
+		{
+			var dispatcher = handler.GetDispatcher();
+			return action => DispatchIfRequiredAsync(dispatcher, action);
+		}
+
+		internal static Task DispatchIfRequiredAsync(IDispatcher? dispatcher, Action action)
 		{
 			ArgumentNullException.ThrowIfNull(action);
-
-			var dispatcher = handler.GetDispatcher();
 
 			if (dispatcher is null || !dispatcher.IsDispatchRequired)
 			{

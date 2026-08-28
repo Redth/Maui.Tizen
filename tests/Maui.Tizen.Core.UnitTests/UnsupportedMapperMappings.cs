@@ -8,7 +8,7 @@ using System.Linq;
 namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 {
 	/// <summary>
-	/// Evidence for mapper entries that intentionally resolve to an empty Tizen body.
+	/// Evidence for mapper entries that terminate in an empty Tizen body.
 	/// </summary>
 	public static class UnsupportedMapperMappings
 	{
@@ -16,14 +16,19 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[
 			new("TizenApplicationHandler", "OpenWindow", "MapOpenWindow", "command",
 				"Tizen exposes one NUI window per process, so another window cannot be opened."),
-			new("TizenDatePickerHandler", "IsOpen", "MapIsOpen", "property",
-				"IDatePicker.IsOpen is internal and cannot be read by an out-of-tree backend."),
+			new("TizenEditorHandler", "IsSpellCheckEnabled", "MapIsSpellCheckEnabled", "property",
+				"Tizen's editor exposes no spell-check switch independent of text prediction.",
+				"TizenEditorExtensions.cs", "UpdateIsSpellCheckEnabled"),
+			new("TizenEntryHandler", "ClearButtonVisibility", "MapClearButtonVisibility", "property",
+				"NUI Entry has no built-in clear affordance or internal drawing surface.",
+				"TizenEntryExtensions.cs", "UpdateClearButtonVisibility"),
+			new("TizenEntryHandler", "IsSpellCheckEnabled", "MapIsSpellCheckEnabled", "property",
+				"Tizen's entry exposes no spell-check switch independent of text prediction.",
+				"TizenEntryExtensions.cs", "UpdateIsSpellCheckEnabled"),
 			new("TizenLabelHandler", "Padding", "MapPadding", "property",
 				"dotnet/maui marks the Tizen label padding mapper as MissingMapper."),
 			new("TizenPageHandler", "Title", "MapTitle", "property",
 				"dotnet/maui marks the base Tizen page title mapper as MissingMapper."),
-			new("TizenPickerHandler", "IsOpen", "MapIsOpen", "property",
-				"IPicker.IsOpen is internal and cannot be read by an out-of-tree backend."),
 			new("TizenRadioButtonHandler", "CharacterSpacing", "MapCharacterSpacing", "property",
 				"Text styling belongs to the templated content's own label handler."),
 			new("TizenRadioButtonHandler", "Font", "MapFont", "property",
@@ -36,8 +41,12 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				"The Tizen search bar has no cancel affordance to tint."),
 			new("TizenSearchBarHandler", "SearchIconColor", "MapSearchIconColor", "property",
 				"The search icon drawable exposes no tint property."),
-			new("TizenTimePickerHandler", "IsOpen", "MapIsOpen", "property",
-				"ITimePicker.IsOpen is internal and cannot be read by an out-of-tree backend."),
+			new("TizenSearchBarHandler", "IsSpellCheckEnabled", "MapIsSpellCheckEnabled", "property",
+				"Tizen's entry exposes no spell-check switch independent of text prediction.",
+				"TizenEntryExtensions.cs", "UpdateIsSpellCheckEnabled"),
+			new("TizenViewMappers", "FlowDirection", "MapFlowDirection", "property",
+				"NUI exposes no implemented flow-direction update in the compiled backend.",
+				"TizenPlatformExtensions.cs", "UpdateFlowDirection"),
 			new("TizenViewMappers", "MaximumHeight", "MapMaximumHeight", "property",
 				"NUI MaximumSize does not behave correctly; dotnet/maui leaves this mapping empty."),
 			new("TizenViewMappers", "MaximumWidth", "MapMaximumWidth", "property",
@@ -58,6 +67,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			string Key,
 			string Method,
 			string Kind,
-			string Evidence);
+			string Evidence,
+			string? TerminalFile = null,
+			string? TerminalMethod = null);
 	}
 }

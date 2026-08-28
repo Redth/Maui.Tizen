@@ -230,19 +230,22 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			sb.AppendLine("## Intentional no-op mappings");
 			sb.AppendLine();
-			sb.AppendLine("These entries are reachable, but their Tizen mapper bodies are explicitly empty. The");
-			sb.AppendLine("classification is compared with the source by");
-			sb.AppendLine("`UnsupportedMapperClassificationTests`: adding an empty mapper without evidence, or");
-			sb.AppendLine("implementing one without removing it from this list, fails the test.");
+			sb.AppendLine("These entries are reachable, but either their mapper body or the compiled platform");
+			sb.AppendLine("extension it delegates to is empty. `UnsupportedMapperClassificationTests` follows");
+			sb.AppendLine("those terminal calls: adding a no-op without evidence, implementing a listed terminal,");
+			sb.AppendLine("or turning a behavioral terminal into a no-op fails the test.");
 			sb.AppendLine();
-			sb.AppendLine("| Owner | Kind | Key | Evidence |");
-			sb.AppendLine("|---|---|---|---|");
+			sb.AppendLine("| Owner | Kind | Key | Terminal | Evidence |");
+			sb.AppendLine("|---|---|---|---|---|");
 			foreach (var mapping in UnsupportedMapperMappings.All
 				.OrderBy(mapping => mapping.Owner, StringComparer.Ordinal)
 				.ThenBy(mapping => mapping.Key, StringComparer.Ordinal))
 			{
+				var terminal = mapping.TerminalMethod is null
+					? $"{mapping.Owner}.{mapping.Method}"
+					: $"{mapping.TerminalFile}.{mapping.TerminalMethod}";
 				sb.AppendLine(
-					$"| `{mapping.Owner}` | {mapping.Kind} | `{mapping.Key}` | {mapping.Evidence} |");
+					$"| `{mapping.Owner}` | {mapping.Kind} | `{mapping.Key}` | `{terminal}` | {mapping.Evidence} |");
 			}
 			sb.AppendLine();
 

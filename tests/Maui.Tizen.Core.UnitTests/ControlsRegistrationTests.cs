@@ -73,6 +73,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[InlineData(typeof(Stepper), typeof(TizenStepperHandler))]
 		[InlineData(typeof(Switch), typeof(TizenSwitchHandler))]
 		[InlineData(typeof(TimePicker), typeof(TizenTimePickerHandler))]
+		[InlineData(typeof(Application), typeof(TizenApplicationHandler))]
 		[InlineData(typeof(ContentView), typeof(TizenContentViewHandler))]
 		[InlineData(typeof(ContentPage), typeof(TizenPageHandler))]
 		[InlineData(typeof(VerticalStackLayout), typeof(TizenLayoutHandler))]

@@ -96,8 +96,9 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				known.Add(key);
 
 			// MAUI declares these members internal, so they cannot be reached with nameof from an
-			// out-of-repo backend; they are mapped by string literal and are legitimate.
-			foreach (var internalKey in new[] { "IsOpen", "Items", "SearchIconColor" })
+			// out-of-repo backend; they are mapped by string literal and are legitimate. IsOpen is
+			// deliberately absent: it is public in MAUI 11 and must remain a real typed mapping.
+			foreach (var internalKey in new[] { "Items", "SearchIconColor" })
 				known.Add(internalKey);
 
 			var unreachable = tizenKeys.Except(known, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();

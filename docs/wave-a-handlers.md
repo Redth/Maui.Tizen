@@ -167,7 +167,6 @@ as `excluded` rather than `MISSING` in the matrix:
 | `IEntry.ClearButtonVisibility` | NUI's entry has no clear affordance and offers no drawing surface inside the control. |
 | `ISearchBar.CancelButtonColor` | The Tizen search bar has no cancel affordance to tint. |
 | `ISearchBar.SearchIconColor` | The icon is drawn by `TizenSearchBarView`; tinting needs a public property on that drawable. |
-| `IPicker`/`IDatePicker`/`ITimePicker` `IsOpen` | Declared `internal` by MAUI, so it cannot be read from out of tree, and Tizen's dialogs have no programmatic dismiss. |
 | `IRadioButton` text/`IsChecked` | Both are expressed by the templated content, which MAUI re-renders itself; there is no separate native indicator. |
 
 ### Behaviour improved over the upstream Tizen backend
@@ -183,6 +182,9 @@ defects visible:
   Now reads the vertical one.
 - **Slider bounds** are written as a pair, so mapper key order is no longer load-bearing when
   the new range does not overlap the old one.
+- **Picker `IsOpen` is the popup state contract.** Programmatic true/false, touch and key
+  activation, acceptance, cancellation and disconnect all flow through the same generation-owned
+  popup lifecycle; stale completions cannot update a replacement view.
 - **`MaxLength`, `CursorPosition` and `SelectionLength`** are clamped to the current text, so a
   stale value from a previous string cannot throw from inside a property mapper.
 - **`Stepper` value changes** no longer raise a change notification when the clamped value is
