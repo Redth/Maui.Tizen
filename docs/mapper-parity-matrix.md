@@ -27,6 +27,7 @@ Core-only subset instead of what an application sees.
 | Legend | Meaning |
 |---|---|
 | tizen | The backend supplies a Tizen implementation. |
+| unsupported | The backend explicitly maps the key to a documented no-op. |
 | inherited | The key resolves through MAUI's chained mapper, but its body is the
 | | off-platform no-op - so nothing happens on Tizen. Reachable, not implemented. |
 | excluded | Deliberately not implemented, for a documented reason. |
@@ -57,6 +58,32 @@ raw imported files that mention those keys remain outside the compile closure.
 `ControlsLayerFollowUpMatchesCompiledBridge` pins that closure so adding an implementation
 forces this matrix to be re-measured.
 
+## Intentional no-op mappings
+
+These entries are reachable, but their Tizen mapper bodies are explicitly empty. The
+classification is compared with the source by
+`UnsupportedMapperClassificationTests`: adding an empty mapper without evidence, or
+implementing one without removing it from this list, fails the test.
+
+| Owner | Kind | Key | Evidence |
+|---|---|---|---|
+| `TizenApplicationHandler` | command | `OpenWindow` | Tizen exposes one NUI window per process, so another window cannot be opened. |
+| `TizenDatePickerHandler` | property | `IsOpen` | IDatePicker.IsOpen is internal and cannot be read by an out-of-tree backend. |
+| `TizenLabelHandler` | property | `Padding` | dotnet/maui marks the Tizen label padding mapper as MissingMapper. |
+| `TizenPageHandler` | property | `Title` | dotnet/maui marks the base Tizen page title mapper as MissingMapper. |
+| `TizenPickerHandler` | property | `IsOpen` | IPicker.IsOpen is internal and cannot be read by an out-of-tree backend. |
+| `TizenRadioButtonHandler` | property | `CharacterSpacing` | Text styling belongs to the templated content's own label handler. |
+| `TizenRadioButtonHandler` | property | `Font` | Text styling belongs to the templated content's own label handler. |
+| `TizenRadioButtonHandler` | property | `IsChecked` | The checked visual is supplied by the radio button content template, not a native indicator. |
+| `TizenRadioButtonHandler` | property | `TextColor` | Text styling belongs to the templated content's own label handler. |
+| `TizenSearchBarHandler` | property | `CancelButtonColor` | The Tizen search bar has no cancel affordance to tint. |
+| `TizenSearchBarHandler` | property | `SearchIconColor` | The search icon drawable exposes no tint property. |
+| `TizenTimePickerHandler` | property | `IsOpen` | ITimePicker.IsOpen is internal and cannot be read by an out-of-tree backend. |
+| `TizenViewMappers` | property | `MaximumHeight` | NUI MaximumSize does not behave correctly; dotnet/maui leaves this mapping empty. |
+| `TizenViewMappers` | property | `MaximumWidth` | NUI MaximumSize does not behave correctly; dotnet/maui leaves this mapping empty. |
+| `TizenViewMappers` | property | `ToolTip` | NUI has no tooltip primitive; dotnet/maui leaves this mapping empty. |
+| `TizenWindowHandler` | property | `Title` | dotnet/maui leaves the Tizen window title mapper empty. |
+
 ## Common view properties
 
 Inherited by every control below through `TizenViewMappers.ViewMapper`, the
@@ -84,8 +111,8 @@ register every key while doing nothing, because its bodies are the off-platform 
 | `InputTransparent` | mapped |
 | `IsEnabled` | mapped |
 | `IsInAccessibleTree` | mapped |
-| `MaximumHeight` | mapped |
-| `MaximumWidth` | mapped |
+| `MaximumHeight` | unsupported |
+| `MaximumWidth` | unsupported |
 | `MinimumHeight` | mapped |
 | `MinimumWidth` | mapped |
 | `Opacity` | mapped |
@@ -97,7 +124,7 @@ register every key while doing nothing, because its bodies are the off-platform 
 | `ScaleY` | mapped |
 | `Semantics` | mapped |
 | `Shadow` | mapped |
-| `ToolTip` | mapped |
+| `ToolTip` | unsupported |
 | `TranslationX` | mapped |
 | `TranslationY` | mapped |
 | `Visibility` | mapped |
@@ -151,7 +178,7 @@ Serves `IDatePicker`; compared against MAUI's `DatePickerHandler`.
 | `Date` | mapped | tizen |
 | `Font` | mapped | tizen |
 | `Format` | mapped | tizen |
-| `IsOpen` | mapped | tizen |
+| `IsOpen` | mapped | unsupported |
 | `MaximumDate` | mapped | tizen |
 | `MinimumDate` | mapped | tizen |
 | `TextColor` | mapped | tizen |
@@ -214,7 +241,7 @@ Serves `IPicker`; compared against MAUI's `PickerHandler`.
 | `CharacterSpacing` | mapped | tizen |
 | `Font` | mapped | tizen |
 | `HorizontalTextAlignment` | mapped | tizen |
-| `IsOpen` | mapped | tizen |
+| `IsOpen` | mapped | unsupported |
 | `Items` | mapped | tizen |
 | `ItemsSource` | mapped | tizen |
 | `SelectedIndex` | mapped | tizen |
@@ -238,14 +265,14 @@ Serves `IRadioButton`; compared against MAUI's `RadioButtonHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
-| `CharacterSpacing` | mapped | tizen |
+| `CharacterSpacing` | mapped | unsupported |
 | `Content` | mapped | tizen |
 | `CornerRadius` | mapped | tizen |
-| `Font` | mapped | tizen |
-| `IsChecked` | mapped | tizen |
+| `Font` | mapped | unsupported |
+| `IsChecked` | mapped | unsupported |
 | `StrokeColor` | mapped | tizen |
 | `StrokeThickness` | mapped | tizen |
-| `TextColor` | mapped | tizen |
+| `TextColor` | mapped | unsupported |
 
 ## TizenSearchBarHandler
 
@@ -253,7 +280,7 @@ Serves `ISearchBar`; compared against MAUI's `SearchBarHandler`.
 
 | Key | MAUI | Tizen |
 |---|---|---|
-| `CancelButtonColor` | mapped | tizen |
+| `CancelButtonColor` | mapped | unsupported |
 | `CharacterSpacing` | mapped | tizen |
 | `CursorPosition` | mapped | tizen |
 | `Font` | mapped | tizen |
@@ -266,7 +293,7 @@ Serves `ISearchBar`; compared against MAUI's `SearchBarHandler`.
 | `Placeholder` | mapped | tizen |
 | `PlaceholderColor` | mapped | tizen |
 | `ReturnType` | mapped | tizen |
-| `SearchIconColor` | mapped | tizen |
+| `SearchIconColor` | mapped | unsupported |
 | `SelectionLength` | mapped | tizen |
 | `Text` | mapped | tizen |
 | `TextColor` | mapped | tizen |
@@ -318,6 +345,6 @@ Serves `ITimePicker`; compared against MAUI's `TimePickerHandler`.
 | `CharacterSpacing` | mapped | tizen |
 | `Font` | mapped | tizen |
 | `Format` | mapped | tizen |
-| `IsOpen` | mapped | tizen |
+| `IsOpen` | mapped | unsupported |
 | `TextColor` | mapped | tizen |
 | `Time` | mapped | tizen |

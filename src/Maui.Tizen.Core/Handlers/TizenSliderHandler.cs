@@ -32,7 +32,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			new CommandMapper<ISlider, ISliderHandler>(TizenHandlerMappers.ChainCommands(SliderHandler.CommandMapper));
 
 #if TIZEN
-		readonly TizenImageLoader<TizenImageSource> _thumbLoader = new();
+		TizenImageLoader<TizenImageSource> _thumbLoader = new();
 #endif
 
 		/// <summary>Initializes a new instance of the <see cref="TizenSliderHandler"/> class.</summary>
@@ -86,6 +86,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 			base.ConnectHandler(platformView);
 #if TIZEN
+			_thumbLoader.Dispose();
+			_thumbLoader = new();
 			platformView.ValueChanged += OnControlValueChanged;
 			platformView.SlidingStarted += OnSlidingStarted;
 			platformView.SlidingFinished += OnSlidingFinished;
@@ -181,15 +183,22 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			ArgumentNullException.ThrowIfNull(handler);
 
 			var provider = handler.GetService<IImageSourceServiceProvider>();
+			var source = slider.ThumbImageSource;
+			var virtualView = handler.VirtualView;
 			var target = Platform(handler);
 
 			return AsHandler(handler)._thumbLoader.LoadAsync(
-				slider.ThumbImageSource,
+				source,
 				(imageSource, token) => provider is null
 					? Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(null)
 					: provider.GetTizenImageAsync(imageSource, token),
-				image => handler.DispatchIfRequired(() => Platform(handler)?.UpdateThumbImageSource(image)),
-				() => target is not null && ReferenceEquals(Platform(handler), target));
+				handler.DispatchIfRequiredAsync,
+				image => target?.UpdateThumbImageSource(image),
+				() => ReferenceEquals(handler.VirtualView?.ThumbImageSource, source),
+				() =>
+					target is not null &&
+					ReferenceEquals(handler.VirtualView, virtualView) &&
+					ReferenceEquals(Platform(handler), target));
 		}
 #endif
 

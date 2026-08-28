@@ -21,7 +21,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	public class TizenDatePickerHandler : TizenViewHandler<IDatePicker, TizenPickerView>, IDatePickerHandler
 	{
 #if TIZEN
-		bool _isOpen;
+		readonly TizenPopupLifecycle<TizenDateTimePicker> _popupLifecycle = new();
 #endif
 
 		/// <summary>The complete property mapper for <see cref="IDatePicker"/>.</summary>
@@ -83,6 +83,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override void ConnectHandler(TizenPickerView platformView)
 		{
+#if TIZEN
+			_popupLifecycle.CancelOnUiThread(static popup => popup.Close());
+#endif
 			base.ConnectHandler(platformView);
 #if TIZEN
 			platformView.TouchEvent += OnTouch;
@@ -93,6 +96,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void DisconnectHandler(TizenPickerView platformView)
 		{
 #if TIZEN
+			_popupLifecycle.CancelOnUiThread(static popup => popup.Close());
+
 			if (platformView.HasBody())
 			{
 				platformView.TouchEvent -= OnTouch;
@@ -179,7 +184,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (VirtualView is null)
 				return false;
 
-			_ = OpenPopupAsync();
+			OpenPopupAsync().FireAndForget(this);
 			return true;
 		}
 #endif
@@ -190,7 +195,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (!e.Key.IsAcceptKeyEvent())
 				return false;
 
-			_ = OpenPopupAsync();
+			OpenPopupAsync().FireAndForget(this);
 			return true;
 		}
 #endif
@@ -198,39 +203,27 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 #if TIZEN
 		async Task OpenPopupAsync()
 		{
-			if (VirtualView is null || _isOpen)
+			var virtualView = VirtualView;
+			var platformView = PlatformView;
+
+			if (virtualView is null || platformView is null)
 				return;
 
-			_isOpen = true;
+			var date = virtualView.Date ?? DateTime.Today;
+			var minimum = virtualView.MinimumDate;
+			var maximum = virtualView.MaximumDate;
 
-			try
-			{
-				await this.GetModalHost().RunModalAsync(async () =>
-				{
-					using var popup = new TizenDateTimePicker(
-						VirtualView.Date ?? DateTime.Today,
-						isTimePicker: false,
-						VirtualView.MinimumDate,
-						VirtualView.MaximumDate);
-
-					try
-					{
-						var selected = await popup.Open().ConfigureAwait(false);
-
-						// See TizenPickerHandler: a virtual-view write runs the mapper, so it
-						// must be marshalled back to the main loop.
-						this.DispatchIfRequired(() => VirtualView.Date = selected);
-					}
-					catch (OperationCanceledException)
-					{
-						// Dismissed without choosing; leave the date alone.
-					}
-				}).ConfigureAwait(false);
-			}
-			finally
-			{
-				_isOpen = false;
-			}
+			await this.GetModalHost().RunModalAsync(() =>
+				_popupLifecycle.RunAsync(
+					virtualView,
+					platformView,
+					() => VirtualView,
+					() => PlatformView,
+					() => new TizenDateTimePicker(date, isTimePicker: false, minimum, maximum),
+					static (popup, _) => popup.Open(),
+					static popup => popup.Close(),
+					this.DispatchIfRequiredAsync,
+					static (picker, selected) => picker.Date = selected));
 		}
 #endif
 	}

@@ -40,7 +40,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			new CommandMapper<IButton, IButtonHandler>(TizenHandlerMappers.ChainCommands(ButtonHandler.CommandMapper));
 
 #if TIZEN
-		readonly TizenImageLoader<TizenImageSource> _iconLoader = new();
+		TizenImageLoader<TizenImageSource> _iconLoader = new();
 #endif
 
 		/// <summary>Initializes a new instance of the <see cref="TizenButtonHandler"/> class.</summary>
@@ -129,6 +129,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 			base.ConnectHandler(platformView);
 #if TIZEN
+			// Disconnect permanently invalidates its loader so queued callbacks cannot revive it.
+			// A reconnect therefore gets a fresh generation/ownership scope.
+			_iconLoader.Dispose();
+			_iconLoader = new();
 			platformView.TouchEvent += OnTouch;
 			platformView.Clicked += OnClicked;
 #endif
@@ -238,7 +242,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			var source = (button as IImage)?.Source;
 			var provider = handler.GetService<IImageSourceServiceProvider>();
 
-			// Capture the view this load is for, so a reconnect can be detected on completion.
+			// Capture both ends of the binding. The commit rechecks them after it reaches the UI
+			// thread, not merely before queueing there.
+			var virtualView = handler.VirtualView;
 			var target = Platform(handler);
 
 			return AsHandler(handler)._iconLoader.LoadAsync(
@@ -246,10 +252,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				(imageSource, token) => provider is null
 					? Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(null)
 					: provider.GetTizenImageAsync(imageSource, token),
-				// The load completes on a thread-pool thread; NUI must only be touched on the
-				// main loop, so the application is marshalled back.
-				image => handler.DispatchIfRequired(() => Platform(handler)?.UpdateImageSource(image)),
-				() => target is not null && ReferenceEquals(Platform(handler), target));
+				handler.DispatchIfRequiredAsync,
+				image => target?.UpdateImageSource(image),
+				() => ReferenceEquals((handler.VirtualView as IImage)?.Source, source),
+				() =>
+					target is not null &&
+					ReferenceEquals(handler.VirtualView, virtualView) &&
+					ReferenceEquals(Platform(handler), target));
 		}
 #endif
 

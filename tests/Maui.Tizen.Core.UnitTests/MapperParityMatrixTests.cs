@@ -196,6 +196,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			sb.AppendLine("| Legend | Meaning |");
 			sb.AppendLine("|---|---|");
 			sb.AppendLine("| tizen | The backend supplies a Tizen implementation. |");
+			sb.AppendLine("| unsupported | The backend explicitly maps the key to a documented no-op. |");
 			sb.AppendLine("| inherited | The key resolves through MAUI's chained mapper, but its body is the");
 			sb.AppendLine("| | off-platform no-op - so nothing happens on Tizen. Reachable, not implemented. |");
 			sb.AppendLine("| excluded | Deliberately not implemented, for a documented reason. |");
@@ -227,6 +228,24 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			sb.AppendLine("forces this matrix to be re-measured.");
 			sb.AppendLine();
 
+			sb.AppendLine("## Intentional no-op mappings");
+			sb.AppendLine();
+			sb.AppendLine("These entries are reachable, but their Tizen mapper bodies are explicitly empty. The");
+			sb.AppendLine("classification is compared with the source by");
+			sb.AppendLine("`UnsupportedMapperClassificationTests`: adding an empty mapper without evidence, or");
+			sb.AppendLine("implementing one without removing it from this list, fails the test.");
+			sb.AppendLine();
+			sb.AppendLine("| Owner | Kind | Key | Evidence |");
+			sb.AppendLine("|---|---|---|---|");
+			foreach (var mapping in UnsupportedMapperMappings.All
+				.OrderBy(mapping => mapping.Owner, StringComparer.Ordinal)
+				.ThenBy(mapping => mapping.Key, StringComparer.Ordinal))
+			{
+				sb.AppendLine(
+					$"| `{mapping.Owner}` | {mapping.Kind} | `{mapping.Key}` | {mapping.Evidence} |");
+			}
+			sb.AppendLine();
+
 			var viewKeys = TizenViewMappers.ViewMapper.GetKeys().ToHashSet(StringComparer.Ordinal);
 
 			sb.AppendLine("## Common view properties");
@@ -238,7 +257,12 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			sb.AppendLine("| Key | Status |");
 			sb.AppendLine("|---|---|");
 			foreach (var key in viewKeys.Order(StringComparer.Ordinal))
-				sb.AppendLine($"| `{key}` | mapped |");
+			{
+				var status = UnsupportedMapperMappings.IsUnsupported("TizenViewMappers", key)
+					? "unsupported"
+					: "mapped";
+				sb.AppendLine($"| `{key}` | {status} |");
+			}
 			sb.AppendLine();
 
 			foreach (var handler in TizenControlHandlers.All)
@@ -270,7 +294,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 					var inTizen = tizenKeys.Contains(key);
 
 					var tizenCell =
-						ControlMapperParityTests.IsIntentionallyUnmapped(key) ? "excluded"
+						UnsupportedMapperMappings.IsUnsupported(handler.HandlerType.Name, key) ? "unsupported"
+						: ControlMapperParityTests.IsIntentionallyUnmapped(key) ? "excluded"
 						: !inTizen ? "**MISSING**"
 						: inheritedOnly.Contains(key) ? "inherited"
 						: "tizen";

@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Maui;
@@ -24,19 +25,42 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		sealed class FakeImage
 		{
 			public string Name { get; init; } = string.Empty;
+
+			public bool IsDisposed { get; set; }
 		}
 
 		sealed class FakeResult : IImageSourceServiceResult<FakeImage>
 		{
-			public FakeResult(FakeImage value) => Value = value;
+			readonly FakeImage _value;
 
-			public FakeImage Value { get; }
+			public FakeResult(FakeImage value) => _value = value;
+
+			public FakeImage Value
+			{
+				get
+				{
+					ValueAccessCount++;
+
+					if (IsDisposed)
+						throw new ObjectDisposedException(nameof(FakeResult));
+
+					return _value;
+				}
+			}
 
 			public bool IsResolutionDependent => false;
 
-			public bool IsDisposed { get; private set; }
+			public int DisposeCount { get; private set; }
 
-			public void Dispose() => IsDisposed = true;
+			public int ValueAccessCount { get; private set; }
+
+			public bool IsDisposed => DisposeCount != 0;
+
+			public void Dispose()
+			{
+				DisposeCount++;
+				_value.IsDisposed = true;
+			}
 		}
 
 		sealed class FakeSource : IImageSource
@@ -44,13 +68,64 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			public bool IsEmpty => false;
 		}
 
+		sealed class QueuedCommit
+		{
+			readonly List<(Action Action, TaskCompletionSource Completion)> _pending = new();
+
+			public int Count => _pending.Count;
+
+			public Task Enqueue(Action action)
+			{
+				var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+				_pending.Add((action, completion));
+				return completion.Task;
+			}
+
+			public void RunAt(int index)
+			{
+				var pending = _pending[index];
+				_pending.RemoveAt(index);
+
+				try
+				{
+					pending.Action();
+					pending.Completion.SetResult();
+				}
+				catch (Exception exception)
+				{
+					pending.Completion.SetException(exception);
+				}
+			}
+		}
+
+		static Task RunInline(Action action)
+		{
+			action();
+			return Task.CompletedTask;
+		}
+
+		static Task LoadAsync(
+			TizenImageLoader<FakeImage> loader,
+			IImageSource? source,
+			Func<IImageSource, CancellationToken, Task<IImageSourceServiceResult<FakeImage>?>> load,
+			Action<FakeImage?> apply,
+			Func<bool> isTargetCurrent) =>
+			loader.LoadAsync(
+				source,
+				load,
+				RunInline,
+				apply,
+				static () => true,
+				isTargetCurrent);
+
 		[Fact]
 		public async Task AppliesTheLoadedImage()
 		{
 			using var loader = new TizenImageLoader<FakeImage>();
 			FakeImage? applied = null;
 
-			await loader.LoadAsync(
+			await LoadAsync(
+				loader,
 				new FakeSource(),
 				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(new FakeResult(new FakeImage { Name = "a" })),
 				image => applied = image,
@@ -69,13 +144,15 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			FakeImage? applied = null;
 			var applyCount = 0;
 
-			await loader.LoadAsync(
+			await LoadAsync(
+				loader,
 				new FakeSource(),
 				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(new FakeResult(new FakeImage { Name = "a" })),
 				image => { applied = image; applyCount++; },
 				static () => true);
 
-			await loader.LoadAsync(
+			await LoadAsync(
+				loader,
 				source: null,
 				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(null),
 				image => { applied = image; applyCount++; },
@@ -108,7 +185,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			using var loader = new TizenImageLoader<FakeImage>();
 			FakeImage? applied = null;
 
-			await loader.LoadAsync(
+			await LoadAsync(
+				loader,
 				new FakeSource(),
 				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(new FakeResult(new FakeImage { Name = "a" })),
 				image => applied = image,
@@ -117,7 +195,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.NotNull(applied);
 
 			// Non-null source, no exception, no result.
-			await loader.LoadAsync(
+			await LoadAsync(
+				loader,
 				new FakeSource(),
 				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(null),
 				image => applied = image,
@@ -146,7 +225,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var firstStarted = new TaskCompletionSource();
 			var releaseFirst = new TaskCompletionSource();
 
-			var first = loader.LoadAsync(
+			var first = LoadAsync(
+				loader,
 				new FakeSource(),
 				async (_, token) =>
 				{
@@ -161,7 +241,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			await firstStarted.Task;
 
 			// Supersede while the first is still in flight.
-			var second = loader.LoadAsync(
+			var second = LoadAsync(
+				loader,
 				new FakeSource(),
 				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(new FakeResult(new FakeImage { Name = "fast" })),
 				image => applied.Add(image?.Name),
@@ -185,7 +266,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var applied = false;
 			var result = new FakeResult(new FakeImage { Name = "a" });
 
-			await loader.LoadAsync(
+			await LoadAsync(
+				loader,
 				new FakeSource(),
 				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(result),
 				_ => applied = true,
@@ -205,7 +287,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			using var loader = new TizenImageLoader<FakeImage>();
 			FakeImage? applied = new() { Name = "stale" };
 
-			await loader.LoadAsync(
+			await LoadAsync(
+				loader,
 				new FakeSource(),
 				(_, _) => Task.FromException<IImageSourceServiceResult<FakeImage>?>(new InvalidOperationException("boom")),
 				image => applied = image,
@@ -227,13 +310,29 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var first = new FakeResult(new FakeImage { Name = "first" });
 			var second = new FakeResult(new FakeImage { Name = "second" });
 
-			await loader.LoadAsync(new FakeSource(), (_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(first), _ => { }, static () => true);
+			await LoadAsync(loader, new FakeSource(), (_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(first), _ => { }, static () => true);
 			Assert.False(first.IsDisposed);
 
-			await loader.LoadAsync(new FakeSource(), (_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(second), _ => { }, static () => true);
+			await LoadAsync(loader, new FakeSource(), (_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(second), _ => { }, static () => true);
 
 			Assert.True(first.IsDisposed, "Replacing the image must dispose the result it replaced.");
 			Assert.False(second.IsDisposed);
+		}
+
+		[Fact]
+		public async Task ReapplyingTheSameResultKeepsItAliveAndDisposesItOnce()
+		{
+			var loader = new TizenImageLoader<FakeImage>();
+			var result = new FakeResult(new FakeImage { Name = "shared" });
+
+			await LoadAsync(loader, new FakeSource(), (_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(result), _ => { }, static () => true);
+			await LoadAsync(loader, new FakeSource(), (_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(result), _ => { }, static () => true);
+
+			Assert.Equal(0, result.DisposeCount);
+
+			loader.Dispose();
+
+			Assert.Equal(1, result.DisposeCount);
 		}
 
 		/// <summary>
@@ -248,7 +347,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var loader = new TizenImageLoader<FakeImage>();
 			var result = new FakeResult(new FakeImage { Name = "a" });
 
-			await loader.LoadAsync(new FakeSource(), (_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(result), _ => { }, static () => true);
+			await LoadAsync(loader, new FakeSource(), (_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(result), _ => { }, static () => true);
 
 			loader.Dispose();
 
@@ -268,7 +367,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var started = new TaskCompletionSource();
 			var result = new FakeResult(new FakeImage { Name = "a" });
 
-			var load = loader.LoadAsync(
+			var load = LoadAsync(
+				loader,
 				new FakeSource(),
 				async (_, _) =>
 				{
@@ -300,7 +400,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var started = new TaskCompletionSource();
 			var release = new TaskCompletionSource();
 
-			var slow = loader.LoadAsync(
+			var slow = LoadAsync(
+				loader,
 				new FakeSource(),
 				async (_, token) =>
 				{
@@ -314,7 +415,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			await started.Task;
 
-			await loader.LoadAsync(
+			await LoadAsync(
+				loader,
 				new FakeSource(),
 				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(new FakeResult(new FakeImage { Name = "current" })),
 				image => applied.Add(image?.Name),
@@ -325,6 +427,216 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			// The cancelled load must not have appended a clearing null after "current".
 			Assert.Equal(["current"], applied);
+		}
+
+		/// <summary>
+		/// A commit that was queued first but executes after a newer commit cannot win.
+		/// </summary>
+		[Fact]
+		public async Task QueuedOlderCommitCannotOverwriteOrUseDisposedResult()
+		{
+			using var loader = new TizenImageLoader<FakeImage>();
+			var commits = new QueuedCommit();
+			var firstSource = new FakeSource();
+			var secondSource = new FakeSource();
+			IImageSource currentSource = firstSource;
+			var firstResult = new FakeResult(new FakeImage { Name = "old" });
+			var secondResult = new FakeResult(new FakeImage { Name = "new" });
+			var applied = new List<string?>();
+
+			var first = loader.LoadAsync(
+				firstSource,
+				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(firstResult),
+				commits.Enqueue,
+				image => applied.Add(image?.Name),
+				() => ReferenceEquals(currentSource, firstSource),
+				static () => true);
+
+			Assert.Equal(1, commits.Count);
+
+			currentSource = secondSource;
+			var second = loader.LoadAsync(
+				secondSource,
+				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(secondResult),
+				commits.Enqueue,
+				image => applied.Add(image?.Name),
+				() => ReferenceEquals(currentSource, secondSource),
+				static () => true);
+
+			Assert.Equal(2, commits.Count);
+
+			// Execute the newer callback first, then the superseded callback.
+			commits.RunAt(1);
+			await second;
+
+			Assert.Equal(["new"], applied);
+			Assert.False(firstResult.IsDisposed);
+			Assert.Equal(0, firstResult.ValueAccessCount);
+
+			commits.RunAt(0);
+			await first;
+
+			Assert.Equal(["new"], applied);
+			Assert.Equal(1, firstResult.DisposeCount);
+			Assert.Equal(0, firstResult.ValueAccessCount);
+			Assert.False(secondResult.IsDisposed);
+			Assert.Equal("new", loader.Current?.Name);
+		}
+
+		/// <summary>
+		/// Disposal between queueing and execution invalidates the callback before it reads Value.
+		/// </summary>
+		[Fact]
+		public async Task QueuedCommitAfterDisposalDoesNotApplyOrTouchTheResult()
+		{
+			var loader = new TizenImageLoader<FakeImage>();
+			var commits = new QueuedCommit();
+			var result = new FakeResult(new FakeImage { Name = "orphaned" });
+			var applied = false;
+
+			var load = loader.LoadAsync(
+				new FakeSource(),
+				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(result),
+				commits.Enqueue,
+				_ => applied = true,
+				static () => true,
+				static () => true);
+
+			Assert.Equal(1, commits.Count);
+
+			loader.Dispose();
+			Assert.False(result.IsDisposed);
+
+			commits.RunAt(0);
+			await load;
+
+			Assert.False(applied);
+			Assert.Equal(0, result.ValueAccessCount);
+			Assert.Equal(1, result.DisposeCount);
+		}
+
+		/// <summary>
+		/// Source identity is checked after dispatch, immediately before the platform write.
+		/// </summary>
+		[Fact]
+		public async Task QueuedCommitRechecksSourceIdentity()
+		{
+			using var loader = new TizenImageLoader<FakeImage>();
+			var commits = new QueuedCommit();
+			var source = new FakeSource();
+			IImageSource currentSource = source;
+			var result = new FakeResult(new FakeImage { Name = "stale" });
+			var applied = false;
+
+			var load = loader.LoadAsync(
+				source,
+				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(result),
+				commits.Enqueue,
+				_ => applied = true,
+				() => ReferenceEquals(currentSource, source),
+				static () => true);
+
+			currentSource = new FakeSource();
+			commits.RunAt(0);
+			await load;
+
+			Assert.False(applied);
+			Assert.Equal(0, result.ValueAccessCount);
+			Assert.Equal(1, result.DisposeCount);
+		}
+
+		/// <summary>
+		/// The accepted result remains owned and alive through the platform write.
+		/// </summary>
+		[Fact]
+		public async Task SuccessfulCommitKeepsResultAliveUntilApplyReturns()
+		{
+			var loader = new TizenImageLoader<FakeImage>();
+			var result = new FakeResult(new FakeImage { Name = "live" });
+
+			await loader.LoadAsync(
+				new FakeSource(),
+				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(result),
+				RunInline,
+				image =>
+				{
+					Assert.False(result.IsDisposed);
+					Assert.False(image?.IsDisposed);
+				},
+				static () => true,
+				static () => true);
+
+			Assert.Equal(0, result.DisposeCount);
+
+			loader.Dispose();
+
+			Assert.Equal(1, result.DisposeCount);
+		}
+
+		/// <summary>
+		/// Negative control: the old check-then-dispatch shape is sensitive to this ordering.
+		/// </summary>
+		[Fact]
+		public void LegacyCheckThenDispatchWouldOverwriteAndUseDisposedImage()
+		{
+			var callbacks = new List<Action>();
+			var oldResult = new FakeResult(new FakeImage { Name = "old" });
+			var newResult = new FakeResult(new FakeImage { Name = "new" });
+			string? applied = null;
+			var touchedDisposedImage = false;
+
+			static void QueueLegacyApply(
+				List<Action> queue,
+				FakeResult result,
+				Action<FakeImage> apply)
+			{
+				// This is the old production sequence: Value is captured after validity checks,
+				// then the actual platform write is dispatched without being awaited.
+				var image = result.Value;
+				queue.Add(() => apply(image));
+			}
+
+			QueueLegacyApply(callbacks, oldResult, image =>
+			{
+				touchedDisposedImage |= image.IsDisposed;
+				applied = image.Name;
+			});
+
+			// A newer commit replaced the old active result before its callback ran.
+			oldResult.Dispose();
+			QueueLegacyApply(callbacks, newResult, image => applied = image.Name);
+
+			callbacks[1]();
+			callbacks[0]();
+
+			Assert.Equal("old", applied);
+			Assert.True(touchedDisposedImage);
+		}
+
+		[Theory]
+		[InlineData("TizenButtonHandler.cs", "_iconLoader")]
+		[InlineData("TizenSliderHandler.cs", "_thumbLoader")]
+		public void ReconnectedHandlersCreateANewLoaderLifetime(string fileName, string fieldName)
+		{
+			var source = File.ReadAllText(Path.Combine(
+				TestRepositoryPaths.Root,
+				"src",
+				"Maui.Tizen.Core",
+				"Handlers",
+				fileName));
+			var connectStart = source.IndexOf(
+				"protected override void ConnectHandler",
+				StringComparison.Ordinal);
+			var disconnectStart = source.IndexOf(
+				"protected override void DisconnectHandler",
+				connectStart,
+				StringComparison.Ordinal);
+
+			Assert.True(connectStart >= 0 && disconnectStart > connectStart);
+
+			var connect = source[connectStart..disconnectStart];
+			Assert.Contains($"{fieldName}.Dispose();", connect, StringComparison.Ordinal);
+			Assert.Contains($"{fieldName} = new();", connect, StringComparison.Ordinal);
 		}
 	}
 }

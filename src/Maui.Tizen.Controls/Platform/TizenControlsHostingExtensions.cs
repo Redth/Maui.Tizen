@@ -45,7 +45,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Controls
 			// registered them by hand passed.
 			builder.ConfigureMauiHandlers(handlers =>
 			{
+				handlers.AddHandler<ActivityIndicator, TizenActivityIndicatorHandler>();
+				handlers.AddHandler<Button, TizenButtonHandler>();
+				handlers.AddHandler<CheckBox, TizenCheckBoxHandler>();
+				handlers.AddHandler<DatePicker, TizenDatePickerHandler>();
+				handlers.AddHandler<Editor, TizenEditorHandler>();
+				handlers.AddHandler<Entry, TizenEntryHandler>();
 				handlers.AddHandler<Label, TizenLabelHandler>();
+				handlers.AddHandler<Picker, TizenPickerHandler>();
+				handlers.AddHandler<ProgressBar, TizenProgressBarHandler>();
+				handlers.AddHandler<RadioButton, TizenRadioButtonHandler>();
+				handlers.AddHandler<SearchBar, TizenSearchBarHandler>();
+				handlers.AddHandler<Slider, TizenSliderHandler>();
+				handlers.AddHandler<Stepper, TizenStepperHandler>();
+				handlers.AddHandler<Switch, TizenSwitchHandler>();
+				handlers.AddHandler<TimePicker, TizenTimePickerHandler>();
 				handlers.AddHandler<ContentView, TizenContentViewHandler>();
 				handlers.AddHandler<Microsoft.Maui.Controls.Layout, TizenLayoutHandler>();
 				handlers.AddHandler<Page, TizenPageHandler>();

@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui;
 using Microsoft.Maui.Dispatching;
@@ -52,6 +53,30 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			public bool DispatchDelayed(TimeSpan delay, Action action) => Dispatch(action);
 
 			public IDispatcherTimer CreateTimer() => throw new NotSupportedException();
+		}
+
+		sealed class QueuedDispatcher : IDispatcher
+		{
+			Action? _pending;
+
+			public bool IsDispatchRequired => true;
+
+			public bool Dispatch(Action action)
+			{
+				_pending = action;
+				return true;
+			}
+
+			public bool DispatchDelayed(TimeSpan delay, Action action) => Dispatch(action);
+
+			public IDispatcherTimer CreateTimer() => throw new NotSupportedException();
+
+			public void Run()
+			{
+				var action = _pending ?? throw new InvalidOperationException("No callback was queued.");
+				_pending = null;
+				action();
+			}
 		}
 
 		static IElementHandler HandlerWith(IDispatcher dispatcher)
@@ -139,6 +164,37 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var handler = HandlerWith(dispatcher);
 
 			Assert.Same(dispatcher, handler.GetDispatcher());
+		}
+
+		[Fact]
+		public async Task AsyncDispatchCompletesOnlyAfterQueuedCallbackRuns()
+		{
+			var dispatcher = new QueuedDispatcher();
+			var handler = HandlerWith(dispatcher);
+			var ran = false;
+
+			var commit = handler.DispatchIfRequiredAsync(() => ran = true);
+
+			Assert.False(commit.IsCompleted);
+			Assert.False(ran);
+
+			dispatcher.Run();
+			await commit;
+
+			Assert.True(ran);
+		}
+
+		[Fact]
+		public async Task AsyncDispatchFailsWhenDispatcherRejectsCallback()
+		{
+			var dispatcher = new RecordingDispatcher(dispatchRequired: true)
+			{
+				DispatchResult = false,
+			};
+			var handler = HandlerWith(dispatcher);
+
+			await Assert.ThrowsAsync<InvalidOperationException>(
+				() => handler.DispatchIfRequiredAsync(static () => { }));
 		}
 
 		/// <summary>

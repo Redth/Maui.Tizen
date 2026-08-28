@@ -203,7 +203,7 @@ Microsoft.Maui.Platforms.Tizen.TizenImageLoader<TImage>
 Microsoft.Maui.Platforms.Tizen.TizenImageLoader<TImage>.Current.get -> TImage?
 Microsoft.Maui.Platforms.Tizen.TizenImageLoader<TImage>.CurrentSource.get -> Microsoft.Maui.IImageSource?
 Microsoft.Maui.Platforms.Tizen.TizenImageLoader<TImage>.Dispose() -> void
-Microsoft.Maui.Platforms.Tizen.TizenImageLoader<TImage>.LoadAsync(Microsoft.Maui.IImageSource? source, System.Func<Microsoft.Maui.IImageSource!, System.Threading.CancellationToken, System.Threading.Tasks.Task<Microsoft.Maui.IImageSourceServiceResult<TImage!>?>!>! load, System.Action<TImage?>! apply, System.Func<bool>! isStillCurrent) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.TizenImageLoader<TImage>.LoadAsync(Microsoft.Maui.IImageSource? source, System.Func<Microsoft.Maui.IImageSource!, System.Threading.CancellationToken, System.Threading.Tasks.Task<Microsoft.Maui.IImageSourceServiceResult<TImage!>?>!>! load, System.Func<System.Action!, System.Threading.Tasks.Task!>! commitOnUiThread, System.Action<TImage?>! apply, System.Func<bool>! isSourceCurrent, System.Func<bool>! isTargetCurrent) -> System.Threading.Tasks.Task!
 Microsoft.Maui.Platforms.Tizen.TizenImageLoader<TImage>.TizenImageLoader() -> void
 Microsoft.Maui.Platforms.Tizen.TizenImageSource
 Microsoft.Maui.Platforms.Tizen.TizenImageSource.Dispose() -> void
@@ -662,6 +662,7 @@ static Microsoft.Maui.Platforms.Tizen.TizenDatePickerExtensions.ClampDate(this M
 static Microsoft.Maui.Platforms.Tizen.TizenDatePickerExtensions.UpdateDate(this Tizen.UIExtensions.NUI.Entry! platformDatePicker, Microsoft.Maui.IDatePicker! datePicker) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenDatePickerExtensions.UpdateFormat(this Tizen.UIExtensions.NUI.Entry! platformDatePicker, Microsoft.Maui.IDatePicker! datePicker) -> void
 static Microsoft.Maui.Platforms.Tizen.TizenDispatchExtensions.DispatchIfRequired(this Microsoft.Maui.IElementHandler? handler, System.Action! action) -> void
+static Microsoft.Maui.Platforms.Tizen.TizenDispatchExtensions.DispatchIfRequiredAsync(this Microsoft.Maui.IElementHandler? handler, System.Action! action) -> System.Threading.Tasks.Task!
 static Microsoft.Maui.Platforms.Tizen.TizenDispatchExtensions.GetDispatcher(this Microsoft.Maui.IElementHandler? handler) -> Microsoft.Maui.Dispatching.IDispatcher?
 static Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity.Current.get -> double
 static Microsoft.Maui.Platforms.Tizen.TizenDisplayDensity.DisplayResolutionUnit.get -> Microsoft.Maui.Platforms.Tizen.TizenDisplayResolutionUnit

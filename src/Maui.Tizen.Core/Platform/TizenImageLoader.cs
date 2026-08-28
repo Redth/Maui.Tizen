@@ -52,8 +52,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 		readonly object _gate = new();
 
 		CancellationTokenSource? _pending;
+		IImageSource? _pendingSource;
 		IImageSourceServiceResult<TImage>? _active;
 		IImageSource? _activeSource;
+		long _generation;
 		bool _disposed;
 
 		/// <summary>The image currently applied, if any.</summary>
@@ -67,26 +69,37 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </summary>
 		/// <param name="source">The image source, or <see langword="null"/> to clear.</param>
 		/// <param name="load">Resolves the source to a service result.</param>
+		/// <param name="commitOnUiThread">
+		/// Dispatches and awaits the supplied commit callback on the UI thread. The callback itself,
+		/// rather than only the final platform-view write, must be dispatched so supersession and
+		/// lifetime are rechecked after queued work reaches the UI thread.
+		/// </param>
 		/// <param name="apply">
 		/// Applies the loaded image to the platform view; receives <see langword="null"/> to clear.
-		/// Always invoked on the caller's continuation, which the caller is responsible for having
-		/// marshalled to the UI thread.
+		/// Invoked by the awaited UI-thread commit while the service result is still owned and alive.
 		/// </param>
-		/// <param name="isStillCurrent">
-		/// Re-checked immediately before applying. Returns <see langword="false"/> when the handler
-		/// has been disconnected or reconnected to a different platform view.
+		/// <param name="isSourceCurrent">
+		/// Re-checks that the originating virtual view still exposes the exact source instance.
+		/// </param>
+		/// <param name="isTargetCurrent">
+		/// Re-checks that the originating virtual and platform views are still attached.
 		/// </param>
 		public async Task LoadAsync(
 			IImageSource? source,
 			Func<IImageSource, CancellationToken, Task<IImageSourceServiceResult<TImage>?>> load,
+			Func<Action, Task> commitOnUiThread,
 			Action<TImage?> apply,
-			Func<bool> isStillCurrent)
+			Func<bool> isSourceCurrent,
+			Func<bool> isTargetCurrent)
 		{
 			ArgumentNullException.ThrowIfNull(load);
+			ArgumentNullException.ThrowIfNull(commitOnUiThread);
 			ArgumentNullException.ThrowIfNull(apply);
-			ArgumentNullException.ThrowIfNull(isStillCurrent);
+			ArgumentNullException.ThrowIfNull(isSourceCurrent);
+			ArgumentNullException.ThrowIfNull(isTargetCurrent);
 
 			CancellationTokenSource cts;
+			long generation;
 
 			lock (_gate)
 			{
@@ -97,11 +110,22 @@ namespace Microsoft.Maui.Platforms.Tizen
 				_pending?.Cancel();
 				_pending?.Dispose();
 				_pending = cts = new CancellationTokenSource();
+				_pendingSource = source;
+				generation = ++_generation;
 			}
 
 			if (source is null)
 			{
-				Commit(result: null, source: null, apply, isStillCurrent, cts);
+				await CommitAsync(
+					result: null,
+					requestSource: null,
+					appliedSource: null,
+					commitOnUiThread,
+					apply,
+					isSourceCurrent,
+					isTargetCurrent,
+					cts,
+					generation).ConfigureAwait(false);
 				return;
 			}
 
@@ -119,42 +143,89 @@ namespace Microsoft.Maui.Platforms.Tizen
 			catch (Exception)
 			{
 				// A failed load must not leave the previous image showing under a new source.
-				Commit(result: null, source: null, apply, isStillCurrent, cts);
+				await CommitAsync(
+					result: null,
+					requestSource: source,
+					appliedSource: null,
+					commitOnUiThread,
+					apply,
+					isSourceCurrent,
+					isTargetCurrent,
+					cts,
+					generation).ConfigureAwait(false);
 				return;
 			}
 
-			Commit(loaded, source, apply, isStillCurrent, cts);
+			await CommitAsync(
+				loaded,
+				requestSource: source,
+				appliedSource: source,
+				commitOnUiThread,
+				apply,
+				isSourceCurrent,
+				isTargetCurrent,
+				cts,
+				generation).ConfigureAwait(false);
 		}
 
 		/// <summary>
-		/// Applies a completed load, unless it has been superseded in the meantime.
+		/// Applies a completed load on the UI thread, unless it has been superseded.
 		/// </summary>
-		void Commit(
+		async Task CommitAsync(
 			IImageSourceServiceResult<TImage>? result,
-			IImageSource? source,
+			IImageSource? requestSource,
+			IImageSource? appliedSource,
+			Func<Action, Task> commitOnUiThread,
 			Action<TImage?> apply,
-			Func<bool> isStillCurrent,
-			CancellationTokenSource cts)
+			Func<bool> isSourceCurrent,
+			Func<bool> isTargetCurrent,
+			CancellationTokenSource cts,
+			long generation)
 		{
-			lock (_gate)
+			IImageSourceServiceResult<TImage>? previous = null;
+			var committed = false;
+
+			try
 			{
-				var superseded = _disposed || !ReferenceEquals(_pending, cts) || cts.IsCancellationRequested;
-
-				// The identity check has to be inside the lock and after the supersession check:
-				// the handler could have been disconnected while the load was running.
-				if (superseded || !isStillCurrent())
+				await commitOnUiThread(() =>
 				{
-					result?.Dispose();
-					return;
-				}
+					lock (_gate)
+					{
+						var superseded =
+							_disposed ||
+							_generation != generation ||
+							!ReferenceEquals(_pending, cts) ||
+							!ReferenceEquals(_pendingSource, requestSource) ||
+							cts.IsCancellationRequested;
 
-				// Replacing: the outgoing result owns a native handle and must be released.
-				_active?.Dispose();
-				_active = result;
-				_activeSource = source;
+						// These checks run after a queued callback reaches the UI thread. Checking
+						// them before dispatch leaves a window in which a newer load or disconnect
+						// can invalidate the result while the callback is still waiting.
+						if (superseded || !isSourceCurrent() || !isTargetCurrent())
+							return;
+
+						// Keep both results alive until the platform has accepted the new image.
+						// Holding the gate across this short UI-thread write prevents a concurrent
+						// supersession or Dispose from releasing the new result underneath apply.
+						apply(result?.Value);
+
+						previous = _active;
+						_active = result;
+						_activeSource = appliedSource;
+						committed = true;
+					}
+				}).ConfigureAwait(false);
 			}
-
-			apply(result?.Value);
+			finally
+			{
+				if (committed)
+				{
+					if (!ReferenceEquals(previous, result))
+						previous?.Dispose();
+				}
+				else
+					result?.Dispose();
+			}
 		}
 
 		/// <summary>
@@ -175,11 +246,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 					return;
 
 				_disposed = true;
+				_generation++;
 				active = _active;
 				pending = _pending;
 				_active = null;
 				_activeSource = null;
 				_pending = null;
+				_pendingSource = null;
 			}
 
 			pending?.Cancel();

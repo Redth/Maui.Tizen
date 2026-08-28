@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Threading.Tasks;
 using Microsoft.Maui;
 using Microsoft.Maui.Dispatching;
 
@@ -49,6 +50,48 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 
 			dispatcher.Dispatch(action);
+		}
+
+		/// <summary>
+		/// Runs <paramref name="action"/> on the UI thread and completes after it has run.
+		/// </summary>
+		/// <remarks>
+		/// Awaiting the callback is required when validity is checked immediately before a commit.
+		/// A fire-and-forget dispatch leaves a gap in which newer state can supersede queued work.
+		/// </remarks>
+		public static Task DispatchIfRequiredAsync(this IElementHandler? handler, Action action)
+		{
+			ArgumentNullException.ThrowIfNull(action);
+
+			var dispatcher = handler.GetDispatcher();
+
+			if (dispatcher is null || !dispatcher.IsDispatchRequired)
+			{
+				action();
+				return Task.CompletedTask;
+			}
+
+			var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+			var accepted = dispatcher.Dispatch(() =>
+			{
+				try
+				{
+					action();
+					completion.TrySetResult();
+				}
+				catch (Exception exception)
+				{
+					completion.TrySetException(exception);
+				}
+			});
+
+			if (!accepted)
+			{
+				completion.TrySetException(new InvalidOperationException(
+					"The dispatcher rejected a UI-thread commit."));
+			}
+
+			return completion.Task;
 		}
 
 		/// <summary>

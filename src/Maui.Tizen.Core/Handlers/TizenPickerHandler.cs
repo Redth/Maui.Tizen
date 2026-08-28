@@ -22,7 +22,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	public class TizenPickerHandler : TizenViewHandler<IPicker, TizenPickerView>, IPickerHandler
 	{
 #if TIZEN
-		bool _isOpen;
+		readonly TizenPopupLifecycle<ActionSheetPopup> _popupLifecycle = new();
 #endif
 
 		/// <summary>The complete property mapper for <see cref="IPicker"/>.</summary>
@@ -87,6 +87,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override void ConnectHandler(TizenPickerView platformView)
 		{
+#if TIZEN
+			// Defensive replacement: a handler may be reconnected without the old popup having
+			// completed. ConnectHandler runs on the UI thread, so native teardown is safe here.
+			_popupLifecycle.CancelOnUiThread(static popup => popup.Close());
+#endif
 			base.ConnectHandler(platformView);
 #if TIZEN
 			platformView.TouchEvent += OnTouch;
@@ -97,6 +102,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void DisconnectHandler(TizenPickerView platformView)
 		{
 #if TIZEN
+			_popupLifecycle.CancelOnUiThread(static popup => popup.Close());
+
 			if (platformView.HasBody())
 			{
 				platformView.TouchEvent -= OnTouch;
@@ -215,7 +222,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (VirtualView is null)
 				return false;
 
-			OpenPopup();
+			OpenPopupAsync().FireAndForget(this);
 			return true;
 		}
 #endif
@@ -226,13 +233,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (!e.Key.IsAcceptKeyEvent())
 				return false;
 
-			OpenPopup();
+			OpenPopupAsync().FireAndForget(this);
 			return true;
 		}
-#endif
-
-#if TIZEN
-		void OpenPopup() => _ = OpenPopupAsync();
 #endif
 
 #if TIZEN
@@ -249,46 +252,32 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </remarks>
 		async System.Threading.Tasks.Task OpenPopupAsync()
 		{
-			if (VirtualView is null || _isOpen)
+			var virtualView = VirtualView;
+			var platformView = PlatformView;
+
+			if (virtualView is null || platformView is null)
 				return;
 
-			_isOpen = true;
+			var items = GetItems(virtualView);
+			var title = virtualView.Title;
 
-			try
-			{
-				await this.GetModalHost().RunModalAsync(async () =>
-				{
-					var items = GetItems(VirtualView);
-
-					using var popup = new global::Tizen.UIExtensions.NUI.ActionSheetPopup(
-						VirtualView.Title,
-						"Cancel",
-						null,
-						items);
-
-					try
+			await this.GetModalHost().RunModalAsync(() =>
+				_popupLifecycle.RunAsync(
+					virtualView,
+					platformView,
+					() => VirtualView,
+					() => PlatformView,
+					() => new ActionSheetPopup(title, "Cancel", null, items),
+					static (popup, _) => popup.Open(),
+					static popup => popup.Close(),
+					this.DispatchIfRequiredAsync,
+					(picker, chosen) =>
 					{
-						var chosen = await popup.Open().ConfigureAwait(false);
 						var index = items.IndexOf(chosen);
 
 						if (index >= 0)
-						{
-							// Writing the virtual view re-enters MAUI's property system, which
-							// runs the mapper and touches NUI - so it has to happen on the main
-							// loop, not on whatever thread the popup completed on.
-							this.DispatchIfRequired(() => VirtualView.SelectedIndex = index);
-						}
-					}
-					catch (OperationCanceledException)
-					{
-						// Dismissed without choosing; leave the selection alone.
-					}
-				}).ConfigureAwait(false);
-			}
-			finally
-			{
-				_isOpen = false;
-			}
+							picker.SelectedIndex = index;
+					}));
 		}
 #endif
 
