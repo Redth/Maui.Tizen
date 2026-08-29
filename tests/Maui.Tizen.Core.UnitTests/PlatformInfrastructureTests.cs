@@ -7,6 +7,7 @@ using Xunit;
 
 namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 {
+	[Collection(DisplayDensityCollection.Name)]
 	public class DisplayDensityTests : IDisposable
 	{
 		public void Dispose() => TizenDisplayDensity.SetDensityOverride(null);

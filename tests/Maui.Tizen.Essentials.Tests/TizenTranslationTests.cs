@@ -7,10 +7,10 @@ using Microsoft.Maui.Media;
 using Microsoft.Maui.Networking;
 using Microsoft.Maui.Platforms.Tizen.Essentials;
 using Xunit;
+using TizenAppControlOperations = Tizen.Applications.AppControlOperations;
 using TizenConnectionType = Tizen.Network.Connection.ConnectionType;
 using TizenDeviceOrientation = Tizen.Applications.DeviceOrientation;
 using TizenPixelFormat = Tizen.NUI.PixelFormat;
-using TizenAppControlOperations = Tizen.Applications.AppControlOperations;
 
 namespace Maui.Tizen.Essentials.Tests;
 

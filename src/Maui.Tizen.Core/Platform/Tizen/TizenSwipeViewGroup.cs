@@ -1,0 +1,1286 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+//
+// Ported from dotnet/maui src/Core/src/Platform/Tizen/MauiSwipeView.cs.
+// Renamed and renamespaced: the raw import declares public types in Microsoft.Maui.Platform,
+// which collides by full name with the neutral Microsoft.Maui.Core assembly. The raw file is
+// retained beside this one for provenance but is never compiled.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Microsoft.Maui.Graphics;
+using Tizen.UIExtensions.Common.Internal;
+using Tizen.UIExtensions.NUI;
+using GSize = Microsoft.Maui.Graphics.Size;
+using NView = Tizen.NUI.BaseComponents.View;
+using TPointStateType = Tizen.NUI.PointStateType;
+using TRect = Tizen.UIExtensions.Common.Rect;
+using Microsoft.Maui;
+using Microsoft.Maui.Platform;
+using Microsoft.Maui.Platforms.Tizen.Handlers;
+using Tizen.UIExtensions.Common;
+using Point = Microsoft.Maui.Graphics.Point;
+
+namespace Microsoft.Maui.Platforms.Tizen
+{
+	public class TizenSwipeViewGroup : TizenContentViewGroup, IAnimatable
+	{
+		const float OpenSwipeThresholdPercentage = 0.6f; // 60%
+		const uint SwipeAnimationDuration = 200;
+
+		/// <summary>Handle the swipe animation is committed under, so it can be aborted by name.</summary>
+		const string SwipeAnimationHandle = "Swipe";
+
+		ITizenPlatformViewHandler? _contentHandler;
+		NView? _contentView;
+		NView? _actionView;
+
+		bool _isSwiping;
+		bool _isSwipeEnabled;
+		bool _isResettingSwipe;
+		bool _isOpen;
+		double _swipeOffset;
+		double _swipeThreshold;
+		double _itemsWidth;
+		double _itemsHeight;
+		Point _initialPoint;
+		SwipeDirection? _swipeDirection;
+		OpenSwipeItem _previousOpenSwipeItem;
+		SwipeTransitionMode _swipeTransitionMode;
+		TizenSwipeItemsSnapshot? _leftItems;
+		TizenSwipeItemsSnapshot? _topItems;
+		TizenSwipeItemsSnapshot? _rightItems;
+		TizenSwipeItemsSnapshot? _bottomItems;
+		readonly TizenSwipeItemRegistry<ISwipeItem, NView> _swipeItems = new();
+		readonly TizenSwipeOpenCoordinator _openCoordinator = new();
+		readonly TizenCallbackGeneration _contentGeneration = new();
+		long _contentOwnershipGeneration;
+
+		public TizenSwipeViewGroup(ISwipeView view) : base(view)
+		{
+			GrabTouchAfterLeave = true;
+			ClippingMode = global::Tizen.NUI.ClippingModeType.ClipToBoundingBox;
+			TouchEvent += OnTouchEvent;
+
+			Element = view;
+		}
+
+		internal void UpdateItems(TizenSwipeItemsSlot slot, ISwipeItems? items)
+		{
+			ref var currentItems = ref GetTrackedItems(slot);
+			if (currentItems?.Matches(items) == true)
+				return;
+
+			currentItems = TizenSwipeItemsSnapshot.Capture(items);
+			RebuildActionStructure(InvalidateActionStructure(allowRebuild: true));
+		}
+
+		ref TizenSwipeItemsSnapshot? GetTrackedItems(TizenSwipeItemsSlot slot)
+		{
+			switch (slot)
+			{
+				case TizenSwipeItemsSlot.Left:
+					return ref _leftItems;
+				case TizenSwipeItemsSlot.Top:
+					return ref _topItems;
+				case TizenSwipeItemsSlot.Right:
+					return ref _rightItems;
+				default:
+					return ref _bottomItems;
+			}
+		}
+
+		ISwipeView Element { get; set; }
+
+		internal void Rebind(ISwipeView view)
+		{
+			Element = view;
+			base.Rebind(view);
+		}
+
+		IMauiContext MauiContext => Element?.Handler?.MauiContext ?? throw new InvalidOperationException("MauiContext cannot be null here");
+
+		public void UpdateSwipeTransitionMode(SwipeTransitionMode swipeTransitionMode)
+		{
+			_swipeTransitionMode = swipeTransitionMode;
+		}
+
+		/// <summary>Disposes the content and swipe-item handlers this view created.</summary>
+		/// <remarks>
+		/// The swipe view materialises handlers for its content and for each swipe item, so it owns
+		/// them and must release them when its own handler is disconnected.
+		/// </remarks>
+		public void DisposeChildHandlers()
+		{
+			var operation = TizenContentOwnership.Reserve(ref _contentOwnershipGeneration);
+			TizenContentOwnership.Clear(
+				operation,
+				ref _contentView,
+				ref _contentHandler,
+				ref _contentOwnershipGeneration,
+				view =>
+				{
+					Children.Remove(view);
+					view.Unparent();
+				},
+				() =>
+				{
+					_leftItems = null;
+					_topItems = null;
+					_rightItems = null;
+					_bottomItems = null;
+					InvalidateActionStructure(allowRebuild: false);
+				},
+				static () => true);
+		}
+
+		public void UpdateContent()
+		{
+			var expectedContent = Element.PresentedContent;
+			var operation = TizenContentOwnership.Reserve(ref _contentOwnershipGeneration);
+			NView? replacementView;
+			ITizenPlatformViewHandler? replacementHandler = null;
+
+			if (expectedContent is IView view)
+			{
+				replacementView = view.ToPlatformView(MauiContext);
+				if (view.Handler is ITizenPlatformViewHandler thandler)
+					replacementHandler = thandler;
+			}
+			else if (_contentHandler is null && _contentView is not null)
+				replacementView = _contentView;
+			else
+				replacementView = CreateEmptyContent();
+
+			SwipeDirection? rebuildDirection = null;
+			var changed = TizenContentOwnership.Replace(
+				operation,
+				ref _contentView,
+				ref _contentHandler,
+				ref _contentOwnershipGeneration,
+				replacementView,
+				replacementHandler,
+				oldView =>
+				{
+					Children.Remove(oldView);
+					oldView.Unparent();
+				},
+				newView =>
+				{
+					Children.Add(newView);
+					newView.RaiseToTop();
+				},
+				() => rebuildDirection = InvalidateActionStructure(allowRebuild: true),
+				() => ReferenceEquals(Element.PresentedContent, expectedContent));
+
+			if (changed)
+				RebuildActionStructure(rebuildDirection);
+		}
+
+		void CancelContentCallbacks()
+		{
+			_contentGeneration.Invalidate();
+			AbortSwipeAnimation();
+		}
+
+		SwipeDirection? InvalidateActionStructure(bool allowRebuild)
+		{
+			var wasOpen = _isOpen;
+			var previousDirection = _swipeDirection;
+
+			CancelContentCallbacks();
+			DisposeSwipeItems();
+			_openCoordinator.Reset();
+
+			return TizenSwipeStructureCoordinator.Invalidate(
+				wasOpen,
+				previousDirection,
+				ref _isOpen,
+				ref _swipeDirection,
+				ref _swipeOffset,
+				ref _swipeThreshold,
+				RestoreContentPosition,
+				direction => allowRebuild && IsValidSwipeItems(GetSwipeItemsByDirection(direction)));
+		}
+
+		void RestoreContentPosition()
+		{
+			if (_contentView is null)
+				return;
+
+			var position = _contentHandler?.VirtualView?.Frame.ToPixel() ?? new TRect();
+			_contentView.PositionX = (float)position.X;
+			_contentView.PositionY = (float)position.Y;
+		}
+
+		void RebuildActionStructure(SwipeDirection? direction)
+		{
+			if (direction is null)
+				return;
+
+			_swipeDirection = direction;
+			UpdateSwipeItems();
+			if (_actionView is not null)
+			{
+				UpdateIsOpen(true);
+				SwipeToThreshold(animated: false);
+			}
+		}
+
+		/// <summary>Stops the swipe animation, if one is running.</summary>
+		/// <remarks>
+		/// The animation is committed on this view under a fixed handle, so it outlives the content
+		/// it animates unless it is explicitly aborted. Both its stepper and its finished callback
+		/// touch <c>_contentView</c>, so it must be stopped before that view is replaced or
+		/// disposed — otherwise the callback runs against a disposed native object.
+		/// </remarks>
+		void AbortSwipeAnimation()
+		{
+			this.AbortAnimation(SwipeAnimationHandle);
+			_isResettingSwipe = false;
+		}
+
+		public void UpdateIsSwipeEnabled(bool isEnabled)
+		{
+			_isSwipeEnabled = isEnabled;
+
+			if (!isEnabled && TizenSwipeStructureCoordinator.DisableGesture(
+				ref _isSwiping,
+				ref _isResettingSwipe,
+				ref _isOpen,
+				ref _swipeDirection,
+				ref _swipeOffset,
+				ref _swipeThreshold,
+				CancelContentCallbacks,
+				RestoreContentPosition))
+			{
+				TizenCleanup.Run(
+					DisposeSwipeItems,
+					_openCoordinator.Reset);
+			}
+		}
+
+		public void UpdateIsVisibleSwipeItem(ISwipeItem item)
+		{
+			if (!_isOpen)
+				return;
+
+			_swipeItems.TryGetValue(item, out NView? view);
+
+			if (view != null)
+			{
+				_swipeThreshold = 0;
+				LayoutSwipeItems(GetNativeSwipeItems());
+				SwipeToThreshold(false);
+			}
+		}
+
+		public void OnOpenRequested(SwipeViewOpenRequest e)
+		{
+			if (_contentView == null)
+				return;
+
+			var openSwipeItem = e.OpenSwipeItem;
+			var animated = e.Animated;
+
+			ProgrammaticallyOpenSwipeItem(openSwipeItem, animated);
+		}
+
+		public void OnCloseRequested(SwipeViewCloseRequest e)
+		{
+			var animated = e.Animated;
+
+			ResetSwipe(animated);
+		}
+
+		bool OnTouchEvent(object source, TouchEventArgs e)
+		{
+			if (!_isSwipeEnabled)
+				return false;
+
+			var touchPosition = e.Touch.GetLocalPosition(0);
+			var point = new Point(touchPosition.X.ToScaledDP(), touchPosition.Y.ToScaledDP());
+
+			switch (e.Touch.GetState(0))
+			{
+				case TPointStateType.Down:
+					return ProcessTouchDown(point);
+				case TPointStateType.Motion:
+					return ProcessTouchMove(point);
+				case TPointStateType.Up:
+				case TPointStateType.Interrupted:
+					return ProcessTouchUp();
+				default:
+					return false;
+			}
+		}
+
+		bool ProcessTouchDown(Point point)
+		{
+			if (_isSwiping || _contentView == null)
+				return false;
+
+			ResetSwipe(true);
+
+			_initialPoint = point;
+			return true;
+		}
+
+		bool ProcessTouchMove(Point point)
+		{
+			if (_contentView == null || _initialPoint.IsEmpty)
+				return false;
+
+			if (!_isOpen)
+			{
+				ResetSwipeToInitialPosition();
+				_swipeDirection = TizenSwipeMetrics.GetSwipeDirection(_initialPoint, point);
+				UpdateSwipeItems();
+			}
+
+			if (_isResettingSwipe || !ValidateSwipeDirection())
+				return false;
+
+			if (!_isSwiping)
+			{
+				RaiseSwipeStarted();
+				_isSwiping = true;
+			}
+
+			_swipeOffset = GetSwipeOffset(_initialPoint, point);
+			UpdateIsOpen(_swipeOffset != 0);
+
+			UpdateSwipeItems();
+
+			if (Math.Abs(_swipeOffset) > double.Epsilon)
+				Swipe();
+
+			RaiseSwipeChanging();
+
+			return true;
+		}
+
+		bool ProcessTouchUp()
+		{
+			if (!_isSwiping)
+				return false;
+
+			_isSwiping = false;
+
+			RaiseSwipeEnded();
+
+			if (_isResettingSwipe || !ValidateSwipeDirection())
+				return false;
+
+			ValidateSwipeThreshold();
+
+			return false;
+		}
+
+		void ResetSwipeToInitialPosition()
+		{
+			_isResettingSwipe = false;
+			_isSwiping = false;
+			_swipeThreshold = 0;
+			_swipeDirection = null;
+			DisposeSwipeItems();
+		}
+
+		void DisposeSwipeItems()
+		{
+			var entries = _swipeItems.Drain();
+			var actionView = _actionView;
+
+			_actionView = null;
+
+			var cleanup = new List<Action>();
+			foreach (var (item, view) in entries)
+			{
+				var handler = item.Handler;
+
+				cleanup.Add(() =>
+				{
+					actionView?.Remove(view);
+					view.Unparent();
+				});
+
+				if (handler is ITizenPlatformViewHandler platformViewHandler)
+					cleanup.Add(platformViewHandler.Dispose);
+				else
+				{
+					cleanup.Add(() => handler?.DisconnectHandler());
+					cleanup.Add(view.Dispose);
+				}
+
+				cleanup.Add(() =>
+				{
+					if (ReferenceEquals(item.Handler, handler))
+						item.Handler = null;
+				});
+			}
+
+			if (actionView != null)
+			{
+				cleanup.Add(() => Children.Remove(actionView));
+				cleanup.Add(actionView.Dispose);
+			}
+
+			cleanup.Add(() => UpdateIsOpen(false));
+			TizenCleanup.Run(cleanup.ToArray());
+		}
+
+		void UpdateIsOpen(bool isOpen)
+		{
+			_isOpen = isOpen;
+			Element.IsOpen = isOpen;
+
+			// Record which side is actually showing, from the direction that put it there. This is
+			// the single point where the open side is committed, so a gesture-opened swipe is
+			// tracked exactly like a programmatic one.
+			//
+			// Without it, _previousOpenSwipeItem was only ever written by the programmatic path, so
+			// a gesture-opened side left it stale - and because the enum's default is LeftItems,
+			// even the very first gesture open disagreed with it. A later programmatic open of the
+			// recorded side was then classified AlreadyOpen and silently did nothing while a
+			// different side was on screen.
+			if (isOpen && _swipeDirection is { } direction)
+				_previousOpenSwipeItem = TizenSwipeMetrics.GetOpenSwipeItem(direction);
+		}
+
+		void UpdateOffset(double swipeOffset)
+		{
+			switch (_swipeDirection)
+			{
+				case SwipeDirection.Right:
+				case SwipeDirection.Down:
+					_swipeOffset = swipeOffset;
+					break;
+				case SwipeDirection.Left:
+				case SwipeDirection.Up:
+					_swipeOffset = -swipeOffset;
+					break;
+			}
+		}
+
+		static void UpdateSwipeItemViewLayout(ISwipeItemView swipeItemView)
+		{
+			if (swipeItemView is not null && swipeItemView.Handler is ITizenPlatformViewHandler itemHandler)
+			{
+				itemHandler.PlatformView?.InvalidateMeasure(swipeItemView);
+			}
+		}
+
+		void UpdateSwipeItems()
+		{
+			if (_contentView == null || _actionView != null)
+				return;
+
+			ISwipeItems? items = GetSwipeItemsByDirection();
+
+			if (items?.Count == 0 || items == null)
+				return;
+
+			var direction = _swipeDirection;
+			var snapshot = TizenSwipeItemsSnapshot.Capture(items);
+			var operation = _swipeItems.ReserveMaterialization();
+			var actionView = new NView
+			{
+				Layout = new global::Tizen.NUI.AbsoluteLayout(),
+				WidthSpecification = global::Tizen.NUI.BaseComponents.LayoutParamPolicies.MatchParent,
+				HeightSpecification = global::Tizen.NUI.BaseComponents.LayoutParamPolicies.MatchParent,
+			};
+			_actionView = actionView;
+
+			var swipeItems = new List<NView>();
+
+			_swipeItems.MaterializeFrozen(
+				operation,
+				snapshot.Items,
+				actionView,
+				item => item.ToPlatformView(MauiContext),
+				item => item.Handler,
+				() =>
+						ReferenceEquals(_actionView, actionView) &&
+						_swipeDirection == direction &&
+						direction is { } expectedDirection &&
+						snapshot.Matches(GetSwipeItemsByDirection(expectedDirection)),
+				(item, swipeItem) =>
+				{
+					if (item is ISwipeItemView formsSwipeItemView)
+						UpdateSwipeItemViewLayout(formsSwipeItemView);
+
+					actionView.Add(swipeItem);
+					swipeItems.Add(swipeItem);
+					var itemGeneration = operation;
+
+					swipeItem.TouchEvent += (s, e) =>
+					{
+						if (!_swipeItems.IsCurrent(itemGeneration, item, swipeItem))
+							return true;
+
+						if (e.Touch.GetState(0) == TPointStateType.Up)
+						{
+							ExecuteSwipeItem(item);
+							if (GetSwipeItemsByDirection()?.SwipeBehaviorOnInvoked != SwipeBehaviorOnInvoked.RemainOpen)
+								ResetSwipe();
+						}
+
+						return true;
+					};
+				},
+				(item, view, handler) =>
+					DisposePreparedSwipeItem(item, view, handler as IElementHandler));
+
+			if (!_swipeItems.IsOperationCurrent(operation)
+				|| !ReferenceEquals(_actionView, actionView))
+				return;
+
+			Children.Add(actionView);
+			_contentView.RaiseToTop();
+
+			LayoutSwipeItems(swipeItems);
+		}
+
+		static void DisposePreparedSwipeItem(
+			ISwipeItem item,
+			NView view,
+			IElementHandler? handler)
+		{
+			TizenCleanup.Run(
+				view.Unparent,
+				() =>
+				{
+					if (handler is ITizenPlatformViewHandler platformViewHandler)
+						platformViewHandler.Dispose();
+					else
+					{
+						handler?.DisconnectHandler();
+						view.Dispose();
+					}
+				},
+				() =>
+				{
+					if (ReferenceEquals(item.Handler, handler))
+						item.Handler = null;
+				});
+		}
+
+		void LayoutSwipeItems(List<NView> children)
+		{
+			if (_actionView == null || children == null || _contentView == null)
+				return;
+
+			_itemsWidth = 0;
+			_itemsHeight = 0;
+
+			var items = GetSwipeItemsByDirection();
+
+			if (items == null || items.Count == 0)
+				return;
+
+			int previousWidth = 0;
+
+			foreach (var (item, child) in TizenSwipeStructureCoordinator.PairVisible(
+				items,
+				GetIsVisible,
+				children,
+				child => child.Visibility))
+			{
+				var swipeItemSize = GetSwipeItemSize(item);
+
+				var swipeItemHeight = swipeItemSize.Height.ToScaledPixel();
+				var swipeItemWidth = swipeItemSize.Width.ToScaledPixel();
+				TRect bound = new TRect();
+
+				switch (_swipeDirection)
+				{
+					case SwipeDirection.Left:
+						bound.X = _contentView.PositionX + _contentView.SizeWidth - (swipeItemWidth + previousWidth);
+						bound.Y = _contentView.PositionY;
+						bound.Width = swipeItemWidth;
+						bound.Height = swipeItemHeight;
+						break;
+					case SwipeDirection.Right:
+						bound.X = _contentView.PositionX + previousWidth;
+						bound.Y = _contentView.PositionY;
+						bound.Width = swipeItemWidth;
+						bound.Height = swipeItemHeight;
+						break;
+					case SwipeDirection.Down:
+						bound.X = _contentView.PositionX + previousWidth;
+						bound.Y = _contentView.PositionY;
+						bound.Width = swipeItemWidth;
+						bound.Height = swipeItemHeight;
+						break;
+					case SwipeDirection.Up:
+						bound.X = _contentView.PositionX + previousWidth;
+						bound.Y = _contentView.PositionY + _contentView.SizeHeight - swipeItemHeight;
+						bound.Width = swipeItemWidth;
+						bound.Height = swipeItemHeight;
+						break;
+				}
+				child.UpdateBounds(bound);
+
+				previousWidth += swipeItemWidth;
+				_itemsHeight = Math.Max(_itemsHeight, swipeItemHeight);
+			}
+			_itemsWidth = previousWidth;
+		}
+
+		List<NView> GetNativeSwipeItems()
+		{
+			var swipeItems = new List<NView>();
+
+			if (_actionView == null)
+				return swipeItems;
+
+			for (int i = 0; i < _actionView.ChildCount; i++)
+			{
+				var view = _actionView.Children[i];
+				if (view == null)
+					continue;
+
+				swipeItems.Add(view);
+			}
+
+			return swipeItems;
+		}
+
+		void Swipe()
+		{
+			if (_contentView == null)
+				return;
+
+			var offset = AdjustSwipeOffset(_swipeOffset.ToScaledPixel());
+
+			var contentPosition = _contentHandler?.VirtualView?.Frame.ToPixel() ?? new TRect();
+
+			switch (_swipeDirection)
+			{
+				case SwipeDirection.Left:
+				case SwipeDirection.Right:
+					{
+						var translateX = offset;
+						_contentView.PositionX = (float)(contentPosition.X + translateX);
+						break;
+					}
+				case SwipeDirection.Up:
+				case SwipeDirection.Down:
+					{
+						var translateY = offset;
+						_contentView.PositionY = (float)(contentPosition.Y + translateY);
+						break;
+					}
+			}
+		}
+
+		static void ExecuteSwipeItem(ISwipeItem item)
+		{
+			if (item == null)
+				return;
+
+			bool isEnabled = true;
+
+			if (item is ISwipeItemMenuItem swipeItem)
+				isEnabled = swipeItem.IsEnabled;
+
+			if (item is ISwipeItemView swipeItemView)
+				isEnabled = swipeItemView.IsEnabled;
+
+			if (isEnabled)
+				item.OnInvoked();
+		}
+
+		void ResetSwipe(bool animated = true)
+		{
+			if (_contentView == null)
+				return;
+
+			if (_isResettingSwipe)
+				return;
+
+			_isResettingSwipe = true;
+			_isSwiping = false;
+			_swipeThreshold = 0;
+
+			var contentPosition = _contentHandler?.VirtualView?.Frame.ToPixel() ?? new TRect();
+
+			if (animated)
+			{
+				if (_swipeDirection is not null)
+					_openCoordinator.BeginAnimatedClose();
+
+				switch (_swipeDirection)
+				{
+					case SwipeDirection.Left:
+					case SwipeDirection.Right:
+						{
+							_swipeDirection = null;
+
+							// Captured, not read from the field: the field can be replaced by
+							// UpdateContent while this animation runs, and the stepper would then
+							// start driving whichever view happened to be current.
+							var animatedView = _contentView;
+							var generation = _contentGeneration.Current;
+							var diffX = animatedView.PositionX - contentPosition.X;
+							new Animation(v =>
+							{
+								if (!_contentGeneration.IsCurrent(generation, animatedView, _contentView))
+									return;
+
+								animatedView.PositionX = (float)(contentPosition.X + diffX - diffX * v);
+
+							}).Commit(this, SwipeAnimationHandle, (uint)SwipeAnimationDuration, finished: (v, r) =>
+							{
+								if (!_contentGeneration.IsCurrent(generation, animatedView, _contentView))
+									return;
+
+								if (_swipeDirection == null)
+									DisposeSwipeItems();
+
+								_isResettingSwipe = false;
+								ReplayQueuedOpen();
+							});
+
+							break;
+						}
+					case SwipeDirection.Up:
+					case SwipeDirection.Down:
+						{
+							_swipeDirection = null;
+
+							// Captured for the same reason as the horizontal branch above.
+							var animatedView = _contentView;
+							var generation = _contentGeneration.Current;
+							var diffY = animatedView.PositionY - contentPosition.Y;
+							new Animation(v =>
+							{
+								if (!_contentGeneration.IsCurrent(generation, animatedView, _contentView))
+									return;
+
+								animatedView.PositionY = (float)(contentPosition.Y + diffY - diffY * v);
+
+							}).Commit(this, SwipeAnimationHandle, (uint)SwipeAnimationDuration, finished: (v, r) =>
+							{
+								if (!_contentGeneration.IsCurrent(generation, animatedView, _contentView))
+									return;
+
+								if (_swipeDirection == null)
+									DisposeSwipeItems();
+
+								_isResettingSwipe = false;
+								ReplayQueuedOpen();
+							});
+							break;
+						}
+					default:
+						_isResettingSwipe = false;
+						ReplayQueuedOpen();
+						break;
+				}
+			}
+			else
+			{
+				_contentView.PositionX = (float)contentPosition.X;
+				_contentView.PositionY = (float)contentPosition.Y;
+
+				DisposeSwipeItems();
+				_isResettingSwipe = false;
+				_openCoordinator.Reset();
+			}
+		}
+
+		void ProgrammaticallyOpenSwipeItem(OpenSwipeItem openSwipeItem, bool animated)
+		{
+			switch (_openCoordinator.RequestOpen(
+				_isOpen,
+				_previousOpenSwipeItem,
+				openSwipeItem,
+				animated))
+			{
+				case TizenSwipeOpenDecision.AlreadyOpen:
+				case TizenSwipeOpenDecision.Queued:
+					return;
+				case TizenSwipeOpenDecision.ResetThenOpen:
+					ResetSwipe(false);
+					break;
+			}
+
+			_previousOpenSwipeItem = openSwipeItem;
+			_swipeDirection = TizenSwipeMetrics.GetOpenSwipeDirection(openSwipeItem);
+
+			var swipeItems = GetSwipeItemsByDirection();
+
+			if (swipeItems == null || swipeItems.Count == 0)
+				return;
+
+			// Commit the open state before laying the items out. Upstream Tizen never does this, so
+			// _isOpen stayed false after a programmatic open: ISwipeView.IsOpen never became true,
+			// UpdateIsVisibleSwipeItem short-circuited, and - because the reset above is guarded on
+			// _isOpen - opening a second side left the first one still swiped out. iOS, which has
+			// the most complete SwipeView, sets it here for the same reason.
+			UpdateIsOpen(true);
+
+			UpdateSwipeItems();
+			SwipeToThreshold(animated);
+		}
+
+		void ReplayQueuedOpen()
+		{
+			if (_openCoordinator.CompleteClose() is { } queued)
+				ProgrammaticallyOpenSwipeItem(queued.Item, queued.Animated);
+		}
+
+		void SwipeToThreshold(bool animated = true)
+		{
+			var completeAnimationDuration = animated ? SwipeAnimationDuration : 0;
+			UpdateOffset(GetSwipeThreshold());
+			float swipeThreshold = _swipeOffset.ToScaledPixel();
+
+			var contentPosition = _contentHandler?.VirtualView?.Frame.ToPixel() ?? new TRect();
+
+			if (_contentView != null)
+			{
+				var animatedView = _contentView;
+				var generation = _contentGeneration.Current;
+
+				switch (_swipeDirection)
+				{
+					case SwipeDirection.Left:
+					case SwipeDirection.Right:
+						{
+							var target = swipeThreshold + contentPosition.X;
+							var init = animatedView.PositionX;
+							var diff = init - (float)target;
+							new Animation(v =>
+							{
+								if (_contentGeneration.IsCurrent(generation, animatedView, _contentView))
+									animatedView.PositionX = init - diff * (float)v;
+							}).Commit(this, "Swipe", length: completeAnimationDuration, finished: (v, r) =>
+							{
+								if (_contentGeneration.IsCurrent(generation, animatedView, _contentView))
+									_isSwiping = false;
+							});
+							break;
+						}
+					case SwipeDirection.Up:
+					case SwipeDirection.Down:
+						{
+							var target = swipeThreshold + contentPosition.Y;
+							var init = animatedView.PositionY;
+							var diff = init - (float)target;
+							new Animation(v =>
+							{
+								if (_contentGeneration.IsCurrent(generation, animatedView, _contentView))
+									animatedView.PositionY = init - diff * (float)v;
+							}).Commit(this, "Swipe", length: completeAnimationDuration, finished: (v, r) =>
+							{
+								if (_contentGeneration.IsCurrent(generation, animatedView, _contentView))
+									_isSwiping = false;
+							});
+							break;
+						}
+				}
+			}
+		}
+
+		GSize GetSwipeItemSize(ISwipeItem swipeItem)
+		{
+			if (_contentView == null || Element == null)
+				return GSize.Zero;
+
+			bool isHorizontal = IsHorizontalSwipe();
+			var items = GetSwipeItemsByDirection();
+
+			if (items == null)
+				return GSize.Zero;
+
+			double threshold = Element.Threshold;
+			double contentHeight = _contentView.SizeHeight.ToScaledDP();
+			double contentWidth = _contentView.SizeWidth.ToScaledDP();
+
+			if (isHorizontal)
+			{
+				if (swipeItem is ISwipeItemView horizontalSwipeItemView)
+				{
+					var swipeItemViewSizeRequest = horizontalSwipeItemView.Measure(double.PositiveInfinity, double.PositiveInfinity);
+					double swipeItemWidth = swipeItemViewSizeRequest.Width > 0 ? swipeItemViewSizeRequest.Width : TizenSwipeMetrics.SwipeItemWidth;
+					swipeItemWidth = Math.Max(threshold, swipeItemWidth);
+					return new GSize(swipeItemWidth, contentHeight);
+				}
+				else if (swipeItem is ISwipeItem)
+				{
+					return new GSize(items.Mode == SwipeMode.Execute ? (threshold > 0 ? threshold : contentWidth) / items.Count : Math.Max(threshold, TizenSwipeMetrics.SwipeItemWidth), contentHeight);
+				}
+			}
+			else
+			{
+				if (swipeItem is ISwipeItemView verticalSwipeItemView)
+				{
+					var swipeItemViewSizeRequest = verticalSwipeItemView.Measure(double.PositiveInfinity, double.PositiveInfinity);
+					double swipeItemHeight = swipeItemViewSizeRequest.Height > 0 ? swipeItemViewSizeRequest.Height : contentHeight;
+					swipeItemHeight = Math.Max(threshold, swipeItemHeight);
+					return new GSize(contentWidth / items.Count, swipeItemHeight);
+				}
+				else if (swipeItem is ISwipeItem)
+				{
+					var swipeItemHeight = GetSwipeItemHeight();
+					return new GSize(contentWidth / items.Count, (threshold > 0 && threshold < swipeItemHeight) ? threshold : swipeItemHeight);
+				}
+			}
+
+			return GSize.Zero;
+		}
+
+		ISwipeItems? GetSwipeItemsByDirection()
+		{
+			if (_swipeDirection.HasValue)
+				return GetSwipeItemsByDirection(_swipeDirection.Value);
+
+			return null;
+		}
+
+		ISwipeItems? GetSwipeItemsByDirection(SwipeDirection swipeDirection)
+		{
+			ISwipeItems? swipeItems = null;
+
+			switch (swipeDirection)
+			{
+				case SwipeDirection.Left:
+					swipeItems = Element?.RightItems;
+					break;
+				case SwipeDirection.Right:
+					swipeItems = Element?.LeftItems;
+					break;
+				case SwipeDirection.Up:
+					swipeItems = Element?.BottomItems;
+					break;
+				case SwipeDirection.Down:
+					swipeItems = Element?.TopItems;
+					break;
+			}
+			return swipeItems;
+		}
+
+		bool IsHorizontalSwipe()
+		{
+			return _swipeDirection == SwipeDirection.Left || _swipeDirection == SwipeDirection.Right;
+		}
+
+		float GetSwipeItemHeight()
+		{
+			if (_contentView == null)
+				return 0f;
+
+			var contentHeight = _contentView.SizeHeight.ToScaledDP();
+			var items = GetSwipeItemsByDirection();
+
+			if (items == null)
+				return 0f;
+
+			if (items.Any(s => s is ISwipeItemView))
+			{
+				var itemsHeight = new List<float>();
+
+				foreach (var swipeItem in items)
+				{
+					if (swipeItem is ISwipeItemView swipeItemView)
+					{
+						var swipeItemViewSizeRequest = swipeItemView.Measure(double.PositiveInfinity, double.PositiveInfinity);
+						itemsHeight.Add((float)swipeItemViewSizeRequest.Height);
+					}
+				}
+
+				return itemsHeight.Max();
+			}
+
+			return contentHeight;
+		}
+
+		bool ValidateSwipeDirection()
+		{
+			if (_swipeDirection == null)
+				return false;
+
+			var swipeItems = GetSwipeItemsByDirection();
+			return IsValidSwipeItems(swipeItems);
+		}
+
+		static bool IsValidSwipeItems(ISwipeItems? swipeItems)
+		{
+			return swipeItems != null && swipeItems.Where(s => GetIsVisible(s)).Any();
+		}
+
+		static bool GetIsVisible(ISwipeItem swipeItem)
+		{
+			if (swipeItem is IView view)
+				return view.Visibility == Maui.Visibility.Visible;
+			else if (swipeItem is ISwipeItemMenuItem menuItem)
+				return menuItem.Visibility == Maui.Visibility.Visible;
+
+			return true;
+		}
+
+		double GetSwipeOffset(Point initialPoint, Point endPoint)
+		{
+			double swipeOffset = 0;
+
+			switch (_swipeDirection)
+			{
+				case SwipeDirection.Left:
+				case SwipeDirection.Right:
+					swipeOffset = (int)endPoint.X - (int)initialPoint.X;
+					break;
+				case SwipeDirection.Up:
+				case SwipeDirection.Down:
+					swipeOffset = (int)endPoint.Y - (int)initialPoint.Y;
+					break;
+			}
+
+			if (swipeOffset == 0)
+				swipeOffset = GetSwipeContentOffset();
+
+			return swipeOffset;
+		}
+
+		double GetSwipeContentOffset()
+		{
+			double swipeOffset = 0;
+
+			if (_contentView != null)
+			{
+				switch (_swipeDirection)
+				{
+					case SwipeDirection.Left:
+					case SwipeDirection.Right:
+						swipeOffset = _contentView.PositionX.ToScaledDP();
+						break;
+					case SwipeDirection.Up:
+					case SwipeDirection.Down:
+						swipeOffset = _contentView.PositionY.ToScaledDP();
+						break;
+				}
+			}
+			return swipeOffset;
+		}
+
+		void RaiseSwipeStarted()
+		{
+			if (_swipeDirection == null || !ValidateSwipeDirection())
+				return;
+
+			Element?.SwipeStarted(new SwipeViewSwipeStarted(_swipeDirection.Value));
+		}
+
+		void RaiseSwipeChanging()
+		{
+			if (_swipeDirection == null)
+				return;
+
+			Element?.SwipeChanging(new SwipeViewSwipeChanging(_swipeDirection.Value, _swipeOffset));
+		}
+
+		void RaiseSwipeEnded()
+		{
+			if (_swipeDirection == null || !ValidateSwipeDirection())
+				return;
+
+			bool isOpen = false;
+
+			var swipeThresholdPercent = OpenSwipeThresholdPercentage * GetSwipeThreshold();
+
+			if (Math.Abs(_swipeOffset) >= swipeThresholdPercent)
+				isOpen = true;
+
+			Element?.SwipeEnded(new SwipeViewSwipeEnded(_swipeDirection.Value, isOpen));
+		}
+
+		double GetSwipeThreshold()
+		{
+			if (Math.Abs(_swipeThreshold) > double.Epsilon)
+				return _swipeThreshold;
+
+			var swipeItems = GetSwipeItemsByDirection();
+
+			if (swipeItems == null)
+				return 0;
+
+			_swipeThreshold = GetSwipeThreshold(swipeItems);
+
+			return _swipeThreshold;
+		}
+
+		double GetSwipeThreshold(ISwipeItems swipeItems)
+		{
+			if (Element == null)
+				return 0f;
+
+			double threshold = Element.Threshold;
+
+			if (threshold > 0)
+				return (float)threshold;
+
+			double swipeThreshold = 0;
+
+			bool isHorizontal = IsHorizontalSwipe();
+
+			if (swipeItems.Mode == SwipeMode.Reveal)
+			{
+				if (isHorizontal)
+				{
+					foreach (var swipeItem in swipeItems)
+					{
+						if (GetIsVisible(swipeItem))
+						{
+							var swipeItemSize = GetSwipeItemSize(swipeItem);
+							swipeThreshold += (float)swipeItemSize.Width;
+						}
+					}
+				}
+				else
+					swipeThreshold = GetSwipeItemHeight();
+			}
+			else
+				swipeThreshold = CalculateSwipeThreshold();
+
+			return ValidateSwipeThreshold(swipeThreshold);
+		}
+
+		double CalculateSwipeThreshold()
+		{
+			var swipeItems = GetSwipeItemsByDirection();
+			if (swipeItems == null)
+				return TizenSwipeMetrics.SwipeThreshold;
+
+			float swipeItemsHeight = 0;
+			float swipeItemsWidth = 0;
+			bool useSwipeItemsSize = false;
+
+			foreach (var swipeItem in swipeItems)
+			{
+				if (swipeItem is ISwipeItemView)
+					useSwipeItemsSize = true;
+
+				if (GetIsVisible(swipeItem))
+				{
+					var swipeItemSize = GetSwipeItemSize(swipeItem);
+					swipeItemsHeight += (float)swipeItemSize.Height;
+					swipeItemsWidth += (float)swipeItemSize.Width;
+				}
+			}
+
+			if (useSwipeItemsSize)
+			{
+				var isHorizontalSwipe = IsHorizontalSwipe();
+
+				return isHorizontalSwipe ? swipeItemsWidth : swipeItemsHeight;
+			}
+			else
+			{
+				if (_contentView != null)
+				{
+					var contentWidth = _contentView.SizeWidth.ToScaledDP();
+					var contentWidthSwipeThreshold = contentWidth * 0.8f;
+
+					return contentWidthSwipeThreshold;
+				}
+			}
+
+			return TizenSwipeMetrics.SwipeThreshold;
+		}
+
+		double ValidateSwipeThreshold(double swipeThreshold)
+		{
+			if (_contentView == null)
+				return swipeThreshold;
+
+			var contentHeight = _contentView.SizeHeight.ToScaledDP();
+			var contentWidth = _contentView.SizeWidth.ToScaledDP();
+			bool isHorizontal = IsHorizontalSwipe();
+
+			if (isHorizontal)
+			{
+				if (swipeThreshold > contentWidth)
+					swipeThreshold = contentWidth;
+
+				return swipeThreshold;
+			}
+
+			if (swipeThreshold > contentHeight)
+				swipeThreshold = contentHeight;
+
+			return swipeThreshold;
+		}
+
+		void ValidateSwipeThreshold()
+		{
+			if (_swipeDirection == null)
+				return;
+
+			var swipeThresholdPercent = OpenSwipeThresholdPercentage * GetSwipeThreshold();
+
+			if (Math.Abs(_swipeOffset) >= swipeThresholdPercent)
+			{
+				var swipeItems = GetSwipeItemsByDirection();
+
+				if (swipeItems == null)
+					return;
+
+				if (swipeItems.Mode == SwipeMode.Execute)
+				{
+					foreach (var swipeItem in swipeItems)
+					{
+						if (GetIsVisible(swipeItem))
+							ExecuteSwipeItem(swipeItem);
+					}
+
+					if (swipeItems.SwipeBehaviorOnInvoked != SwipeBehaviorOnInvoked.RemainOpen)
+						ResetSwipe();
+				}
+				else
+					SwipeToThreshold();
+			}
+			else
+				ResetSwipe();
+		}
+
+		int AdjustSwipeOffset(int offset)
+		{
+			if (_swipeDirection == null)
+				return offset;
+
+			switch (_swipeDirection)
+			{
+				case SwipeDirection.Left:
+					offset = Math.Min(offset, 0);
+					offset = Math.Max(offset, (int)-_itemsWidth);
+					break;
+				case SwipeDirection.Right:
+					offset = Math.Max(offset, 0);
+					offset = Math.Min(offset, (int)_itemsWidth);
+					break;
+				case SwipeDirection.Up:
+					offset = Math.Min(offset, 0);
+					offset = Math.Max(offset, (int)-_itemsHeight);
+					break;
+				case SwipeDirection.Down:
+					offset = Math.Max(offset, 0);
+					offset = Math.Min(offset, (int)_itemsHeight);
+					break;
+			}
+			return offset;
+		}
+
+		static NView CreateEmptyContent()
+		{
+			return new NView
+			{
+				BackgroundColor = global::Tizen.NUI.Color.Transparent
+			};
+		}
+
+		public void BatchBegin() { }
+
+		public void BatchCommit() { }
+	}
+}

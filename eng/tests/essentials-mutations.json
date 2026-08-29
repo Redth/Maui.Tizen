@@ -1,0 +1,38 @@
+[
+  {
+    "id": "controls-startup-omits-essentials",
+    "file": "src/Maui.Tizen.Controls/Hosting/TizenControlsMauiAppBuilderExtensions.cs",
+    "filter": "FullyQualifiedName~ControlsProductionCompositionIncludesEssentialsExactlyOnce",
+    "expected": "ControlsProductionCompositionIncludesEssentialsExactlyOnce",
+    "replacements": [
+      {
+        "search": "\t\t\tbuilder.AddTizenEssentials();\n",
+        "replace": ""
+      }
+    ]
+  },
+  {
+    "id": "battery-service-is-shadowed",
+    "file": "src/Maui.Tizen.Essentials/Hosting/TizenEssentialsMauiAppBuilderExtensions.cs",
+    "filter": "FullyQualifiedName~EssentialsRegistrationReplacesRatherThanShadowsPlatformServices",
+    "expected": "EssentialsRegistrationReplacesRatherThanShadowsPlatformServices",
+    "replacements": [
+      {
+        "search": "\t\t\tReplaceSingleton<IBattery, TizenBattery>(services);",
+        "replace": "\t\t\tservices.TryAddSingleton<IBattery, TizenBattery>();"
+      }
+    ]
+  },
+  {
+    "id": "essentials-source-closure-drops-share",
+    "file": "eng/Maui.Tizen.Essentials.Sources.props",
+    "filter": "FullyQualifiedName~SharedSourceClosureMatchesEveryShippingEssentialsSource",
+    "expected": "SharedSourceClosureMatchesEveryShippingEssentialsSource",
+    "replacements": [
+      {
+        "search": "    <MauiTizenEssentialsCompile Include=\"$(MauiTizenEssentialsDir)Share/TizenShare.cs\" />\n",
+        "replace": ""
+      }
+    ]
+  }
+]

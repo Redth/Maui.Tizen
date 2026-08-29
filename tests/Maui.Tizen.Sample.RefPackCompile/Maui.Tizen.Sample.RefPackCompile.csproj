@@ -1,0 +1,90 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Sample compile-validation lane.
+
+    This exists to validate the thing the real sample cannot validate yet: that
+    samples/Maui.Tizen.Sample's sources actually compile against Maui.Tizen.Core as an ASSEMBLY,
+    across a real package boundary, using only the public surface.
+
+    The real sample targets net11.0-tizen11.0 and is blocked on the Samsung workload (B1), so it
+    cannot be built anywhere. Previously its sources were folded into the backend lane, which
+    type-checked them but merged them into one assembly - so "the sample builds" was never actually
+    demonstrated. Anything the sample touched that was internal to the backend, or invisible across
+    an assembly reference, would have compiled clean.
+
+    Here the sample compiles as its own assembly with a ProjectReference to the backend lane, which
+    carries the real product AssemblyName. That is the same boundary a package consumer crosses.
+
+    Compile items come from the same @(MauiTizenSampleCompile) list the real sample uses, and
+    SampleLaneCompilesExactlyTheRealSamplesSources asserts the two evaluated sets are identical, so
+    this lane cannot silently drift from the project it stands in for.
+  -->
+
+  <Import Project="$(RepositoryRoot)eng/Maui.props" />
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
+
+  <PropertyGroup>
+    <TargetFramework>$(DotNetTfm)</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+    <OutputType>Library</OutputType>
+
+    <!--
+      The real sample's assembly name. Its Main.cs is compiled as a library here rather than an Exe:
+      the entry point is a Tizen application host that cannot run on this host anyway, and OutputType
+      Exe would demand a runtime identifier this lane has no business supplying. Type-checking the
+      entry point is the whole value; executing it is not on offer without a device.
+    -->
+    <AssemblyName>Maui.Tizen.Sample</AssemblyName>
+    <RootNamespace>Maui.Tizen.Sample</RootNamespace>
+
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <NoWarn>$(NoWarn);CS1591;NU1701</NoWarn>
+
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+
+    <DefineConstants>$(DefineConstants);TIZEN</DefineConstants>
+  </PropertyGroup>
+
+  <!--
+    ONLY the sample's own baseline. The backend's baseline is attached to the backend's compilation
+    and nowhere else; that separation is what makes RS0016 ownership meaningful in either lane.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+
+    <AdditionalFiles Include="$(MauiTizenSampleDir)PublicAPI/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="$(MauiTizenSampleDir)PublicAPI/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Across the assembly boundary, exactly as a consumer references the package. -->
+    <ProjectReference Include="$(RepositoryRoot)tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj" />
+
+    <!--
+      The real sample references ONLY Maui.Tizen.Core (which brings Microsoft.Maui.Core and
+      Graphics transitively) - it is a Core-only app head and uses no Controls types.
+
+      This lane also referenced Microsoft.Maui.Controls, which is broader than the product. That
+      stayed invisible until the Controls bridge started being compiled elsewhere and
+      Microsoft.Maui.Controls.LayoutAlignment began colliding with
+      Microsoft.Maui.Primitives.LayoutAlignment in the sample's own stubs - a CS0104 the product
+      could never hit, produced entirely by the lane's extra reference. Exactly the failure mode a
+      verification lane must not have, in the other direction: red here, fine in the product.
+    -->
+    <PackageReference Include="Microsoft.Maui.Core" />
+    <PackageReference Include="Microsoft.Maui.Graphics" />
+  </ItemGroup>
+
+  <Import Project="$(RepositoryRoot)eng/targets/TizenRefPack.targets" />
+
+  <ItemGroup>
+    <Compile Include="@(MauiTizenSampleCompile)" LinkBase="Sample" />
+  </ItemGroup>
+
+</Project>

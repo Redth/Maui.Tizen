@@ -15,6 +15,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	/// populated, that it describes <em>this</em> package rather than the inherited MAUI surface,
 	/// and that the sample's API has not leaked into the product's.
 	/// </remarks>
+	[Collection(StaticMapperCollection.Name)]
 	public class PublicApiBaselineTests
 	{
 		static string RepositoryRoot

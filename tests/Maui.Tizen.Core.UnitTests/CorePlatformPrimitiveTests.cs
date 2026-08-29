@@ -25,20 +25,23 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	/// </remarks>
 	public class CorePlatformPrimitiveTests
 	{
-		static string RepositoryRoot
-		{
-			get
-			{
-				var dir = new DirectoryInfo(AppContext.BaseDirectory);
-				while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Maui.Tizen.slnx")))
-					dir = dir.Parent;
+		static string RepositoryRoot => MSBuildEvaluation.RepositoryRoot;
 
-				return dir?.FullName ?? throw new InvalidOperationException("Repository root not found.");
-			}
-		}
+		const string ProductProject = "src/Maui.Tizen.Core/Maui.Tizen.Core.csproj";
+		const string CoreLane = "tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj";
 
-		static string SourcesProps => File.ReadAllText(
-			Path.Combine(RepositoryRoot, "eng/Maui.Tizen.Core.Sources.props"));
+		/// <summary>
+		/// File names the PRODUCT actually compiles, as MSBuild evaluated them.
+		/// </summary>
+		/// <remarks>
+		/// These guards used to grep eng/Maui.Tizen.Core.Sources.props. Filtering to Include= lines
+		/// made that survivable, but it was still asserting on text that merely resembles the build.
+		/// Asking MSBuild what it evaluated is the actual question, and it also follows imports,
+		/// conditions and item removals - none of which text matching can see.
+		/// </remarks>
+		static string[] ProductCompiled => MSBuildEvaluation.GetItemFileNames(ProductProject, "Compile");
+
+		static string[] LaneCompiled => MSBuildEvaluation.GetItemFileNames(CoreLane, "Compile");
 
 		static string[] ProductBaseline => File.ReadAllLines(
 			Path.Combine(RepositoryRoot, "src/Maui.Tizen.Core/PublicAPI/slice/PublicAPI.Unshipped.txt"));
@@ -62,9 +65,13 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[InlineData("TizenFlyoutViewExtensions.cs")]
 		public void PrimitiveIsCompiledByTheProductAndRefPackLanes(string fileName)
 		{
-			// Sources are listed explicitly rather than globbed, so a new file that is never added
-			// here compiles nowhere and fails only when Wave C tries to use it.
-			Assert.Contains(fileName, SourcesProps, StringComparison.Ordinal);
+			// Asserted against EVALUATED compile items in both lanes. An earlier version searched
+			// the raw props text, which also contains a supersession comment block naming every one
+			// of these files - so every case passed on the comment alone, and deleting the real
+			// <MauiTizenPlatformCompile Include="..."/> item did not fail it. That is precisely the
+			// regression the test claims to guard.
+			Assert.Contains(fileName, ProductCompiled, StringComparer.Ordinal);
+			Assert.Contains(fileName, LaneCompiled, StringComparer.Ordinal);
 		}
 
 		[Theory]
@@ -86,6 +93,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[InlineData("Microsoft.Maui.Platforms.Tizen.TizenToolbarView.SendIconPressed() -> void")]
 		// The container contract, implemented by the navigation manager.
 		[InlineData("Microsoft.Maui.Platforms.Tizen.ITizenToolbarContainer.SetToolbar(")]
+		[InlineData("Microsoft.Maui.Platforms.Tizen.ITizenToolbarContainer.ClearToolbar() -> void")]
+		[InlineData("Microsoft.Maui.Platforms.Tizen.ITizenToolbarContainer.DetachToolbar(")]
 		// The navigation contract Wave C's navigation handler drives.
 		[InlineData("Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.Connect(")]
 		[InlineData("Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.Disconnect() -> void")]
@@ -120,14 +129,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		{
 			// The whole point of owning these types: the raw imported originals must stay
 			// uncompiled, or they would collide with the ported ones.
-			var compiled = SourcesProps
-				.Split('\n')
-				.Where(l => l.Contains("Include=", StringComparison.Ordinal))
-				.ToArray();
-
-			Assert.DoesNotContain(compiled, l =>
-				l.Contains($"/{fileName}", StringComparison.Ordinal) ||
-				l.Contains($"\\{fileName}", StringComparison.Ordinal));
+			Assert.DoesNotContain(fileName, ProductCompiled, StringComparer.Ordinal);
+			Assert.DoesNotContain(fileName, LaneCompiled, StringComparer.Ordinal);
 		}
 
 		[Fact]
@@ -205,7 +208,6 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		{
 			// Core owns the primitives; the handlers that drive them belong to Wave C.
 			var handlerDir = Path.Combine(RepositoryRoot, "src/Maui.Tizen.Core/Handlers");
-			var compiledHandlers = SourcesProps;
 
 			foreach (var waveC in new[]
 			{
@@ -216,7 +218,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 					File.Exists(Path.Combine(handlerDir, $"{waveC}.cs")),
 					$"{waveC} belongs to Wave C, not core.");
 
-				Assert.DoesNotContain($"{waveC}.cs", compiledHandlers, StringComparison.Ordinal);
+				Assert.DoesNotContain($"{waveC}.cs", ProductCompiled, StringComparer.Ordinal);
+				Assert.DoesNotContain($"{waveC}.cs", LaneCompiled, StringComparer.Ordinal);
 			}
 		}
 	}

@@ -3,12 +3,14 @@
 `Maui.Tizen.Essentials` provides Tizen implementations of the .NET MAUI Essentials service
 contracts as a standalone platform backend for **.NET 11 and newer**.
 
-Registration is the whole integration surface: `AddTizenEssentials(MauiAppBuilder)` adds every
-service below as a `TryAdd` singleton, and .NET 11 MAUI bridges DI-registered Essentials
-services onto their static facades during `MauiApp` initialization (dotnet/maui#36657, first
-available publicly in `11.0.0-preview.7.26418.3`). This package therefore performs no
-`SetDefault` reflection, and ships no `MainThread` platform hook: main-thread marshalling is
-bridged from the registered `IDispatcher`.
+Registration is the whole integration surface: the production
+`UseMauiAppTizenControls<TApp>()` path calls `AddTizenEssentials(MauiAppBuilder)`, which replaces
+MAUI's neutral defaults with every Tizen service below. Applications can replace an individual
+service after configuring the backend. .NET 11 MAUI bridges those DI registrations onto the
+static Essentials facades during `MauiApp` initialization (dotnet/maui#36657, first available
+publicly in `11.0.0-preview.7.26418.3`). This package therefore performs no `SetDefault`
+reflection, and ships no `MainThread` platform hook: main-thread marshalling is bridged from the
+registered `IDispatcher`.
 
 Support levels:
 
@@ -76,7 +78,7 @@ Profile column values are the Tizen device profiles on which the service is usab
 | Sources type-check against the **API15 reference pack** the product targets | Verified, by `tests/Maui.Tizen.Essentials.RefPackCompile` |
 | The declared public API surface matches `PublicAPI/slice/PublicAPI.Unshipped.txt` | Verified, by the PublicAPI analyzer in that same lane |
 | Sources compile against loadable Tizen implementation assemblies | Verified, by `src/Maui.Tizen.Essentials.HostVerification` |
-| DI registration, facade/`MainThread` ownership, permission privilege mapping, unsupported classification, ported translation logic | Verified, by `tests/Maui.Tizen.Essentials.Tests` (347 tests) |
+| DI registration, facade/`MainThread` ownership, permission privilege mapping, unsupported classification, ported translation logic | Verified, by `tests/Maui.Tizen.Essentials.Tests` (352 tests) |
 | `src/Maui.Tizen.Essentials` builds for `net11.0-tizen11.0` | **Blocked.** Fails with `MAUITIZEN0001`: the Samsung workload manifest `samsung.net.sdk.tizen.manifest-11.0.100` is unpublished. Nobody can build this TFM anywhere yet. |
 | Any behaviour that P/Invokes into Tizen (sensors, AppControl, key manager, NUI capture, TTS, geocoding, ...) | **Blocked.** Requires a Tizen device or emulator, which in turn requires the workload. |
 

@@ -13,10 +13,10 @@ using Microsoft.Maui.Devices.Sensors;
 using Microsoft.Maui.Networking;
 using Microsoft.Maui.Platforms.Tizen.Essentials;
 using Xunit;
+using TizenAppControlOperations = Tizen.Applications.AppControlOperations;
 using TizenBatteryPowerSource = Tizen.System.BatteryPowerSource;
 using TizenColorSpace = Tizen.Multimedia.ColorSpace;
 using TizenConnectionState = Tizen.Network.Connection.ConnectionState;
-using TizenAppControlOperations = Tizen.Applications.AppControlOperations;
 using TizenLocationType = Tizen.Location.LocationType;
 using TizenPixelFormat = Tizen.NUI.PixelFormat;
 

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RootNamespace>Migration.ApiDump</RootNamespace>
+    <AssemblyName>maui-tizen-apidump</AssemblyName>
+    <!-- Internal build tool, not a shipped/documented library. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- Metadata-only reflection: never load/execute the analyzed assemblies, so no Tizen
+         workload, native TizenFX bits, or target platform runtime is required to run this tool. -->
+  </PropertyGroup>
+
+</Project>

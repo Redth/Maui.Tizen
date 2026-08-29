@@ -160,7 +160,7 @@ public class TizenEssentialsRegistrationTests
 
 	[Theory]
 	[MemberData(nameof(ExpectedServiceTypes))]
-	public void UsesTryAddSoApplicationsCanOverrideAnyService(Type serviceType)
+	public void ReplacesAnEarlierRegistrationWithoutLeavingAShadowDescriptor(Type serviceType)
 	{
 		var services = new ServiceCollection();
 		var replacement = new object();
@@ -169,8 +169,8 @@ public class TizenEssentialsRegistrationTests
 		services.AddTizenEssentials();
 
 		var descriptor = Assert.Single(services, d => d.ServiceType == serviceType);
-		Assert.NotNull(descriptor.ImplementationFactory);
-		Assert.Null(descriptor.ImplementationType);
+		Assert.Equal(ExpectedRegistrations[serviceType], descriptor.ImplementationType);
+		Assert.Null(descriptor.ImplementationFactory);
 	}
 
 	[Fact]

@@ -25,6 +25,8 @@
     ProjectReference target for any Tizen project.
   -->
 
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Essentials.Sources.props" />
+
   <PropertyGroup>
     <TargetFramework>$(DotNetTfm)</TargetFramework>
     <IsTizenProject>false</IsTizenProject>
@@ -40,9 +42,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="../Maui.Tizen.Essentials/**/*.cs"
-             Exclude="../Maui.Tizen.Essentials/bin/**;../Maui.Tizen.Essentials/obj/**"
-             LinkBase="Maui.Tizen.Essentials" />
+    <Compile Include="@(MauiTizenEssentialsCompile)" LinkBase="Maui.Tizen.Essentials" />
   </ItemGroup>
 
   <ItemGroup>

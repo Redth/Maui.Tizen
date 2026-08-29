@@ -44,11 +44,11 @@
 
   <ItemGroup>
     <!--
-      Explicit, and describing THIS assembly. The path is project-owned; nothing globs it
-      in from elsewhere.
+      Explicit, and describing THIS assembly. PublicAPI/slice is the project-owned
+      standalone-assembly contract; nothing globs it in from elsewhere.
     -->
-    <AdditionalFiles Include="PublicAPI/tizen/PublicAPI.Shipped.txt" />
-    <AdditionalFiles Include="PublicAPI/tizen/PublicAPI.Unshipped.txt" />
+    <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Unshipped.txt" />
   </ItemGroup>
 
 </Project>

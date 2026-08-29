@@ -27,6 +27,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (Content is ITizenToolbarContainer container)
 				container.SetToolbar(toolbar);
 		}
+
+		void ITizenToolbarContainer.ClearToolbar()
+		{
+			if (Content is ITizenToolbarContainer container)
+				container.ClearToolbar();
+		}
+
+		void ITizenToolbarContainer.DetachToolbar(TizenToolbarView toolbar)
+		{
+			if (Content is ITizenToolbarContainer container)
+				container.DetachToolbar(toolbar);
+		}
 	}
 
 	/// <summary>
@@ -43,6 +55,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			if (Content is ITizenToolbarContainer container)
 				container.SetToolbar(toolbar);
+		}
+
+		void ITizenToolbarContainer.ClearToolbar()
+		{
+			if (Content is ITizenToolbarContainer container)
+				container.ClearToolbar();
+		}
+
+		void ITizenToolbarContainer.DetachToolbar(TizenToolbarView toolbar)
+		{
+			if (Content is ITizenToolbarContainer container)
+				container.DetachToolbar(toolbar);
 		}
 	}
 }

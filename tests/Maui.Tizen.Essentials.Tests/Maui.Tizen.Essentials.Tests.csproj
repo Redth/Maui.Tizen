@@ -42,6 +42,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Maui.Tizen.Essentials.HostVerification/Maui.Tizen.Essentials.HostVerification.csproj" />
+    <PackageReference Include="Microsoft.Maui.Controls" />
   </ItemGroup>
 
   <ItemGroup>

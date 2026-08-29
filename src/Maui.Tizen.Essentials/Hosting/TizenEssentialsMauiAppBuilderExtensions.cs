@@ -28,9 +28,10 @@ namespace Microsoft.Maui.Hosting
 		/// <returns>The same <paramref name="builder"/>, for chaining.</returns>
 		/// <remarks>
 		/// <para>
-		/// Every service is registered as a singleton with <c>TryAdd</c> semantics, so an application
-		/// (or another platform backend) can replace any individual implementation simply by
-		/// registering its own before calling this method.
+		/// Every platform service replaces MAUI's neutral registration. This is required when the
+		/// method is reached from <c>UseMauiAppTizenControls</c>, because <c>UseMauiApp</c> has
+		/// already registered the neutral Essentials defaults. An application can replace an
+		/// individual implementation after configuring the Tizen backend.
 		/// </para>
 		/// <para>
 		/// Registration alone is enough to also drive the static Essentials facades
@@ -84,68 +85,75 @@ namespace Microsoft.Maui.Hosting
 			ArgumentNullException.ThrowIfNull(services);
 
 			// Application model
-			services.TryAddSingleton<IAppActions, TizenAppActions>();
-			services.TryAddSingleton<IAppInfo, TizenAppInfo>();
-			services.TryAddSingleton<IBrowser, TizenBrowser>();
-			services.TryAddSingleton<ILauncher, TizenLauncher>();
-			services.TryAddSingleton<IMap, TizenMap>();
-			services.TryAddSingleton<IPermissions, TizenPermissions>();
+			ReplaceSingleton<IAppActions, TizenAppActions>(services);
+			ReplaceSingleton<IAppInfo, TizenAppInfo>(services);
+			ReplaceSingleton<IBrowser, TizenBrowser>(services);
+			ReplaceSingleton<ILauncher, TizenLauncher>(services);
+			ReplaceSingleton<IMap, TizenMap>(services);
+			ReplaceSingleton<IPermissions, TizenPermissions>(services);
 
 			// Communication
-			services.TryAddSingleton<IContacts, TizenContacts>();
-			services.TryAddSingleton<IEmail, TizenEmail>();
-			services.TryAddSingleton<IPhoneDialer, TizenPhoneDialer>();
-			services.TryAddSingleton<ISms, TizenSms>();
+			ReplaceSingleton<IContacts, TizenContacts>(services);
+			ReplaceSingleton<IEmail, TizenEmail>(services);
+			ReplaceSingleton<IPhoneDialer, TizenPhoneDialer>(services);
+			ReplaceSingleton<ISms, TizenSms>(services);
 
 			// Data transfer
-			services.TryAddSingleton<IClipboard, TizenClipboard>();
-			services.TryAddSingleton<IShare, TizenShare>();
+			ReplaceSingleton<IClipboard, TizenClipboard>(services);
+			ReplaceSingleton<IShare, TizenShare>(services);
 
 			// Storage
-			services.TryAddSingleton<IFilePicker, TizenFilePicker>();
-			services.TryAddSingleton<IFileSystem, TizenFileSystem>();
-			services.TryAddSingleton<IPreferences, TizenPreferences>();
-			services.TryAddSingleton<ISecureStorage, TizenSecureStorage>();
+			ReplaceSingleton<IFilePicker, TizenFilePicker>(services);
+			ReplaceSingleton<IFileSystem, TizenFileSystem>(services);
+			ReplaceSingleton<IPreferences, TizenPreferences>(services);
+			ReplaceSingleton<ISecureStorage, TizenSecureStorage>(services);
 
 			// Device
-			services.TryAddSingleton<IBattery, TizenBattery>();
-			services.TryAddSingleton<IDeviceDisplay, TizenDeviceDisplay>();
-			services.TryAddSingleton<IDeviceInfo, TizenDeviceInfo>();
-			services.TryAddSingleton<IFlashlight, TizenFlashlight>();
-			services.TryAddSingleton<IHapticFeedback, TizenHapticFeedback>();
-			services.TryAddSingleton<IVibration, TizenVibration>();
+			ReplaceSingleton<IBattery, TizenBattery>(services);
+			ReplaceSingleton<IDeviceDisplay, TizenDeviceDisplay>(services);
+			ReplaceSingleton<IDeviceInfo, TizenDeviceInfo>(services);
+			ReplaceSingleton<IFlashlight, TizenFlashlight>(services);
+			ReplaceSingleton<IHapticFeedback, TizenHapticFeedback>(services);
+			ReplaceSingleton<IVibration, TizenVibration>(services);
 
 			// Sensors
-			services.TryAddSingleton<IAccelerometer, TizenAccelerometer>();
-			services.TryAddSingleton<IBarometer, TizenBarometer>();
-			services.TryAddSingleton<ICompass, TizenCompass>();
-			services.TryAddSingleton<IGyroscope, TizenGyroscope>();
-			services.TryAddSingleton<IMagnetometer, TizenMagnetometer>();
-			services.TryAddSingleton<IOrientationSensor, TizenOrientationSensor>();
+			ReplaceSingleton<IAccelerometer, TizenAccelerometer>(services);
+			ReplaceSingleton<IBarometer, TizenBarometer>(services);
+			ReplaceSingleton<ICompass, TizenCompass>(services);
+			ReplaceSingleton<IGyroscope, TizenGyroscope>(services);
+			ReplaceSingleton<IMagnetometer, TizenMagnetometer>(services);
+			ReplaceSingleton<IOrientationSensor, TizenOrientationSensor>(services);
 
 			// Location
-			services.TryAddSingleton<TizenGeocoding>();
-			services.TryAddSingleton<IGeocoding>(static sp => sp.GetRequiredService<TizenGeocoding>());
-			services.TryAddSingleton<IPlatformGeocoding>(static sp => sp.GetRequiredService<TizenGeocoding>());
-			services.TryAddSingleton<IGeolocation, TizenGeolocation>();
+			ReplaceSingleton<TizenGeocoding, TizenGeocoding>(services);
+			services.Replace(ServiceDescriptor.Singleton<IGeocoding>(
+				static sp => sp.GetRequiredService<TizenGeocoding>()));
+			services.Replace(ServiceDescriptor.Singleton<IPlatformGeocoding>(
+				static sp => sp.GetRequiredService<TizenGeocoding>()));
+			ReplaceSingleton<IGeolocation, TizenGeolocation>(services);
 
 			// Networking
-			services.TryAddSingleton<IConnectivity, TizenConnectivity>();
+			ReplaceSingleton<IConnectivity, TizenConnectivity>(services);
 
 			// Media
-			services.TryAddSingleton<IMediaPicker, TizenMediaPicker>();
-			services.TryAddSingleton<IScreenshot, TizenScreenshot>();
-			services.TryAddSingleton<ITextToSpeech, TizenTextToSpeech>();
+			ReplaceSingleton<IMediaPicker, TizenMediaPicker>(services);
+			ReplaceSingleton<IScreenshot, TizenScreenshot>(services);
+			ReplaceSingleton<ITextToSpeech, TizenTextToSpeech>(services);
 
 			// Accessibility
-			services.TryAddSingleton<ISemanticScreenReader, TizenSemanticScreenReader>();
+			ReplaceSingleton<ISemanticScreenReader, TizenSemanticScreenReader>(services);
 
 			// Authentication
-			services.TryAddSingleton<IAppleSignInAuthenticator, TizenAppleSignInAuthenticator>();
-			services.TryAddSingleton<IPasskeys, TizenPasskeys>();
-			services.TryAddSingleton<IWebAuthenticator, TizenWebAuthenticator>();
+			ReplaceSingleton<IAppleSignInAuthenticator, TizenAppleSignInAuthenticator>(services);
+			ReplaceSingleton<IPasskeys, TizenPasskeys>(services);
+			ReplaceSingleton<IWebAuthenticator, TizenWebAuthenticator>(services);
 
 			return services;
 		}
+
+		static void ReplaceSingleton<TService, TImplementation>(IServiceCollection services)
+			where TService : class
+			where TImplementation : class, TService =>
+			services.Replace(ServiceDescriptor.Singleton<TService, TImplementation>());
 	}
 }

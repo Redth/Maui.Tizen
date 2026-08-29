@@ -2,8 +2,8 @@ using System;
 using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.Maui.ApplicationModel;
-using Microsoft.Maui.Media;
 using Microsoft.Maui.Devices.Sensors;
+using Microsoft.Maui.Media;
 using Microsoft.Maui.Platforms.Tizen.Essentials;
 using Xunit;
 

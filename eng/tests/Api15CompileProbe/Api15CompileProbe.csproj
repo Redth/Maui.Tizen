@@ -1,0 +1,124 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    API15 compile probe.
+
+    The Tizen DevFlow agent targets net11.0-tizen11.0, which nobody can build until Samsung
+    publishes the 11.0.100-band workload. That left its NUI code unverified by any compiler -
+    the single largest gap in the validation lane.
+
+    This project closes it. The Samsung reference pack is an ordinary NuGet package, so the
+    agent's Tizen sources are compiled HERE against the real API15 reference assemblies, on an
+    ordinary hosted runner, with no workload involved.
+
+    What this does prove: every Tizen type, member and overload the agent uses exists in API15
+    with the signature the code assumes, and nothing it uses is [Obsolete] (warnings are errors
+    in CI).
+
+    What it does NOT prove: that the app runs. There is no Tizen runtime here, the TFM is plain
+    net11.0 rather than net11.0-tizen11.0, and the reference assemblies carry no implementation.
+    Runtime behaviour still belongs to the device lane.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>$(DotNetTfm)</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+    <IsPackable>false</IsPackable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>$(NoWarn);NETSDK1057</NoWarn>
+
+    <!--
+      Always warnings-as-errors, not just under ContinuousIntegrationBuild. A probe that tolerates
+      warnings locally would report "compiles cleanly" for code that fails the real CI build, which
+      is the exact false assurance this project exists to remove.
+    -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!--
+      CS8764: nullability of return type doesn't match the overridden member.
+
+      DevFlow's preview assemblies are not nullable-annotated, so every one of its
+      "return null on success, or an error message" members is declared as an oblivious
+      `string`. Overriding them with the semantically correct `string?` therefore warns, and the
+      alternatives are worse: declaring `string` and returning `null!` would lie to our own
+      callers about a value that is null on the success path.
+
+      Suppressed narrowly - CS8603 (possible null return) stays on, so genuine null-return bugs
+      are still errors.
+    -->
+    <NoWarn>$(NoWarn);CS8764</NoWarn>
+
+    <!-- Matches the diagnostics projects; DevFlow resolves its own SkiaSharp line. -->
+    <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
+    <Api15AgentSourceRoot Condition="'$(Api15AgentSourceRoot)' == ''">$(RepositoryRoot)src/Diagnostics/Maui.Tizen.DevFlow.Agent/</Api15AgentSourceRoot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.DevFlow.Agent.Core" />
+    <PackageReference Include="Microsoft.Maui.Essentials" VersionOverride="10.0.41" />
+    <PackageReference Include="Samsung.Tizen.Ref.API15" GeneratePathProperty="true" ExcludeAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(RepositoryRoot)src/Diagnostics/Maui.Tizen.DevFlow.Agent.Shared/Maui.Tizen.DevFlow.Agent.Shared.csproj" />
+  </ItemGroup>
+
+  <!--
+    The agent's Tizen sources, compiled verbatim. Not copies: the same files the Tizen project
+    compiles, so the two cannot drift.
+  -->
+  <ItemGroup>
+    <Api15AgentSource Include="$(Api15AgentSourceRoot)**/*.cs" />
+    <Compile Include="@(Api15AgentSource)" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Core/LifecycleEvents/Tizen/TizenLifecycle.cs" />
+  </ItemGroup>
+
+  <Target Name="ValidateApi15AgentSources" BeforeTargets="CoreCompile">
+    <Error
+      Condition="'@(Api15AgentSource)' == ''"
+      Text="API15 compile probe found no Tizen DevFlow agent sources under '$(Api15AgentSourceRoot)'." />
+  </Target>
+
+  <!--
+    Reference assemblies are added by path rather than through a framework reference, because
+    there is no Tizen targeting pack without the workload. ExcludeAssets="all" above stops NuGet
+    adding them automatically so the set stays explicit and reviewable.
+  -->
+  <ItemGroup>
+    <Reference Include="Tizen.NUI">
+      <HintPath>$(PkgSamsung_Tizen_Ref_API15)/ref/net8.0/Tizen.NUI.dll</HintPath>
+    </Reference>
+    <Reference Include="Tizen.NUI.Components">
+      <HintPath>$(PkgSamsung_Tizen_Ref_API15)/ref/net8.0/Tizen.NUI.Components.dll</HintPath>
+    </Reference>
+    <Reference Include="Tizen.NUI.WindowSystem">
+      <HintPath>$(PkgSamsung_Tizen_Ref_API15)/ref/net8.0/Tizen.NUI.WindowSystem.dll</HintPath>
+    </Reference>
+    <Reference Include="Tizen.Applications.Common">
+      <HintPath>$(PkgSamsung_Tizen_Ref_API15)/ref/net8.0/Tizen.Applications.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="Tizen.Applications.PackageManager">
+      <HintPath>$(PkgSamsung_Tizen_Ref_API15)/ref/net8.0/Tizen.Applications.PackageManager.dll</HintPath>
+    </Reference>
+    <Reference Include="Tizen.Applications.UI">
+      <HintPath>$(PkgSamsung_Tizen_Ref_API15)/ref/net8.0/Tizen.Applications.UI.dll</HintPath>
+    </Reference>
+    <Reference Include="Tizen.Security">
+      <HintPath>$(PkgSamsung_Tizen_Ref_API15)/ref/net8.0/Tizen.Security.dll</HintPath>
+    </Reference>
+    <Reference Include="Tizen.System.Information">
+      <HintPath>$(PkgSamsung_Tizen_Ref_API15)/ref/net8.0/Tizen.System.Information.dll</HintPath>
+    </Reference>
+    <Reference Include="Tizen.Log">
+      <HintPath>$(PkgSamsung_Tizen_Ref_API15)/ref/net8.0/Tizen.Log.dll</HintPath>
+    </Reference>
+    <Reference Include="Tizen">
+      <HintPath>$(PkgSamsung_Tizen_Ref_API15)/ref/net8.0/Tizen.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

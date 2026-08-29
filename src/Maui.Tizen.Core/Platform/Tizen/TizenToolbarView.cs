@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.Maui;
 using Tizen.NUI.BaseComponents;
 using Tizen.UIExtensions.Common.GraphicsView;
@@ -30,6 +31,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 	{
 		const double ToolbarTextSize = 20d;
 		const double ToolbarHeight = 50d;
+		readonly View _contentHost;
+		readonly TizenContentSlot<View> _contentSlot = new();
 
 		/// <summary>Initializes a new instance of the <see cref="TizenToolbarView"/> class.</summary>
 		public TizenToolbarView()
@@ -37,6 +40,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 			BoxShadow = new NShadow(5d.ToScaledPixel(), NColor.Black, new NVector2(0, 0));
 			Label.FontSize = ToolbarTextSize.ToScaledPoint();
 			SizeHeight = ToolbarHeight.ToScaledPixel();
+			_contentHost = new View
+			{
+				WidthSpecification = LayoutParamPolicies.MatchParent,
+				HeightSpecification = LayoutParamPolicies.MatchParent,
+			};
+			_contentHost.Hide();
+			base.Content = _contentHost;
 		}
 
 		/// <summary>Raised when the toolbar icon is pressed.</summary>
@@ -52,12 +62,64 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </remarks>
 		public View? SearchBar
 		{
-			get => base.Content;
+			get => _contentSlot.Search;
 			set
 			{
-				base.Content = value;
-				Label.SizeWidth = base.Content is null ? SizeWidth : 0;
+				if (ReferenceEquals(_contentSlot.Search, value))
+					return;
+
+				UpdateContentSlot(_contentSlot.SetSearch(value));
 			}
+		}
+
+		/// <summary>Updates the custom title content without displacing an active search view.</summary>
+		public void SetTitleContent(View? content)
+		{
+			UpdateContentSlot(_contentSlot.SetTitle(content));
+		}
+
+		void UpdateContentSlot(TizenContentSlotChange<View> change)
+		{
+			if (change.Previous is not null
+				&& !ReferenceEquals(change.Previous, change.Current)
+				&& ReferenceEquals(change.Previous.GetParent(), _contentHost))
+			{
+				_contentHost.Remove(change.Previous);
+			}
+
+			var active = _contentSlot.Current;
+			foreach (var child in _contentHost.Children.ToList())
+			{
+				if (!ReferenceEquals(child, active))
+					_contentHost.Remove(child);
+			}
+
+			if (active is null)
+			{
+				_contentHost.Hide();
+				Label.SizeWidth = SizeWidth;
+				return;
+			}
+
+			if (!ReferenceEquals(active.GetParent(), _contentHost))
+			{
+				active.Unparent();
+				_contentHost.Add(active);
+			}
+			_contentHost.Show();
+			Label.SizeWidth = 0;
+		}
+
+		protected override void Dispose(bool disposing)
+		{
+			if (disposing)
+			{
+				_contentSlot.Search?.Unparent();
+				_contentSlot.Title?.Unparent();
+				_contentSlot.Clear();
+			}
+
+			base.Dispose(disposing);
 		}
 
 		/// <summary>Gets the toolbar's expanded height, in scaled pixels.</summary>
@@ -125,6 +187,30 @@ namespace Microsoft.Maui.Platforms.Tizen
 	{
 		/// <summary>Attaches a toolbar, replacing and disposing any previous one.</summary>
 		/// <param name="toolbar">The toolbar to attach.</param>
+		/// <remarks>
+		/// <para>
+		/// This is a PUSH with ownership transfer. The container takes ownership of
+		/// <paramref name="toolbar"/> and, when a different toolbar replaces it, both removes and
+		/// <see cref="IDisposable.Dispose"/>s the previous one. Callers must not keep using a
+		/// toolbar they have handed over, and must not dispose it themselves.
+		/// </para>
+		/// <para>
+		/// Because of that, callers must unsubscribe from the outgoing toolbar's events BEFORE
+		/// replacing it, and subscribe to the incoming one afterwards. A caller that caches a
+		/// toolbar it pulled earlier will be holding a disposed instance.
+		/// </para>
+		/// <para>
+		/// Passing the toolbar that is already attached is a no-op and is explicitly safe: it does
+		/// not dispose and re-add, which would leave a disposed native view in the tree. That makes
+		/// "ensure the toolbar is attached" callers idempotent.
+		/// </para>
+		/// </remarks>
 		void SetToolbar(TizenToolbarView toolbar);
+
+		/// <summary>Detaches and disposes the toolbar currently owned by the container.</summary>
+		void ClearToolbar();
+
+		/// <summary>Detaches <paramref name="toolbar"/> without disposing it for an ownership transfer.</summary>
+		void DetachToolbar(TizenToolbarView toolbar);
 	}
 }

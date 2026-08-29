@@ -4,6 +4,9 @@ using System.Linq;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.ApplicationModel;
+using Microsoft.Maui.ApplicationModel.DataTransfer;
+using Microsoft.Maui.Controls;
+using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Devices;
 using Microsoft.Maui.Devices.Sensors;
 using Microsoft.Maui.Hosting;
@@ -126,6 +129,29 @@ public class FacadeBridgeIntegrationTests
 		Assert.Equal(before == 0 ? 1 : before, after);
 	}
 
+	[Theory]
+	[InlineData(typeof(IBattery), typeof(TizenBattery))]
+	[InlineData(typeof(ILauncher), typeof(TizenLauncher))]
+	[InlineData(typeof(IShare), typeof(TizenShare))]
+	[InlineData(typeof(IPreferences), typeof(TizenPreferences))]
+	[InlineData(typeof(ISecureStorage), typeof(TizenSecureStorage))]
+	public void TizenRegistrationReplacesMauiDefaultsWithoutShadowDescriptors(
+		Type serviceType,
+		Type expectedImplementation)
+	{
+		var builder = MauiApp.CreateBuilder();
+		builder.UseMauiApp<BridgeApplication>();
+
+		// This extra descriptor models a registration-order conflict in addition to MAUI's
+		// defaults. The backend must remove all predecessors and leave one authoritative service.
+		builder.Services.AddSingleton(serviceType, static _ => new object());
+		builder.AddTizenEssentials();
+
+		var descriptor = Assert.Single(builder.Services, d => d.ServiceType == serviceType);
+		Assert.Equal(expectedImplementation, descriptor.ImplementationType);
+		Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+	}
+
 	[Fact]
 	public void ReleasesTheFacadesWhenTheAppIsDisposed()
 	{
@@ -175,6 +201,10 @@ public class FacadeBridgeIntegrationTests
 
 		// The concrete implementation still exposes the property, so an application can set it.
 		Assert.NotNull(typeof(TizenGeocoding).GetProperty(nameof(TizenGeocoding.MapServiceToken)));
+	}
+
+	sealed class BridgeApplication : Application
+	{
 	}
 }
 

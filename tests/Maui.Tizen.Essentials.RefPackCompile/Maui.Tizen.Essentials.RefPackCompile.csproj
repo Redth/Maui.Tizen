@@ -24,11 +24,13 @@
   -->
 
   <Import Project="$(RepositoryRoot)eng/Maui.props" />
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Essentials.Sources.props" />
 
   <PropertyGroup>
     <TargetFramework>$(DotNetTfm)</TargetFramework>
     <IsTizenProject>false</IsTizenProject>
-    <AssemblyName>Maui.Tizen.Essentials.RefPackCompile</AssemblyName>
+    <!-- Match the product identity so downstream ref-pack lanes exercise the real assembly graph. -->
+    <AssemblyName>Maui.Tizen.Essentials</AssemblyName>
     <RootNamespace>Microsoft.Maui.Platforms.Tizen.Essentials</RootNamespace>
 
     <IsPackable>false</IsPackable>
@@ -44,9 +46,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Essentials/**/*.cs"
-             Exclude="$(RepositoryRoot)src/Maui.Tizen.Essentials/bin/**;$(RepositoryRoot)src/Maui.Tizen.Essentials/obj/**"
-             LinkBase="Maui.Tizen.Essentials" />
+    <Compile Include="@(MauiTizenEssentialsCompile)" LinkBase="Maui.Tizen.Essentials" />
   </ItemGroup>
 
   <ItemGroup>

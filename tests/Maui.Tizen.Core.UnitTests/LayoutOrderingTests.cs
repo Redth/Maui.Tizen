@@ -7,10 +7,54 @@ using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Primitives;
 using Xunit;
 
+
 namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 {
 	public class LayoutOrderingTests
 	{
+		[Fact]
+		public void LogicalIndexAndZOrderedPositionDivergeOnceZIndexIsUsed()
+		{
+			// The premise behind the Update fix, stated as a fact about the data rather than about
+			// the handler.
+			//
+			// Update receives a LOGICAL index into the layout's child collection. The native
+			// collection is ordered by z-index. Those coincide only while every child sits at
+			// ZIndex 0 - which is the case in every simple test, and is why indexing the native
+			// collection with the logical index looked correct for so long.
+			var first = new StubViewInternal { ZIndex = 10 };
+			var second = new StubViewInternal { ZIndex = 0 };
+			var third = new StubViewInternal { ZIndex = 5 };
+			var layout = new StubLayoutInternal(first, second, third);
+
+			var zOrdered = layout.OrderByZIndex().ToArray();
+
+			// Logical index 0 is `first`, but z-ordered position 0 is `second`.
+			Assert.Same(first, layout[0]);
+			Assert.Same(second, zOrdered[0]);
+			Assert.NotSame(layout[0], zOrdered[0]);
+
+			// So replacing logical child 0 by native index 0 would have removed and DISPOSED
+			// `second` - a child nobody asked to replace - while `first` stayed on screen with its
+			// handler intact. Nothing throws; the layout just shows the wrong thing and leaks.
+			Assert.Equal(2, Array.IndexOf(zOrdered, first));
+		}
+
+		[Fact]
+		public void ZOrderedPositionMatchesLogicalIndexOnlyWhenAllZIndexesAreEqual()
+		{
+			// The case that made the bug invisible.
+			var a = new StubViewInternal { ZIndex = 0 };
+			var b = new StubViewInternal { ZIndex = 0 };
+			var c = new StubViewInternal { ZIndex = 0 };
+			var layout = new StubLayoutInternal(a, b, c);
+
+			var zOrdered = layout.OrderByZIndex().ToArray();
+
+			for (var i = 0; i < 3; i++)
+				Assert.Same(layout[i], zOrdered[i]);
+		}
+
 		[Fact]
 		public void OrderByZIndexIsStableForEqualZIndexes()
 		{

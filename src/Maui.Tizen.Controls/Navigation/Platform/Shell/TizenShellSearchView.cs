@@ -1,0 +1,464 @@
+using System;
+using System.Collections;
+using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Linq;
+using Microsoft.Maui.Controls;
+using Microsoft.Maui.Platforms.Tizen.Adapters;
+using Tizen.NUI;
+using Tizen.NUI.BaseComponents;
+using Tizen.UIExtensions.Common;
+using Tizen.UIExtensions.NUI;
+using NCollectionView = Tizen.UIExtensions.NUI.CollectionView;
+using NView = Tizen.NUI.BaseComponents.View;
+using TSize = Tizen.UIExtensions.Common.Size;
+
+namespace Microsoft.Maui.Platforms.Tizen.Platform
+{
+	/// <summary>Search editor and result list hosted by the Shell toolbar.</summary>
+	internal sealed class TizenShellSearchView : TizenSearchBarView
+	{
+		readonly NView _resultsHost;
+		NCollectionView? _collectionView;
+		TizenShellSearchItemAdaptor? _adaptor;
+		SearchHandler? _searchHandler;
+		Element? _parentElement;
+		IMauiContext? _mauiContext;
+		INotifyCollectionChanged? _observableItems;
+		bool _updatingQuery;
+		bool _resultsVisible;
+		readonly SearchResultsMeasurementCache _resultsMeasure = new();
+		bool _disposed;
+
+		public TizenShellSearchView()
+		{
+			_resultsHost = new NView
+			{
+				WidthSpecification = LayoutParamPolicies.MatchParent,
+				HeightSpecification = LayoutParamPolicies.WrapContent,
+			};
+
+			Add(_resultsHost);
+			_resultsHost.Hide();
+			Entry.TextChanged += OnTextChanged;
+			SearchButtonPressed += OnSearchButtonPressed;
+			LayoutUpdated += OnShellLayoutUpdated;
+		}
+
+		public void Bind(SearchHandler? searchHandler, Element parentElement, IMauiContext mauiContext)
+		{
+			ArgumentNullException.ThrowIfNull(parentElement);
+			ArgumentNullException.ThrowIfNull(mauiContext);
+
+			if (ReferenceEquals(_searchHandler, searchHandler)
+				&& ReferenceEquals(_parentElement, parentElement)
+				&& ReferenceEquals(_mauiContext, mauiContext))
+			{
+				Refresh();
+				return;
+			}
+
+			var previous = _searchHandler;
+			DetachSearchHandler();
+			if (previous is not null)
+			{
+				UnfocusEntry();
+				previous.SetIsFocused(false);
+			}
+			_searchHandler = searchHandler;
+			_parentElement = parentElement;
+			_mauiContext = mauiContext;
+
+			if (_searchHandler is null)
+			{
+				Refresh();
+				return;
+			}
+
+			_searchHandler.PropertyChanged += OnSearchHandlerPropertyChanged;
+			_searchHandler.FocusChangeRequested += OnFocusChangeRequested;
+			((ISearchHandlerController)_searchHandler).ListProxyChanged += OnListProxyChanged;
+			EntryFocused += OnEntryFocused;
+			EntryUnfocused += OnEntryUnfocused;
+			SubscribeItems(_searchHandler.ItemsSource);
+			Refresh();
+			ReconcileFocus();
+		}
+
+		void Refresh()
+		{
+			if (_searchHandler is null)
+			{
+				IsEnabled = false;
+				Entry.Text = string.Empty;
+				Entry.PlaceholderText = string.Empty;
+				ReplaceResults(null);
+				return;
+			}
+
+			IsEnabled = _searchHandler.IsSearchEnabled;
+			if (_searchHandler.SearchBoxVisibility == SearchBoxVisibility.Hidden)
+				Hide();
+			else
+				Show();
+			Entry.PlaceholderText = _searchHandler.Placeholder ?? string.Empty;
+			SetCollapsed(SearchResultsLayout.IsCollapsed(
+				_searchHandler.SearchBoxVisibility,
+				_searchHandler.IsFocused,
+				_searchHandler.Query));
+
+			if (!string.Equals(Entry.Text, _searchHandler.Query, StringComparison.Ordinal))
+			{
+				_updatingQuery = true;
+				try
+				{
+					Entry.Text = _searchHandler.Query ?? string.Empty;
+				}
+				finally
+				{
+					_updatingQuery = false;
+				}
+			}
+			ReplaceResults(((ISearchHandlerController)_searchHandler).ListProxy);
+		}
+
+		void ReplaceResults(IEnumerable? items)
+		{
+			_resultsMeasure.Invalidate();
+			if (_collectionView is not null)
+			{
+				_collectionView.Adaptor = null;
+				_resultsHost.Remove(_collectionView);
+			}
+
+			if (_adaptor is not null)
+			{
+				_adaptor.SelectionChanged -= OnSelectionChanged;
+				_adaptor.ItemMeasureInvalidated -= OnResultMeasureInvalidated;
+				_adaptor.Dispose();
+				_adaptor = null;
+			}
+
+			_collectionView?.Dispose();
+			_collectionView = null;
+
+			if (items is null || _searchHandler is null || _parentElement is null || _mauiContext is null)
+			{
+				UpdateResultsVisibility();
+				return;
+			}
+
+			var template = _searchHandler.ItemTemplate ?? new DataTemplate(() =>
+			{
+				var label = new Microsoft.Maui.Controls.Label { VerticalOptions = LayoutOptions.Center };
+				label.SetBinding(Microsoft.Maui.Controls.Label.TextProperty, ".");
+				return label;
+			});
+
+			_adaptor = new TizenShellSearchItemAdaptor(_parentElement, _searchHandler, items, template);
+			_adaptor.SelectionChanged += OnSelectionChanged;
+			_adaptor.ItemMeasureInvalidated += OnResultMeasureInvalidated;
+
+			_collectionView = new NCollectionView
+			{
+				LayoutManager = new LinearLayoutManager(false),
+				SelectionMode = CollectionViewSelectionMode.Single,
+				WidthSpecification = LayoutParamPolicies.MatchParent,
+				HeightSpecification = LayoutParamPolicies.WrapContent,
+				Adaptor = _adaptor,
+			};
+			_resultsHost.Add(_collectionView);
+			UpdateResultsVisibility();
+		}
+
+		void OnTextChanged(object? sender, EventArgs e)
+		{
+			if (!_updatingQuery && _searchHandler is not null)
+				_searchHandler.Query = Entry.Text;
+		}
+
+		void OnSearchButtonPressed(object? sender, EventArgs e)
+		{
+			if (_searchHandler is null || !_searchHandler.IsSearchEnabled)
+				return;
+
+			if (IsCollapsed)
+			{
+				SetCollapsed(false);
+				_ = FocusEntry();
+				return;
+			}
+
+			((ISearchHandlerController)_searchHandler).QueryConfirmed();
+		}
+
+		void OnSelectionChanged(object? sender, TizenCollectionViewSelectionChangedEventArgs e)
+		{
+			if (_searchHandler is { IsSearchEnabled: true, ShowsResults: true }
+				&& e.SelectedItems?.Count > 0)
+			{
+				var handler = _searchHandler;
+				((ISearchHandlerController)handler).ItemSelected(e.SelectedItems[0]);
+				if (ReferenceEquals(_searchHandler, handler))
+				{
+					_resultsVisible = false;
+					_resultsHost.Hide();
+					void ClearQuery()
+					{
+						if (!ReferenceEquals(_searchHandler, handler))
+							return;
+
+						handler.Query = string.Empty;
+						_updatingQuery = true;
+						try
+						{
+							Entry.Text = string.Empty;
+						}
+						finally
+						{
+							_updatingQuery = false;
+						}
+						UnfocusEntry();
+						UpdateResultsVisibility();
+					}
+
+					if (handler.Dispatcher is { } dispatcher)
+						dispatcher.Dispatch(ClearQuery);
+					else
+						ClearQuery();
+				}
+			}
+		}
+
+		void OnSearchHandlerPropertyChanged(object? sender, PropertyChangedEventArgs e)
+		{
+			if (_searchHandler is null)
+				return;
+
+			if (e.PropertyName == nameof(SearchHandler.ItemsSource))
+				SubscribeItems(_searchHandler.ItemsSource);
+
+			if (e.PropertyName is nameof(SearchHandler.Query)
+				or nameof(SearchHandler.ItemsSource)
+				or nameof(SearchHandler.ItemTemplate)
+				or nameof(SearchHandler.Placeholder)
+				or nameof(SearchHandler.IsSearchEnabled)
+				or nameof(SearchHandler.SearchBoxVisibility)
+				or nameof(SearchHandler.ShowsResults)
+				or nameof(SearchHandler.IsFocused)
+				or nameof(SearchHandler.Command)
+				or nameof(SearchHandler.CommandParameter))
+			{
+				Refresh();
+			}
+
+			if (e.PropertyName is nameof(SearchHandler.IsFocused)
+				or nameof(SearchHandler.IsSearchEnabled)
+				or nameof(SearchHandler.SearchBoxVisibility))
+			{
+				ReconcileFocus();
+			}
+		}
+
+		void OnItemsSourceChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
+			ReplaceResults(_searchHandler is null
+				? null
+				: ((ISearchHandlerController)_searchHandler).ListProxy);
+
+		void OnListProxyChanged(object? sender, ListProxyChangedEventArgs e) =>
+			ReplaceResults(_searchHandler is null
+				? null
+				: ((ISearchHandlerController)_searchHandler).ListProxy);
+
+		void SubscribeItems(IEnumerable? items)
+		{
+			if (_observableItems is not null)
+				_observableItems.CollectionChanged -= OnItemsSourceChanged;
+
+			_observableItems = items as INotifyCollectionChanged;
+			if (_observableItems is not null)
+				_observableItems.CollectionChanged += OnItemsSourceChanged;
+		}
+
+		void DetachSearchHandler()
+		{
+			SubscribeItems(null);
+
+			if (_searchHandler is not null)
+			{
+				_searchHandler.PropertyChanged -= OnSearchHandlerPropertyChanged;
+				_searchHandler.FocusChangeRequested -= OnFocusChangeRequested;
+				((ISearchHandlerController)_searchHandler).ListProxyChanged -= OnListProxyChanged;
+			}
+			EntryFocused -= OnEntryFocused;
+			EntryUnfocused -= OnEntryUnfocused;
+
+			_searchHandler = null;
+			_parentElement = null;
+			_mauiContext = null;
+		}
+
+		void OnFocusChangeRequested(object? sender, VisualElement.FocusRequestArgs e)
+		{
+			if (_searchHandler is null || !_searchHandler.IsSearchEnabled)
+			{
+				e.Result = false;
+				return;
+			}
+
+			if (e.Focus)
+			{
+				SetCollapsed(false);
+				e.Result = FocusEntry();
+			}
+			else
+			{
+				UnfocusEntry();
+				e.Result = true;
+			}
+		}
+
+		void OnEntryFocused(object? sender, EventArgs e)
+		{
+			if (_searchHandler is not { IsSearchEnabled: true })
+			{
+				_searchHandler?.SetIsFocused(false);
+				UnfocusEntry();
+				return;
+			}
+
+			_searchHandler.SetIsFocused(true);
+			SetCollapsed(false);
+		}
+
+		void OnEntryUnfocused(object? sender, EventArgs e)
+		{
+			_searchHandler?.SetIsFocused(false);
+			if (_searchHandler is not null)
+				SetCollapsed(SearchResultsLayout.IsCollapsed(
+					_searchHandler.SearchBoxVisibility,
+					isFocused: false,
+					_searchHandler.Query));
+		}
+
+		void ReconcileFocus()
+		{
+			if (_searchHandler is null)
+				return;
+
+			if (SearchResultsLayout.ShouldFocusNative(
+				_searchHandler.IsFocused,
+				_searchHandler.IsSearchEnabled,
+				_searchHandler.SearchBoxVisibility == SearchBoxVisibility.Hidden))
+			{
+				SetCollapsed(false);
+				if (!FocusEntry())
+					_searchHandler.SetIsFocused(false);
+			}
+			else
+			{
+				UnfocusEntry();
+			}
+		}
+
+		public override TSize Measure(double availableWidth, double availableHeight)
+		{
+			var search = base.Measure(availableWidth, availableHeight);
+			return new TSize(search.Width, search.Height + MeasureResults(availableWidth));
+		}
+
+		protected override void LayoutContent(float width, float height)
+		{
+			var search = base.Measure(width, height);
+			var searchHeight = (float)Math.Min(height, search.Height);
+			base.LayoutContent(width, searchHeight);
+
+			_resultsHost.Position = new Position(0, searchHeight);
+			_resultsHost.SizeWidth = width;
+			_resultsHost.SizeHeight = (float)MeasureResults(width);
+			if (_collectionView is not null)
+			{
+				_collectionView.SizeWidth = _resultsHost.SizeWidth;
+				_collectionView.SizeHeight = _resultsHost.SizeHeight;
+			}
+		}
+
+		double MeasureResults(double width)
+		{
+			if (!_resultsVisible || _adaptor is null)
+				return 0;
+
+			var cap = Devices.DeviceDisplay.MainDisplayInfo.Height / 2;
+			return _resultsMeasure.GetOrMeasure(
+				width,
+				() => SearchResultsLayout.MeasureUntilCap(
+					Enumerable.Range(0, _adaptor.Count)
+						.Select(index => (double)_adaptor.MeasureItem(index, width, double.PositiveInfinity).Height),
+					cap));
+		}
+
+		void OnShellLayoutUpdated(object? sender, global::Tizen.UIExtensions.Common.LayoutEventArgs e) =>
+			LayoutContent(SizeWidth, SizeHeight);
+
+		void OnResultMeasureInvalidated(object? sender, EventArgs e)
+		{
+			_resultsMeasure.Invalidate();
+			RefreshResultsLayout();
+		}
+
+		void UpdateResultsVisibility()
+		{
+			var visible = SearchResultsLayout.IsVisible(
+				_searchHandler?.Query,
+				_adaptor?.Count ?? 0,
+				_searchHandler?.IsSearchEnabled == true,
+				_searchHandler?.ShowsResults == true,
+				_searchHandler?.SearchBoxVisibility == SearchBoxVisibility.Hidden);
+			if (_resultsVisible != visible)
+			{
+				_resultsVisible = visible;
+				_resultsMeasure.Invalidate();
+				if (visible)
+					_resultsHost.Show();
+				else
+					_resultsHost.Hide();
+			}
+			RefreshResultsLayout();
+		}
+
+		void RefreshResultsLayout()
+		{
+			var displayWidth = Devices.DeviceDisplay.MainDisplayInfo.Width;
+			var width = SizeWidth > 0 ? SizeWidth : (float)displayWidth;
+			var searchHeight = base.Measure(width, double.PositiveInfinity).Height;
+			var resultsHeight = MeasureResults(width);
+			var desiredHeight = (float)(searchHeight + resultsHeight);
+			if (SizeHeight != desiredHeight)
+				SizeHeight = desiredHeight;
+			LayoutContent(width, desiredHeight);
+			Layout?.RequestLayout();
+		}
+
+		protected override void Dispose(bool disposing)
+		{
+			if (_disposed)
+				return;
+
+			_disposed = true;
+			if (disposing)
+			{
+				ExceptionSafeCleanup.Run(
+					() => LayoutUpdated -= OnShellLayoutUpdated,
+					() => Entry.TextChanged -= OnTextChanged,
+					() => SearchButtonPressed -= OnSearchButtonPressed,
+					DetachSearchHandler,
+					() => ReplaceResults(null),
+					DisconnectEvents,
+					() => base.Dispose(disposing));
+				return;
+			}
+
+			base.Dispose(disposing);
+		}
+	}
+}

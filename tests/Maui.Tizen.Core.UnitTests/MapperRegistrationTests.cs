@@ -7,6 +7,7 @@ using Xunit;
 
 namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 {
+	[Collection(StaticMapperCollection.Name)]
 	public class MapperRegistrationTests
 	{
 		[Theory]

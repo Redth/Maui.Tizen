@@ -1,5 +1,9 @@
 <Project>
 
+  <!-- Every product project consuming this infrastructure needs the same reference-pack and
+       UIExtensions shippability defaults before package items and pack guards are evaluated. -->
+  <Import Project="$(MSBuildThisFileDirectory)../Maui.props" />
+
   <!--
     Shared configuration for the Tizen package projects.
 
@@ -85,8 +89,20 @@
     -->
     <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
 
-    <!-- An assembly with no sources has no docs to generate. -->
-    <GenerateDocumentationFile Condition="'$(EnableDefaultCompileItems)' == 'false'">false</GenerateDocumentationFile>
+    <!--
+      An assembly with no sources has no docs to generate - but EnableDefaultCompileItems is the
+      wrong signal for that.
+
+      Maui.Tizen.Core and Maui.Tizen.Controls both turn default globbing OFF and then list their
+      shipping sources explicitly, precisely because the raw imported tree must not be compiled.
+      They are the two projects that DO produce a public API and most need documentation, and this
+      condition silently disabled it for exactly them.
+
+      MauiTizenGeneratesDocumentation is set by a project that opts in; everything still
+      un-ported keeps the default of no docs.
+    -->
+    <GenerateDocumentationFile Condition="'$(MauiTizenGeneratesDocumentation)' == 'true'">true</GenerateDocumentationFile>
+    <GenerateDocumentationFile Condition="'$(MauiTizenGeneratesDocumentation)' != 'true' AND '$(EnableDefaultCompileItems)' == 'false'">false</GenerateDocumentationFile>
 
     <!--
       CS1591 ("missing XML comment for publicly visible type or member") is suppressed
@@ -114,7 +130,13 @@
 
       The analyzer is inert until a project supplies AdditionalFiles - see below.
     -->
-    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+    <!--
+      buildtransitive is included deliberately, matching what the ref-pack lanes consume. Without
+      it the product and its verification lane ran the analyzer with DIFFERENT asset sets, so a
+      diagnostic surfaced by buildtransitive props would appear in one and not the other - the lane
+      is only worth having while it sees what the product sees. A test pins the two together.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
   </ItemGroup>
 
   <!--
@@ -140,9 +162,10 @@
        first three, 0/0/0 for the rest. Silent absence of enforcement is worse than no
        enforcement, because it looks enforced.
 
-    So the imported baselines under src/**/PublicAPI/** are PROVENANCE FIXTURES: they
-    record what upstream shipped for net-tizen and feed the API-baseline diffing in
-    eng/api-baselines/. They are not this repository's API contract.
+    So the imported baselines under src/**/PublicAPI/net-tizen/** are PROVENANCE
+    FIXTURES: they record what upstream shipped for net-tizen and are hash-pinned by
+    eng/api-baselines/net11.0-publicapi/manifest.json. They are not this repository's
+    API contract and must never be overwritten by analyzer-generated output.
 
     To opt a project in once it compiles and ships public API, declare its own baseline
     explicitly in the project file:
@@ -151,14 +174,15 @@
         <EnablePublicApiAnalyzer>true</EnablePublicApiAnalyzer>
       </PropertyGroup>
       <ItemGroup>
-        <AdditionalFiles Include="PublicAPI/tizen/PublicAPI.Shipped.txt" />
-        <AdditionalFiles Include="PublicAPI/tizen/PublicAPI.Unshipped.txt" />
+        <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Shipped.txt" />
+        <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Unshipped.txt" />
       </ItemGroup>
 
-    The baseline must describe THIS assembly, not the upstream one it was split from.
-    Do not point it at the imported provenance fixtures, and do not suppress RS0016/RS0017
-    to make a mismatched baseline quiet - that discards the enforcement entirely. An
-    invariant test asserts both rules.
+    PublicAPI/slice is reserved for generated baselines describing THIS standalone
+    assembly. The baseline must describe this assembly, not the upstream one it was split
+    from. Do not point it at the imported provenance fixtures, generate into net-tizen,
+    or suppress RS0016/RS0017 to make a mismatched baseline quiet - that discards the
+    enforcement entirely. Invariant tests assert these rules.
 
     See eng/tests/PublicApiOptIn for a worked example that the CI lane compiles.
   -->
@@ -169,5 +193,22 @@
   <ItemGroup Condition="'$(EnableDefaultCompileItems)' == 'false'">
     <None Include="**/*.cs" Exclude="bin/**;obj/**" />
   </ItemGroup>
+
+  <!--
+    Tizen.UIExtensions.NUI 0.9.2 transitively declares Microsoft.Maui.Graphics 6.0.300-rc.3.1336.
+    Refuse to produce any package that references it while that is true. The PackageReference item
+    is evaluated at target execution, so this shared policy follows every current and future
+    package that consumes UIExtensions without blocking unrelated Tizen packages.
+  -->
+  <Target Name="BlockPackOnUnshippableUIExtensions" BeforeTargets="GenerateNuspec">
+    <ItemGroup>
+      <_MauiTizenUIExtensionsReference Include="@(PackageReference)"
+                                       Condition="'%(PackageReference.Identity)' == 'Tizen.UIExtensions.NUI'" />
+    </ItemGroup>
+
+    <Error Condition="'@(_MauiTizenUIExtensionsReference)' != '' AND '$(TizenUIExtensionsIsShippable)' != 'true'"
+           Code="MAUITIZEN0101"
+           Text="Refusing to pack $(MSBuildProjectName) against Tizen.UIExtensions.NUI $(TizenUIExtensionsPackageVersion), which transitively declares Microsoft.Maui.Graphics 6.0.300-rc.3.1336. Bump the Tizen.UIExtensions.NUI PackageVersion in Directory.Packages.props once Samsung republishes it, or pass -p:TizenUIExtensionsIsShippable=true if you have verified the resulting dependency graph." />
+  </Target>
 
 </Project>
