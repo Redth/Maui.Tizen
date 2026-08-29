@@ -40,13 +40,13 @@
 
     <!--
       CS8764: nullability of return type doesn't match the overridden member.
-      
+
       DevFlow's preview assemblies are not nullable-annotated, so every one of its
       "return null on success, or an error message" members is declared as an oblivious
       `string`. Overriding them with the semantically correct `string?` therefore warns, and the
       alternatives are worse: declaring `string` and returning `null!` would lie to our own
       callers about a value that is null on the success path.
-      
+
       Suppressed narrowly - CS8603 (possible null return) stays on, so genuine null-return bugs
       are still errors.
     -->

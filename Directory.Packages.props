@@ -99,6 +99,8 @@
     <PackageVersion Include="xunit" Version="2.9.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <!-- Roslyn-based Wave B source and mapper parity verification. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
     <!-- Used by tests/Migration.Tooling.Tests to validate eng/manifests/source-disposition.json
          against eng/manifests/source-disposition.schema.json. -->
     <PackageVersion Include="JsonSchema.Net" Version="7.3.4" />

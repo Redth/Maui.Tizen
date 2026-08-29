@@ -65,9 +65,13 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			Assert.NotEmpty(entries);
 
-			// Every entry belongs to this assembly's namespace, not Core's.
+			// Shape handlers retain the shared Tizen handler namespace even though they ship from
+			// the Controls assembly. Every entry must still remain under the owned Tizen root.
 			Assert.All(entries, e =>
-				Assert.Contains("Microsoft.Maui.Platforms.Tizen.Controls", e, StringComparison.Ordinal));
+				Assert.Contains("Microsoft.Maui.Platforms.Tizen", e, StringComparison.Ordinal));
+
+			Assert.Contains(entries, e => e.Contains(".TizenBoxViewHandler", StringComparison.Ordinal));
+			Assert.Contains(entries, e => e.Contains(".TizenControlsMauiAppBuilderExtensions", StringComparison.Ordinal));
 		}
 
 		[Fact]
@@ -81,9 +85,10 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				.ToArray();
 
 			Assert.Contains(entries, e => e.EndsWith(".TizenControlsMappings", StringComparison.Ordinal));
-			Assert.Contains(entries, e => e.EndsWith(".TizenControlsHostingExtensions", StringComparison.Ordinal));
+			Assert.Contains(entries, e => e.EndsWith(".TizenControlsMauiAppBuilderExtensions", StringComparison.Ordinal));
 			Assert.Contains(entries, e => e.Contains(".Register() -> void", StringComparison.Ordinal));
 			Assert.Contains(entries, e => e.Contains(".ConfigureTizenControls(", StringComparison.Ordinal));
+			Assert.Single(entries, e => e.Contains(".ConfigureTizenControls(", StringComparison.Ordinal));
 			Assert.Contains(entries, e => e.Contains(".MapLineBreakMode(", StringComparison.Ordinal));
 			Assert.Contains(entries, e => e.Contains(".MapAccessibility(", StringComparison.Ordinal));
 		}
@@ -132,24 +137,28 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Fact]
-		public void TheLaneUsesControlsCoreRatherThanTheXamlInclusivePackage()
+		public void ProductAndLaneReferenceTheControlsHostingPackage()
 		{
-			// Stated directly as well, because the set comparison above would also pass if BOTH
-			// sides drifted to the broader package together.
+			// UseMauiApp<TApp> is the authoritative Controls startup path and is shipped by the
+			// XAML-inclusive package. Both the product and its RefPack lane must see the same API.
+			var product = PackageReferences(ControlsProduct);
 			var lane = PackageReferences(ControlsLane);
 
+			Assert.Contains("Microsoft.Maui.Controls", product);
+			Assert.Contains("Microsoft.Maui.Controls", lane);
+			Assert.Contains("Microsoft.Maui.Controls.Core", product);
 			Assert.Contains("Microsoft.Maui.Controls.Core", lane);
-			Assert.DoesNotContain("Microsoft.Maui.Controls", lane);
 		}
 
 		[Fact]
 		public void ControlsPackIsBlockedByUnshippableUIExtensions()
 		{
-			var result = RunUIExtensionsPackGuard(isShippable: false);
+			var result = RunUIExtensionsPackGuard(isShippable: null);
 
 			Assert.NotEqual(0, result.ExitCode);
 			Assert.Contains("MAUITIZEN0101", result.Output, StringComparison.Ordinal);
 			Assert.Contains("Maui.Tizen.Controls", result.Output, StringComparison.Ordinal);
+			Assert.Contains("0.9.2", result.Output, StringComparison.Ordinal);
 		}
 
 		[Fact]
@@ -159,6 +168,26 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			Assert.Equal(0, result.ExitCode);
 			Assert.DoesNotContain("MAUITIZEN0101", result.Output, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void ControlsEvaluatesSharedTizenPolicyDefaults()
+		{
+			Assert.Equal("0.9.2", MSBuildEvaluation.GetProperty(ControlsProduct, "TizenUIExtensionsPackageVersion"));
+			Assert.Equal("false", MSBuildEvaluation.GetProperty(ControlsProduct, "TizenUIExtensionsIsShippable"));
+			Assert.Equal("Samsung.Tizen.Ref.API15", MSBuildEvaluation.GetProperty(ControlsProduct, "TizenReferencePackId"));
+			Assert.Equal("15.0.0.19396", MSBuildEvaluation.GetProperty(ControlsProduct, "TizenReferencePackVersion"));
+		}
+
+		[Fact]
+		public void SampleDoesNotDuplicateSharedPolicyImport()
+		{
+			var result = RunMSBuildPropertyEvaluation("samples/Maui.Tizen.Sample/Maui.Tizen.Sample.csproj");
+
+			Assert.Equal(0, result.ExitCode);
+			Assert.DoesNotContain("MSB4011", result.Output, StringComparison.Ordinal);
+			Assert.Contains("0.9.2", result.Output, StringComparison.Ordinal);
+			Assert.Contains("false", result.Output, StringComparison.Ordinal);
 		}
 
 		[Theory]
@@ -223,7 +252,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			.Select(m => m.Groups[1].Value)
 			.ToHashSet(StringComparer.Ordinal);
 
-		static (int ExitCode, string Output) RunUIExtensionsPackGuard(bool isShippable)
+		static (int ExitCode, string Output) RunUIExtensionsPackGuard(bool? isShippable)
 		{
 			var dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") is { Length: > 0 } host
 				? host
@@ -242,7 +271,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			startInfo.ArgumentList.Add("-nologo");
 			startInfo.ArgumentList.Add("-p:TargetFramework=net11.0");
 			startInfo.ArgumentList.Add("-p:TizenWorkloadAvailable=true");
-			startInfo.ArgumentList.Add($"-p:TizenUIExtensionsIsShippable={isShippable.ToString().ToLowerInvariant()}");
+			if (isShippable.HasValue)
+				startInfo.ArgumentList.Add($"-p:TizenUIExtensionsIsShippable={isShippable.Value.ToString().ToLowerInvariant()}");
 
 			using var process = Process.Start(startInfo)
 				?? throw new InvalidOperationException("Failed to start dotnet msbuild.");
@@ -251,6 +281,32 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var error = process.StandardError.ReadToEnd();
 			process.WaitForExit();
 
+			return (process.ExitCode, output + error);
+		}
+
+		static (int ExitCode, string Output) RunMSBuildPropertyEvaluation(string project)
+		{
+			var dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") is { Length: > 0 } host
+				? host
+				: "dotnet";
+			var startInfo = new ProcessStartInfo(dotnet)
+			{
+				WorkingDirectory = RepositoryRoot,
+				RedirectStandardOutput = true,
+				RedirectStandardError = true,
+			};
+
+			startInfo.ArgumentList.Add("msbuild");
+			startInfo.ArgumentList.Add(Path.Combine(RepositoryRoot, project));
+			startInfo.ArgumentList.Add("-nologo");
+			startInfo.ArgumentList.Add("-getProperty:TizenUIExtensionsPackageVersion");
+			startInfo.ArgumentList.Add("-getProperty:TizenUIExtensionsIsShippable");
+
+			using var process = Process.Start(startInfo)
+				?? throw new InvalidOperationException("Failed to start dotnet msbuild.");
+			var output = process.StandardOutput.ReadToEnd();
+			var error = process.StandardError.ReadToEnd();
+			process.WaitForExit();
 			return (process.ExitCode, output + error);
 		}
 	}

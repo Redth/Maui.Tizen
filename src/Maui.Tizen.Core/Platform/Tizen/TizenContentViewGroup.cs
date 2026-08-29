@@ -17,7 +17,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// </remarks>
 	public class TizenContentViewGroup : ViewGroup, IMeasurable
 	{
-		readonly IView? _virtualView;
+		IView? _virtualView;
 		Size _measureCache;
 		bool _needMeasureUpdate;
 
@@ -31,6 +31,16 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		/// <summary>Gets the cross-platform view this group renders.</summary>
 		public IView? VirtualView => _virtualView;
+
+		internal void Rebind(IView? virtualView)
+		{
+			if (ReferenceEquals(_virtualView, virtualView))
+				return;
+
+			_virtualView = virtualView;
+			_measureCache = default;
+			SetNeedMeasureUpdate();
+		}
 
 		/// <summary>Gets or sets the cross-platform measure callback.</summary>
 		public Func<double, double, Size>? CrossPlatformMeasure { get; set; }

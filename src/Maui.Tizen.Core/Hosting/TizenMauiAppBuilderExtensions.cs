@@ -33,7 +33,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 	/// <summary>
 	/// Host-builder entry points for the Tizen backend.
 	/// </summary>
-	public static class TizenMauiAppBuilderExtensions
+	public static partial class TizenMauiAppBuilderExtensions
 	{
 		/// <summary>
 		/// Configures the app class and wires up every Tizen service this backend provides.
@@ -130,6 +130,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 			// TryAdd, so a host that supplies its own keeps it.
 			builder.Services.AddTizenControlServices();
 
+			// Implemented by the TizenFX-only Wave B source group. The partial call disappears from
+			// host lanes that cannot load NUI types, while product and ref-pack lanes register every
+			// Wave B handler and platform font service through this single composition root.
+			ConfigurePlatformContent(builder);
+
 			// The composition root for image sources. Without this call the Tizen services are
 			// never registered - and the failure is silent rather than loud, because MAUI's neutral
 			// package already registers FileImageSourceService, StreamImageSourceService,
@@ -197,6 +202,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 
 			return builder;
 		}
+
+		static partial void ConfigurePlatformContent(MauiAppBuilder builder);
 
 		/// <summary>
 		/// Bridges the Tizen application lifecycle onto the cross-platform <see cref="IWindow"/>

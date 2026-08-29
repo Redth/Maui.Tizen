@@ -1,0 +1,85 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+//
+// Reproductions of MAUI helpers that are `internal` to Microsoft.Maui.Core and therefore
+// unreachable from an out-of-repo backend. Kept apart from TizenWaveBInterop because these have NO
+// Tizen.NUI dependency, which lets the host-side test project compile and EXECUTE them. The
+// compiler cannot diff a reproduction against an inaccessible original, so behaviour has to be
+// pinned by tests instead.
+
+using System;
+using System.Linq;
+using Microsoft.Maui.Graphics;
+
+namespace Microsoft.Maui.Platforms.Tizen
+{
+	/// <summary>Reproductions of MAUI helpers that are internal to Microsoft.Maui.Core.</summary>
+	public static class TizenPortableExtensions
+	{
+		internal readonly record struct IndicatorWindow(int Start, int VisibleCount, int SelectedIndex)
+		{
+			public int ToAbsolutePosition(int visibleIndex)
+			{
+				if (visibleIndex < 0 || visibleIndex >= VisibleCount)
+					return -1;
+
+				return Start + visibleIndex;
+			}
+		}
+
+		internal static IndicatorWindow GetIndicatorWindow(int position, int count, int maximumVisible)
+		{
+			var visibleCount = Math.Max(0, Math.Min(count, maximumVisible));
+			if (visibleCount == 0 || position < 0 || count <= 0)
+				return new IndicatorWindow(0, visibleCount, -1);
+
+			var clampedPosition = Math.Clamp(position, 0, count - 1);
+			var start = count <= visibleCount
+				? 0
+				: Math.Clamp(clampedPosition - visibleCount + 1, 0, count - visibleCount);
+
+			return new IndicatorWindow(start, visibleCount, clampedPosition - start);
+		}
+
+		/// <summary>Returns whether any of <paramref name="points"/> falls inside the rectangle.</summary>
+		/// <remarks>Upstream used an internal <c>RectF.ContainsAny</c> helper.</remarks>
+		public static bool ContainsAny(this RectF rect, PointF[] points) => points.Any(rect.Contains);
+
+		/// <summary>
+		/// Maps an indicator position onto the index of the dot that represents it.
+		/// </summary>
+		/// <param name="position">The selected position, which is NOT capped.</param>
+		/// <param name="count">The total number of items.</param>
+		/// <param name="visibleCount">The number of dots actually created.</param>
+		/// <returns>The dot index to highlight, or -1 when nothing should be highlighted.</returns>
+		/// <remarks>
+		/// The dot count is capped at <c>MaximumVisible</c> but the position is not, so a position
+		/// beyond the cap indexed past the end of the dot list. The native call bounds-checks and
+		/// returns silently, so the selection simply stopped being drawn. The window slides to keep
+		/// the selected item visible, which is the point of capping the dots at all.
+		/// </remarks>
+		public static int GetVisibleIndicatorPosition(int position, int count, int visibleCount)
+			=> GetIndicatorWindow(position, count, visibleCount).SelectedIndex;
+
+
+		/// <summary>
+		/// Decides whether the indicator should be on screen.
+		/// </summary>
+		/// <param name="visibility">The virtual view's visibility.</param>
+		/// <param name="hideSingle">Whether a single-item indicator hides itself.</param>
+		/// <param name="count">The indicator count.</param>
+		/// <remarks>
+		/// Both inputs matter. Deciding on <paramref name="hideSingle"/> alone means any change to
+		/// Count or MaximumVisible re-shows an indicator whose <c>Visibility</c> is Hidden or
+		/// Collapsed, because the count mapper would call Show unconditionally — a control the app
+		/// deliberately hid reappears on an unrelated property change.
+		/// </remarks>
+		public static bool IsIndicatorVisible(Microsoft.Maui.Visibility visibility, bool hideSingle, int count)
+		{
+			if (visibility != Microsoft.Maui.Visibility.Visible)
+				return false;
+
+			return !(hideSingle && count <= 1);
+		}
+	}
+}

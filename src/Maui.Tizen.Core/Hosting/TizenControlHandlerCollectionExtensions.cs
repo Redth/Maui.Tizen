@@ -79,11 +79,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 		/// <see cref="TizenDirectModalHost"/>.
 		/// </para>
 		/// <para>
-		/// <c>IEmbeddedFontLoader</c> is deliberately left on MAUI's neutral implementation. The
-		/// Tizen loader (<c>Fonts/EmbeddedFontLoader.Tizen.cs</c>) is still raw imported source in
-		/// no compile group, so replacing the registration here would bind to a type this package
-		/// does not build. That is the image workstream's to land, and it must use <c>Replace</c>
-		/// too - MAUI registers a default for it as well.
+		/// <c>IEmbeddedFontLoader</c> is registered by Wave B's platform-content hook rather than
+		/// here, because its directory provider needs TizenFX. That hook uses <c>Replace</c> too -
+		/// MAUI registers a neutral default before this backend runs.
 		/// </para>
 		/// </remarks>
 		/// <param name="services">The service collection.</param>

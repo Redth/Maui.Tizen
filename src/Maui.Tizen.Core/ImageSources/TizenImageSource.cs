@@ -5,6 +5,7 @@ using Microsoft.Maui;
 using Microsoft.Maui.Platform;
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Microsoft.Maui.Platforms.Tizen
@@ -55,6 +56,56 @@ namespace Microsoft.Maui.Platforms.Tizen
 			finally
 			{
 				imageBuffer.Dispose();
+			}
+		}
+
+		/// <summary>
+		/// Resolves a URI through NUI and publishes it only after the platform reports a successful
+		/// resource load.
+		/// </summary>
+		internal async Task<bool> LoadUrlAsync(string url, CancellationToken cancellationToken)
+		{
+			ArgumentException.ThrowIfNullOrEmpty(url);
+
+			using var target = new NuiImageReadinessTarget();
+			var ready = await TizenImageReadinessCoordinator
+				.WaitAsync(target, url, immediate: true, cancellationToken);
+
+			if (ready)
+				ResourceUrl = url;
+
+			return ready;
+		}
+
+		sealed class NuiImageReadinessTarget : ITizenImageReadinessTarget, IDisposable
+		{
+			readonly global::Tizen.NUI.BaseComponents.ImageView _imageView = new();
+
+			public event EventHandler? ResourceReady;
+
+			public bool IsReady =>
+				_imageView.LoadingStatus ==
+				global::Tizen.NUI.BaseComponents.ImageView.LoadingStatusType.Ready;
+
+			public NuiImageReadinessTarget() =>
+				_imageView.ResourceReady += OnResourceReady;
+
+			public void Start(string url, bool immediate)
+			{
+				if (immediate)
+					_imageView.LoadPolicy = global::Tizen.NUI.LoadPolicyType.Immediate;
+				_imageView.ResourceUrl = url;
+			}
+
+			void OnResourceReady(
+				object? sender,
+				global::Tizen.NUI.BaseComponents.ImageView.ResourceReadyEventArgs args) =>
+				ResourceReady?.Invoke(this, EventArgs.Empty);
+
+			public void Dispose()
+			{
+				_imageView.ResourceReady -= OnResourceReady;
+				_imageView.Dispose();
 			}
 		}
 

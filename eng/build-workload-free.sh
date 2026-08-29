@@ -38,19 +38,24 @@ info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 note() { printf '\033[1;33m  GATE\033[0m %s\n' "$*"; }
 
 FAILURES=0
+CHECK_LOG_DIR="$REPO_ROOT/artifacts/logs/build-workload-free"
+CHECK_LOG="$CHECK_LOG_DIR/check.$$.log"
+mkdir -p "$CHECK_LOG_DIR"
+trap 'rm -f "$CHECK_LOG"' EXIT
+
 # check <label> <command...> — runs the command, reports, and returns its status so
 # callers can branch (e.g. to skip tests after a failed build).
 check() {
   local label="$1"; shift
-  if "$@" >/tmp/mt-check.$$ 2>&1; then
+  if "$@" >"$CHECK_LOG" 2>&1; then
     pass "$label"
-    rm -f /tmp/mt-check.$$
+    rm -f "$CHECK_LOG"
     return 0
   fi
   fail "$label"
-  sed 's/^/        /' /tmp/mt-check.$$ | tail -30
+  sed 's/^/        /' "$CHECK_LOG" | tail -30
   FAILURES=$((FAILURES + 1))
-  rm -f /tmp/mt-check.$$
+  rm -f "$CHECK_LOG"
   return 1
 }
 
@@ -142,7 +147,9 @@ WORKLOAD_FREE_PROJECTS=(
   #                               exists to avoid.
   "tests/Maui.Tizen.Sample.RefPackCompile/Maui.Tizen.Sample.RefPackCompile.csproj"
   "tests/Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj"
+  "tests/Maui.Tizen.Controls.ConsumerCompile/Maui.Tizen.Controls.ConsumerCompile.csproj"
   "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj"
+  "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj"
 
   # Foundation-owned probes.
   "eng/tests/PublicApiOptIn/PublicApiOptIn.csproj"
@@ -218,7 +225,10 @@ info "Repository invariant tests"
 if [[ $BUILD_OK -eq 1 ]]; then
   check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
   check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
+  check "Wave B source tests" "$DOTNET" test tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj --no-build -c Release
   check "migration tooling tests" "$DOTNET" test tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj --no-build -c Release
+  check "Wave B negative controls" env DOTNET="$DOTNET" "$REPO_ROOT/eng/tests/run-wave-b-negative-controls.sh"
+  check "Wave B mutation runner behavior" "$REPO_ROOT/eng/tests/test-wave-b-mutation-runner.sh"
 else
   fail "tests skipped - a preceding build failed (running --no-build now would only add cascading noise)"
   FAILURES=$((FAILURES + 1))

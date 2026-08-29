@@ -90,6 +90,7 @@
     <Compile Include="@(MauiTizenPortableCompile)" LinkBase="Backend" />
     <Compile Include="@(MauiTizenHandlerCompile)" LinkBase="Backend" />
     <Compile Include="@(MauiTizenPlatformCompile)" LinkBase="Backend" />
+    <Compile Include="@(MauiTizenWaveBCompile)" LinkBase="WaveB" />
   </ItemGroup>
 
 </Project>

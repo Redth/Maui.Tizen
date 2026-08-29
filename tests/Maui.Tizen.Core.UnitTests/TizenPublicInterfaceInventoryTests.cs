@@ -62,6 +62,9 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 					// Handler contract: MAUI Core ships no IApplicationHandler to implement.
 					"ITizenApplicationHandler",
 
+					// Supplies writable Tizen font-cache locations to the embedded font loader.
+					"ITizenFontDirectoryProvider",
+
 					// Service contract for resolving Tizen font families and registered aliases.
 					"ITizenFontManager",
 

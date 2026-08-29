@@ -17,14 +17,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Controls
 	/// LineBreakMode, the accessibility annotations - stayed unmapped in a real app while the unit
 	/// tests, which call Register directly, passed.
 	/// </remarks>
-	public static class TizenControlsHostingExtensions
+	internal static class TizenControlsHostingExtensions
 	{
 		/// <summary>
-		/// Registers the Tizen Controls mappings so they are installed during app startup.
+		/// Registers the Tizen Controls mappings and concrete handlers during app startup.
 		/// </summary>
 		/// <param name="builder">The app builder.</param>
 		/// <returns>The builder, for chaining.</returns>
-		public static MauiAppBuilder ConfigureTizenControls(this MauiAppBuilder builder)
+		internal static MauiAppBuilder AddTizenControlsBackend(this MauiAppBuilder builder)
 		{
 			ArgumentNullException.ThrowIfNull(builder);
 
@@ -65,6 +65,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Controls
 				handlers.AddHandler<Page, TizenPageHandler>();
 				handlers.AddHandler<Microsoft.Maui.Controls.Window, TizenWindowHandler>();
 				handlers.AddHandler<Microsoft.Maui.Controls.Application, TizenApplicationHandler>();
+
+				// Wave B concrete registrations. UseMauiApp registers neutral handlers for these
+				// concrete Controls types, so interface-only registrations in Core are unreachable
+				// from an actual Controls application.
+				handlers.AddHandler<ScrollView, TizenScrollViewHandler>();
+				handlers.AddHandler<Border, TizenBorderHandler>();
+				handlers.AddHandler<Image, TizenImageHandler>();
+				handlers.AddHandler<ImageButton, TizenImageButtonHandler>();
+				handlers.AddHandler<GraphicsView, TizenGraphicsViewHandler>();
+				handlers.AddHandler<RefreshView, TizenRefreshViewHandler>();
+				handlers.AddHandler<SwipeView, TizenSwipeViewHandler>();
+				handlers.AddHandler<IndicatorView, TizenIndicatorViewHandler>();
+				handlers.AddHandler<SwipeItemView, TizenSwipeItemViewHandler>();
+				handlers.AddHandler<SwipeItem, TizenSwipeItemMenuItemHandler>();
 			});
 
 			return builder;

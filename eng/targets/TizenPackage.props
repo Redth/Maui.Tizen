@@ -1,5 +1,9 @@
 <Project>
 
+  <!-- Every product project consuming this infrastructure needs the same reference-pack and
+       UIExtensions shippability defaults before package items and pack guards are evaluated. -->
+  <Import Project="$(MSBuildThisFileDirectory)../Maui.props" />
+
   <!--
     Shared configuration for the Tizen package projects.
 

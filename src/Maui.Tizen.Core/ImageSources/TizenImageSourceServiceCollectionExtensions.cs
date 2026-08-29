@@ -15,8 +15,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// This lives in the portable compile group, separate from the service implementations it
 	/// registers, for two reasons. It keeps the call in
 	/// <c>TizenMauiAppBuilderExtensions.ConfigureTizen</c> compiling on both lanes rather than only
-	/// under <c>#if TIZEN</c>, and it gives the later image workstream a seam it can extend without
-	/// touching NUI-dependent files.
+	/// under <c>#if TIZEN</c>, and it gives Wave B a seam it can extend without introducing another
+	/// public composition method.
 	/// </para>
 	/// <para>
 	/// <b>Registration order matters and is not obvious.</b> MAUI's neutral package already
@@ -30,33 +30,29 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// what lets these win.
 	/// </para>
 	/// </remarks>
-	public static class TizenImageSourceServiceCollectionExtensions
+	public static partial class TizenImageSourceServiceCollectionExtensions
 	{
 		/// <summary>
 		/// Adds the Tizen image source services.
 		/// </summary>
 		/// <remarks>
 		/// <para>
-		/// Wave A owns the file and stream sources. Font and URI sources belong to the image
-		/// workstream and are deliberately absent rather than stubbed: a stub would turn a clear
-		/// "no Tizen service registered" failure into a silently blank image, which is the harder
-		/// bug to find.
+		/// Wave A owns the file and stream sources. Wave B contributes font and URI sources through
+		/// the private partial hook below, so all four remain behind this single public entry point.
 		/// </para>
 		/// <para>
-		/// <b>Extending this method is the supported path for the image workstream</b>, and is the
-		/// agreed integration shape - add the font and URI registrations here so they are picked up
-		/// by the single call in <c>ConfigureTizen</c>, rather than introducing a second entry point
-		/// a host has to remember to call. That is not a style preference: this method's own missing
-		/// call site is what left every Tizen image service inactive in a real app.
+		/// <b>Extending this method is the supported path for image sources.</b> The private partial
+		/// hook keeps the Wave B implementation in its owned source group while preserving the
+		/// single call in <c>ConfigureTizen</c>. That is not a style preference: a second method a
+		/// host has to remember would fail silently when omitted.
 		/// </para>
 		/// <para>
 		/// <b>Register a Tizen implementation for every source type added here.</b> MAUI's neutral
 		/// services resolve perfectly well and then render nothing, so a registration that maps to
 		/// one cannot be caught by asserting that a service exists.
 		/// <c>CompositionRootTests.EveryImageSourceTheSeamRegistersUsesATizenImplementation</c>
-		/// reads this method and fails on any <c>AddService</c> whose implementation is not a
-		/// <c>Tizen*</c> type - it covers new source types automatically, so it will see Wave B's
-		/// additions without being updated.
+		/// reads the emitted registration type and fails if any required <c>Tizen*</c>
+		/// implementation is absent.
 		/// </para>
 		/// </remarks>
 		/// <param name="services">The image source service collection.</param>
@@ -69,8 +65,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 			services.AddService<IFileImageSource>(static _ => new TizenFileImageSourceService());
 			services.AddService<IStreamImageSource>(static _ => new TizenStreamImageSourceService());
 #endif
+			AddWaveBImageSources(services);
 
 			return services;
 		}
+
+		static partial void AddWaveBImageSources(IImageSourceServiceCollection services);
 	}
 }

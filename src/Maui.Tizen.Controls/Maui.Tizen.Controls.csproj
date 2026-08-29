@@ -18,6 +18,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Microsoft.Maui.Controls.Core" />
     <PackageReference Include="Microsoft.Maui.Core" />
     <PackageReference Include="Tizen.UIExtensions.NUI" />
@@ -35,7 +36,8 @@
   <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
 
   <ItemGroup>
-    <Compile Include="@(MauiTizenControlsCompile)" />
+    <Compile Include="@(MauiTizenControlsCompile);@(MauiTizenWaveBControlsCompile)" />
+    <None Remove="@(Compile)" />
   </ItemGroup>
 
   <!--
@@ -56,7 +58,7 @@
 
   <!--
     The PublicApiAnalyzers reference is NOT declared here.
-    
+
     TizenPackage.props already adds it to every project that imports it, so declaring it again
     produced two PackageReference items for the same package - NU1504 under CI product restore.
     The analyzer is inert until a project supplies AdditionalFiles, which is what the block above

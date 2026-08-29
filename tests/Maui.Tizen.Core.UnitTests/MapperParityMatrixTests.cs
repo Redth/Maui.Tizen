@@ -59,7 +59,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			};
 
 		/// <summary>
-		/// The Controls-layer follow-up must match the shipping Controls compile closure.
+		/// The Controls-layer follow-up must remain outside the shipping Controls compile closure.
 		/// </summary>
 		/// <remarks>
 		/// If the bridge starts compiling or binding any of these implementations, this fails and
@@ -75,13 +75,22 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				.OrderBy(path => path, StringComparer.Ordinal)
 				.ToArray();
 
-			Assert.Equal(
-				new[]
-				{
-					"src/Maui.Tizen.Controls/Platform/TizenControlsHostingExtensions.cs",
-					"src/Maui.Tizen.Controls/Platform/TizenControlsMappings.cs",
-				},
-				compiled);
+			var expected = new[]
+			{
+				"src/Maui.Tizen.Controls/Core/Handlers/Shapes/BoxView/TizenBoxViewHandler.cs",
+				"src/Maui.Tizen.Controls/Core/Handlers/Shapes/Line/TizenLineHandler.cs",
+				"src/Maui.Tizen.Controls/Core/Handlers/Shapes/Path/TizenPathHandler.cs",
+				"src/Maui.Tizen.Controls/Core/Handlers/Shapes/Polygon/TizenPolygonHandler.cs",
+				"src/Maui.Tizen.Controls/Core/Handlers/Shapes/Polyline/TizenPolylineHandler.cs",
+				"src/Maui.Tizen.Controls/Core/Handlers/Shapes/Rectangle/TizenRectangleHandler.cs",
+				"src/Maui.Tizen.Controls/Core/Handlers/Shapes/RoundRectangle/TizenRoundRectangleHandler.cs",
+				"src/Maui.Tizen.Controls/Hosting/TizenControlsMauiAppBuilderExtensions.cs",
+				"src/Maui.Tizen.Controls/Hosting/TizenShapeHandlerCollectionExtensions.cs",
+				"src/Maui.Tizen.Controls/Platform/TizenControlsHostingExtensions.cs",
+				"src/Maui.Tizen.Controls/Platform/TizenControlsMappings.cs",
+			}.OrderBy(path => path, StringComparer.Ordinal).ToArray();
+
+			Assert.Equal(expected, compiled);
 
 			foreach (var (key, relativePath) in ControlsLayerFollowUp)
 			{

@@ -39,12 +39,13 @@
 
     <!--
       EXACTLY the product's package references, no more.
-      
+
       This lane previously referenced Microsoft.Maui.Controls - the XAML-inclusive package - while
       the product references Microsoft.Maui.Controls.Core. A broader reference here means the lane
       can compile code the product cannot, which is the one failure mode a verification lane must
       not have: it would report green while the shipping assembly fails to build.
     -->
+    <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Microsoft.Maui.Controls.Core" />
     <PackageReference Include="Microsoft.Maui.Core" />
 
@@ -75,7 +76,7 @@
   <Import Project="$(RepositoryRoot)eng/targets/TizenRefPack.targets" />
 
   <ItemGroup>
-    <Compile Include="@(MauiTizenControlsCompile)" LinkBase="Controls" />
+    <Compile Include="@(MauiTizenControlsCompile);@(MauiTizenWaveBControlsCompile)" LinkBase="Controls" />
   </ItemGroup>
 
 </Project>

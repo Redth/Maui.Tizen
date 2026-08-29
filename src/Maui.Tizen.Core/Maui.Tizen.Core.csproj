@@ -11,7 +11,6 @@
   </PropertyGroup>
 
   <Import Project="$(MSBuildThisFileDirectory)../../eng/targets/TizenPackage.props" />
-  <Import Project="$(RepositoryRoot)eng/Maui.props" />
   <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
 
   <PropertyGroup>
@@ -53,7 +52,7 @@
     everything-not-yet-ported, so each file appears exactly once.
   -->
   <ItemGroup>
-    <Compile Include="@(MauiTizenPortableCompile);@(MauiTizenHandlerCompile);@(MauiTizenPlatformCompile)" />
+    <Compile Include="@(MauiTizenPortableCompile);@(MauiTizenHandlerCompile);@(MauiTizenPlatformCompile);@(MauiTizenWaveBCompile)" />
     <None Remove="@(Compile)" />
   </ItemGroup>
 
