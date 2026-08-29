@@ -115,6 +115,34 @@ public class WaveCOwnedReplacementCoordinatorTests
 		Assert.Equal(4, shiftedIndex);
 	}
 
+	[Theory]
+	[InlineData(System.Collections.Specialized.NotifyCollectionChangedAction.Add)]
+	[InlineData(System.Collections.Specialized.NotifyCollectionChangedAction.Remove)]
+	[InlineData(System.Collections.Specialized.NotifyCollectionChangedAction.Replace)]
+	public void UnknownIndexesInvalidateAllRealizedIndexLookups(
+		System.Collections.Specialized.NotifyCollectionChangedAction action)
+	{
+		var rows = new RealizedRowIndexMap<object, object>();
+		var holder = new object();
+		var view = new object();
+		rows.Bind(holder, 2, view);
+		var item = new object();
+		var change = action switch
+		{
+			System.Collections.Specialized.NotifyCollectionChangedAction.Add =>
+				new System.Collections.Specialized.NotifyCollectionChangedEventArgs(action, item, -1),
+			System.Collections.Specialized.NotifyCollectionChangedAction.Remove =>
+				new System.Collections.Specialized.NotifyCollectionChangedEventArgs(action, item, -1),
+			_ => new System.Collections.Specialized.NotifyCollectionChangedEventArgs(action, item, new object(), -1),
+		};
+
+		rows.Apply(change);
+
+		Assert.Null(rows.GetView(2));
+		Assert.False(rows.TryGetIndex(view, out _));
+		Assert.True(rows.Unbind(holder));
+	}
+
 	sealed class Resource(string name)
 	{
 		public string Name { get; } = name;

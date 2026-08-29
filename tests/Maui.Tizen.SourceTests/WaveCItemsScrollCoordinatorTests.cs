@@ -284,6 +284,50 @@ public class WaveCItemsScrollCoordinatorTests
 		Assert.Equal(200, SearchResultsLayout.ConstrainHeight(200, 600));
 	}
 
+	[Fact]
+	public void SearchResultMeasurementStopsAtTheViewportCap()
+	{
+		var realized = 0;
+
+		var measured = SearchResultsLayout.MeasureUntilCap(Heights(), 250);
+
+		Assert.Equal(250, measured);
+		Assert.Equal(3, realized);
+
+		IEnumerable<double> Heights()
+		{
+			foreach (var height in new[] { 100d, 100d, 100d, 100d })
+			{
+				realized++;
+				yield return height;
+			}
+		}
+	}
+
+	[Fact]
+	public void SearchResultMeasurementIsCachedUntilInvalidatedOrWidthChanges()
+	{
+		var cache = new SearchResultsMeasurementCache();
+		var calls = 0;
+
+		Assert.Equal(120, cache.GetOrMeasure(300, Measure));
+		Assert.Equal(120, cache.GetOrMeasure(300, Measure));
+		Assert.Equal(1, calls);
+
+		Assert.Equal(120, cache.GetOrMeasure(400, Measure));
+		Assert.Equal(2, calls);
+
+		cache.Invalidate();
+		Assert.Equal(120, cache.GetOrMeasure(400, Measure));
+		Assert.Equal(3, calls);
+
+		double Measure()
+		{
+			calls++;
+			return 120;
+		}
+	}
+
 	[Theory]
 	[InlineData(SearchBoxVisibility.Collapsible, false, "", true)]
 	[InlineData(SearchBoxVisibility.Collapsible, true, "", false)]

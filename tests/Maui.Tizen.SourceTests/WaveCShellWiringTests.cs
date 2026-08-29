@@ -161,6 +161,8 @@ public class WaveCShellWiringTests
 		Assert.Contains("ItemMeasureInvalidated += OnResultMeasureInvalidated", search, StringComparison.Ordinal);
 		Assert.Contains("SizeHeight = desiredHeight", search, StringComparison.Ordinal);
 		Assert.Contains("RequestLayout();", search, StringComparison.Ordinal);
+		Assert.Contains("SearchResultsMeasurementCache", search, StringComparison.Ordinal);
+		Assert.Equal(1, search.Split("LayoutUpdated += OnShellLayoutUpdated").Length - 1);
 	}
 
 	[Fact]
@@ -224,5 +226,16 @@ public class WaveCShellWiringTests
 		Assert.Contains("_pendingAppearance =", stack, StringComparison.Ordinal);
 		Assert.Contains("if (_pendingAppearance is { } appearance)", stack, StringComparison.Ordinal);
 		Assert.Contains("UpdateFlyoutBackground(view.FlyoutBackground)", Read("TizenShellHandler.cs"), StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void ShellSectionStackSynchronizationUsesTheMauiNavigationHandshake()
+	{
+		var source = Read("TizenShellSectionHandler.cs");
+		var start = source.IndexOf("void SyncNavigationStack", StringComparison.Ordinal);
+		var body = source[start..];
+
+		Assert.Contains("((IStackNavigation)VirtualView).RequestNavigation", body, StringComparison.Ordinal);
+		Assert.DoesNotContain("PlatformView.RequestNavigation", body, StringComparison.Ordinal);
 	}
 }

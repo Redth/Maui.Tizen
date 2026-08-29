@@ -515,8 +515,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			{
 				NotifyCollectionChangedAction.Move =>
 					new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset),
+				NotifyCollectionChangedAction.Add when e.NewStartingIndex < 0 =>
+					new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset),
+				NotifyCollectionChangedAction.Remove when e.OldStartingIndex < 0 =>
+					new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset),
 				NotifyCollectionChangedAction.Replace
-					when e.NewItems?.Count != 1 || e.OldItems?.Count != 1 =>
+					when e.NewStartingIndex < 0
+						|| e.OldStartingIndex < 0
+						|| e.NewItems?.Count != 1
+						|| e.OldItems?.Count != 1 =>
 					new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset),
 				_ => e,
 			};

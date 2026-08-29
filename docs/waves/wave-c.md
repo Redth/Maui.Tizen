@@ -44,9 +44,12 @@ no-op bodies.
   `Collapsible` presents a search affordance until focus or a query expands the editor. Results are
   disabled and hidden with search, measured and arranged below the entry only for an active query,
   and hidden after selection. Result replacement, visibility, and row-measure invalidation
-  recompute `SizeHeight` and request layout, avoiding a stale zero-height host. Teardown detaches
-  Shell, native-focus, and inherited search-control events. The toolbar preserves and restores
-  custom `TitleView` content while search temporarily owns the content slot.
+  invalidate a width-specific measurement cache, measure only to the half-screen cap, recompute
+  `SizeHeight`, and request layout, avoiding duplicate realization and a stale zero-height host.
+  Replacing a handler clears native and managed focus from the old handler before applying the new
+  focus state. Teardown detaches Shell, native-focus, and inherited search-control events. The
+  toolbar preserves and restores custom `TitleView` content while search temporarily owns the
+  content slot.
 
 ## Flyout ownership and appearance
 
@@ -117,6 +120,8 @@ constraints. A header/footer-only empty source retains a placeholder extent, and
 the full grid cross-axis instead of one grid cell. Empty/header/footer selectors are resolved to a
 concrete template before `CreateContent`. Realized rows are keyed by native holder and absolute
 index, not item equality, so duplicate items and a group's distinct header/footer remain separate.
+Known add/remove indexes shift surviving entries before the native callback; unknown indexes and
+reset-like changes invalidate index lookup state until recycler rebinding restores it.
 
 The items platform control implements the native `IMeasurable` contract. Before allocation it
 returns finite available/display bounds; after allocation it constrains the scroll canvas along the
@@ -180,7 +185,7 @@ Shell, ShellItem, ShellSection, and NavigationPage production handlers/mappers. 
 inspect the actual pinned `Tizen.UIExtensions.NUI.ItemAdaptor` implementation to prove its
 non-generic `IList` retention and `INotifyCollectionChanged` subscription behavior.
 
-`eng/tests/wave-c-mutations.json` contains 76 mutations executed by a lock-protected runner. It
+`eng/tests/wave-c-mutations.json` contains 80 mutations executed by a lock-protected runner. It
 proves tests fail for omissions in:
 
 - Shell root mounting;

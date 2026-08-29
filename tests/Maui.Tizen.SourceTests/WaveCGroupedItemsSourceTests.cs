@@ -259,6 +259,27 @@ public class WaveCGroupedItemsSourceTests
 			actions);
 	}
 
+	[Fact]
+	public void UngroupedUnknownIndexesAreNormalizedToReset()
+	{
+		var items = new RangeObservableCollection<object> { "a", "b" };
+		using var source = new TizenObservableItemSource(items);
+		var actions = new List<NotifyCollectionChangedAction>();
+		source.CollectionChanged += (_, args) => actions.Add(args.Action);
+
+		items.RaiseUnknownAdd("c");
+		items.RaiseUnknownRemove("a");
+		items.RaiseUnknownReplace("b", "x");
+
+		Assert.Equal(
+			[
+				NotifyCollectionChangedAction.Reset,
+				NotifyCollectionChangedAction.Reset,
+				NotifyCollectionChangedAction.Reset,
+			],
+			actions);
+	}
+
 	static TizenGroupItemSource Create(
 		ObservableCollection<object> groups,
 		bool header = true,
@@ -285,6 +306,35 @@ public class WaveCGroupedItemsSourceTests
 				replacement,
 				removed,
 				index));
+		}
+
+		public void RaiseUnknownAdd(T item)
+		{
+			Items.Add(item);
+			OnCollectionChanged(new NotifyCollectionChangedEventArgs(
+				NotifyCollectionChangedAction.Add,
+				item,
+				-1));
+		}
+
+		public void RaiseUnknownRemove(T item)
+		{
+			Items.Remove(item);
+			OnCollectionChanged(new NotifyCollectionChangedEventArgs(
+				NotifyCollectionChangedAction.Remove,
+				item,
+				-1));
+		}
+
+		public void RaiseUnknownReplace(T oldItem, T newItem)
+		{
+			var index = Items.IndexOf(oldItem);
+			Items[index] = newItem;
+			OnCollectionChanged(new NotifyCollectionChangedEventArgs(
+				NotifyCollectionChangedAction.Replace,
+				newItem,
+				oldItem,
+				-1));
 		}
 	}
 }

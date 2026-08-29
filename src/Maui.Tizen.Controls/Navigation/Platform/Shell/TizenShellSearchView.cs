@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Linq;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
 using Tizen.NUI;
@@ -26,6 +27,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		INotifyCollectionChanged? _observableItems;
 		bool _updatingQuery;
 		bool _resultsVisible;
+		readonly SearchResultsMeasurementCache _resultsMeasure = new();
 		bool _disposed;
 
 		public TizenShellSearchView()
@@ -122,6 +124,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		void ReplaceResults(IEnumerable? items)
 		{
+			_resultsMeasure.Invalidate();
 			if (_collectionView is not null)
 			{
 				_collectionView.Adaptor = null;
@@ -361,7 +364,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		public override TSize Measure(double availableWidth, double availableHeight)
 		{
 			var search = base.Measure(availableWidth, availableHeight);
-			return new TSize(search.Width, search.Height + MeasureResults(availableWidth, availableHeight));
+			return new TSize(search.Width, search.Height + MeasureResults(availableWidth));
 		}
 
 		protected override void LayoutContent(float width, float height)
@@ -372,7 +375,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			_resultsHost.Position = new Position(0, searchHeight);
 			_resultsHost.SizeWidth = width;
-			_resultsHost.SizeHeight = (float)MeasureResults(width, double.PositiveInfinity);
+			_resultsHost.SizeHeight = (float)MeasureResults(width);
 			if (_collectionView is not null)
 			{
 				_collectionView.SizeWidth = _resultsHost.SizeWidth;
@@ -380,24 +383,28 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			}
 		}
 
-		double MeasureResults(double width, double height)
+		double MeasureResults(double width)
 		{
 			if (!_resultsVisible || _adaptor is null)
 				return 0;
 
-			double measured = 0;
-			for (var index = 0; index < _adaptor.Count; index++)
-				measured += _adaptor.MeasureItem(index, width, height).Height;
-
-			return SearchResultsLayout.ConstrainHeight(
-				measured,
-				Devices.DeviceDisplay.MainDisplayInfo.Height);
+			var cap = Devices.DeviceDisplay.MainDisplayInfo.Height / 2;
+			return _resultsMeasure.GetOrMeasure(
+				width,
+				() => SearchResultsLayout.MeasureUntilCap(
+					Enumerable.Range(0, _adaptor.Count)
+						.Select(index => (double)_adaptor.MeasureItem(index, width, double.PositiveInfinity).Height),
+					cap));
 		}
 
 		void OnShellLayoutUpdated(object? sender, global::Tizen.UIExtensions.Common.LayoutEventArgs e) =>
 			LayoutContent(SizeWidth, SizeHeight);
 
-		void OnResultMeasureInvalidated(object? sender, EventArgs e) => RefreshResultsLayout();
+		void OnResultMeasureInvalidated(object? sender, EventArgs e)
+		{
+			_resultsMeasure.Invalidate();
+			RefreshResultsLayout();
+		}
 
 		void UpdateResultsVisibility()
 		{
@@ -410,6 +417,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (_resultsVisible != visible)
 			{
 				_resultsVisible = visible;
+				_resultsMeasure.Invalidate();
 				if (visible)
 					_resultsHost.Show();
 				else
@@ -423,7 +431,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			var displayWidth = Devices.DeviceDisplay.MainDisplayInfo.Width;
 			var width = SizeWidth > 0 ? SizeWidth : (float)displayWidth;
 			var searchHeight = base.Measure(width, double.PositiveInfinity).Height;
-			var resultsHeight = MeasureResults(width, double.PositiveInfinity);
+			var resultsHeight = MeasureResults(width);
 			var desiredHeight = (float)(searchHeight + resultsHeight);
 			if (SizeHeight != desiredHeight)
 				SizeHeight = desiredHeight;

@@ -329,6 +329,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 
 		public static double ConstrainHeight(double measuredHeight, double screenHeight) =>
 			Math.Min(Math.Max(0, measuredHeight), Math.Max(0, screenHeight) / 2);
+
+		public static double MeasureUntilCap(IEnumerable<double> itemHeights, double cap)
+		{
+			ArgumentNullException.ThrowIfNull(itemHeights);
+
+			var limit = Math.Max(0, cap);
+			double measured = 0;
+			foreach (var height in itemHeights)
+			{
+				measured += Math.Max(0, height);
+				if (measured >= limit)
+					return limit;
+			}
+			return measured;
+		}
 	}
 
 	internal static class LogicalItemsProjection
@@ -347,5 +362,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 
 		public static bool StartsScrolling(bool shouldScroll, bool animate) =>
 			shouldScroll && animate;
+	}
+
+	internal sealed class SearchResultsMeasurementCache
+	{
+		bool _valid;
+		double _width;
+		double _height;
+
+		public double GetOrMeasure(double width, Func<double> measure)
+		{
+			ArgumentNullException.ThrowIfNull(measure);
+			if (!_valid || _width != width)
+			{
+				_width = width;
+				_height = measure();
+				_valid = true;
+			}
+			return _height;
+		}
+
+		public void Invalidate() => _valid = false;
 	}
 }

@@ -223,13 +223,13 @@
   {
     "id": "search-results-layout",
     "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs",
-    "filter": "FullyQualifiedName~WaveCItemsScrollCoordinatorTests.SearchResultsAreCappedAtHalfTheScreen",
+    "filter": "FullyQualifiedName~WaveCItemsScrollCoordinatorTests.SearchResultMeasurementStopsAtTheViewportCap",
     "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
-    "expected": "SearchResultsAreCappedAtHalfTheScreen",
+    "expected": "SearchResultMeasurementStopsAtTheViewportCap",
     "replacements": [
       {
-        "search": "Math.Min(Math.Max(0, measuredHeight), Math.Max(0, screenHeight) / 2);",
-        "replace": "Math.Max(0, measuredHeight);"
+        "search": "return limit;",
+        "replace": "return measured;"
       }
     ]
   },
@@ -969,8 +969,8 @@
     "expected": "UngroupedMoveAndMultiReplaceAreNormalizedForPinnedItemAdaptor",
     "replacements": [
       {
-        "search": "when e.NewItems?.Count != 1 || e.OldItems?.Count != 1 =>",
-        "replace": "when false =>"
+        "search": "when e.NewStartingIndex < 0\n\t\t\t\t\t\t|| e.OldStartingIndex < 0\n\t\t\t\t\t\t|| e.NewItems?.Count != 1\n\t\t\t\t\t\t|| e.OldItems?.Count != 1 =>",
+        "replace": "when e.NewStartingIndex < 0\n\t\t\t\t\t\t|| e.OldStartingIndex < 0 =>"
       }
     ]
   },
@@ -984,6 +984,58 @@
       {
         "search": "shouldScroll && animate;",
         "replace": "animate;"
+      }
+    ]
+  },
+  {
+    "id": "ungrouped-unknown-index-reset",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenGroupItemSource.cs",
+    "filter": "FullyQualifiedName~WaveCGroupedItemsSourceTests.UngroupedUnknownIndexesAreNormalizedToReset",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "UngroupedUnknownIndexesAreNormalizedToReset",
+    "replacements": [
+      {
+        "search": "NotifyCollectionChangedAction.Add when e.NewStartingIndex < 0 =>",
+        "replace": "NotifyCollectionChangedAction.Add when e.NewStartingIndex < int.MinValue =>"
+      }
+    ]
+  },
+  {
+    "id": "ungrouped-header-selector-callsite",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenItemTemplateAdaptor.cs",
+    "filter": "FullyQualifiedName~WaveCDataTemplateResolverTests.EmptyAndGlobalDecorationPresentersUseTheConcreteTemplateResolver",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "EmptyAndGlobalDecorationPresentersUseTheConcreteTemplateResolver",
+    "replacements": [
+      {
+        "search": "header = structuredItemsView.HeaderTemplate.CreateViewFromTemplate(\n\t\t\t\t\t\t\tstructuredItemsView.Header,\n\t\t\t\t\t\t\tstructuredItemsView,\n\t\t\t\t\t\t\t\"header\");",
+        "replace": "header = (View)structuredItemsView.HeaderTemplate.CreateContent();"
+      }
+    ]
+  },
+  {
+    "id": "ungrouped-footer-selector-callsite",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenItemTemplateAdaptor.cs",
+    "filter": "FullyQualifiedName~WaveCDataTemplateResolverTests.EmptyAndGlobalDecorationPresentersUseTheConcreteTemplateResolver",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "EmptyAndGlobalDecorationPresentersUseTheConcreteTemplateResolver",
+    "replacements": [
+      {
+        "search": "footer = structuredItemsView.FooterTemplate.CreateViewFromTemplate(\n\t\t\t\t\t\t\tstructuredItemsView.Footer,\n\t\t\t\t\t\t\tstructuredItemsView,\n\t\t\t\t\t\t\t\"footer\");",
+        "replace": "footer = (View)structuredItemsView.FooterTemplate.CreateContent();"
+      }
+    ]
+  },
+  {
+    "id": "search-results-measure-cache",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCItemsScrollCoordinatorTests.SearchResultMeasurementIsCachedUntilInvalidatedOrWidthChanges",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "SearchResultMeasurementIsCachedUntilInvalidatedOrWidthChanges",
+    "replacements": [
+      {
+        "search": "if (!_valid || _width != width)",
+        "replace": "if (!_valid || _width == width)"
       }
     ]
   }

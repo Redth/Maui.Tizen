@@ -120,6 +120,28 @@ public class WaveCSelectionProposalCoordinatorTests
 	}
 
 	[Fact]
+	public async Task AsyncSelectionDoesNotApplyAfterOwnerReplacement()
+	{
+		var coordinator = new AsyncSelectionResynchronizer<object>();
+		var original = new object();
+		var replacement = new object();
+		var current = original;
+		var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var synchronized = 0;
+		var pending = coordinator.RunAsync(
+			original,
+			() => completion.Task,
+			owner => ReferenceEquals(owner, current),
+			() => synchronized++);
+
+		current = replacement;
+		completion.SetResult();
+
+		Assert.False(await pending);
+		Assert.Equal(0, synchronized);
+	}
+
+	[Fact]
 	public void CustomFlyoutContentExclusivelyDisablesGeneratedContent()
 	{
 		Assert.True(FlyoutContentMode.UsesGeneratedContent<object>(null));

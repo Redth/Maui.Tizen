@@ -219,14 +219,38 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		{
 			var a = new Page("A");
 			var b = new Page("B");
-			var previous = new IView[] { a, b };
+			var requestedPopTarget = new IView[] { a };
+			var queuedTarget = new IView[] { a, b };
+			var native = new List<IView> { a, b };
+			var mappings = new HashSet<IView> { a, b };
+			var managed = new IView[] { a, b };
+			var completions = 0;
 
-			var afterPhysicalPop = TizenNavigationReconciler.CommitCompletedPop(previous, b);
-			var queued = TizenNavigationReconciler.Reconcile(afterPhysicalPop, previous);
+			var firstPlan = TizenNavigationReconciler.Reconcile(managed, requestedPopTarget);
+			Assert.Same(b, Assert.Single(firstPlan.Pops));
 
-			Assert.Equal(new[] { "A" }, Names(afterPhysicalPop));
+			// The native animation completes after [A,B] has already been queued.
+			native.Remove(b);
+			mappings.Remove(b);
+			managed = TizenNavigationReconciler.CommitCompletedPop(managed, b).ToArray();
+
+			var queued = TizenNavigationReconciler.Reconcile(managed, queuedTarget);
 			Assert.Empty(queued.Pops);
 			Assert.Equal(new[] { "B" }, Names(queued.Pushes));
+			foreach (var page in queued.Pushes)
+			{
+				native.Add(page);
+				mappings.Add(page);
+			}
+			managed = queuedTarget;
+			completions++;
+
+			Assert.Equal(new[] { "A", "B" }, Names(native));
+			Assert.Equal(new[] { "A", "B" }, Names(managed));
+			Assert.Equal(2, mappings.Count);
+			Assert.Contains(a, mappings);
+			Assert.Contains(b, mappings);
+			Assert.Equal(1, completions);
 		}
 	}
 }
