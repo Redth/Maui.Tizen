@@ -41,9 +41,11 @@
     <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)OrientationSensor/TizenOrientationSensor.cs" />
     <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Passkeys/TizenPasskeys.cs" />
     <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Permissions/TizenPermissions.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Permissions/TizenPermissionRequestCoordinator.cs" />
     <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)PhoneDialer/TizenPhoneDialer.cs" />
     <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Platform/TizenEssentialsSupport.cs" />
     <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Platform/TizenAppControlReply.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Platform/TizenEventSubscriptionCoordinator.cs" />
     <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Platform/TizenNativeCallbackCoordinator.cs" />
     <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Platform/TizenPlatform.cs" />
     <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Platform/TizenSystemInformation.cs" />

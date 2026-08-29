@@ -68,7 +68,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		void Purge(long cutoff)
 		{
-			while (_samples.Count >= MinQueueSize && cutoff - _samples.Peek().Timestamp > 0)
+			while (_samples.Count > 0 && cutoff - _samples.Peek().Timestamp > 0)
 			{
 				var removed = _samples.Dequeue();
 				if (removed.IsAccelerating)

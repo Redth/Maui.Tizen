@@ -72,6 +72,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			lock (Locker)
 			{
+				if (_tombstones.Contains(key))
+					return Task.FromResult<string?>(null);
+
 				RecoverStagedValue(key);
 
 				try
@@ -83,9 +86,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				{
 					// The namespaced alias does not exist.
 				}
-
-				if (_tombstones.Contains(key) || _tombstones.ContainsAll)
-					return Task.FromResult<string?>(null);
 
 				byte[] legacyValue;
 				string? migratedOwnedAlias = null;
@@ -180,32 +180,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			lock (Locker)
 			{
-				var removed = false;
-				try
-				{
-					_repository.RemoveAlias(ToAlias(key));
-					removed = true;
-				}
-				catch (InvalidOperationException)
-				{
-					// Missing namespaced data is expected when only an ambiguous raw alias exists.
-				}
-
-				try
-				{
-					if (CanUseLegacyNamespacedAlias(key))
-					{
-						_repository.RemoveAlias(ToLegacyNamespacedAlias(key));
-						removed = true;
-					}
-				}
-				catch (InvalidOperationException)
-				{
-					// Missing v1 namespaced data is expected.
-				}
-
-				RemoveStagedAliases(key);
+				var currentAlias = ToAlias(key);
+				// Commit deletion intent before touching repository aliases. Even if a native
+				// deletion fails, subsequent reads cannot expose the old current/staged value.
 				_tombstones.Add(key);
+				var removed = false;
+				var failures = new List<Exception>();
+				removed |= RemoveForDeletion(currentAlias, failures);
+				if (CanUseLegacyNamespacedAlias(key))
+					removed |= RemoveForDeletion(ToLegacyNamespacedAlias(key), failures);
+
+				foreach (var stagedAlias in GetStagedAliases(key).ToList())
+					removed |= RemoveForDeletion(stagedAlias, failures);
+
+				ThrowDeletionFailures(failures);
 				return removed;
 			}
 		}
@@ -223,32 +211,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			{
 				_tombstones.AddAll();
 
-				IEnumerable<string> aliases;
-				try
-				{
-					aliases = _repository.GetAliases();
-				}
-				catch
-				{
-					global::Tizen.Log.Info(TizenPlatform.CurrentPackageLogTag, "No saved data.");
-					return;
-				}
+				var aliases = _repository.GetAliases().ToList();
 
 				var currentPackageId = _currentPackageId();
+				var failures = new List<Exception>();
 				foreach (var alias in aliases)
 				{
 					if (!IsOwnedAlias(alias, currentPackageId))
 						continue;
 
-					try
-					{
-						_repository.RemoveAlias(alias);
-					}
-					catch
-					{
-						global::Tizen.Log.Info(TizenPlatform.CurrentPackageLogTag, "Failed to remove data.");
-					}
+					RemoveForDeletion(alias, failures);
 				}
+
+				ThrowDeletionFailures(failures);
 			}
 		}
 
@@ -383,27 +358,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				RemoveOwnedAliasIfPresent(stagedAlias);
 		}
 
-		void RemoveStagedAliases(string key)
-		{
-			foreach (var alias in GetStagedAliases(key))
-				RemoveOwnedAliasIfPresent(alias);
-		}
-
 		IEnumerable<string> GetStagedAliases(string key)
 		{
-			IEnumerable<string> aliases;
-			try
-			{
-				aliases = _repository.GetAliases();
-			}
-			catch
-			{
-				yield break;
-			}
-
 			var prefix = GetTransactionPrefix(key);
 			var currentPackageId = _currentPackageId();
-			foreach (var qualifiedAlias in aliases)
+			foreach (var qualifiedAlias in _repository.GetAliases())
 			{
 				if (!TryGetOwnedRawAlias(qualifiedAlias, currentPackageId, out var rawAlias))
 					continue;
@@ -490,6 +449,33 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				// Expected when the owned alias did not exist.
 			}
 		}
+
+		bool RemoveForDeletion(string alias, ICollection<Exception> failures)
+		{
+			try
+			{
+				_repository.RemoveAlias(alias);
+				return true;
+			}
+			catch (InvalidOperationException)
+			{
+				// Missing aliases are expected during idempotent removal.
+				return false;
+			}
+			catch (Exception exception)
+			{
+				failures.Add(exception);
+				return false;
+			}
+		}
+
+		static void ThrowDeletionFailures(IReadOnlyCollection<Exception> failures)
+		{
+			if (failures.Count == 1)
+				throw failures.First();
+			if (failures.Count > 1)
+				throw new AggregateException("One or more SecureStorage aliases could not be removed.", failures);
+		}
 	}
 
 	internal interface ITizenSecureStorageTombstones
@@ -509,6 +495,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	{
 		const string Prefix = "maui.tizen.securestorage.tombstone:v1:";
 		const string AllKey = Prefix + "all";
+		const string LivePrefix = Prefix + "live:";
 		readonly ITizenPreferencesStore _store;
 
 		public static TizenSecureStorageTombstones Instance { get; } =
@@ -531,13 +518,23 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		public bool Contains(string key)
 		{
 			lock (_store.SyncRoot)
-				return _store.Contains(GetKeyTombstone(key));
+			{
+				if (_store.Contains(GetKeyTombstone(key)))
+					return true;
+
+				return _store.Contains(AllKey) && !_store.Contains(GetLiveMarker(key));
+			}
 		}
 
 		public void Add(string key)
 		{
 			lock (_store.SyncRoot)
+			{
+				var live = GetLiveMarker(key);
+				if (_store.Contains(live))
+					_store.Remove(live);
 				_store.Set(GetKeyTombstone(key), true);
+			}
 		}
 
 		public void Remove(string key)
@@ -547,32 +544,66 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				var tombstone = GetKeyTombstone(key);
 				if (_store.Contains(tombstone))
 					_store.Remove(tombstone);
+
+				var live = GetLiveMarker(key);
+				if (_store.Contains(AllKey))
+					_store.Set(live, true);
+				else if (_store.Contains(live))
+					_store.Remove(live);
 			}
 		}
 
 		public void AddAll()
 		{
 			lock (_store.SyncRoot)
+			{
 				_store.Set(AllKey, true);
+				foreach (var key in _store.Keys
+					.Where(key => key.StartsWith(LivePrefix, StringComparison.Ordinal))
+					.ToList())
+				{
+					_store.Remove(key);
+				}
+			}
 		}
 
 		static string GetKeyTombstone(string key) =>
 			Prefix + "key:" + TizenStorageKeyEncoding.Encode(key);
+
+		static string GetLiveMarker(string key) =>
+			LivePrefix + TizenStorageKeyEncoding.Encode(key);
 	}
 
 	sealed class InMemorySecureStorageTombstones : ITizenSecureStorageTombstones
 	{
 		readonly HashSet<string> _keys = new(StringComparer.Ordinal);
+		readonly HashSet<string> _liveAfterAll = new(StringComparer.Ordinal);
 
 		public bool ContainsAll { get; private set; }
 
-		public bool Contains(string key) => _keys.Contains(key);
+		public bool Contains(string key) =>
+			_keys.Contains(key) || (ContainsAll && !_liveAfterAll.Contains(key));
 
-		public void Add(string key) => _keys.Add(key);
+		public void Add(string key)
+		{
+			_liveAfterAll.Remove(key);
+			_keys.Add(key);
+		}
 
-		public void Remove(string key) => _keys.Remove(key);
+		public void Remove(string key)
+		{
+			_keys.Remove(key);
+			if (ContainsAll)
+				_liveAfterAll.Add(key);
+			else
+				_liveAfterAll.Remove(key);
+		}
 
-		public void AddAll() => ContainsAll = true;
+		public void AddAll()
+		{
+			ContainsAll = true;
+			_liveAfterAll.Clear();
+		}
 	}
 
 	internal interface ITizenSecureRepository

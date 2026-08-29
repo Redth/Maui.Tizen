@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Maui.Platforms.Tizen.Essentials;
@@ -46,6 +47,23 @@ public class TizenNativeCallbackCoordinatorTests
 		Assert.False(called);
 	}
 
+	[Fact]
+	public void ProductionDispatcherAddsASecondHopWhenMainThreadDispatchIsInline()
+	{
+		var context = new QueuedSynchronizationContext();
+		var called = false;
+
+		TizenNativeCallbackDispatcher.PostDeferred(
+			beginInvoke: callback => callback(),
+			getContext: () => context,
+			action: () => called = true);
+
+		Assert.False(called);
+		Assert.Equal(1, context.Pending);
+		context.RunOne();
+		Assert.True(called);
+	}
+
 	sealed class StrictDispatcher : ITizenNativeCallbackDispatcher, IDisposable
 	{
 		readonly BlockingCollection<Action> _work = [];
@@ -70,7 +88,7 @@ public class TizenNativeCallbackCoordinatorTests
 		public TaskCompletionSource Drained { get; } =
 			new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		public void Post(Action action) => _work.Add(action);
+		public void PostDeferred(Action action) => _work.Add(action);
 
 		public void Release() => _release.Set();
 
@@ -96,6 +114,23 @@ public class TizenNativeCallbackCoordinatorTests
 				action();
 				Drained.TrySetResult();
 			}
+		}
+
+	}
+
+	sealed class QueuedSynchronizationContext : SynchronizationContext
+	{
+		readonly Queue<(SendOrPostCallback Callback, object? State)> _work = [];
+
+		public int Pending => _work.Count;
+
+		public override void Post(SendOrPostCallback d, object? state) =>
+			_work.Enqueue((d, state));
+
+		public void RunOne()
+		{
+			var (callback, state) = _work.Dequeue();
+			callback(state);
 		}
 	}
 }

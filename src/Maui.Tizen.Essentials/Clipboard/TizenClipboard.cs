@@ -16,10 +16,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		readonly object _locker = new();
 		readonly ITizenClipboardDispatcher _dispatcher;
 		readonly ITizenClipboardNative _native;
+		readonly TizenEventSubscriptionCoordinator<EventArgs> _events;
 		readonly Dictionary<long, TaskCompletionSource<string?>> _pending = [];
-		EventHandler<EventArgs>? _clipboardContentChanged;
 		long _nextRequest;
-		bool _listening;
 		bool _disposed;
 
 		/// <summary>Maximum time to wait for Tizen's one-shot clipboard callback.</summary>
@@ -37,6 +36,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			_dispatcher = dispatcher;
 			_native = native;
+			_events = new(
+				this,
+				() => _dispatcher.Invoke(() => _native.StartChangeNotifications(OnDataSelected)),
+				() => _dispatcher.Invoke(_native.StopChangeNotifications),
+				new TizenNativeCallbackCoordinator(dispatcher));
 		}
 
 		/// <inheritdoc/>
@@ -54,41 +58,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// <inheritdoc/>
 		public event EventHandler<EventArgs> ClipboardContentChanged
 		{
-			add
-			{
-				ArgumentNullException.ThrowIfNull(value);
-				lock (_locker)
-				{
-					ObjectDisposedException.ThrowIf(_disposed, this);
-					var start = _clipboardContentChanged is null;
-					_clipboardContentChanged += value;
-					if (!start)
-						return;
-
-					try
-					{
-						_dispatcher.Invoke(() => _native.DataSelected += OnDataSelected);
-						_listening = true;
-					}
-					catch
-					{
-						_clipboardContentChanged -= value;
-						throw;
-					}
-				}
-			}
-			remove
-			{
-				lock (_locker)
-				{
-					_clipboardContentChanged -= value;
-					if (_clipboardContentChanged is not null || !_listening)
-						return;
-
-					_dispatcher.Invoke(() => _native.DataSelected -= OnDataSelected);
-					_listening = false;
-				}
-			}
+			add => _events.Add(value);
+			remove => _events.Remove(value);
 		}
 
 		/// <inheritdoc/>
@@ -133,8 +104,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			{
 				await _dispatcher.InvokeAsync(() =>
 				{
-					if (!linked.IsCancellationRequested)
-						_native.GetText((success, text) => CompleteRequest(request, success, text));
+					lock (_locker)
+					{
+						if (_disposed || !_pending.ContainsKey(request))
+							return;
+					}
+
+					_native.GetText((success, text) => CompleteRequest(request, success, text));
 				})
 					.ConfigureAwait(false);
 			}
@@ -180,59 +156,30 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				completion.TrySetResult(null);
 		}
 
-		void OnDataSelected()
-		{
-			_dispatcher.Post(() =>
-			{
-				EventHandler<EventArgs>? handler;
-				lock (_locker)
-				{
-					if (_disposed)
-						return;
-					handler = _clipboardContentChanged;
-				}
-
-				handler?.Invoke(this, EventArgs.Empty);
-			});
-		}
+		void OnDataSelected() => _events.Publish(EventArgs.Empty);
 
 		/// <inheritdoc/>
 		public void Dispose()
 		{
 			List<TaskCompletionSource<string?>> pending;
-			var stopListening = false;
-
 			lock (_locker)
 			{
 				if (_disposed)
 					return;
 
 				_disposed = true;
-				stopListening = _listening;
-				_listening = false;
-				_clipboardContentChanged = null;
 				pending = [.. _pending.Values];
 				_pending.Clear();
 			}
 
-			if (stopListening)
-			{
-				try
-				{
-					_dispatcher.Invoke(() => _native.DataSelected -= OnDataSelected);
-				}
-				catch (Exception)
-				{
-					// The owning app is already tearing down; pending callers are still settled.
-				}
-			}
-
 			foreach (var completion in pending)
 				completion.TrySetException(new ObjectDisposedException(nameof(TizenClipboard)));
+
+			_events.Dispose();
 		}
 	}
 
-	internal interface ITizenClipboardDispatcher
+	internal interface ITizenClipboardDispatcher : ITizenNativeCallbackDispatcher
 	{
 		void Invoke(Action action);
 
@@ -240,12 +187,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		Task<T> InvokeAsync<T>(Func<T> action);
 
-		void Post(Action action);
 	}
 
 	internal interface ITizenClipboardNative
 	{
-		event Action? DataSelected;
+		void StartChangeNotifications(Action changed);
+
+		void StopChangeNotifications();
 
 		bool SetText(string text);
 
@@ -268,14 +216,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		public Task<T> InvokeAsync<T>(Func<T> action) => MainThread.InvokeOnMainThreadAsync(action);
 
-		public void Post(Action action) => MainThread.BeginInvokeOnMainThread(action);
+		public void PostDeferred(Action action) =>
+			TizenNativeCallbackDispatcher.PostDeferred(
+				MainThread.BeginInvokeOnMainThread,
+				static () => SynchronizationContext.Current,
+				action);
 	}
 
 	sealed class TizenClipboardNative : ITizenClipboardNative
 	{
 		const string MimeType = "text/plain;charset=utf-8";
 		global::Tizen.NUI.Clipboard? _clipboard;
-		Action? _dataSelected;
+		global::Tizen.NUI.WindowSystem.Shell.TizenShell? _shell;
+		global::Tizen.NUI.WindowSystem.Shell.KVMService? _kvm;
+		Action? _changed;
 
 		public static TizenClipboardNative Instance { get; } = new();
 
@@ -286,20 +240,119 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		global::Tizen.NUI.Clipboard Clipboard =>
 			_clipboard ??= global::Tizen.NUI.Clipboard.Instance;
 
-		public event Action? DataSelected
+		public void StartChangeNotifications(Action changed)
 		{
-			add
+			if (_kvm is not null)
+				throw new InvalidOperationException("Clipboard change notifications are already active.");
+
+			global::Tizen.NUI.WindowSystem.Shell.TizenShell? shell = null;
+			global::Tizen.NUI.WindowSystem.Shell.KVMService? kvm = null;
+			var selected = false;
+			var subscribed = false;
+			try
 			{
-				if (_dataSelected is null)
-					Clipboard.DataSelected += OnDataSelected;
-				_dataSelected += value;
+				shell = new global::Tizen.NUI.WindowSystem.Shell.TizenShell();
+				kvm = new global::Tizen.NUI.WindowSystem.Shell.KVMService(
+					shell,
+					global::Tizen.NUI.Window.Default);
+				kvm.SetSecondarySelection();
+				selected = true;
+				Clipboard.DataSelected += OnDataSelected;
+				subscribed = true;
+				_shell = shell;
+				_kvm = kvm;
+				_changed = changed;
 			}
-			remove
+			catch
 			{
-				_dataSelected -= value;
-				if (_dataSelected is null)
+				if (subscribed)
+				{
+				try
+				{
 					Clipboard.DataSelected -= OnDataSelected;
+				}
+				catch (Exception)
+				{
+				}
+				}
+				if (selected)
+				{
+				try
+				{
+					kvm?.UnsetSecondarySelection();
+				}
+				catch (Exception)
+				{
+				}
+				}
+				try
+				{
+				kvm?.Dispose();
+				}
+				catch (Exception)
+				{
+				}
+				try
+				{
+				shell?.Dispose();
+				}
+				catch (Exception)
+				{
+				}
+				throw;
 			}
+		}
+
+		public void StopChangeNotifications()
+		{
+			if (_kvm is null && _changed is null)
+				return;
+
+			var failures = new List<Exception>();
+			try
+			{
+				Clipboard.DataSelected -= OnDataSelected;
+			}
+			catch (Exception exception)
+			{
+				failures.Add(exception);
+			}
+
+			try
+			{
+				_kvm?.UnsetSecondarySelection();
+			}
+			catch (Exception exception)
+			{
+				failures.Add(exception);
+			}
+
+			try
+			{
+				_kvm?.Dispose();
+			}
+			catch (Exception exception)
+			{
+				failures.Add(exception);
+			}
+
+			try
+			{
+				_shell?.Dispose();
+			}
+			catch (Exception exception)
+			{
+				failures.Add(exception);
+			}
+
+			_changed = null;
+			_kvm = null;
+			_shell = null;
+
+			if (failures.Count == 1)
+				throw failures[0];
+			if (failures.Count > 1)
+				throw new AggregateException("Clipboard change notification teardown failed.", failures);
 		}
 
 		public bool SetText(string text) => Clipboard.SetData(MimeType, text);
@@ -310,6 +363,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				(success, clipEvent) => callback(success, success ? clipEvent.Data : null));
 
 		void OnDataSelected(object? sender, global::Tizen.NUI.ClipboardDataSelectedEventArgs e) =>
-			_dataSelected?.Invoke();
+			_changed?.Invoke();
 	}
 }

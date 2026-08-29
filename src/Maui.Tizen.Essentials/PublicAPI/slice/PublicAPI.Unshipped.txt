@@ -42,6 +42,7 @@ Microsoft.Maui.Platforms.Tizen.Essentials.TizenBasePlatformPermission.TizenBaseP
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenBattery
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenBattery.BatteryInfoChanged -> System.EventHandler<Microsoft.Maui.Devices.BatteryInfoChangedEventArgs!>?
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenBattery.ChargeLevel.get -> double
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenBattery.Dispose() -> void
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenBattery.EnergySaverStatus.get -> Microsoft.Maui.Devices.EnergySaverStatus
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenBattery.EnergySaverStatusChanged -> System.EventHandler<Microsoft.Maui.Devices.EnergySaverStatusChangedEventArgs!>!
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenBattery.PowerSource.get -> Microsoft.Maui.Devices.BatteryPowerSource
@@ -65,6 +66,7 @@ Microsoft.Maui.Platforms.Tizen.Essentials.TizenCompass.TizenCompass() -> void
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenConnectivity
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenConnectivity.ConnectionProfiles.get -> System.Collections.Generic.IEnumerable<Microsoft.Maui.Networking.ConnectionProfile>!
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenConnectivity.ConnectivityChanged -> System.EventHandler<Microsoft.Maui.Networking.ConnectivityChangedEventArgs!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenConnectivity.Dispose() -> void
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenConnectivity.NetworkAccess.get -> Microsoft.Maui.Networking.NetworkAccess
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenConnectivity.TizenConnectivity() -> void
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenContacts
@@ -72,6 +74,7 @@ Microsoft.Maui.Platforms.Tizen.Essentials.TizenContacts.GetAllAsync(System.Threa
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenContacts.PickContactAsync() -> System.Threading.Tasks.Task<Microsoft.Maui.ApplicationModel.Communication.Contact?>!
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenContacts.TizenContacts() -> void
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceDisplay
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceDisplay.Dispose() -> void
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceDisplay.KeepScreenOn.get -> bool
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceDisplay.KeepScreenOn.set -> void
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceDisplay.MainDisplayInfo.get -> Microsoft.Maui.Devices.DisplayInfo

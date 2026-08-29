@@ -197,4 +197,20 @@ public class Api15ReferencePackTests
         Assert.True(authenticator.HasMethod("GetAssertion"));
         Assert.True(authenticator.HasMethod("Cancel"));
     }
+
+    [Fact]
+    public async Task ClipboardSecondarySelectionLifecycle_IsPublicInApi15()
+    {
+        var directory = await AcquireOrSkipAsync().ConfigureAwait(true);
+        var assembly = ReferencePackProbe.FindAssembly(directory, "Tizen.NUI.WindowSystem.dll");
+        Assert.NotNull(assembly);
+
+        var service = ReferencePackProbe.ReadTypeMembers(
+            assembly!,
+            "Tizen.NUI.WindowSystem.Shell.KVMService");
+        Assert.NotNull(service);
+        Assert.True(service!.HasMethod("SetSecondarySelection"));
+        Assert.True(service.HasMethod("UnsetSecondarySelection"));
+        Assert.True(service.HasMethod("Dispose"));
+    }
 }

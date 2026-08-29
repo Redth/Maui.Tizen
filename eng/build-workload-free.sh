@@ -110,6 +110,7 @@ check "Tizen workload gate script is syntactically valid" bash -n eng/ci/tizen-w
 check "real Tizen lane script is syntactically valid" bash -n eng/build-tizen.sh
 check "Tizen workload transition tests are syntactically valid" bash -n eng/tests/test-ci-tizen-workload-gate.sh
 check "Essentials mutation runner is syntactically valid" bash -n eng/tests/run-essentials-negative-controls.sh
+check "Essentials mutation lock tests are syntactically valid" bash -n eng/tests/test-essentials-mutation-lock.sh
 check "Wave C mutation runner is syntactically valid" bash -n eng/tests/run-wave-c-negative-controls.sh
 
 # ---------------------------------------------------------------------------
@@ -265,7 +266,7 @@ if [[ $BUILD_OK -eq 1 ]]; then
   # runner, because console rendering is not a stable contract. A report file is.
   #
   # Raise this when adding tests; never lower it to make a run go green.
-  ESSENTIALS_TESTS_MINIMUM=406
+  ESSENTIALS_TESTS_MINIMUM=445
 
   check "essentials tests" "$ESSENTIALS_TESTS" \
     --report-xunit-junit --report-xunit-junit-filename results.xml \
@@ -276,6 +277,7 @@ if [[ $BUILD_OK -eq 1 ]]; then
   check "Wave B source tests" "$DOTNET" test tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj --no-build -c Release
   check "migration tooling tests" "$DOTNET" test tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj --no-build -c Release
   check "Essentials negative controls" "$REPO_ROOT/eng/tests/run-essentials-negative-controls.sh"
+  check "Essentials mutation lock behavior" "$REPO_ROOT/eng/tests/test-essentials-mutation-lock.sh"
   check "Wave B negative controls" env DOTNET="$DOTNET" "$REPO_ROOT/eng/tests/run-wave-b-negative-controls.sh"
   check "Wave B mutation runner behavior" "$REPO_ROOT/eng/tests/test-wave-b-mutation-runner.sh"
   check "Wave C negative controls" "$REPO_ROOT/eng/tests/run-wave-c-negative-controls.sh"

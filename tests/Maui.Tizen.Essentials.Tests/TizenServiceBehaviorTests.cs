@@ -809,6 +809,114 @@ public class TizenServiceBehaviorTests
 	}
 
 	[Fact]
+	public async Task SecureStorageSetAfterRemoveAllSupersedesGlobalTombstone()
+	{
+		var repository = new FakeSecureRepository
+		{
+			[TizenSecureStorage.ToAlias("token")] = "old-value",
+		};
+		var tombstones = new FakeSecureStorageTombstones();
+		var storage = new TizenSecureStorage(repository, tombstones);
+
+		storage.RemoveAll();
+		Assert.Null(await storage.GetAsync("token"));
+
+		await storage.SetAsync("token", "new-value");
+
+		Assert.Equal("new-value", await storage.GetAsync("token"));
+		Assert.True(tombstones.ContainsAll);
+		Assert.False(tombstones.Contains("token"));
+	}
+
+	[Theory]
+	[InlineData("current")]
+	[InlineData("v1")]
+	[InlineData("staged")]
+	public async Task SecureStorageRemoveFailureIsSurfacedButTombstoneDominates(string failingAlias)
+	{
+		var current = TizenSecureStorage.ToAlias("token");
+		var v1 = TizenSecureStorage.ToLegacyNamespacedAlias("token");
+		var staged = TizenSecureStorage.AliasPrefix + "~tx~dG9rZW4~crash";
+		var repository = new FakeSecureRepository
+		{
+			[current] = "current-value",
+			[v1] = "v1-value",
+			[staged] = "staged-value",
+		};
+		repository.FailRemoveAliases.Add(failingAlias switch
+		{
+			"current" => current,
+			"v1" => v1,
+			_ => staged,
+		});
+		var tombstones = new FakeSecureStorageTombstones();
+		var storage = new TizenSecureStorage(repository, tombstones);
+
+		Assert.ThrowsAny<Exception>(() => storage.Remove("token"));
+		Assert.Null(await storage.GetAsync("token"));
+		Assert.True(tombstones.Contains("token"));
+	}
+
+	[Fact]
+	public async Task SecureStorageRemoveSurfacesEnumerationFailureAndKeepsDeletionCommitted()
+	{
+		var repository = new FakeSecureRepository
+		{
+			[TizenSecureStorage.ToAlias("token")] = "current-value",
+			GetAliasesException = new IOException("enumeration failed"),
+		};
+		var tombstones = new FakeSecureStorageTombstones();
+		var storage = new TizenSecureStorage(repository, tombstones);
+
+		Assert.Throws<IOException>(() => storage.Remove("token"));
+		Assert.Null(await storage.GetAsync("token"));
+	}
+
+	[Fact]
+	public async Task SecureStorageRemoveAllSurfacesEnumerationFailureAndSuppressesExistingData()
+	{
+		var repository = new FakeSecureRepository
+		{
+			[TizenSecureStorage.ToAlias("token")] = "current-value",
+			GetAliasesException = new IOException("enumeration failed"),
+		};
+		var tombstones = new FakeSecureStorageTombstones();
+		var storage = new TizenSecureStorage(repository, tombstones);
+
+		Assert.Throws<IOException>(storage.RemoveAll);
+		Assert.True(tombstones.ContainsAll);
+		Assert.Null(await storage.GetAsync("token"));
+	}
+
+	[Fact]
+	public async Task SecureStorageRemoveAllSurfacesDeleteFailureAndSuppressesUndeletedAlias()
+	{
+		var alias = TizenSecureStorage.ToAlias("token");
+		var repository = new FakeSecureRepository { [alias] = "current-value" };
+		repository.FailRemoveAliases.Add(alias);
+		var tombstones = new FakeSecureStorageTombstones();
+		var storage = new TizenSecureStorage(repository, tombstones);
+
+		Assert.ThrowsAny<Exception>(storage.RemoveAll);
+		Assert.True(repository.Contains(alias));
+		Assert.Null(await storage.GetAsync("token"));
+	}
+
+	[Fact]
+	public async Task SecureStorageDeletionTombstonePreventsCrashStagingRecovery()
+	{
+		var staged = TizenSecureStorage.AliasPrefix + "~tx~dG9rZW4~crash";
+		var repository = new FakeSecureRepository { [staged] = "staged-old-value" };
+		repository.FailRemoveAliases.Add(staged);
+		var tombstones = new FakeSecureStorageTombstones();
+		var storage = new TizenSecureStorage(repository, tombstones);
+
+		Assert.ThrowsAny<Exception>(() => storage.Remove("token"));
+		Assert.Null(await storage.GetAsync("token"));
+		Assert.True(repository.Contains(staged));
+	}
+
+	[Fact]
 	public async Task ConcurrentSecureStorageMigrationCreatesOneOwnedCopy()
 	{
 		var repository = new FakeSecureRepository
@@ -910,12 +1018,36 @@ public class TizenServiceBehaviorTests
 		var client = await factory.WaitForClientAsync();
 		await client.Played.Task;
 
-		Assert.Equal(["GetMaximumSpeed", "Prepare", "AddText", "Play"], client.Operations.Take(4));
-		Assert.Equal(5, client.LastSpeed);
+		Assert.Equal(["GetSpeedRange", "Prepare", "AddText", "Play"], client.Operations.Take(4));
+		Assert.Equal(0, client.LastSpeed);
 
 		await client.CompleteAsync(client.LastUtteranceId);
 		await speak;
 	}
+
+	[Theory]
+	[InlineData(0.1f, -10)]
+	[InlineData(0.55f, -5)]
+	[InlineData(1.0f, 0)]
+	[InlineData(1.5f, 10)]
+	[InlineData(2.0f, 20)]
+	public void TextToSpeechMapsMauiRatePiecewiseAcrossNativeRange(float rate, int expected) =>
+		Assert.Equal(
+			expected,
+			TizenTextToSpeech.ResolveRate(new(-10, 0, 20), rate));
+
+	[Fact]
+	public void TextToSpeechUsesNativeNormalWhenRateIsNull() =>
+		Assert.Equal(
+			7,
+			TizenTextToSpeech.ResolveRate(new(-4, 7, 19), null));
+
+	[Theory]
+	[InlineData(0.09f)]
+	[InlineData(2.01f)]
+	public void TextToSpeechRejectsRatesOutsideMauiRange(float rate) =>
+		Assert.Throws<ArgumentOutOfRangeException>(() =>
+			TizenTextToSpeech.ResolveRate(new(-10, 0, 20), rate));
 
 	[Fact]
 	public async Task TextToSpeechCancellationRetiresBeforeSettlingAndTeardownRunsOnDispatcher()
@@ -1799,13 +1931,13 @@ public class TizenServiceBehaviorTests
 			return [new("en_US", 0)];
 		}
 
-		public int GetMaximumSpeed()
+		public TizenTextToSpeechSpeedRange GetSpeedRange()
 		{
-			AssertThread(nameof(GetMaximumSpeed));
+			AssertThread(nameof(GetSpeedRange));
 			if (_prepared)
 				throw new InvalidOperationException("GetSpeedRange is only valid in Created.");
-			Operations.Add(nameof(GetMaximumSpeed));
-			return 10;
+			Operations.Add(nameof(GetSpeedRange));
+			return new(-10, 0, 20);
 		}
 
 		public int AddText(string text, string language, int voiceType, int speed)
@@ -1881,6 +2013,8 @@ public class TizenServiceBehaviorTests
 
 		public Exception? SaveException { get; init; }
 		public HashSet<int> FailSaveCalls { get; } = [];
+		public HashSet<string> FailRemoveAliases { get; } = new(StringComparer.Ordinal);
+		public Exception? GetAliasesException { get; init; }
 		public int? MaximumAliasLength { get; init; }
 		public bool RejectWhitespaceAliases { get; init; }
 		public int SuccessfulSaves { get; private set; }
@@ -1945,6 +2079,8 @@ public class TizenServiceBehaviorTests
 			lock (_locker)
 			{
 				ValidateAlias(alias);
+				if (FailRemoveAliases.Contains(alias))
+					throw new IOException($"remove failed for {alias}");
 
 				if (!_values.Remove(alias))
 					throw new InvalidOperationException("alias not found");
@@ -1954,7 +2090,11 @@ public class TizenServiceBehaviorTests
 		public IEnumerable<string> GetAliases()
 		{
 			lock (_locker)
+			{
+				if (GetAliasesException is not null)
+					throw GetAliasesException;
 				return _values.Keys.ToArray();
+			}
 		}
 
 		void ValidateAlias(string alias)
@@ -1969,16 +2109,31 @@ public class TizenServiceBehaviorTests
 	sealed class FakeSecureStorageTombstones : ITizenSecureStorageTombstones
 	{
 		readonly HashSet<string> _keys = new(StringComparer.Ordinal);
+		readonly HashSet<string> _liveAfterAll = new(StringComparer.Ordinal);
 
 		public bool ContainsAll { get; private set; }
 
-		public bool Contains(string key) => _keys.Contains(key);
+		public bool Contains(string key) =>
+			_keys.Contains(key) || (ContainsAll && !_liveAfterAll.Contains(key));
 
-		public void Add(string key) => _keys.Add(key);
+		public void Add(string key)
+		{
+			_liveAfterAll.Remove(key);
+			_keys.Add(key);
+		}
 
-		public void Remove(string key) => _keys.Remove(key);
+		public void Remove(string key)
+		{
+			_keys.Remove(key);
+			if (ContainsAll)
+				_liveAfterAll.Add(key);
+		}
 
-		public void AddAll() => ContainsAll = true;
+		public void AddAll()
+		{
+			ContainsAll = true;
+			_liveAfterAll.Clear();
+		}
 	}
 
 	sealed class FakePreferencesStore : ITizenPreferencesStore

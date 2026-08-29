@@ -17,7 +17,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// feature keys; rotation is tracked through <c>CoreApplication.DeviceOrientationChanged</c>.
 	/// Keep-screen-on is implemented with <c>device_power_request_lock</c>.
 	/// </remarks>
-	public sealed partial class TizenDeviceDisplay : IDeviceDisplay
+	public sealed partial class TizenDeviceDisplay : IDeviceDisplay, IDisposable
 	{
 		// Matches Microsoft.Maui.Devices.DeviceDisplay.BaseLogicalDpi for Android/Tizen, which is internal.
 		internal const float BaseLogicalDpi = 160.0f;
@@ -30,11 +30,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		const int PowerLockDisplay = 1;
 
-		readonly object _locker = new();
-		readonly TizenNativeCallbackCoordinator _callbacks = new();
-
-		EventHandler<DisplayInfoChangedEventArgs>? _mainDisplayInfoChanged;
-		bool _listening;
+		readonly TizenEventSubscriptionCoordinator<DisplayInfoChangedEventArgs> _events;
 		bool _keepScreenOn;
 		DisplayRotation _displayRotation = DisplayRotation.Rotation0;
 		DisplayOrientation _displayOrientation = DisplayOrientation.Unknown;
@@ -49,6 +45,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			TizenSystemInformation.CurrentProfile == TizenDeviceProfile.TV
 				? 72
 				: TizenSystemInformation.GetFeatureInfo<int>("screen.dpi");
+
+		/// <summary>Creates the Tizen display service.</summary>
+		public TizenDeviceDisplay()
+		{
+			_events = new(this, StartListeners, StopListeners);
+		}
 
 		/// <inheritdoc/>
 		public bool KeepScreenOn
@@ -93,43 +95,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// <inheritdoc/>
 		public event EventHandler<DisplayInfoChangedEventArgs> MainDisplayInfoChanged
 		{
-			add
-			{
-				lock (_locker)
-				{
-					var start = _mainDisplayInfoChanged is null;
-					_mainDisplayInfoChanged += value;
-					if (start && _mainDisplayInfoChanged is not null)
-						StartListeners();
-				}
-			}
-			remove
-			{
-				lock (_locker)
-				{
-					_mainDisplayInfoChanged -= value;
-					if (_mainDisplayInfoChanged is null)
-						StopListeners();
-				}
-			}
+			add => _events.Add(value);
+			remove => _events.Remove(value);
 		}
 
 		void StartListeners()
 		{
-			if (_listening || CoreApplication is not { } app)
+			if (CoreApplication is not { } app)
 				return;
 
 			app.DeviceOrientationChanged += OnRotationChanged;
-			_listening = true;
 		}
 
 		void StopListeners()
 		{
-			if (!_listening || CoreApplication is not { } app)
+			if (CoreApplication is not { } app)
 				return;
 
 			app.DeviceOrientationChanged -= OnRotationChanged;
-			_listening = false;
 		}
 
 		static DisplayOrientation GetNaturalOrientation(int width, int height) =>
@@ -159,19 +142,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			(_displayRotation, _displayOrientation) = MapOrientation(e.DeviceOrientation, natural);
 
 			var args = new DisplayInfoChangedEventArgs(MainDisplayInfo);
-			_callbacks.Post(
-				() =>
-				{
-					lock (_locker)
-						return _mainDisplayInfoChanged is not null;
-				},
-				() =>
-				{
-					EventHandler<DisplayInfoChangedEventArgs>? handler;
-					lock (_locker)
-						handler = _mainDisplayInfoChanged;
-					handler?.Invoke(this, args);
-				});
+			_events.Publish(args);
 		}
+
+		/// <inheritdoc/>
+		public void Dispose() => _events.Dispose();
 	}
 }

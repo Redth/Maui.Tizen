@@ -13,13 +13,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// <summary>
 	/// Tizen implementation of <see cref="IConnectivity"/>, backed by <c>Tizen.Network.Connection</c>.
 	/// </summary>
-	public sealed class TizenConnectivity : IConnectivity
+	public sealed class TizenConnectivity : IConnectivity, IDisposable
 	{
-		readonly object _locker = new();
-		readonly TizenNativeCallbackCoordinator _callbacks = new();
+		readonly TizenEventSubscriptionCoordinator<ConnectivityChangedEventArgs> _events;
 
-		EventHandler<ConnectivityChangedEventArgs>? _connectivityChanged;
-		bool _listening;
+		/// <summary>Creates the Tizen connectivity service.</summary>
+		public TizenConnectivity()
+		{
+			_events = new(this, StartListeners, StopListeners);
+		}
 
 		/// <inheritdoc/>
 		public NetworkAccess NetworkAccess
@@ -125,48 +127,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// <inheritdoc/>
 		public event EventHandler<ConnectivityChangedEventArgs> ConnectivityChanged
 		{
-			add
-			{
-				lock (_locker)
-				{
-					var start = _connectivityChanged is null;
-					_connectivityChanged += value;
-					if (start && _connectivityChanged is not null)
-					{
-						try
-						{
-							StartListeners();
-						}
-						catch
-						{
-							_connectivityChanged -= value;
-							throw;
-						}
-					}
-				}
-			}
-			remove
-			{
-				lock (_locker)
-				{
-					_connectivityChanged -= value;
-					if (_connectivityChanged is null)
-						StopListeners();
-				}
-			}
+			add => _events.Add(value);
+			remove => _events.Remove(value);
 		}
 
 		void StartListeners()
 		{
-			if (_listening)
-				return;
-
 			TizenPermissions.EnsureDeclared<Permissions.NetworkState>();
 
 			StartTransactional(
 				() => TizenConnectionManager.ConnectionTypeChanged += OnConnectionTypeChanged,
 				() => TizenConnectionManager.ConnectionTypeChanged -= OnConnectionTypeChanged);
-			_listening = true;
 		}
 
 		internal static void StartTransactional(Action subscribe, Action unsubscribe)
@@ -192,11 +163,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		void StopListeners()
 		{
-			if (!_listening)
-				return;
-
 			TizenConnectionManager.ConnectionTypeChanged -= OnConnectionTypeChanged;
-			_listening = false;
 		}
 
 		void OnConnectionTypeChanged(object? sender, TizenConnectionTypeEventArgs e)
@@ -206,19 +173,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				GetNetworkAccess(static () => TizenConnectionManager.CurrentConnection.Type),
 				GetConnectionProfiles());
 
-			_callbacks.Post(
-				() =>
-				{
-					lock (_locker)
-						return _connectivityChanged is not null;
-				},
-				() =>
-				{
-					EventHandler<ConnectivityChangedEventArgs>? handler;
-					lock (_locker)
-						handler = _connectivityChanged;
-					handler?.Invoke(this, args);
-				});
+			_events.Publish(args);
 		}
+
+		/// <inheritdoc/>
+		public void Dispose() => _events.Dispose();
 	}
 }

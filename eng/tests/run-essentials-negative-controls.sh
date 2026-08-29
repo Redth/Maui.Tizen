@@ -8,6 +8,9 @@ MANIFEST="${ESSENTIALS_MUTATION_MANIFEST:-$REPO_ROOT/eng/tests/essentials-mutati
 SCRATCH="$REPO_ROOT/artifacts/essentials-mutations/$$"
 LOCK_ROOT="$REPO_ROOT/artifacts/locks"
 LOCK_DIR="${ESSENTIALS_MUTATION_LOCK_DIR:-$LOCK_ROOT/essentials-mutations.lock}"
+WORKTREE_ID="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-dir)"
+LOCK_TOKEN="$$-$(date +%s)-$RANDOM"
+LOCK_OWNED=0
 CURRENT_FILE=""
 CURRENT_BACKUP=""
 CURRENT_STAGED=""
@@ -22,6 +25,14 @@ restore_current() {
     mv -f "$restore_path" "$CURRENT_FILE"
   fi
   [[ -z "$CURRENT_STAGED" ]] || rm -f "$CURRENT_STAGED"
+  if [[ "$LOCK_OWNED" -eq 1 ]]; then
+    rm -f \
+      "$LOCK_DIR/current.relative" \
+      "$LOCK_DIR/current.backup" \
+      "$LOCK_DIR/current.original-hash" \
+      "$LOCK_DIR/current.mutated-hash" \
+      "$LOCK_DIR/current.staged"
+  fi
   CURRENT_FILE=""
   CURRENT_BACKUP=""
   CURRENT_STAGED=""
@@ -30,17 +41,120 @@ restore_current() {
 cleanup() {
   restore_current
   rm -rf "$SCRATCH"
-  rmdir "$LOCK_DIR" 2>/dev/null || true
+  if [[ "$LOCK_OWNED" -eq 1 &&
+    "$(lock_value owner.identity)" == "$LOCK_TOKEN" ]]; then
+    rm -f \
+      "$LOCK_DIR/owner.pid" \
+      "$LOCK_DIR/owner.worktree" \
+      "$LOCK_DIR/owner.identity" \
+      "$LOCK_DIR/owner.scratch"
+    rmdir "$LOCK_DIR" 2>/dev/null || true
+  fi
 }
 
-trap cleanup EXIT INT TERM
+on_signal() {
+  local status="$1"
+  trap - EXIT INT TERM
+  cleanup
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
 
-if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  echo "Another Essentials mutation runner owns '$LOCK_DIR'." >&2
-  exit 1
+lock_value() {
+  local name="$1"
+  [[ -f "$LOCK_DIR/$name" ]] && sed -n '1p' "$LOCK_DIR/$name"
+}
+
+recover_stale_lock() {
+  local owner_pid owner_worktree owner_identity owner_scratch scratch_pid relative backup original_hash mutated_hash staged target target_hash stale
+  owner_pid="$(lock_value owner.pid)"
+  owner_worktree="$(lock_value owner.worktree)"
+  owner_identity="$(lock_value owner.identity)"
+  owner_scratch="$(lock_value owner.scratch)"
+  scratch_pid="${owner_scratch##*/}"
+
+  if [[ "$owner_worktree" != "$WORKTREE_ID" ||
+    -z "$owner_identity" ||
+    "${owner_scratch%/*}" != "$REPO_ROOT/artifacts/essentials-mutations" ||
+    ! "$scratch_pid" =~ ^[1-9][0-9]*$ ||
+    "$scratch_pid" != "$owner_pid" ]]; then
+    echo "Refusing to reclaim Essentials mutation lock with mismatched owner identity." >&2
+    return 1
+  fi
+  if [[ "$owner_pid" =~ ^[1-9][0-9]*$ ]] && kill -0 "$owner_pid" 2>/dev/null; then
+    echo "Another Essentials mutation runner (PID $owner_pid) owns '$LOCK_DIR'." >&2
+    return 1
+  fi
+
+  relative="$(lock_value current.relative)"
+  if [[ -n "$relative" ]]; then
+    backup="$(lock_value current.backup)"
+    original_hash="$(lock_value current.original-hash)"
+    mutated_hash="$(lock_value current.mutated-hash)"
+    staged="$(lock_value current.staged)"
+    target="$REPO_ROOT/$relative"
+
+    if [[ "$relative" == /* || "$relative" == *".."* ||
+      "${backup%/*}" != "$owner_scratch" ||
+      ! -f "$backup" ||
+      ! "$original_hash" =~ ^[0-9a-f]{64}$ ||
+      ! "$mutated_hash" =~ ^[0-9a-f]{64}$ ||
+      ! -f "$target" ]]; then
+      echo "Refusing to reclaim malformed Essentials mutation recovery metadata." >&2
+      return 1
+    fi
+
+    target_hash="$(shasum -a 256 "$target" | awk '{print $1}')"
+    if [[ "$target_hash" == "$mutated_hash" ]]; then
+      [[ "$(shasum -a 256 "$backup" | awk '{print $1}')" == "$original_hash" ]] || {
+        echo "Refusing to restore an Essentials mutation from a corrupt backup." >&2
+        return 1
+      }
+      cp -p "$backup" "$target.essentials-stale-restore-$LOCK_TOKEN"
+      mv -f "$target.essentials-stale-restore-$LOCK_TOKEN" "$target"
+    elif [[ "$target_hash" != "$original_hash" ]]; then
+      echo "Refusing to overwrite a source changed after the stale runner exited." >&2
+      return 1
+    fi
+
+    if [[ "$staged" == "$target.essentials-mutation-"* ]]
+    then
+      rm -f "$staged"
+    fi
+  fi
+
+  stale="$LOCK_DIR.stale-$LOCK_TOKEN"
+  mv "$LOCK_DIR" "$stale" 2>/dev/null || return 1
+  rm -rf "$stale" "$owner_scratch"
+  echo "Reclaimed stale Essentials mutation lock from PID ${owner_pid:-unknown}."
+}
+
+acquire_lock() {
+  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    recover_stale_lock || return 1
+    mkdir "$LOCK_DIR" 2>/dev/null || {
+      echo "Another Essentials mutation runner acquired '$LOCK_DIR'." >&2
+      return 1
+    }
+  fi
+
+  LOCK_OWNED=1
+  printf '%s\n' "$$" >"$LOCK_DIR/owner.pid"
+  printf '%s\n' "$WORKTREE_ID" >"$LOCK_DIR/owner.worktree"
+  printf '%s\n' "$LOCK_TOKEN" >"$LOCK_DIR/owner.identity"
+  printf '%s\n' "$SCRATCH" >"$LOCK_DIR/owner.scratch"
+}
+
+acquire_lock
+mkdir -p "$SCRATCH"
+
+if [[ "${ESSENTIALS_MUTATION_LOCK_ONLY:-0}" == "1" ]]; then
+  sleep "${ESSENTIALS_MUTATION_LOCK_HOLD_SECONDS:-0}"
+  exit 0
 fi
 
-mkdir -p "$SCRATCH"
 INITIAL_STATUS="$(git status --porcelain=v1)"
 COUNT="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))))' "$MANIFEST")"
 
@@ -115,6 +229,12 @@ for replacement in mutation["replacements"]:
 destination.write_text(text)
 PY
 
+  mutated_hash="$(shasum -a 256 "$mutated" | awk '{print $1}')"
+  printf '%s\n' "$relative_file" >"$LOCK_DIR/current.relative"
+  printf '%s\n' "$CURRENT_BACKUP" >"$LOCK_DIR/current.backup"
+  printf '%s\n' "$original_hash" >"$LOCK_DIR/current.original-hash"
+  printf '%s\n' "$mutated_hash" >"$LOCK_DIR/current.mutated-hash"
+  printf '%s\n' "$CURRENT_STAGED" >"$LOCK_DIR/current.staged"
   cp -p "$mutated" "$CURRENT_STAGED"
   mv -f "$CURRENT_STAGED" "$CURRENT_FILE"
   CURRENT_STAGED=""

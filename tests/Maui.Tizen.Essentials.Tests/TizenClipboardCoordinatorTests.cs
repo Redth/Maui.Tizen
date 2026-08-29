@@ -63,6 +63,22 @@ public class TizenClipboardCoordinatorTests
 	}
 
 	[Fact]
+	public async Task DisposalBeforeQueuedNativeReadSettlesCallerAndSkipsTheRequest()
+	{
+		using var dispatcher = new StrictDispatcher(blockFirst: true);
+		var native = new FakeClipboardNative(dispatcher);
+		var clipboard = new TizenClipboard(dispatcher, native);
+
+		var read = clipboard.GetTextAsync(TestContext.Current.CancellationToken);
+		await dispatcher.Queued.Task.WaitAsync(TestContext.Current.CancellationToken);
+		clipboard.Dispose();
+		dispatcher.Release();
+
+		await Assert.ThrowsAsync<ObjectDisposedException>(() => read);
+		Assert.Equal(0, native.ReadCalls);
+	}
+
+	[Fact]
 	public async Task DisposalCancelsPendingReadAndUnsubscribesChangeEvent()
 	{
 		using var dispatcher = new StrictDispatcher();
@@ -79,6 +95,7 @@ public class TizenClipboardCoordinatorTests
 		await native.RaiseChangedAsync();
 		Assert.Equal(0, changed);
 		Assert.Equal(0, native.ChangeSubscriberCount);
+		Assert.Equal(1, native.StopNotificationsCalls);
 		Assert.Empty(native.WrongThreadOperations);
 	}
 
@@ -93,11 +110,74 @@ public class TizenClipboardCoordinatorTests
 
 		clipboard.ClipboardContentChanged += handler;
 		await native.RaiseChangedAsync();
-		await changed.Task.WaitAsync(TestContext.Current.CancellationToken);
+		await changed.Task.WaitAsync(
+			TimeSpan.FromMilliseconds(250),
+			TestContext.Current.CancellationToken);
 		clipboard.ClipboardContentChanged -= handler;
 
 		Assert.Equal(0, native.ChangeSubscriberCount);
+		Assert.Equal(1, native.StartNotificationsCalls);
+		Assert.Equal(1, native.StopNotificationsCalls);
 		Assert.Empty(native.WrongThreadOperations);
+	}
+
+	[Fact]
+	public void FailedSecondarySelectionTransitionRollsBackSubscriber()
+	{
+		using var dispatcher = new StrictDispatcher();
+		var native = new FakeClipboardNative(dispatcher) { FailStartNotifications = true };
+		using var clipboard = new TizenClipboard(dispatcher, native);
+		EventHandler<EventArgs> handler = static (_, _) => { };
+
+		Assert.Throws<InvalidOperationException>(() =>
+			clipboard.ClipboardContentChanged += handler);
+		Assert.Equal(1, native.StartNotificationsCalls);
+		Assert.Equal(1, native.StopNotificationsCalls);
+		Assert.Equal(0, native.ChangeSubscriberCount);
+
+		native.FailStartNotifications = false;
+		clipboard.ClipboardContentChanged += handler;
+		Assert.Equal(2, native.StartNotificationsCalls);
+	}
+
+	[Fact]
+	public async Task SynchronousSecondarySelectionCallbackDoesNotDeadlockSubscription()
+	{
+		using var dispatcher = new StrictDispatcher();
+		var native = new FakeClipboardNative(dispatcher) { RaiseOnStart = true };
+		using var clipboard = new TizenClipboard(dispatcher, native);
+		EventHandler<EventArgs> handler = static (_, _) => { };
+
+		var subscribe = Task.Run(
+			() => clipboard.ClipboardContentChanged += handler,
+			TestContext.Current.CancellationToken);
+
+		await subscribe.WaitAsync(TestContext.Current.CancellationToken);
+		Assert.Equal(1, native.StartNotificationsCalls);
+	}
+
+	[Fact]
+	public async Task QueuedOldNotificationDoesNotReachReplacementSubscriber()
+	{
+		using var dispatcher = new StrictDispatcher();
+		var native = new FakeClipboardNative(dispatcher);
+		using var clipboard = new TizenClipboard(dispatcher, native);
+		var oldCalls = 0;
+		var replacementCalls = 0;
+		EventHandler<EventArgs> old = (_, _) => oldCalls++;
+		EventHandler<EventArgs> replacement = (_, _) => replacementCalls++;
+
+		clipboard.ClipboardContentChanged += old;
+		var blocked = dispatcher.BlockNextDeferred();
+		await native.RaiseChangedAsync();
+		await blocked.Queued.Task.WaitAsync(TestContext.Current.CancellationToken);
+		clipboard.ClipboardContentChanged -= old;
+		clipboard.ClipboardContentChanged += replacement;
+		blocked.Release();
+		await blocked.Drained.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+		Assert.Equal(0, oldCalls);
+		Assert.Equal(0, replacementCalls);
 	}
 
 	sealed class StrictDispatcher : ITizenClipboardDispatcher, IDisposable
@@ -107,6 +187,8 @@ public class TizenClipboardCoordinatorTests
 		readonly ManualResetEventSlim _release = new();
 		readonly Thread _thread;
 		readonly bool _blockFirst;
+		readonly object _deferredLock = new();
+		BlockedDeferred? _nextDeferred;
 		int _actions;
 
 		public StrictDispatcher(bool blockFirst = false)
@@ -151,7 +233,39 @@ public class TizenClipboardCoordinatorTests
 			return completion.Task;
 		}
 
-		public void Post(Action action) => _work.Add(action);
+		public void PostDeferred(Action action)
+		{
+			BlockedDeferred? blocked;
+			lock (_deferredLock)
+			{
+				blocked = _nextDeferred;
+				_nextDeferred = null;
+			}
+
+			if (blocked is not null)
+			{
+				blocked.SetRelease(() => _work.Add(() =>
+				{
+					action();
+					blocked.Drained.TrySetResult();
+				}));
+				blocked.Queued.TrySetResult();
+				return;
+			}
+
+			_work.Add(action);
+		}
+
+		public BlockedDeferred BlockNextDeferred()
+		{
+			lock (_deferredLock)
+			{
+				if (_nextDeferred is not null)
+					throw new InvalidOperationException("A deferred callback is already blocked.");
+
+				return _nextDeferred = new BlockedDeferred();
+			}
+		}
 
 		public void Release() => _release.Set();
 
@@ -179,6 +293,22 @@ public class TizenClipboardCoordinatorTests
 				action();
 			}
 		}
+
+		public sealed class BlockedDeferred
+		{
+			Action? _release;
+
+			public TaskCompletionSource Queued { get; } =
+				new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+			public TaskCompletionSource Drained { get; } =
+				new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+			public void Release() =>
+				Interlocked.Exchange(ref _release, null)?.Invoke();
+
+			internal void SetRelease(Action release) => _release = release;
+		}
 	}
 
 	sealed class FakeClipboardNative : ITizenClipboardNative
@@ -200,18 +330,30 @@ public class TizenClipboardCoordinatorTests
 
 		public int ChangeSubscriberCount => _dataSelected?.GetInvocationList().Length ?? 0;
 
-		public event Action? DataSelected
+		public int StartNotificationsCalls { get; private set; }
+
+		public int StopNotificationsCalls { get; private set; }
+
+		public bool FailStartNotifications { get; set; }
+
+		public bool RaiseOnStart { get; set; }
+
+		public void StartChangeNotifications(Action changed)
 		{
-			add
-			{
-				AssertThread("subscribe");
-				_dataSelected += value;
-			}
-			remove
-			{
-				AssertThread("unsubscribe");
-				_dataSelected -= value;
-			}
+			AssertThread("start notifications");
+			StartNotificationsCalls++;
+			_dataSelected = changed;
+			if (RaiseOnStart)
+				changed();
+			if (FailStartNotifications)
+				throw new InvalidOperationException("secondary selection failed");
+		}
+
+		public void StopChangeNotifications()
+		{
+			AssertThread("stop notifications");
+			StopNotificationsCalls++;
+			_dataSelected = null;
 		}
 
 		public bool SetText(string text)

@@ -114,10 +114,8 @@ public class TizenAccelerometerQueueTests
 	}
 
 	[Fact]
-	public void KeepsAMinimumNumberOfSamplesWhilePurging()
+	public void PurgesEveryExpiredSampleAndUsesMinimumOnlyForDetection()
 	{
-		// Faithful to dotnet/maui's AccelerometerQueue: purging never drops below four samples, so a
-		// single fresh sample after a burst still sees the tail of that burst.
 		var queue = new TizenAccelerometerQueue();
 
 		for (var i = 0; i < 8; i++)
@@ -125,7 +123,7 @@ public class TizenAccelerometerQueueTests
 
 		queue.Add(5_000 * Millisecond, accelerating: false);
 
-		Assert.True(queue.IsShaking);
+		Assert.False(queue.IsShaking);
 	}
 
 	[Fact]

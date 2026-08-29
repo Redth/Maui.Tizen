@@ -64,6 +64,59 @@ public class TizenSensorCoordinatorTests
 	}
 
 	[Fact]
+	public void FailedSecondOwnerDoesNotStopOrResetTheSharedSensor()
+	{
+		var coordinator = new TizenSensorLifetimeCoordinator<FakeSensor>();
+		var sensor = new FakeSensor();
+		var first = new object();
+
+		Start(coordinator, first, sensor, 60, static () => { }, static () => { });
+
+		Assert.Throws<InvalidOperationException>(() =>
+			coordinator.Start(
+				new object(),
+				() => throw new InvalidOperationException("must reuse the cached sensor"),
+				20,
+				static (native, value) => native.Interval = value,
+				static _ => throw new InvalidOperationException("subscribe failed"),
+				native => native.StartCalls++,
+				native => native.StopCalls++,
+				native => native.ResetCalls++,
+				static () => { },
+				static () => { }));
+
+		Assert.Equal(1, coordinator.ActiveCount);
+		Assert.Equal(1, sensor.StartCalls);
+		Assert.Equal(0, sensor.StopCalls);
+		Assert.Equal(0, sensor.ResetCalls);
+		Assert.Equal(60u, sensor.Interval);
+	}
+
+	[Fact]
+	public void SessionStateIsInitializedBeforeNativeStart()
+	{
+		var coordinator = new TizenSensorLifetimeCoordinator<FakeSensor>();
+		var sensor = new FakeSensor();
+		var initialized = false;
+
+		coordinator.Start(
+			new object(),
+			() => sensor,
+			60,
+			static (native, value) => native.Interval = value,
+			static _ => static () => { },
+			native =>
+			{
+				Assert.True(initialized);
+				native.StartCalls++;
+			},
+			native => native.StopCalls++,
+			native => native.ResetCalls++,
+			() => initialized = true,
+			() => initialized = false);
+	}
+
+	[Fact]
 	public async Task StopCompletesSerializedCleanupBeforeANewStart()
 	{
 		var coordinator = new TizenSensorLifetimeCoordinator<FakeSensor>();
@@ -77,6 +130,7 @@ public class TizenSensorCoordinatorTests
 		var stop = Task.Run(() =>
 			coordinator.Stop(
 				first,
+				static () => { },
 				_ =>
 				{
 					stopEntered.Set();
@@ -98,6 +152,76 @@ public class TizenSensorCoordinatorTests
 		releaseStop.Set();
 		await Task.WhenAll(stop, start);
 		Assert.Equal(2, sensor.StartCalls);
+	}
+
+	[Fact]
+	public async Task LastOwnerStopFinishesBeforeNewSensorAcquisition()
+	{
+		var coordinator = new TizenSensorLifetimeCoordinator<FakeSensor>();
+		var firstSensor = new FakeSensor();
+		var secondSensor = new FakeSensor();
+		var current = firstSensor;
+		var invalidated = false;
+		var first = new object();
+		var second = new object();
+		using var stopEntered = new ManualResetEventSlim();
+		using var releaseStop = new ManualResetEventSlim();
+
+		coordinator.Start(
+			first,
+			() => current,
+			60,
+			static (native, value) => native.Interval = value,
+			static _ => static () => { },
+			native => native.StartCalls++,
+			native => native.StopCalls++,
+			native => native.ResetCalls++,
+			static () => { },
+			static () => { });
+
+		var stop = Task.Run(
+			() => coordinator.Stop(
+				first,
+				() => invalidated = true,
+				_ =>
+				{
+					Assert.True(invalidated);
+					stopEntered.Set();
+					releaseStop.Wait(TestContext.Current.CancellationToken);
+					firstSensor.StopCalls++;
+				},
+				_ =>
+				{
+					firstSensor.ResetCalls++;
+					current = secondSensor;
+				},
+				static (native, value) => native.Interval = value,
+				static () => { }),
+			TestContext.Current.CancellationToken);
+		stopEntered.Wait(TestContext.Current.CancellationToken);
+
+		var start = Task.Run(
+			() => coordinator.Start(
+				second,
+				() => current,
+				20,
+				static (native, value) => native.Interval = value,
+				static _ => static () => { },
+				native => native.StartCalls++,
+				native => native.StopCalls++,
+				native => native.ResetCalls++,
+				static () => { },
+				static () => { }),
+			TestContext.Current.CancellationToken);
+
+		await Task.Delay(25, TestContext.Current.CancellationToken);
+		Assert.Equal(0, secondSensor.StartCalls);
+		releaseStop.Set();
+		await Task.WhenAll(stop, start);
+
+		Assert.Equal(1, firstSensor.StopCalls);
+		Assert.Equal(1, firstSensor.ResetCalls);
+		Assert.Equal(1, secondSensor.StartCalls);
 	}
 
 	[Fact]
@@ -124,7 +248,7 @@ public class TizenSensorCoordinatorTests
 		Action unsubscribe) =>
 		coordinator.Start(
 			owner,
-			sensor,
+			() => sensor,
 			interval,
 			static (native, value) => native.Interval = value,
 			_ =>
@@ -140,6 +264,7 @@ public class TizenSensorCoordinatorTests
 			},
 			native => native.StopCalls++,
 			native => native.ResetCalls++,
+			static () => { },
 			static () => { });
 
 	static void Stop(
@@ -148,6 +273,7 @@ public class TizenSensorCoordinatorTests
 		FakeSensor sensor) =>
 		coordinator.Stop(
 			owner,
+			static () => { },
 			native => native.StopCalls++,
 			native => native.ResetCalls++,
 			static (native, value) => native.Interval = value,

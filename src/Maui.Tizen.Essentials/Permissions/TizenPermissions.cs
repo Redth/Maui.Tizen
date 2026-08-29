@@ -431,35 +431,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			if (!TizenPrivacyPrivilegeManager.GetResponseContext(privilege).TryGetTarget(out var context))
 				return false;
 
-			var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-			void OnResponseFetched(object? sender, global::Tizen.Security.RequestResponseEventArgs e)
-			{
-				try
-				{
-					tcs.TrySetResult(InterpretRequestResponse(
-						privilege,
-						e.cause,
-						e.result,
-						e.privilege));
-				}
-				catch (Exception exception)
-				{
-					tcs.TrySetException(exception);
-				}
-			}
-
-			context.ResponseFetched += OnResponseFetched;
-
-			try
-			{
-				TizenPrivacyPrivilegeManager.RequestPermission(privilege);
-				return await tcs.Task.ConfigureAwait(false);
-			}
-			finally
-			{
-				context.ResponseFetched -= OnResponseFetched;
-			}
+			return await TizenPermissionRequestCoordinator.RunAsync(
+				privilege,
+				new TizenPermissionRequestSource(privilege, context)).ConfigureAwait(false);
 		}
 
 		internal static bool InterpretRequestResponse(
@@ -483,5 +457,46 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			return result == global::Tizen.Security.RequestResult.AllowForever;
 		}
+
+#pragma warning disable CS0618 // API15 retains this deprecated API without a replacement.
+		sealed class TizenPermissionRequestSource : ITizenPermissionRequestSource
+		{
+			readonly string _privilege;
+			readonly global::Tizen.Security.PrivacyPrivilegeManager.ResponseContext _context;
+			Action<TizenPermissionResponse>? _response;
+
+			public TizenPermissionRequestSource(
+				string privilege,
+				global::Tizen.Security.PrivacyPrivilegeManager.ResponseContext context)
+			{
+				_privilege = privilege;
+				_context = context;
+			}
+
+			public event Action<TizenPermissionResponse>? Response
+			{
+				add
+				{
+					if (_response is null)
+						_context.ResponseFetched += OnResponseFetched;
+					_response += value;
+				}
+				remove
+				{
+					_response -= value;
+					if (_response is null)
+						_context.ResponseFetched -= OnResponseFetched;
+				}
+			}
+
+			public void Request() =>
+				TizenPrivacyPrivilegeManager.RequestPermission(_privilege);
+
+			void OnResponseFetched(
+				object? sender,
+				global::Tizen.Security.RequestResponseEventArgs e) =>
+				_response?.Invoke(new(e.cause, e.result, e.privilege));
+		}
+#pragma warning restore CS0618
 	}
 }

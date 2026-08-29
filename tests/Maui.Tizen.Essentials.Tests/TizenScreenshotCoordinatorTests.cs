@@ -40,6 +40,19 @@ public class TizenScreenshotCoordinatorTests
 	}
 
 	[Fact]
+	public async Task FirstTerminalSignalWinsExactlyOnce()
+	{
+		var terminal = new TizenScreenshotTerminalCoordinator();
+
+		Assert.True(terminal.TryComplete(TizenScreenshotTerminal.NativeSucceeded));
+		Assert.False(terminal.TryComplete(TizenScreenshotTerminal.TimedOut));
+		Assert.False(terminal.TryComplete(TizenScreenshotTerminal.Canceled));
+		Assert.Equal(
+			TizenScreenshotTerminal.NativeSucceeded,
+			await terminal.Completion);
+	}
+
+	[Fact]
 	public async Task CancellationDisposesOnDispatcherAndIgnoresLateCompletion()
 	{
 		using var dispatcher = new StrictScreenshotDispatcher();
@@ -82,6 +95,72 @@ public class TizenScreenshotCoordinatorTests
 	}
 
 	[Fact]
+	public async Task SuccessfulCompletionAtDeadlineOwnsTerminalWhileBufferCopyRuns()
+	{
+		using var dispatcher = new StrictScreenshotDispatcher();
+		var session = new FakeCaptureSession(dispatcher)
+		{
+			Buffer = new([1, 2, 3, 4], 1, 1, 4, TizenPixelFormat.RGBA8888),
+			BlockCopy = true,
+		};
+		using var screenshot = new TizenScreenshot(dispatcher, new UnusedFactory());
+
+		var capture = screenshot.CaptureCoreAsync(
+			() => session,
+			CancellationToken.None,
+			TimeSpan.FromMilliseconds(40));
+		await session.Started.Task;
+		await session.CompleteAsync(success: true);
+		await session.CopyEntered.Task.WaitAsync(TestContext.Current.CancellationToken);
+		await Task.Delay(80, TestContext.Current.CancellationToken);
+		session.ReleaseCopy();
+
+		Assert.NotNull(await capture);
+		Assert.Equal(1, session.CopyCalls);
+		Assert.Empty(session.WrongThreadOperations);
+	}
+
+	[Fact]
+	public async Task DuplicateAndLateNativeCompletionCannotResettle()
+	{
+		using var dispatcher = new StrictScreenshotDispatcher();
+		var session = new FakeCaptureSession(dispatcher)
+		{
+			Buffer = new([1, 2, 3, 4], 1, 1, 4, TizenPixelFormat.RGBA8888),
+		};
+		using var screenshot = new TizenScreenshot(dispatcher, new UnusedFactory());
+
+		var capture = screenshot.CaptureCoreAsync(
+			() => session,
+			TestContext.Current.CancellationToken);
+		await session.Started.Task;
+		await session.CompleteAsync(success: true);
+		await session.CompleteAsync(success: false);
+
+		Assert.NotNull(await capture);
+		Assert.Equal(1, session.CopyCalls);
+	}
+
+	[Fact]
+	public async Task DisposalWinsBeforeNativeCompletionAndCleansUpOnDispatcher()
+	{
+		using var dispatcher = new StrictScreenshotDispatcher();
+		var session = new FakeCaptureSession(dispatcher);
+		var screenshot = new TizenScreenshot(dispatcher, new UnusedFactory());
+
+		var capture = screenshot.CaptureCoreAsync(
+			() => session,
+			TestContext.Current.CancellationToken);
+		await session.Started.Task;
+		screenshot.Dispose();
+
+		await Assert.ThrowsAsync<ObjectDisposedException>(() => capture);
+		await session.Disposed.Task;
+		await session.CompleteAsync(success: true);
+		Assert.Empty(session.WrongThreadOperations);
+	}
+
+	[Fact]
 	public void CopiesPaddedPixelRowsWithoutIncludingStrideBytes()
 	{
 		byte[] padded =
@@ -95,6 +174,19 @@ public class TizenScreenshotCoordinatorTests
 			width: 1,
 			height: 2,
 			stride: 8,
+			format: TizenPixelFormat.RGBA8888);
+
+		Assert.Equal([1, 2, 3, 4, 5, 6, 7, 8], captured.Pixels);
+	}
+
+	[Fact]
+	public void TreatsZeroStrideAsTightlyPacked()
+	{
+		var captured = TizenScreenshotResult.CopyRows(
+			[1, 2, 3, 4, 5, 6, 7, 8],
+			width: 1,
+			height: 2,
+			stride: 0,
 			format: TizenPixelFormat.RGBA8888);
 
 		Assert.Equal([1, 2, 3, 4, 5, 6, 7, 8], captured.Pixels);
@@ -163,6 +255,7 @@ public class TizenScreenshotCoordinatorTests
 	{
 		readonly StrictScreenshotDispatcher _dispatcher;
 		Action<bool>? _finished;
+		readonly ManualResetEventSlim _releaseCopy = new();
 
 		public FakeCaptureSession(StrictScreenshotDispatcher dispatcher)
 		{
@@ -170,6 +263,10 @@ public class TizenScreenshotCoordinatorTests
 		}
 
 		public TizenCapturedBuffer? Buffer { get; init; }
+
+		public bool BlockCopy { get; init; }
+
+		public int CopyCalls { get; private set; }
 
 		public ConcurrentQueue<string> WrongThreadOperations { get; } = [];
 
@@ -179,6 +276,9 @@ public class TizenScreenshotCoordinatorTests
 			new(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		public TaskCompletionSource Disposed { get; } =
+			new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		public TaskCompletionSource CopyEntered { get; } =
 			new(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		public event Action<bool>? Finished
@@ -204,17 +304,25 @@ public class TizenScreenshotCoordinatorTests
 		public TizenCapturedBuffer? CopyBuffer()
 		{
 			AssertThread("copy");
+			CopyCalls++;
+			CopyEntered.TrySetResult();
+			if (BlockCopy)
+				_releaseCopy.Wait(TestContext.Current.CancellationToken);
 			return Buffer;
 		}
 
 		public void Dispose()
 		{
 			AssertThread("dispose");
+			_releaseCopy.Set();
+			_releaseCopy.Dispose();
 			Disposed.TrySetResult();
 		}
 
 		public Task CompleteAsync(bool success) =>
 			_dispatcher.InvokeAsync(() => _finished?.Invoke(success));
+
+		public void ReleaseCopy() => _releaseCopy.Set();
 
 		public void AssertThread(string operation)
 		{

@@ -18,6 +18,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// </remarks>
 	public sealed class TizenTextToSpeech : ITextToSpeech, IDisposable
 	{
+		const float RateMin = 0.1f;
+		const float RateNormal = 1.0f;
 		const float RateMax = 2.0f;
 
 		readonly SemaphoreSlim _speakLock = new(1, 1);
@@ -301,7 +303,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			// Tizen only permits GetSpeedRange while the new client is in Created. Cache it before
 			// Prepare transitions the client, then apply the caller's rate after Ready.
-			state.MaximumSpeed = client.GetMaximumSpeed();
+			state.SpeedRange = client.GetSpeedRange();
 			client.Prepare();
 
 			void OnStateChanged(TizenTextToSpeechState current)
@@ -531,12 +533,25 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		}
 
 		static int ResolveRate(ClientState state, float? rate)
+			=> ResolveRate(state.SpeedRange, rate);
+
+		internal static int ResolveRate(TizenTextToSpeechSpeedRange range, float? rate)
 		{
-			if (rate is not { } value)
-				return 0;
+			var value = rate ?? RateNormal;
+			if (value < RateMin || value > RateMax || float.IsNaN(value))
+				throw new ArgumentOutOfRangeException(
+					nameof(rate),
+					value,
+					$"Speech rate must be between {RateMin} and {RateMax}.");
+
+			var mapped = value <= RateNormal
+				? range.Min +
+					((value - RateMin) / (RateNormal - RateMin) * (range.Normal - range.Min))
+				: range.Normal +
+					((value - RateNormal) / (RateMax - RateNormal) * (range.Max - range.Normal));
 
 			return (int)Math.Round(
-				value / RateMax * state.MaximumSpeed,
+				mapped,
 				MidpointRounding.AwayFromZero);
 		}
 
@@ -606,7 +621,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			public bool TeardownPosted { get; set; }
 
-			public int MaximumSpeed { get; set; }
+			public TizenTextToSpeechSpeedRange SpeedRange { get; set; }
 		}
 
 		sealed record ActiveUtterance(
@@ -622,6 +637,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	}
 
 	internal sealed record TizenTextToSpeechVoice(string Language, int VoiceType);
+
+	internal readonly record struct TizenTextToSpeechSpeedRange(
+		int Min,
+		int Normal,
+		int Max);
 
 	internal sealed record TizenTextToSpeechError(
 		int UtteranceId,
@@ -654,7 +674,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		IReadOnlyList<TizenTextToSpeechVoice> GetSupportedVoices();
 
-		int GetMaximumSpeed();
+		TizenTextToSpeechSpeedRange GetSpeedRange();
 
 		int AddText(string text, string language, int voiceType, int speed);
 
@@ -717,7 +737,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				.Select(voice => new TizenTextToSpeechVoice(voice.Language, (int)voice.VoiceType))
 				.ToArray();
 
-		public int GetMaximumSpeed() => _client.GetSpeedRange().Max;
+		public TizenTextToSpeechSpeedRange GetSpeedRange()
+		{
+			var range = _client.GetSpeedRange();
+			return new(range.Min, range.Normal, range.Max);
+		}
 
 		public int AddText(string text, string language, int voiceType, int speed) =>
 			_client.AddText(text, language, voiceType, speed);

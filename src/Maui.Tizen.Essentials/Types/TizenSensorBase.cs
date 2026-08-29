@@ -64,19 +64,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				{
 					Lifetime.Start(
 						this,
-						Sensor,
+						() => Sensor,
 						sensorSpeed.ToPlatform(),
 						static (sensor, interval) => sensor.Interval = interval,
 						sensor => Subscribe(sensor, generation),
 						static sensor => sensor.Start(),
 						static sensor => sensor.Stop(),
 						static sensor => TizenSensors.ResetDefaultSensor(sensor),
-						OnStarted);
+						OnStarted,
+						OnStopped);
 				}
 				catch
 				{
 					_generation.Invalidate();
-					OnStopped();
 					throw;
 				}
 			}
@@ -89,11 +89,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				throw TizenEssentialsSupport.NotSupported($"{SensorName}.Stop", $"This device has no {SensorName} sensor.");
 			lock (_operationLock)
 			{
-				if (!_generation.Invalidate())
+				if (!IsMonitoring)
 					return;
 
 				Lifetime.Stop(
 					this,
+					() => _generation.Invalidate(),
 					static sensor => sensor.Stop(),
 					static sensor => TizenSensors.ResetDefaultSensor(sensor),
 					static (sensor, interval) => sensor.Interval = interval,
@@ -179,21 +180,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		public void Start(
 			object owner,
-			TSensor sensor,
+			Func<TSensor> acquire,
 			uint interval,
 			Action<TSensor, uint> setInterval,
 			Func<TSensor, Action> subscribe,
 			Action<TSensor> start,
 			Action<TSensor> stop,
 			Action<TSensor> reset,
-			Action started)
+			Action started,
+			Action stopped)
 		{
 			lock (_locker)
 			{
 				if (_registrations.ContainsKey(owner))
 					throw new InvalidOperationException("This sensor wrapper has already started.");
 
-				_sensor ??= sensor;
+				// Acquire while holding the same lock that clears the final cached sensor. A new
+				// owner can never capture the instance another thread is still stopping/resetting.
+				_sensor ??= acquire();
 				var first = _registrations.Count == 0;
 				Action? unsubscribe = null;
 				var registered = false;
@@ -205,6 +209,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					_registrations.Add(owner, new(interval, unsubscribe));
 					registered = true;
 					ApplyFastestInterval(_sensor, setInterval);
+					started();
 
 					if (first)
 					{
@@ -212,7 +217,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 						start(_sensor);
 					}
 
-					started();
 				}
 				catch
 				{
@@ -232,6 +236,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 						TryCleanup(() => ApplyFastestInterval(_sensor, setInterval));
 					}
 
+					TryCleanup(stopped);
 					throw;
 				}
 			}
@@ -239,6 +244,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		public void Stop(
 			object owner,
+			Action invalidate,
 			Action<TSensor> stop,
 			Action<TSensor> reset,
 			Action<TSensor, uint> setInterval,
@@ -246,9 +252,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			lock (_locker)
 			{
-				if (!_registrations.Remove(owner, out var registration) || _sensor is null)
+				if (!_registrations.TryGetValue(owner, out var registration) || _sensor is null)
 					return;
 
+				invalidate();
+				_registrations.Remove(owner);
 				var failures = new List<Exception>();
 				TryCleanup(registration.Unsubscribe, failures);
 

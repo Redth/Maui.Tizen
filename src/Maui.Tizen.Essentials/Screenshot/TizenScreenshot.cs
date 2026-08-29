@@ -123,9 +123,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			TimeSpan? timeoutOverride = null)
 		{
 			ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-			var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+			var terminal = new TizenScreenshotTerminalCoordinator();
 			ITizenScreenshotCaptureSession? session = null;
-			void OnFinished(bool success) => tcs.TrySetResult(success);
+			void OnFinished(bool success) =>
+				terminal.TryComplete(
+					success
+						? TizenScreenshotTerminal.NativeSucceeded
+						: TizenScreenshotTerminal.NativeFailed);
 
 			var effectiveTimeout = timeoutOverride ?? CaptureTimeout;
 			using var timeout = new CancellationTokenSource(effectiveTimeout);
@@ -134,47 +138,52 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				_disposeCancellation.Token,
 				timeout.Token);
 
-			void ThrowIfCanceled()
-			{
-				if (_disposeCancellation.IsCancellationRequested)
-					throw new ObjectDisposedException(nameof(TizenScreenshot));
-				cancellationToken.ThrowIfCancellationRequested();
-				if (timeout.IsCancellationRequested)
-				{
-					throw new TimeoutException(
-						$"Tizen did not raise Capture.Finished within {effectiveTimeout}.");
-				}
-			}
-
 			using var registration = linked.Token.Register(() =>
 			{
 				if (_disposeCancellation.IsCancellationRequested)
-					tcs.TrySetException(new ObjectDisposedException(nameof(TizenScreenshot)));
+					terminal.TryComplete(TizenScreenshotTerminal.Disposed);
 				else if (cancellationToken.IsCancellationRequested)
-					tcs.TrySetCanceled(cancellationToken);
+					terminal.TryComplete(TizenScreenshotTerminal.Canceled);
 				else
-					tcs.TrySetException(
-						new TimeoutException(
-							$"Tizen did not raise Capture.Finished within {effectiveTimeout}."));
+					terminal.TryComplete(TizenScreenshotTerminal.TimedOut);
 			});
 
 			try
 			{
 				await _dispatcher.InvokeAsync(() =>
 				{
-					ThrowIfCanceled();
+					if (!terminal.IsPending)
+						return;
+
 					session = createSession();
 					session.Finished += OnFinished;
-					session.Start();
+					if (terminal.IsPending)
+						session.Start();
 				}).ConfigureAwait(false);
 
-				if (!await tcs.Task.ConfigureAwait(false))
-					return null;
+				var outcome = await terminal.Completion.ConfigureAwait(false);
+				switch (outcome)
+				{
+					case TizenScreenshotTerminal.NativeFailed:
+						return null;
+					case TizenScreenshotTerminal.Canceled:
+						throw new OperationCanceledException(cancellationToken);
+					case TizenScreenshotTerminal.Disposed:
+						throw new ObjectDisposedException(nameof(TizenScreenshot));
+					case TizenScreenshotTerminal.TimedOut:
+						throw new TimeoutException(
+							$"Tizen did not raise Capture.Finished within {effectiveTimeout}.");
+					case TizenScreenshotTerminal.NativeSucceeded:
+						break;
+					default:
+						throw new InvalidOperationException($"Unexpected screenshot terminal state '{outcome}'.");
+				}
 
+				// Native success owns the one terminal slot. A timeout/cancellation/disposal callback
+				// racing while the dispatcher copies the buffer cannot replace that outcome.
 				timeout.CancelAfter(Timeout.InfiniteTimeSpan);
 				var buffer = await _dispatcher.InvokeAsync(() =>
 				{
-					ThrowIfCanceled();
 					return session!.CopyBuffer();
 				}).ConfigureAwait(false);
 
@@ -186,6 +195,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 						() => TizenScreenshotResult.FromCapturedBuffer(buffer),
 						CancellationToken.None).ConfigureAwait(false);
 			}
+
 			finally
 			{
 				if (session is not null)
@@ -212,6 +222,38 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			if (Interlocked.Exchange(ref _disposed, 1) == 0)
 				_disposeCancellation.Cancel();
+		}
+	}
+
+	internal enum TizenScreenshotTerminal
+	{
+		Pending,
+		NativeSucceeded,
+		NativeFailed,
+		TimedOut,
+		Canceled,
+		Disposed,
+	}
+
+	internal sealed class TizenScreenshotTerminalCoordinator
+	{
+		readonly TaskCompletionSource<TizenScreenshotTerminal> _completion =
+			new(TaskCreationOptions.RunContinuationsAsynchronously);
+		int _terminal;
+
+		public bool IsPending => Volatile.Read(ref _terminal) == 0;
+
+		public Task<TizenScreenshotTerminal> Completion => _completion.Task;
+
+		public bool TryComplete(TizenScreenshotTerminal terminal)
+		{
+			if (terminal == TizenScreenshotTerminal.Pending)
+				throw new ArgumentOutOfRangeException(nameof(terminal));
+			if (Interlocked.CompareExchange(ref _terminal, (int)terminal, 0) != 0)
+				return false;
+
+			_completion.TrySetResult(terminal);
+			return true;
 		}
 	}
 
@@ -336,6 +378,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			// branch above; strict coordinator tests provide padded rows without invoking NUI.
 			var stride = rowBytes;
 #endif
+			if (stride == 0)
+				stride = rowBytes;
 			if (stride < rowBytes)
 				throw new InvalidOperationException(
 					$"Tizen returned stride {stride} for a {rowBytes}-byte row.");
@@ -422,6 +466,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			var colorSpace = MapColorSpace(format);
 			var rowBytes = checked(width * BytesPerPixel(format));
+			if (stride == 0)
+				stride = rowBytes;
 			if (stride < rowBytes)
 				throw new ArgumentOutOfRangeException(nameof(stride));
 			if (padded.Length < checked(stride * height))
