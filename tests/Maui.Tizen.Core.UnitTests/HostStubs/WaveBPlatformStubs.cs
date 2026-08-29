@@ -286,6 +286,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public int TeardownForcedCompletionCount { get; private set; }
 		public int ExplicitCancellationResetCount { get; private set; }
 		public int UiExtensionsCancelledWithoutResetCount { get; private set; }
+		public int RejectedStartedGestureCount { get; private set; }
+		public int AtomicDisposalDeferralCount { get; private set; }
+		public Action? BeforeDisposeRecheck { get; set; }
 		public bool HasPendingNativeActivity =>
 			_nativeActivity.HasPendingActivity ||
 			_nativeState != NativeRefreshState.Idle ||
@@ -343,7 +346,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_disconnected = true;
 		}
 
-		public void BeginTeardownObservation() => _teardownObserver.Begin();
+		public void BeginTeardownObservation() =>
+			_teardownObserver.Begin(_nativeState == NativeRefreshState.Pulling);
 
 		public Task<bool> WaitForNativeIdleAsync(
 			Func<Action, Task> dispatch,
@@ -373,6 +377,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public void BeginBelowThresholdPull()
 		{
+			if (!_teardownObserver.CanStartOrContinue)
+			{
+				RejectedStartedGestureCount++;
+				return;
+			}
+
 			_nativeState = NativeRefreshState.Pulling;
 			_nativeActivity.BeginPull();
 		}
@@ -391,23 +401,32 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public void ApplyWrapperCancellationReset()
 		{
+			if (!_teardownObserver.CanProcessTerminal)
+				return;
+
 			var applyDisable = _nativeActivity.ReleasePull();
 			ExplicitCancellationResetCount++;
 			BeginPullReset();
+			_teardownObserver.TerminalProcessed();
 			if (applyDisable)
 				NativePullTerminated?.Invoke(this, EventArgs.Empty);
 		}
 
 		void FinishPull(bool crossedThreshold)
 		{
+			if (!_teardownObserver.CanProcessTerminal)
+				return;
+
 			var applyDisable = _nativeActivity.ReleasePull();
 			if (crossedThreshold)
 			{
 				StartRefresh();
+				_teardownObserver.TerminalProcessed();
 				return;
 			}
 
 			BeginPullReset();
+			_teardownObserver.TerminalProcessed();
 			if (applyDisable)
 				NativePullTerminated?.Invoke(this, EventArgs.Empty);
 		}
@@ -480,14 +499,25 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public void CancelDeferredNativeDisable() => _nativeActivity.CancelDeferredDisable();
 
-		public void DisposeNativeResources()
+		public bool TryDisposeNativeResources()
 		{
+			var beforeRecheck = BeforeDisposeRecheck;
+			BeforeDisposeRecheck = null;
+			beforeRecheck?.Invoke();
+
+			if (HasPendingNativeActivity)
+			{
+				AtomicDisposalDeferralCount++;
+				return false;
+			}
+
 			if (Interlocked.Exchange(ref _disposeStarted, 1) != 0)
-				return;
+				return true;
 
 			_teardownObserver.Complete();
 			DisposeCount++;
 			Dispose();
+			return true;
 		}
 
 		public void UpdateContent(IView? content, IMauiContext? context) =>

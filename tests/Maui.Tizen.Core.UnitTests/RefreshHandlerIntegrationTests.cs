@@ -336,6 +336,37 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(0, platform.NativeStateReadAfterDisposeCount);
 		}
 
+		[Fact]
+		public void TeardownRejectsAStartedGestureInjectedBeforeAtomicDisposal()
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<ControlsApp>()
+				.Build();
+			var view = new RefreshView { IsRefreshEnabled = true };
+			var handler = Assert.IsType<TizenRefreshViewHandler>(
+				app.Services.GetRequiredService<IMauiHandlersFactory>().GetHandler(typeof(RefreshView)));
+			var elementHandler = (IElementHandler)handler;
+			elementHandler.SetMauiContext(new MauiContext(app.Services));
+			elementHandler.SetVirtualView(view);
+			var platform = Assert.IsType<TizenRefreshLayout>(elementHandler.PlatformView);
+			platform.DelayPullResetCompletion = true;
+
+			platform.BeginBelowThresholdPull();
+			handler.Dispose();
+			platform.BeforeDisposeRecheck = platform.BeginBelowThresholdPull;
+			platform.ReleaseBelowThresholdPull();
+			platform.CompletePullReset();
+
+			Assert.True(SpinWait.SpinUntil(
+				() => platform.IsDisposed,
+				TimeSpan.FromSeconds(1)));
+			Assert.Equal(1, platform.RejectedStartedGestureCount);
+			Assert.Equal(0, platform.AtomicDisposalDeferralCount);
+			Assert.False(platform.HasPendingNativeActivity);
+			Assert.Equal(1, platform.DisposeCount);
+			Assert.Equal(0, platform.NativeStateReadAfterDisposeCount);
+		}
+
 		sealed class ControlsApp : Application
 		{
 		}

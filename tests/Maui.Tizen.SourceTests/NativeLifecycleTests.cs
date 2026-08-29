@@ -88,10 +88,12 @@ public class NativeLifecycleTests
 
 		Assert.Contains("TizenRefreshLayout : ViewGroup", source, StringComparison.Ordinal);
 		Assert.Contains("new PanGestureDetector()", source, StringComparison.Ordinal);
-		Assert.Contains(
-			"if (e.PanGesture.State == Gesture.StateType.Cancelled)\n\t\t\t\t{\n\t\t\t\t\tCancelPull();",
-			source,
+		var cancelled = source.IndexOf(
+			"if (e.PanGesture.State == Gesture.StateType.Cancelled)",
 			StringComparison.Ordinal);
+		var cancelPull = source.IndexOf("CancelPull();", cancelled, StringComparison.Ordinal);
+		var terminalBoundary = source.IndexOf("if (!IsEnabled", cancelled, StringComparison.Ordinal);
+		Assert.True(cancelled >= 0 && cancelPull > cancelled && cancelPull < terminalBoundary);
 		Assert.Contains("void CancelPull()", source, StringComparison.Ordinal);
 		Assert.Contains("BeginPullReset();", source, StringComparison.Ordinal);
 		Assert.Contains("_teardownObserver.ShouldForceCompletion()", source, StringComparison.Ordinal);

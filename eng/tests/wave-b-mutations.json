@@ -64,8 +64,8 @@
     "file": "src/Maui.Tizen.Core/Platform/TizenRefreshCoordinator.cs",
     "replacements": [
       {
-        "search": "while (!await _waitForNativeIdle(CancellationToken.None).ConfigureAwait(false))\n\t\t\t{\n\t\t\t\t// A bounded interval is diagnostic, not terminal. Keeping this async method alive\n\t\t\t\t// retains the captured platform owner until native idle is actually observed.\n\t\t\t}\n\n\t\t\tawait _dispatch(dispose).ConfigureAwait(false);",
-        "replace": "await _waitForNativeIdle(CancellationToken.None).ConfigureAwait(false);\n\t\t\tawait _dispatch(dispose).ConfigureAwait(false);"
+        "search": "\t\t\t\t\twhile (!await _waitForNativeIdle(CancellationToken.None).ConfigureAwait(false))\n\t\t\t\t\t{\n\t\t\t\t\t\t// A bounded interval is diagnostic, not terminal. Keeping this async method\n\t\t\t\t\t\t// alive retains the captured platform owner until native idle is observed.\n\t\t\t\t\t}",
+        "replace": "\t\t\t\t\tawait _waitForNativeIdle(CancellationToken.None).ConfigureAwait(false);"
       }
     ],
     "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
@@ -173,11 +173,11 @@
   },
   {
     "id": "drop-below-threshold-retention",
-    "file": "src/Maui.Tizen.Core/Handlers/RefreshView/TizenRefreshViewHandler.cs",
+    "file": "src/Maui.Tizen.Core/Platform/TizenRefreshCoordinator.cs",
     "replacements": [
       {
-        "search": "&& (coordinator.IsCompleting || platformView.HasPendingNativeActivity))",
-        "replace": "&& coordinator.IsCompleting)"
+        "search": "\t\t\t\tawait _dispatch(() => disposed = tryDispose()).ConfigureAwait(false);",
+        "replace": "\t\t\t\tawait _dispatch(() => disposed = true).ConfigureAwait(false);"
       }
     ],
     "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
@@ -423,6 +423,32 @@
     "expected": "DisposeDuringPullThenAboveThresholdRefreshForcesOwnedCompletion"
   },
   {
+    "id": "allow-started-gesture-after-teardown",
+    "file": "src/Maui.Tizen.Core/Platform/TizenRefreshNativeIdlePoller.cs",
+    "replacements": [
+      {
+        "search": "\t\tpublic bool CanStartOrContinue => !_active;",
+        "replace": "\t\tpublic bool CanStartOrContinue => true;"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~TeardownRejectsAStartedGestureInjectedBeforeAtomicDisposal",
+    "expected": "TeardownRejectsAStartedGestureInjectedBeforeAtomicDisposal"
+  },
+  {
+    "id": "trust-stale-idle-before-disposal-callback",
+    "file": "src/Maui.Tizen.Core/Platform/TizenRefreshCoordinator.cs",
+    "replacements": [
+      {
+        "search": "\t\t\t\tawait _dispatch(() => disposed = tryDispose()).ConfigureAwait(false);",
+        "replace": "\t\t\t\tawait _dispatch(() => { tryDispose(); disposed = true; }).ConfigureAwait(false);"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~DisposalRechecksActivityInsideTheDispatchedCallback",
+    "expected": "DisposalRechecksActivityInsideTheDispatchedCallback"
+  },
+  {
     "id": "drop-cancelled-pull-reset-ownership",
     "file": "src/Maui.Tizen.Core/Platform/TizenRefreshNativeIdlePoller.cs",
     "replacements": [
@@ -440,8 +466,8 @@
     "file": "src/Maui.Tizen.Core/Platform/Tizen/TizenRefreshLayout.cs",
     "replacements": [
       {
-        "search": "\t\t\t\tif (e.PanGesture.State == Gesture.StateType.Cancelled)\n\t\t\t\t{\n\t\t\t\t\tCancelPull();",
-        "replace": "\t\t\t\tif (e.PanGesture.State == Gesture.StateType.Cancelled)\n\t\t\t\t{\n\t\t\t\t\tif (DateTime.UtcNow.Ticks == long.MinValue)\n\t\t\t\t\t\tCancelPull();"
+        "search": "\t\t\t\t\tif (!_teardownObserver.CanProcessTerminal)\n\t\t\t\t\t\treturn;\n\n\t\t\t\t\tCancelPull();\n\t\t\t\t\t_teardownObserver.TerminalProcessed();",
+        "replace": "\t\t\t\t\tif (!_teardownObserver.CanProcessTerminal)\n\t\t\t\t\t\treturn;\n\n\t\t\t\t\tCompleteRefresh();\n\t\t\t\t\t_teardownObserver.TerminalProcessed();"
       }
     ],
     "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",

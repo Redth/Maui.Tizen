@@ -91,22 +91,27 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public Func<Task> PreparePlatformDisposal(Action dispose, bool retainForNativeActivity = false)
 		{
 			ArgumentNullException.ThrowIfNull(dispose);
+			return PreparePlatformDisposal(
+				() =>
+				{
+					dispose();
+					return true;
+				},
+				retainForNativeActivity);
+		}
+
+		public Func<Task> PreparePlatformDisposal(
+			Func<bool> tryDispose,
+			bool retainForNativeActivity = false)
+		{
+			ArgumentNullException.ThrowIfNull(tryDispose);
 
 			bool retain;
 
 			lock (_gate)
 				retain = _state.IsCompleting || retainForNativeActivity;
 
-			if (!retain)
-			{
-				return () =>
-				{
-					dispose();
-					return Task.CompletedTask;
-				};
-			}
-
-			return () => DisposeWhenNativeIdleAsync(dispose);
+			return () => DisposeWhenNativeIdleAsync(tryDispose, retain);
 		}
 
 		async Task CompleteWhenNativeIdleAsync(CancellationToken token)
@@ -141,15 +146,28 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}).ConfigureAwait(false);
 		}
 
-		async Task DisposeWhenNativeIdleAsync(Action dispose)
+		async Task DisposeWhenNativeIdleAsync(Func<bool> tryDispose, bool waitBeforeFirstAttempt)
 		{
-			while (!await _waitForNativeIdle(CancellationToken.None).ConfigureAwait(false))
+			while (true)
 			{
-				// A bounded interval is diagnostic, not terminal. Keeping this async method alive
-				// retains the captured platform owner until native idle is actually observed.
-			}
+				if (waitBeforeFirstAttempt)
+				{
+					while (!await _waitForNativeIdle(CancellationToken.None).ConfigureAwait(false))
+					{
+						// A bounded interval is diagnostic, not terminal. Keeping this async method
+						// alive retains the captured platform owner until native idle is observed.
+					}
+				}
 
-			await _dispatch(dispose).ConfigureAwait(false);
+				var disposed = false;
+				await _dispatch(() => disposed = tryDispose()).ConfigureAwait(false);
+				if (disposed)
+					return;
+
+				// The UI-thread disposal callback observed renewed activity. Poll again rather than
+				// trusting the stale idle result that preceded the callback.
+				waitBeforeFirstAttempt = true;
+			}
 		}
 
 		public void Dispose()

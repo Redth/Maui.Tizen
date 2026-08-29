@@ -112,14 +112,29 @@ namespace Microsoft.Maui.Platforms.Tizen
 	internal sealed class TizenRefreshTeardownObserver
 	{
 		bool _active;
+		bool _acceptTerminal;
 
 		public bool IsActive => _active;
 
-		public void Begin() => _active = true;
+		public void Begin(bool pullActive)
+		{
+			_active = true;
+			_acceptTerminal = pullActive;
+		}
 
 		public bool ShouldForceCompletion() => _active;
 
-		public void Complete() => _active = false;
+		public bool CanStartOrContinue => !_active;
+
+		public bool CanProcessTerminal => !_active || _acceptTerminal;
+
+		public void TerminalProcessed() => _acceptTerminal = false;
+
+		public void Complete()
+		{
+			_active = false;
+			_acceptTerminal = false;
+		}
 	}
 
 	internal static class TizenRefreshNativeIdlePoller

@@ -29,6 +29,35 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				_pending[index].TrySetResult(observed);
 		}
 
+		sealed class ManualDispatcher
+		{
+			readonly Queue<(Action Action, TaskCompletionSource Completion)> _pending = new();
+
+			public int PendingCount => _pending.Count;
+
+			public Task Dispatch(Action action)
+			{
+				var completion = new TaskCompletionSource(
+					TaskCreationOptions.RunContinuationsAsynchronously);
+				_pending.Enqueue((action, completion));
+				return completion.Task;
+			}
+
+			public void RunNext()
+			{
+				var pending = _pending.Dequeue();
+				try
+				{
+					pending.Action();
+					pending.Completion.SetResult();
+				}
+				catch (Exception exception)
+				{
+					pending.Completion.SetException(exception);
+				}
+			}
+		}
+
 		static Task DispatchInline(Action action)
 		{
 			action();
@@ -211,6 +240,51 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.False(state.IsCompleting);
 
 			coordinator.Dispose();
+		}
+
+		[Fact]
+		public async Task DisposalRechecksActivityInsideTheDispatchedCallback()
+		{
+			var nativeIdle = new ManualNativeIdle();
+			var dispatcher = new ManualDispatcher();
+			var state = new TizenRefreshStateMachine();
+			var activity = false;
+			var disposed = 0;
+			using var coordinator = new TizenRefreshCoordinator(
+				state, nativeIdle.Wait, dispatcher.Dispatch, static _ => { }, static () => true);
+			var releasePlatform = coordinator.PreparePlatformDisposal(
+				() =>
+				{
+					if (activity)
+						return false;
+
+					disposed++;
+					return true;
+				},
+				retainForNativeActivity: true);
+
+			var release = releasePlatform();
+			nativeIdle.Complete(0, observed: true);
+			Assert.True(SpinWait.SpinUntil(
+				() => dispatcher.PendingCount == 1,
+				TimeSpan.FromSeconds(1)));
+
+			activity = true;
+			dispatcher.RunNext();
+			Assert.True(SpinWait.SpinUntil(
+				() => nativeIdle.WaiterCount == 2,
+				TimeSpan.FromSeconds(1)));
+			Assert.Equal(0, disposed);
+
+			activity = false;
+			nativeIdle.Complete(1, observed: true);
+			Assert.True(SpinWait.SpinUntil(
+				() => dispatcher.PendingCount == 1,
+				TimeSpan.FromSeconds(1)));
+			dispatcher.RunNext();
+			await release;
+
+			Assert.Equal(1, disposed);
 		}
 	}
 }

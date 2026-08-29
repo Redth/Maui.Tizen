@@ -222,7 +222,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		internal void MarkDisconnected() => _disconnected = true;
 
-		internal void BeginTeardownObservation() => _teardownObserver.Begin();
+		internal void BeginTeardownObservation() =>
+			_teardownObserver.Begin(_nativeState == NativeRefreshState.Pulling);
 
 		internal bool HasPendingNativeActivity =>
 			_nativeActivity.HasPendingActivity ||
@@ -246,10 +247,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 				MaximumNativeCompletionFrames,
 				cancellationToken);
 
-		internal void DisposeNativeResources()
+		internal bool TryDisposeNativeResources()
 		{
+			if (HasPendingNativeActivity)
+				return false;
+
 			if (Interlocked.Exchange(ref _nativeResourcesDisposed, 1) != 0)
-				return;
+				return true;
 
 			_teardownObserver.Complete();
 			TizenCleanup.Run(
@@ -258,6 +262,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				() => _panGestureDetector.Detach(this),
 				_panGestureDetector.Dispose,
 				base.Dispose);
+			return true;
 		}
 
 		protected override void OnEnabled(bool enabled)
@@ -297,18 +302,26 @@ namespace Microsoft.Maui.Platforms.Tizen
 			{
 				if (e.PanGesture.State == Gesture.StateType.Finished)
 				{
+					if (!_teardownObserver.CanProcessTerminal)
+						return;
+
 					FinishPull();
+					_teardownObserver.TerminalProcessed();
 					return;
 				}
 
 				if (e.PanGesture.State == Gesture.StateType.Cancelled)
 				{
+					if (!_teardownObserver.CanProcessTerminal)
+						return;
+
 					CancelPull();
+					_teardownObserver.TerminalProcessed();
 					return;
 				}
 			}
 
-			if (!IsEnabled)
+			if (!IsEnabled || !_teardownObserver.CanStartOrContinue)
 				return;
 
 			switch (e.PanGesture.State)

@@ -589,7 +589,11 @@ UIExtensions 0.9.2's private state machine: `Finished` drives threshold refresh/
 layout-owned teardown observer survives handler callback detachment; if a retained pull later
 crosses threshold and starts refreshing, that observer forces completion and remains attached until
 the real animation reaches idle and the layout is disposed. With no terminal event, ownership is
-retained indefinitely rather than disposing beneath a still-active gesture.
+retained indefinitely rather than disposing beneath a still-active gesture. Teardown records whether
+a pull was already active, rejects every later `Started`/`Continuing` pan, and accepts one
+`Finished`/`Cancelled` terminal only for that captured pull. Final idle authorization and resource
+disposal happen in one dispatcher callback; the callback rechecks activity and re-arms polling if
+anything resumed, closing the idle-observed-before-dispose race.
 Disabling an active swipe gesture likewise synthesizes terminal cancellation, restores position and
 clears gesture/animation state before re-enable.
 
