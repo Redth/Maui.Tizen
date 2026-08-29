@@ -35,35 +35,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		protected override bool IsSelectable => true;
 
-		public override NView CreateNativeView(int index)
-		{
-			var item = this[index];
-			View view;
-
-			if (ItemTemplate is DataTemplateSelector selector)
-			{
-				view = (View)selector.SelectTemplate(item, Element).CreateContent();
-			}
-			else
-			{
-				view = (View)ItemTemplate.CreateContent();
-			}
-
-			// Set the Shell as the parent context for the templated view.
-			// SearchHandler is not an Element, so we use the parent Element passed to the constructor.
-			if (Element != null)
-			{
-				view.Parent = Element;
-			}
-			view.BindingContext = item;
-			var native = view.ToPlatformView(MauiContext);
-
-			// Register native-to-MAUI mapping for selection state tracking
-			RegisterNativeView(native, view);
-
-			return native;
-		}
-
 		public override void UpdateViewState(NView view, ViewHolderState state)
 		{
 			base.UpdateViewState(view, state);

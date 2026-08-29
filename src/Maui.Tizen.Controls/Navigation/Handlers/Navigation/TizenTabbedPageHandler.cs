@@ -108,7 +108,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 			try
 			{
-				PlatformView?.DisconnectHandler();
+				(platformView as TizenTabbedPageView)?.DisconnectHandler();
 			}
 			finally
 			{

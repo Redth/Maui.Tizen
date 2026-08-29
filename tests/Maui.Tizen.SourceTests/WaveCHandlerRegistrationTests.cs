@@ -186,7 +186,8 @@ public class WaveCAdaptorRegistrationTests
 	}
 
 	/// <summary>
-	/// Every Shell adaptor registers through the shared surface.
+	/// Every Shell adaptor either inherits creation/registration from the base or explicitly
+	/// registers a custom native view through the shared surface.
 	/// </summary>
 	[Fact]
 	public void EveryShellAdaptorRegistersThroughTheBase()
@@ -196,8 +197,9 @@ public class WaveCAdaptorRegistrationTests
 			var source = ReadWaveCSource(file);
 
 			Assert.True(
-				source.Contains("RegisterNativeView", StringComparison.Ordinal),
-				$"{file} never registers its created views with the base adaptor.");
+				!source.Contains("override NView CreateNativeView", StringComparison.Ordinal)
+					|| source.Contains("RegisterNativeView", StringComparison.Ordinal),
+				$"{file} overrides native view creation without registering through the base adaptor.");
 		}
 	}
 
@@ -216,8 +218,9 @@ public class WaveCAdaptorRegistrationTests
 			var source = ReadWaveCSource(file);
 
 			Assert.True(
-				source.Contains("UnregisterNativeView", StringComparison.Ordinal),
-				$"{file} removes native views without unregistering them.");
+				!source.Contains("override void RemoveNativeView", StringComparison.Ordinal)
+					|| source.Contains("UnregisterNativeView", StringComparison.Ordinal),
+				$"{file} overrides native view removal without unregistering through the base adaptor.");
 		}
 	}
 

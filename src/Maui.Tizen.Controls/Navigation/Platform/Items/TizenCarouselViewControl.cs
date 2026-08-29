@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
 using Tizen.NUI;
@@ -8,7 +9,7 @@ using Tizen.UIExtensions.NUI;
 using NCollectionView = Tizen.UIExtensions.NUI.CollectionView;
 using NLayoutParamPolicies = Tizen.NUI.BaseComponents.LayoutParamPolicies;
 using NView = Tizen.NUI.BaseComponents.View;
-using TItemSizingStrategy = Tizen.UIExtensions.NUI.ItemSizingStrategy;
+using TSnapPointsAlignment = Tizen.UIExtensions.NUI.SnapPointsAlignment;
 using TSnapPointsType = Tizen.UIExtensions.NUI.SnapPointsType;
 
 namespace Microsoft.Maui.Platforms.Tizen.Platform
@@ -22,6 +23,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 	public class TizenCarouselViewControl : TizenItemsViewControl<CarouselView>
 	{
 		int _lastPosition = -1;
+		readonly DeferredCarouselPosition _deferredPosition = new();
+		IItemsLayout? _observedItemsLayout;
 		bool _disposed;
 
 		public TizenCarouselViewControl(CarouselView element) : base(element)
@@ -56,39 +59,47 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			base.Initialize();
 			UpdateLayoutManager();
 			CollectionView.Scrolled += OnCollectionViewScrolled;
+			Relayout += OnRelayout;
 		}
 
 		public void UpdateLayoutManager()
 		{
-			// CarouselView uses a single-item-at-a-time layout
-			// LinearItemsLayout.CarouselDefault is internal, so we create a horizontal linear layout
 			var itemsLayout = Element.ItemsLayout ?? new LinearItemsLayout(ItemsLayoutOrientation.Horizontal);
-			bool isHorizontal = itemsLayout is LinearItemsLayout linear && linear.Orientation == ItemsLayoutOrientation.Horizontal;
+			if (!ReferenceEquals(_observedItemsLayout, itemsLayout))
+			{
+				if (_observedItemsLayout is not null)
+					_observedItemsLayout.PropertyChanged -= OnItemsLayoutPropertyChanged;
 
-			CollectionView.LayoutManager = new LinearLayoutManager(
-				isHorizontal,
-				TItemSizingStrategy.MeasureAllItems,
-				0);
+				_observedItemsLayout = itemsLayout;
+				_observedItemsLayout.PropertyChanged += OnItemsLayoutPropertyChanged;
+			}
+
+			CollectionView.LayoutManager = itemsLayout.ToLayoutManager(Microsoft.Maui.Controls.ItemSizingStrategy.MeasureAllItems);
+			if (itemsLayout is ItemsLayout layout)
+			{
+				CollectionView.SnapPointsType = (TSnapPointsType)layout.SnapPointsType;
+				CollectionView.SnapPointsAlignment = (TSnapPointsAlignment)layout.SnapPointsAlignment;
+			}
+			CollectionView.ScrollView.HideScrollbar = CollectionView.LayoutManager.IsHorizontal
+				? Element.HorizontalScrollBarVisibility == ScrollBarVisibility.Never
+				: Element.VerticalScrollBarVisibility == ScrollBarVisibility.Never;
+			if (Element.CurrentItem is not null)
+				_deferredPosition.SetCurrentItem(Element.CurrentItem);
+			else
+				_deferredPosition.SetPosition(Element.Position);
+			TryApplyPendingPosition();
 		}
 
 		public void UpdatePosition(int position)
 		{
-			if (position < 0 || CollectionView.Adaptor is null || position >= CollectionView.Adaptor.Count)
-				return;
-
-			CollectionView.ScrollTo(position, animate: false);
+			_deferredPosition.SetPosition(position);
+			TryApplyPendingPosition();
 		}
 
 		public void UpdateCurrentItem(object? currentItem)
 		{
-			if (currentItem == null || CollectionView.Adaptor == null)
-				return;
-
-			var index = CollectionView.Adaptor.GetItemIndex(currentItem);
-			if (index >= 0)
-			{
-				CollectionView.ScrollTo(index, animate: false);
-			}
+			_deferredPosition.SetCurrentItem(currentItem);
+			TryApplyPendingPosition();
 		}
 
 		public void UpdateLoop()
@@ -108,6 +119,27 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				_lastPosition = currentIndex;
 				Scrolled?.Invoke(this, currentIndex);
 			}
+		}
+
+		void OnRelayout(object? sender, EventArgs e) => TryApplyPendingPosition();
+
+		void OnItemsLayoutPropertyChanged(object? sender, PropertyChangedEventArgs e)
+		{
+			if (ReferenceEquals(sender, _observedItemsLayout))
+				UpdateLayoutManager();
+		}
+
+		void TryApplyPendingPosition()
+		{
+			var adaptor = CollectionView.Adaptor;
+			_deferredPosition.TryApply(
+				adaptor is not null
+					&& CollectionView.LayoutManager is not null
+					&& Size.Width > 0
+					&& Size.Height > 0,
+				adaptor?.Count ?? 0,
+				item => item is null ? -1 : adaptor?.GetItemIndex(item) ?? -1,
+				index => CollectionView.ScrollTo(index, animate: false));
 		}
 
 		void UpdateVisualStates(int currentIndex)
@@ -141,6 +173,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (disposing)
 			{
 				CollectionView.Scrolled -= OnCollectionViewScrolled;
+				Relayout -= OnRelayout;
+				if (_observedItemsLayout is not null)
+				{
+					_observedItemsLayout.PropertyChanged -= OnItemsLayoutPropertyChanged;
+					_observedItemsLayout = null;
+				}
 			}
 			_disposed = true;
 			base.Dispose(disposing);

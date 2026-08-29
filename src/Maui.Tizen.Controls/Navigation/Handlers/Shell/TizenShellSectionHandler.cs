@@ -199,11 +199,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </summary>
 		void IAppearanceObserver.OnAppearanceChanged(ShellAppearance appearance)
 		{
-			PlatformView?.UpdateTopTabBarColors(
-				appearance.ForegroundColor,
-				appearance.BackgroundColor,
-				appearance.TitleColor,
-				appearance.UnselectedColor);
+			if (appearance is IShellAppearanceElement shellAppearance)
+			{
+				PlatformView?.UpdateTopTabBarColors(
+					appearance.ForegroundColor,
+					shellAppearance.EffectiveTabBarBackgroundColor,
+					shellAppearance.EffectiveTabBarTitleColor,
+					shellAppearance.EffectiveTabBarUnselectedColor);
+			}
 		}
 
 		void AttachObservers()

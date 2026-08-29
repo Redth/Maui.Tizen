@@ -25,7 +25,7 @@ public class WaveCGroupedItemsSourceTests
 	}
 
 	[Fact]
-	public void OuterMoveRaisesFlattenedMove()
+	public void OuterMultiRowMoveRaisesReset()
 	{
 		var first = new ObservableCollection<object> { "a" };
 		var second = new ObservableCollection<object> { "b", "c" };
@@ -37,9 +37,7 @@ public class WaveCGroupedItemsSourceTests
 		groups.Move(1, 0);
 
 		Assert.NotNull(observed);
-		Assert.Equal(NotifyCollectionChangedAction.Move, observed.Action);
-		Assert.Equal(0, observed.NewStartingIndex);
-		Assert.Equal(2, observed.OldStartingIndex);
+		Assert.Equal(NotifyCollectionChangedAction.Reset, observed.Action);
 	}
 
 	[Fact]
@@ -63,6 +61,22 @@ public class WaveCGroupedItemsSourceTests
 		Assert.Equal(NotifyCollectionChangedAction.Remove, changes[1].Action);
 		Assert.Equal(0, changes[1].OldStartingIndex);
 		Assert.Equal(3, changes[1].OldItems!.Count);
+	}
+
+	[Fact]
+	public void OuterRemovalReportsTheActualPreviouslyExposedHeader()
+	{
+		var first = new ObservableCollection<object> { "a" };
+		var groups = new ObservableCollection<object> { first };
+		using var source = Create(groups);
+		var exposedHeader = source[0];
+		NotifyCollectionChangedEventArgs? observed = null;
+		source.CollectionChanged += (_, args) => observed = args;
+
+		groups.Remove(first);
+
+		Assert.NotNull(observed);
+		Assert.Same(exposedHeader, observed.OldItems![0]);
 	}
 
 	[Fact]
@@ -107,6 +121,40 @@ public class WaveCGroupedItemsSourceTests
 	}
 
 	[Fact]
+	public void GroupHeadersAreOmittedWithoutAHeaderTemplate()
+	{
+		var groups = new ObservableCollection<object>
+		{
+			new ObservableCollection<object> { "a", "b" },
+			new ObservableCollection<object> { "c" },
+		};
+		using var source = Create(groups, header: false, footer: true);
+
+		Assert.Equal(1, source.GetAbsoluteIndex(0, 1));
+		Assert.Equal(3, source.GetAbsoluteIndex(1, 0));
+		Assert.False(source.IsGroupHeader(0));
+		Assert.True(source.IsGroupFooter(2));
+	}
+
+	[Fact]
+	public void ImplementsTheObservableNonGenericListBoundaryRequiredByItemAdaptor()
+	{
+		var groups = new ObservableCollection<object>
+		{
+			new ObservableCollection<object> { "a" },
+		};
+		using var source = Create(groups);
+
+		var list = Assert.IsAssignableFrom<System.Collections.IList>(source);
+		Assert.IsAssignableFrom<INotifyCollectionChanged>(list);
+		Assert.Equal(2, list.Count);
+		Assert.Throws<NotSupportedException>(() => list.Add("not-a-group"));
+		var adaptor = File.ReadAllText(WaveCSource.Files.Single(
+			path => Path.GetFileName(path) == "TizenGroupItemTemplateAdaptor.cs"));
+		Assert.Contains(": base(groupItemSource)", adaptor, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void DisposeStopsOuterAndInnerNotifications()
 	{
 		var group = new ObservableCollection<object> { "a" };
@@ -122,11 +170,15 @@ public class WaveCGroupedItemsSourceTests
 		Assert.Equal(0, notifications);
 	}
 
-	static TizenGroupItemSource Create(ObservableCollection<object> groups, bool footer = false) =>
+	static TizenGroupItemSource Create(
+		ObservableCollection<object> groups,
+		bool header = true,
+		bool footer = false) =>
 		new(new CollectionView
 		{
 			IsGrouped = true,
 			ItemsSource = groups,
+			GroupHeaderTemplate = header ? new DataTemplate(() => new Label()) : null,
 			GroupFooterTemplate = footer ? new DataTemplate(() => new Label()) : null,
 		});
 }

@@ -134,7 +134,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_searchButton.IsEnabled = enabled;
 		}
 
-		public TSize Measure(double availableWidth, double availableHeight)
+		public virtual TSize Measure(double availableWidth, double availableHeight)
 		{
 			var minimumHeight = Math.Max(IconSize.ToScaledPixel() + IconMargin.ToScaledPixel(), _entry.PixelSize + 10);
 
@@ -188,6 +188,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		void OnLayoutUpdated(object? sender, global::Tizen.UIExtensions.Common.LayoutEventArgs e)
 		{
+			LayoutContent(SizeWidth, SizeHeight);
+		}
+
+		/// <summary>Arranges the entry and search button within the supplied bounds.</summary>
+		protected virtual void LayoutContent(float width, float height)
+		{
 			var margin = (float)IconMargin.ToScaledPixel();
 			var halfMargin = margin / 2.0f;
 			var iconSize = (float)IconSize.ToScaledPixel();
@@ -196,10 +202,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 			CornerRadius = CornerRadiusDp.ToScaledPixel();
 
 			_entry.Position = new Position(halfMargin, 0);
-			_entry.SizeHeight = SizeHeight;
-			_entry.SizeWidth = Math.Max(0, SizeWidth - iconArea - halfMargin);
+			_entry.SizeHeight = height;
+			_entry.SizeWidth = Math.Max(0, width - iconArea - halfMargin);
 
-			_searchButton.Position = new Position(_entry.SizeWidth + _entry.Position.X + halfMargin, (SizeHeight - iconSize) / 2.0f);
+			_searchButton.Position = new Position(_entry.SizeWidth + _entry.Position.X + halfMargin, (height - iconSize) / 2.0f);
 			_searchButton.SizeHeight = iconSize;
 			_searchButton.SizeWidth = iconSize;
 		}

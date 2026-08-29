@@ -1,3 +1,4 @@
+using Microsoft.Maui.Platforms.Tizen;
 using Microsoft.Maui.Platforms.Tizen.Platform;
 
 namespace Maui.Tizen.SourceTests;
@@ -21,6 +22,22 @@ namespace Maui.Tizen.SourceTests;
 /// </remarks>
 public class WaveCToolbarOwnershipTests
 {
+	[Fact]
+	public void SearchTemporarilyOwnsTheContentSlotAndRestoresTheTitle()
+	{
+		var slot = new TizenContentSlot<object>();
+		var title = new object();
+		var search = new object();
+
+		Assert.Same(title, slot.SetTitle(title).Current);
+		var searchChange = slot.SetSearch(search);
+		Assert.Same(title, searchChange.Previous);
+		Assert.Same(search, searchChange.Current);
+		var restore = slot.SetSearch(null);
+		Assert.Same(search, restore.Previous);
+		Assert.Same(title, restore.Current);
+	}
+
 	/// <summary>Stand-in for the platform toolbar; records subscribe/unsubscribe traffic.</summary>
 	sealed class FakeToolbar
 	{
@@ -213,7 +230,7 @@ public class WaveCToolbarOwnershipTests
 	}
 
 	[Fact]
-	public void ShellUnsubscribesBeforeTheContainerDisposesAndSubscribesAfterTransfer()
+	public void ShellReleasesOutgoingOwnershipBeforeTransferringTheIncomingToolbar()
 	{
 		var source = File.ReadAllText(RepoPaths.Combine(
 			"src", "Maui.Tizen.Controls", "Navigation", "Platform", "Shell", "TizenShellView.cs"));
@@ -221,7 +238,7 @@ public class WaveCToolbarOwnershipTests
 		var methodEnd = source.IndexOf("public void DetachToolbar()", methodStart, StringComparison.Ordinal);
 		var body = source[methodStart..methodEnd];
 
-		var release = body.LastIndexOf("_toolbarOwnership.Release();", StringComparison.Ordinal);
+		var release = body.LastIndexOf("ReleaseToolbar();", StringComparison.Ordinal);
 		var transferOwnership = body.LastIndexOf("_mainContentView.SetToolbar(platformToolbar);", StringComparison.Ordinal);
 		var subscribe = body.IndexOf("_toolbarOwnership.Transfer(platformToolbar);", StringComparison.Ordinal);
 
@@ -250,5 +267,19 @@ public class WaveCToolbarOwnershipTests
 		Assert.Contains("GetTizenImageAsync", handler, StringComparison.Ordinal);
 		Assert.Contains("DisposeActionIconLoaders();", handler, StringComparison.Ordinal);
 		Assert.DoesNotContain(".LoadImage(", extensions, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void ToolbarButtonsUseControllerActivationAndReflectCanExecute()
+	{
+		var extensions = File.ReadAllText(RepoPaths.Combine(
+			"src", "Maui.Tizen.Controls", "Navigation", "Platform", "Toolbar", "TizenToolbarExtensions.cs"));
+		var handler = File.ReadAllText(RepoPaths.Combine(
+			"src", "Maui.Tizen.Controls", "Navigation", "Handlers", "Toolbar", "TizenToolbarHandler.cs"));
+
+		Assert.Contains("MenuItemActivation.Activate", extensions, StringComparison.Ordinal);
+		Assert.Contains("button.IsEnabled = MenuItemActivation.CanActivate(item)", extensions, StringComparison.Ordinal);
+		Assert.Contains("item.Command.CanExecuteChanged += OnToolbarItemCanExecuteChanged", handler, StringComparison.Ordinal);
+		Assert.Contains("command.CanExecuteChanged -= OnToolbarItemCanExecuteChanged", handler, StringComparison.Ordinal);
 	}
 }

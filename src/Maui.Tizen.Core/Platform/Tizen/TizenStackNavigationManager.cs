@@ -370,14 +370,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 					// fade play on an empty wrapper - the page appeared to vanish instantly and
 					// then a blank rectangle animated out, which is worse than not animating.
 					//
-					// Pop(true) unparents and disposes the wrapper once the animation finishes, so
-					// the content must be rescued in between. It is taken out first, THEN the
-					// wrapper is disposed, so the handler's platform view never goes down with it.
+					// Pop(true) unparents and disposes the wrapper once the animation finishes.
+					// TizenNaviPage.Dispose detaches handler-owned content before the native base
+					// destroys its children, so nothing may access the wrapper after this await.
 					await PlatformNavigation.Pop(true).ConfigureAwait(true);
 
-					// Ownership was transferred to Pop(true); drop it from the map so the cleanup
-					// below does not dispose it a second time.
-					wrapper.DetachContent();
+					// Ownership was transferred to Pop(true); drop the mapping without touching
+					// the wrapper, which is already disposed at this point.
 					_pageMap.Remove(page);
 				}
 				else

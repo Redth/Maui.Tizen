@@ -16,6 +16,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	{
 		EventHandler? _toolbarIconPressed;
 		TizenToolbarView? _observedToolbar;
+		IToolbar? _toolbarElement;
 
 		public static IPropertyMapper<IFlyoutView, TizenFlyoutViewHandler> Mapper =
 			new PropertyMapper<IFlyoutView, TizenFlyoutViewHandler>(TizenViewMappers.ViewMapper)
@@ -67,7 +68,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			// The in-tree backend attached an anonymous handler to the toolbar's IconPressed event
 			// on every MapToolbar call and never detached it, so repeated toolbar remaps leaked
 			// subscriptions and opened the drawer once per remap. Track and detach instead.
-			DetachToolbar();
+			DetachToolbar(platformView);
 
 			base.DisconnectHandler(platformView);
 		}
@@ -166,13 +167,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 			if (handler.VirtualView is not IToolbarElement { Toolbar: { } toolbar })
 			{
-				handler.DetachToolbar();
+				handler.DetachToolbar(handler.PlatformView);
 				return;
 			}
 
 			if (toolbar.ToPlatformView(mauiContext) is not TizenToolbarView platformToolbar)
 			{
-				handler.DetachToolbar();
+				handler.DetachToolbar(handler.PlatformView);
 				return;
 			}
 
@@ -182,7 +183,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				return;
 			}
 
-			handler.DetachToolbar();
+			handler.DetachToolbar(handler.PlatformView);
 
 			if (handler.PlatformView is ITizenToolbarContainer container)
 			{
@@ -190,6 +191,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			}
 
 			handler._observedToolbar = platformToolbar;
+			handler._toolbarElement = toolbar;
 			handler._toolbarIconPressed = (_, _) =>
 			{
 				// Same ownership rule as the shell view, through the same predicate: the drawer only
@@ -204,18 +206,36 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			platformToolbar.IconPressed += handler._toolbarIconPressed;
 		}
 
-		void DetachToolbar()
+		void DetachToolbar(DrawerView platformView)
 		{
-			if (_observedToolbar is not null && _toolbarIconPressed is not null)
-			{
-				_observedToolbar.IconPressed -= _toolbarIconPressed;
-			}
-
+			var platformToolbar = _observedToolbar;
+			var toolbarIconPressed = _toolbarIconPressed;
+			var toolbarElement = _toolbarElement;
+			var elementHandler = toolbarElement?.Handler;
 			_observedToolbar = null;
 			_toolbarIconPressed = null;
+			_toolbarElement = null;
+			if (platformToolbar is null)
+				return;
 
-			if (PlatformView is ITizenToolbarContainer container)
-				container.ClearToolbar();
+			ExceptionSafeCleanup.Run(
+				() =>
+				{
+					if (toolbarIconPressed is not null)
+						platformToolbar.IconPressed -= toolbarIconPressed;
+				},
+				() =>
+				{
+					if (platformView.HasBody() && platformView is ITizenToolbarContainer container)
+						container.DetachToolbar(platformToolbar);
+				},
+				() => elementHandler?.DisconnectHandler(),
+				platformToolbar.Dispose,
+				() =>
+				{
+					if (toolbarElement is not null && ReferenceEquals(toolbarElement.Handler, elementHandler))
+						toolbarElement.Handler = null;
+				});
 		}
 
 		void OnToggled(object? sender, EventArgs e) => VirtualView.IsPresented = PlatformView.IsOpened;

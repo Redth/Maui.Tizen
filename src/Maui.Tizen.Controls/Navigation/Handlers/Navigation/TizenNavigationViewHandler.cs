@@ -2,6 +2,7 @@ using System;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Platform;
+using Microsoft.Maui.Platforms.Tizen.Adapters;
 
 namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
@@ -17,6 +18,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	public partial class TizenNavigationViewHandler
 		: TizenViewHandler<IStackNavigationView, TizenStackNavigationManager>, INavigationViewHandler
 	{
+		Toolbar? _toolbarElement;
+		TizenToolbarView? _platformToolbar;
+
 		public static IPropertyMapper<IStackNavigationView, TizenNavigationViewHandler> Mapper =
 			new PropertyMapper<IStackNavigationView, TizenNavigationViewHandler>(TizenViewMappers.ViewMapper)
 			{
@@ -55,6 +59,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			}
 			catch
 			{
+				ReleaseToolbar(platformView);
 				base.DisconnectHandler(platformView);
 				throw;
 			}
@@ -69,7 +74,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			{
 				if (platformView.HasBody())
 				{
-					platformView.ClearToolbar();
+					ReleaseToolbar(platformView);
 					platformView.Disconnect();
 				}
 			}
@@ -99,11 +104,50 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (VirtualView is not IToolbarElement { Toolbar: Toolbar toolbar }
 				|| MauiContext is null)
 			{
-				PlatformView.ClearToolbar();
+				ReleaseToolbar(PlatformView);
 				return;
 			}
 
-			PlatformView.SetToolbar((TizenToolbarView)toolbar.ToPlatformView(MauiContext));
+			var platformToolbar = (TizenToolbarView)toolbar.ToPlatformView(MauiContext);
+			if (ReferenceEquals(_platformToolbar, platformToolbar))
+			{
+				PlatformView.SetToolbar(platformToolbar);
+				return;
+			}
+
+			ReleaseToolbar(PlatformView);
+			_toolbarElement = toolbar;
+			_platformToolbar = platformToolbar;
+			try
+			{
+				PlatformView.SetToolbar(platformToolbar);
+			}
+			catch
+			{
+				ReleaseToolbar(PlatformView);
+				throw;
+			}
+		}
+
+		void ReleaseToolbar(TizenStackNavigationManager container)
+		{
+			var toolbar = _toolbarElement;
+			var platformToolbar = _platformToolbar;
+			var elementHandler = toolbar?.Handler;
+			_toolbarElement = null;
+			_platformToolbar = null;
+			if (platformToolbar is null)
+				return;
+
+			ExceptionSafeCleanup.Run(
+				() => container.DetachToolbar(platformToolbar),
+				() => elementHandler?.DisconnectHandler(),
+				platformToolbar.Dispose,
+				() =>
+				{
+					if (toolbar is not null && ReferenceEquals(toolbar.Handler, elementHandler))
+						toolbar.Handler = null;
+				});
 		}
 	}
 }

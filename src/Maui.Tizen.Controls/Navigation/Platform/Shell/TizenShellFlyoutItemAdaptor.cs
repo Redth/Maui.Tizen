@@ -39,54 +39,35 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		protected override View? CreateFooterView() => null;
 
-		public override NView CreateNativeView(int index)
+		public override object GetViewCategory(int index)
 		{
 			var item = this[index];
-			if (item is BindableObject bo)
+			if (item is BindableObject bo && ResolveTemplate(bo) is { } template)
+				return template;
+
+			return typeof(TizenShellFlyoutItemView);
+		}
+
+		protected override View CreateItemView(int index)
+		{
+			var item = this[index];
+			View view;
+			if (item is BindableObject bo && ResolveTemplate(bo) is { } template)
 			{
 				// The raw item, never a pre-resolved template owner - see
 				// ShellFlyoutTemplateResolution for why that distinction matters.
-				DataTemplate? template = ShellFlyoutTemplateResolution.ResolveFlyoutItemTemplate(Shell, bo);
-
-				View? view;
-				if (template != null)
-				{
-					// Selector resolution belongs to the caller. The item is both the selector input
-					// and the eventual binding context, matching upstream's documented pattern.
-					var selectedTemplate = template.SelectDataTemplate(item, Shell)
-						?? throw new InvalidOperationException("The Shell flyout item template selector returned null.");
-					view = selectedTemplate.CreateContent() as View
-						?? throw new InvalidOperationException("The Shell flyout item template must create a View.");
-				}
-				else
-				{
-					view = TizenShellFlyoutItemView.GetFlyoutItemView(item, MauiContext, _itemAppearance);
-				}
-
-				view.Parent = Shell;
-				view.BindingContext = item;
-
-				if (_itemAppearance != null)
-				{
-					// Use explicit source so binding works even when BindingContext is the flyout item
-					view.SetBinding(View.BackgroundColorProperty, static (TizenItemAppearance app) => app.BackgroundColor, source: _itemAppearance);
-				}
-
-				var native = view.ToPlatformView(MauiContext);
-
-				// Register native-to-MAUI mapping for selection state tracking
-				RegisterNativeView(native, view);
-
-				return native;
+				view = template.CreateContent() as View
+					?? throw new InvalidOperationException("The Shell flyout item template must create a View.");
+			}
+			else
+			{
+				view = TizenShellFlyoutItemView.GetFlyoutItemView(item!, MauiContext, _itemAppearance);
 			}
 
-			var fallbackView = TizenShellFlyoutItemView.GetFlyoutItemView(item!, MauiContext, _itemAppearance);
-			var fallbackNative = fallbackView.ToPlatformView(MauiContext);
+			if (_itemAppearance != null)
+				view.SetBinding(View.BackgroundColorProperty, static (TizenItemAppearance app) => app.BackgroundColor, source: _itemAppearance);
 
-			// Register native-to-MAUI mapping for selection state tracking
-			RegisterNativeView(fallbackNative, fallbackView);
-
-			return fallbackNative;
+			return view;
 		}
 
 		public override void UpdateViewState(NView view, ViewHolderState state)
@@ -128,6 +109,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			{
 				return new Microsoft.Maui.Controls.StackLayout();
 			});
+		}
+
+		DataTemplate? ResolveTemplate(BindableObject item)
+		{
+			var template = ShellFlyoutTemplateResolution.ResolveFlyoutItemTemplate(Shell, item);
+			if (template == null)
+				return null;
+
+			return template.SelectDataTemplate(item, Shell)
+				?? throw new InvalidOperationException("The Shell flyout item template selector returned null.");
 		}
 	}
 }

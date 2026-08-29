@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Linq;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Platform;
@@ -29,6 +31,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		TizenTabbedPageAdaptor _adaptor;
 		ViewGroup _content;
 		readonly SelectionProposalCoordinator<Page> _selection = new();
+		readonly RealizedItemOwnership<Page, IElementHandler> _realizedPageHandlers = new();
 		IMauiContext MauiContext => _tabbedPage.Handler?.MauiContext ?? throw new InvalidOperationException("MauiContext cannot be null here");
 		bool _isDisconnected;
 		bool _isDisposed;
@@ -67,6 +70,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			Add(_tabbedView);
 			Add(_content);
 			_adaptor.SelectionChanged += OnTabItemSelected;
+			_tabbedPage.PagesChanged += OnPagesChanged;
 
 		}
 
@@ -81,7 +85,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (ReferenceEquals(_tabbedPage, tabbedPage))
 				return;
 
-			ReleasePageHandlers(_tabbedPage);
+			_tabbedPage.PagesChanged -= OnPagesChanged;
+			ReleasePageHandlers();
 			_tabbedView.Adaptor = null;
 			_adaptor.SelectionChanged -= OnTabItemSelected;
 			_adaptor.Dispose();
@@ -90,6 +95,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			_adaptor = new TizenTabbedPageAdaptor(tabbedPage);
 			_adaptor.SelectionChanged += OnTabItemSelected;
 			_tabbedView.Adaptor = _adaptor;
+			_tabbedPage.PagesChanged += OnPagesChanged;
 			UpdateCurrentPage();
 		}
 
@@ -98,7 +104,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// </summary>
 		public void UpdateCurrentPage()
 		{
-			if (_tabbedPage.CurrentPage == null)
+			if (_tabbedPage.CurrentPage == null
+				|| !_tabbedPage.Children.Contains(_tabbedPage.CurrentPage))
 			{
 				_selection.Synchronize(
 					null,
@@ -136,6 +143,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				var currentHandler = _tabbedPage.CurrentPage.ToHandler(MauiContext);
 				if (currentHandler != null && currentHandler.PlatformView is NView current)
 				{
+					_realizedPageHandlers.Track(_tabbedPage.CurrentPage, currentHandler);
 					current.WidthSpecification = NLayoutParamPolicies.MatchParent;
 					current.HeightSpecification = NLayoutParamPolicies.MatchParent;
 					var old = _content.Children.FirstOrDefault();
@@ -174,7 +182,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 						return true;
 					},
 					UpdateCurrentPage);
+				UpdateCurrentPage();
 			}
+		}
+
+		void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+		{
+			_realizedPageHandlers.ReleaseRemoved(_tabbedPage.Children, ReleasePageHandler);
+
+			_tabbedView.Adaptor = null;
+			_adaptor.SelectionChanged -= OnTabItemSelected;
+			_adaptor.Dispose();
+			_adaptor = new TizenTabbedPageAdaptor(_tabbedPage);
+			_adaptor.SelectionChanged += OnTabItemSelected;
+			_tabbedView.Adaptor = _adaptor;
+			UpdateCurrentPage();
 		}
 
 		/// <summary>
@@ -187,35 +209,33 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			_isDisconnected = true;
 
-			_adaptor.SelectionChanged -= OnTabItemSelected;
-			_tabbedView.Adaptor = null;
-			_adaptor.Dispose();
-
-			ReleasePageHandlers(_tabbedPage);
-
-			_tabbedView.Dispose();
-			_content.Dispose();
+			ExceptionSafeCleanup.Run(
+				() => _tabbedPage.PagesChanged -= OnPagesChanged,
+				() => _adaptor.SelectionChanged -= OnTabItemSelected,
+				() => _tabbedView.Adaptor = null,
+				_adaptor.Dispose,
+				ReleasePageHandlers,
+				_tabbedView.Dispose,
+				_content.Dispose);
 		}
 
-		void ReleasePageHandlers(TabbedPage tabbedPage)
+		void ReleasePageHandlers()
 		{
-			foreach (var child in tabbedPage.Children)
-			{
-				var handler = child.Handler;
-				if (handler is null)
-					continue;
+			_realizedPageHandlers.ReleaseAll(ReleasePageHandler);
+		}
 
-				if (handler.PlatformView is NView native && ReferenceEquals(native.GetParent(), _content))
-					_content.Remove(native);
+		void ReleasePageHandler(Page page, IElementHandler handler)
+		{
+			if (handler.PlatformView is NView native && ReferenceEquals(native.GetParent(), _content))
+				_content.Remove(native);
 
-				if (handler is IDisposable disposable)
-					disposable.Dispose();
-				else
-					handler.DisconnectHandler();
+			if (handler is IDisposable disposable)
+				disposable.Dispose();
+			else
+				handler.DisconnectHandler();
 
-				if (ReferenceEquals(child.Handler, handler))
-					child.Handler = null;
-			}
+			if (ReferenceEquals(page.Handler, handler))
+				page.Handler = null;
 		}
 
 		protected override void Dispose(bool disposing)

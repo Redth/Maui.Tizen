@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace Microsoft.Maui.Platforms.Tizen.Adapters
 {
@@ -35,7 +37,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 		public bool ConsumeManagedEcho(int nativeIndex)
 		{
 			if (_gate.IsApplyingManaged)
+			{
+				if (_pendingManagedIndex == nativeIndex)
+					_pendingManagedIndex = null;
 				return true;
+			}
 
 			if (_pendingManagedIndex == nativeIndex)
 			{
@@ -73,5 +79,73 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 
 			return accepted;
 		}
+	}
+
+	internal static class HierarchySelectionResolver
+	{
+		public static T? Resolve<T>(
+			IEnumerable<T> generated,
+			T? root,
+			T? section,
+			T? content)
+			where T : class
+		{
+			ArgumentNullException.ThrowIfNull(generated);
+
+			T? resolved = null;
+			var rank = -1;
+			foreach (var candidate in generated)
+			{
+				var candidateRank = ReferenceEquals(candidate, content) ? 3
+					: ReferenceEquals(candidate, section) ? 2
+					: ReferenceEquals(candidate, root) ? 1
+					: -1;
+				if (candidateRank > rank)
+				{
+					resolved = candidate;
+					rank = candidateRank;
+				}
+			}
+
+			return resolved;
+		}
+	}
+
+	internal sealed class AsyncSelectionResynchronizer<TOwner>
+		where TOwner : class
+	{
+		int _generation;
+
+		public void Invalidate() => _generation++;
+
+		public async Task RunAsync(
+			TOwner owner,
+			Func<Task> select,
+			Func<TOwner, bool> isCurrent,
+			Action synchronize)
+		{
+			ArgumentNullException.ThrowIfNull(owner);
+			ArgumentNullException.ThrowIfNull(select);
+			ArgumentNullException.ThrowIfNull(isCurrent);
+			ArgumentNullException.ThrowIfNull(synchronize);
+
+			var generation = ++_generation;
+			try
+			{
+				await select().ConfigureAwait(true);
+			}
+			finally
+			{
+				if (generation == _generation && isCurrent(owner))
+					synchronize();
+			}
+		}
+	}
+
+	internal static class FlyoutContentMode
+	{
+		public static bool UsesGeneratedContent<T>(T? customContent)
+			where T : class =>
+			customContent is null;
 	}
 }

@@ -165,6 +165,52 @@ public class EmittedTypeTests
 		}
 	}
 
+	[Fact]
+	public void GroupedSourceCrossesTheCompiledItemAdaptorBoundaryAsIList()
+	{
+		using var stream = File.OpenRead(ControlsRefPackAssembly.Path);
+		using var pe = new PEReader(stream);
+		var reader = pe.GetMetadataReader();
+		var source = FindType(reader, "Microsoft.Maui.Platforms.Tizen.Platform.TizenGroupItemSource");
+		var adaptor = FindType(reader, "Microsoft.Maui.Platforms.Tizen.Platform.TizenGroupItemTemplateAdaptor");
+
+		var interfaces = source.GetInterfaceImplementations()
+			.Select(handle => reader.GetInterfaceImplementation(handle).Interface)
+			.Select(handle => TypeName(reader, handle))
+			.ToHashSet(StringComparer.Ordinal);
+
+		Assert.Contains("System.Collections.IList", interfaces);
+		Assert.Contains("System.Collections.Specialized.INotifyCollectionChanged", interfaces);
+		Assert.Equal("Tizen.UIExtensions.NUI.ItemAdaptor", TypeName(reader, adaptor.BaseType));
+	}
+
+	static TypeDefinition FindType(MetadataReader reader, string fullName)
+	{
+		foreach (var handle in reader.TypeDefinitions)
+		{
+			var type = reader.GetTypeDefinition(handle);
+			var name = $"{reader.GetString(type.Namespace)}.{reader.GetString(type.Name)}";
+			if (name == fullName)
+				return type;
+		}
+
+		throw new InvalidOperationException($"Type '{fullName}' was not emitted.");
+	}
+
+	static string TypeName(MetadataReader reader, EntityHandle handle) =>
+		handle.Kind switch
+		{
+			HandleKind.TypeDefinition => Name(reader, reader.GetTypeDefinition((TypeDefinitionHandle)handle)),
+			HandleKind.TypeReference => Name(reader, reader.GetTypeReference((TypeReferenceHandle)handle)),
+			_ => handle.Kind.ToString(),
+		};
+
+	static string Name(MetadataReader reader, TypeDefinition type) =>
+		$"{reader.GetString(type.Namespace)}.{reader.GetString(type.Name)}";
+
+	static string Name(MetadataReader reader, TypeReference type) =>
+		$"{reader.GetString(type.Namespace)}.{reader.GetString(type.Name)}";
+
 	static IReadOnlyList<string> ReadMethodNames(string assemblyPath, string declaringTypeFullName)
 	{
 		using var stream = File.OpenRead(assemblyPath);

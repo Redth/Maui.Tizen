@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Platform;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
@@ -42,9 +43,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		XView? _fixedFooter;
 		XView? _customFlyoutContent;
 		readonly SelectionProposalCoordinator<Element> _flyoutSelection = new();
+		readonly AsyncSelectionResynchronizer<Shell> _flyoutSelectionResynchronizer = new();
 		// Ownership tracker rather than a cached field: Core's ITizenToolbarContainer.SetToolbar
 		// DISPOSES the toolbar it replaces, so a raw cached reference can be observed after disposal.
 		readonly ToolbarOwnership<TizenToolbarView> _toolbarOwnership;
+		IToolbar? _toolbarElement;
 		TizenWrapperView? _backdropView;
 		bool _isDisposed;
 		bool _isOpen;
@@ -177,6 +180,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		void ResetElementState()
 		{
+			_flyoutSelectionResynchronizer.Invalidate();
 			if (Shell is not null)
 			{
 				((IShellController)Shell).RemoveAppearanceObserver(this);
@@ -198,14 +202,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				_flyoutView.Content = null;
 			}
 
-			if (_flyoutCollectionView is not null)
-				_flyoutCollectionView.Adaptor = null;
-			if (_flyoutAdaptor is not null)
-			{
-				_flyoutAdaptor.SelectionChanged -= OnFlyoutItemSelected;
-				_flyoutAdaptor.Dispose();
-				_flyoutAdaptor = null;
-			}
+			ReleaseFlyoutAdaptor();
 
 			if (_customFlyoutContent is not null)
 			{
@@ -265,6 +262,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (e.PropertyName == Shell.CurrentStateProperty.PropertyName
 				|| e.PropertyName == Shell.SearchHandlerProperty.PropertyName)
 				UpdateSearchHandler();
+			if (e.PropertyName == Shell.CurrentStateProperty.PropertyName)
+				SynchronizeFlyoutSelection();
 		}
 
 		void OnShellItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -307,7 +306,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// </summary>
 		public void UpdateItems()
 		{
-			if (_customFlyoutContent != null)
+			if (!FlyoutContentMode.UsesGeneratedContent(_customFlyoutContent))
 				return;
 
 			if (Shell != null)
@@ -322,7 +321,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (ShellController == null || MauiContext == null || _flyoutView == null)
 				return;
 
-			if (_customFlyoutContent is not null)
+			if (!FlyoutContentMode.UsesGeneratedContent(_customFlyoutContent))
 				return;
 
 			UpdateFlyoutItemsCore(shell, HeaderOnMenu ? ShellController.FlyoutHeader : null);
@@ -352,12 +351,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				_flyoutCollectionView.ScrollView.HideScrollbar = true;
 			}
 
-			if (_flyoutAdaptor != null)
-			{
-				_flyoutCollectionView.Adaptor = null;
-				_flyoutAdaptor.SelectionChanged -= OnFlyoutItemSelected;
-				_flyoutAdaptor.Dispose();
-			}
+			ReleaseFlyoutAdaptor();
 
 			_flyoutAdaptor = new TizenShellFlyoutItemAdaptor(shell, items, scrollingHeader)
 			{
@@ -370,7 +364,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			SynchronizeFlyoutSelection();
 		}
 
-		void OnFlyoutItemSelected(object? sender, TizenCollectionViewSelectionChangedEventArgs e)
+		void OnFlyoutItemSelected(object? sender, TizenCollectionViewSelectionChangedEventArgs e) =>
+			HandleFlyoutItemSelectedAsync(e).FireAndForget();
+
+		async Task HandleFlyoutItemSelectedAsync(TizenCollectionViewSelectionChangedEventArgs e)
 		{
 			if (Shell == null || ShellController == null)
 				return;
@@ -384,14 +381,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			var selected = e.SelectedItems[0];
 			if (selected is Element element)
 			{
-				_flyoutSelection.Propose(
-					element,
-					selected =>
-					{
-						ShellController.OnFlyoutItemSelected(selected);
-						return true;
-					},
-					SynchronizeFlyoutSelection);
+				var shell = Shell;
+				var controller = ShellController;
+				await _flyoutSelectionResynchronizer.RunAsync(
+					shell,
+					() => controller.OnFlyoutItemSelectedAsync(element),
+					current => !_isDisposed && ReferenceEquals(Shell, current),
+					SynchronizeFlyoutSelection).ConfigureAwait(true);
 			}
 
 			// Close the drawer after selection for flyout behavior
@@ -407,7 +403,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				return;
 
 			_flyoutSelection.Synchronize(
-				Shell.CurrentItem,
+				ResolveActiveFlyoutEntry(adaptor),
 				adaptor.GetItemIndex,
 				() =>
 				{
@@ -415,6 +411,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 						_flyoutCollectionView.RequestItemUnselect(selected);
 				},
 				_flyoutCollectionView.RequestItemSelect);
+		}
+
+		Element? ResolveActiveFlyoutEntry(ItemAdaptor adaptor)
+		{
+			var shellItem = Shell?.CurrentItem;
+			var section = shellItem?.CurrentItem;
+			var content = section?.CurrentItem;
+			var generated = Enumerable.Range(0, adaptor.Count)
+				.Select(index => adaptor[index])
+				.OfType<Element>();
+			return HierarchySelectionResolver.Resolve(generated, shellItem, section, content);
 		}
 
 		/// <summary>
@@ -427,6 +434,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			_navigationDrawer.DrawerBehavior = behavior.ToTizenDrawerBehavior();
 			RefreshToolbarLeadingIcon();
+			UpdateFlyoutHeader(Shell);
 
 			if (_navigationDrawer.DrawerBehavior == DrawerBehavior.Drawer)
 				_ = _navigationDrawer.CloseAsync(false);
@@ -480,6 +488,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				return;
 
 			_flyoutView.BackgroundColor = (color ?? DefaultBackgroundColor).ToTizen().ToNative();
+		}
+
+		internal void UpdateFlyoutBackground(Brush? brush)
+		{
+			if (_flyoutView == null)
+				return;
+
+			if (brush is not null && !brush.IsEmpty)
+				_flyoutView.UpdateBackground(brush);
+			else
+				_flyoutView.BackgroundColor = DefaultBackgroundColor.ToTizen().ToNative();
 		}
 
 		/// <summary>
@@ -545,7 +564,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (_currentSearchHandler is null)
 			{
 				if (_toolbarOwnership.Current is not null)
-					_toolbarOwnership.Current.SearchBar = null;
+					ClearOwnedSearchBar(_toolbarOwnership.Current);
 				_searchView?.Dispose();
 				_searchView = null;
 				return;
@@ -556,10 +575,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			if (_toolbarOwnership.Current is not null)
 			{
-				_toolbarOwnership.Current.SearchBar =
-					_currentSearchHandler.SearchBoxVisibility == SearchBoxVisibility.Hidden
-						? null
-						: _searchView;
+				if (_currentSearchHandler.SearchBoxVisibility == SearchBoxVisibility.Hidden)
+					ClearOwnedSearchBar(_toolbarOwnership.Current);
+				else
+					_toolbarOwnership.Current.SearchBar = _searchView;
 			}
 		}
 
@@ -606,11 +625,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (HeaderOnMenu)
 			{
 				SetFixedFlyoutView(ref _fixedHeader, null, value => _flyoutView.Header = value);
-				UpdateFlyoutItemsCore(shell, header);
+				if (FlyoutContentMode.UsesGeneratedContent(_customFlyoutContent))
+					UpdateFlyoutItemsCore(shell, header);
 			}
 			else
 			{
-				UpdateFlyoutItemsCore(shell, scrollingHeader: null);
+				if (FlyoutContentMode.UsesGeneratedContent(_customFlyoutContent))
+					UpdateFlyoutItemsCore(shell, scrollingHeader: null);
 				SetFixedFlyoutView(ref _fixedHeader, header, value => _flyoutView.Header = value);
 			}
 		}
@@ -649,12 +670,27 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			_customFlyoutContent = content;
 			if (_customFlyoutContent is not null)
 			{
+				ReleaseFlyoutAdaptor();
 				_customFlyoutContent.Parent = Shell;
 				_flyoutView.Content = _customFlyoutContent.ToPlatformView(MauiContext);
+				UpdateFlyoutHeader(Shell);
+				UpdateFlyoutFooter(Shell);
 				return;
 			}
 
 			UpdateFlyoutItems(Shell);
+		}
+
+		void ReleaseFlyoutAdaptor()
+		{
+			if (_flyoutCollectionView is not null)
+				_flyoutCollectionView.Adaptor = null;
+			if (_flyoutAdaptor is null)
+				return;
+
+			_flyoutAdaptor.SelectionChanged -= OnFlyoutItemSelected;
+			_flyoutAdaptor.Dispose();
+			_flyoutAdaptor = null;
 		}
 
 		/// <summary>
@@ -685,34 +721,75 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			if (ReferenceEquals(_toolbarOwnership.Current, platformToolbar))
 			{
+				_toolbarElement = toolbar;
 				_mainContentView.SetToolbar(platformToolbar);
 				UpdateSearchHandler();
 				return;
 			}
 
-			// Unsubscribe before the container disposes the outgoing toolbar, transfer ownership,
-			// then subscribe to the incoming instance.
-			if (_toolbarOwnership.Current is not null)
-				_toolbarOwnership.Current.SearchBar = null;
-			_toolbarOwnership.Release();
+			// Detach the outgoing toolbar from the container before its handler disposes it, then
+			// transfer container and event ownership to the incoming instance.
+			ReleaseToolbar();
 			_mainContentView.SetToolbar(platformToolbar);
 			_toolbarOwnership.Transfer(platformToolbar);
+			_toolbarElement = toolbar;
 			UpdateSearchHandler();
 			RefreshToolbarLeadingIcon();
 		}
 
 		public void DetachToolbar()
 		{
-			if (_toolbarOwnership.Current is not null)
-				_toolbarOwnership.Current.SearchBar = null;
+			var searchView = _searchView;
+			var searchHandler = _currentSearchHandler;
+			ExceptionSafeCleanup.Run(
+				ReleaseToolbar,
+				() => searchView?.Dispose(),
+				() =>
+				{
+					if (searchHandler is not null)
+						searchHandler.PropertyChanged -= OnCurrentSearchHandlerPropertyChanged;
+				},
+				() =>
+				{
+					_searchView = null;
+					_currentSearchHandler = null;
+				});
+		}
 
-			_searchView?.Dispose();
-			_searchView = null;
-			if (_currentSearchHandler is not null)
-				_currentSearchHandler.PropertyChanged -= OnCurrentSearchHandlerPropertyChanged;
-			_currentSearchHandler = null;
-			_toolbarOwnership.Release();
-			_mainContentView?.ClearToolbar();
+		void ReleaseToolbar()
+		{
+			var platformToolbar = _toolbarOwnership.Current;
+			if (platformToolbar is null)
+			{
+				_toolbarElement = null;
+				return;
+			}
+
+			var toolbarElement = _toolbarElement;
+			var elementHandler = toolbarElement?.Handler;
+			_toolbarElement = null;
+
+			ExceptionSafeCleanup.Run(
+				() => ClearOwnedSearchBar(platformToolbar),
+				_toolbarOwnership.Release,
+				() =>
+				{
+					if (_mainContentView is ITizenToolbarContainer container)
+						container.DetachToolbar(platformToolbar);
+				},
+				() => elementHandler?.DisconnectHandler(),
+				platformToolbar.Dispose,
+				() =>
+				{
+					if (toolbarElement is not null && ReferenceEquals(toolbarElement.Handler, elementHandler))
+						toolbarElement.Handler = null;
+				});
+		}
+
+		void ClearOwnedSearchBar(TizenToolbarView toolbar)
+		{
+			if (ReferenceEquals(toolbar.SearchBar, _searchView))
+				toolbar.SearchBar = null;
 		}
 
 		void SetFixedFlyoutView(ref XView? current, XView? next, Action<NView?> setNative)
@@ -803,21 +880,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (_flyoutView == null || Shell == null)
 				return;
 
-			if (appearance is not null)
-			{
-				_itemAppearance.BackgroundColor = appearance.BackgroundColor;
-				_itemAppearance.ForegroundColor = appearance.ForegroundColor;
-				_itemAppearance.TitleColor = appearance.TitleColor;
-				_itemAppearance.UnselectedColor = appearance.UnselectedColor;
-				UpdateToolbarColors(
-					appearance.ForegroundColor,
-					appearance.BackgroundColor,
-					appearance.TitleColor);
-			}
+			_itemAppearance.BackgroundColor = appearance?.BackgroundColor;
+			_itemAppearance.ForegroundColor = appearance?.ForegroundColor;
+			_itemAppearance.TitleColor = appearance?.TitleColor;
+			_itemAppearance.UnselectedColor = appearance?.UnselectedColor;
+			UpdateToolbarColors(
+				appearance?.ForegroundColor,
+				appearance?.BackgroundColor,
+				appearance?.TitleColor);
 
 			// Update flyout background from shell appearance
-			var flyoutBg = ShellElementTree.GetEffectiveValue<XColor>(Shell, Shell.FlyoutBackgroundColorProperty, null);
-			UpdateBackgroundColor(flyoutBg);
+			UpdateFlyoutBackground(Shell.FlyoutBackground);
 		}
 
 		/// <inheritdoc/>
@@ -841,6 +914,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			// touching other managed objects is not safe.
 			if (type == DisposeTypes.Explicit)
 			{
+				_flyoutSelectionResynchronizer.Invalidate();
 				if (Shell != null)
 				{
 					((IShellController)Shell).RemoveAppearanceObserver(this);
@@ -875,14 +949,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					_customFlyoutContent = null;
 				}
 
-				if (_flyoutAdaptor != null)
-				{
-					if (_flyoutCollectionView != null)
-						_flyoutCollectionView.Adaptor = null;
-					_flyoutAdaptor.SelectionChanged -= OnFlyoutItemSelected;
-					_flyoutAdaptor.Dispose();
-					_flyoutAdaptor = null;
-				}
+				ReleaseFlyoutAdaptor();
 
 				if (_flyoutCollectionView != null)
 				{

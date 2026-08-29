@@ -10,7 +10,7 @@ MAUI_TIZEN_UPDATE_PARITY=1 dotnet test tests/Maui.Tizen.SourceTests/Maui.Tizen.S
 ## Summary
 
 - 20 migrated handlers
-- 68 supported mappings, 42 documented no-ops
+- 69 supported mappings, 42 documented no-ops
 - 0 handlers with recorded property gaps
 - 0 handlers with recorded command gaps
 
@@ -256,6 +256,7 @@ current MAUI mapper surface and this manifest differ.
 | `FlyoutHeaderTemplate` | `MapFlyoutHeader` | Supported |  |
 | `FlyoutHeaderBehavior` | `MapFlyoutHeaderBehavior` | Supported |  |
 | `Items` | `MapItems` | Supported |  |
+| `FlyoutItems` | `MapItems` | Supported |  |
 | `FlyoutContent` | `MapFlyoutContent` | Supported |  |
 | `FlyoutContentTemplate` | `MapFlyoutContent` | Supported |  |
 | `FlyoutBackgroundImage` | `MapFlyoutBackgroundImage` | NoOp | No-op: Tizen does not support FlyoutBackgroundImage. |

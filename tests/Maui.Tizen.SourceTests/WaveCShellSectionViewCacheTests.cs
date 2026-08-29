@@ -429,11 +429,10 @@ public class WaveCShellContentSourceTests
 			ReadWaveCSource("TizenShellView.cs"),
 			"void UpdateFlyoutItemsCore");
 
-		var dispose = body.IndexOf("_flyoutAdaptor.Dispose();", StringComparison.Ordinal);
+		var dispose = body.IndexOf("ReleaseFlyoutAdaptor();", StringComparison.Ordinal);
 		var replacement = body.IndexOf(
 			"_flyoutAdaptor = new TizenShellFlyoutItemAdaptor",
 			StringComparison.Ordinal);
-		Assert.True(dispose >= 0 && replacement > dispose);
 		Assert.True(dispose >= 0 && replacement > dispose);
 	}
 

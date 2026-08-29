@@ -87,17 +87,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void ConnectHandler(NView platformView)
 		{
 			base.ConnectHandler(platformView);
+			var carousel = platformView as TizenCarouselViewControl;
 			try
 			{
-				if (PlatformView is { } carousel)
+				if (carousel is not null)
 					carousel.Scrolled += OnCarouselScrolled;
 				UpdateItemsLayout();
 				UpdateIsSwipeEnabled();
-				UpdateCurrentItemFromManaged();
+				UpdateInitialPositionFromManaged();
 			}
 			catch
 			{
-				if (PlatformView is { } carousel)
+				if (carousel is not null)
 					carousel.Scrolled -= OnCarouselScrolled;
 				base.DisconnectHandler(platformView);
 				throw;
@@ -108,7 +109,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 			try
 			{
-				if (PlatformView is { } carousel)
+				if (platformView is TizenCarouselViewControl carousel)
 					carousel.Scrolled -= OnCarouselScrolled;
 			}
 			finally
@@ -120,7 +121,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void OnAdaptorInstalled()
 		{
 			base.OnAdaptorInstalled();
-			UpdateCurrentItemFromManaged();
+			UpdateInitialPositionFromManaged();
 		}
 
 		protected virtual void UpdateItemsLayout()
@@ -212,6 +213,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 			_feedback.ApplyManaged(expectedPosition, () =>
 				PlatformView.UpdateCurrentItem(VirtualView.CurrentItem));
+		}
+
+		void UpdateInitialPositionFromManaged()
+		{
+			if (VirtualView.CurrentItem is not null)
+				UpdateCurrentItemFromManaged();
+			else
+				UpdatePositionFromManaged();
 		}
 
 		void UpdatePositionFromManaged()

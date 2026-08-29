@@ -33,6 +33,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(Shell.FlyoutHeaderTemplate)] = MapFlyoutHeader,
 				[nameof(Shell.FlyoutHeaderBehavior)] = MapFlyoutHeaderBehavior,
 				[nameof(Shell.Items)] = MapItems,
+				["FlyoutItems"] = MapItems,
 				[nameof(Shell.FlyoutContent)] = MapFlyoutContent,
 				[nameof(Shell.FlyoutContentTemplate)] = MapFlyoutContent,
 				[nameof(Shell.FlyoutBackgroundImage)] = MapFlyoutBackgroundImage,
@@ -130,7 +131,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapFlyoutBackground(TizenShellHandler handler, Shell view)
 		{
-			handler.PlatformView.UpdateBackgroundColor(view.BackgroundColor);
+			handler.PlatformView.UpdateFlyoutBackground(view.FlyoutBackground);
 		}
 
 		public static void MapCurrentItem(TizenShellHandler handler, Shell view)

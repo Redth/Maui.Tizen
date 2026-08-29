@@ -177,6 +177,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					return true;
 				},
 				SynchronizeNativeSelection);
+			SynchronizeNativeSelection();
 		}
 
 		/// <summary>

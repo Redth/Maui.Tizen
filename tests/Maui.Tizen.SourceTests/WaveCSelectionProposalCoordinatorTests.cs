@@ -41,6 +41,88 @@ public class WaveCSelectionProposalCoordinatorTests
 	}
 
 	[Fact]
+	public void SynchronousClearAndFinalSelectionConsumeTheEchoButNotTheNextUserTap()
+	{
+		var coordinator = new SelectionProposalCoordinator<string>();
+
+		coordinator.Synchronize(
+			"more",
+			_ => 4,
+			() => Assert.True(coordinator.ConsumeManagedEcho(-1)),
+			index => Assert.True(coordinator.ConsumeManagedEcho(index)));
+
+		Assert.False(coordinator.ConsumeManagedEcho(4));
+	}
+
+	[Fact]
+	public void GeneratedFlyoutSelectionPrefersTheMostSpecificActiveEntry()
+	{
+		var root = new object();
+		var section = new object();
+		var content = new object();
+
+		Assert.Same(
+			content,
+			HierarchySelectionResolver.Resolve(
+				new[] { root, section, content },
+				root,
+				section,
+				content));
+		Assert.Same(
+			section,
+			HierarchySelectionResolver.Resolve(
+				new[] { root, section },
+				root,
+				section,
+				content));
+		Assert.Same(
+			root,
+			HierarchySelectionResolver.Resolve(
+				new[] { root },
+				root,
+				section,
+				content));
+	}
+
+	[Fact]
+	public async Task AsyncSelectionAlwaysResynchronizesAfterACanceledProposal()
+	{
+		var coordinator = new AsyncSelectionResynchronizer<object>();
+		var owner = new object();
+		var synchronized = 0;
+
+		await coordinator.RunAsync(
+			owner,
+			() => Task.CompletedTask,
+			current => ReferenceEquals(current, owner),
+			() => synchronized++);
+
+		Assert.Equal(1, synchronized);
+	}
+
+	[Fact]
+	public async Task AsyncSelectionDoesNotApplyAStaleCompletion()
+	{
+		var coordinator = new AsyncSelectionResynchronizer<object>();
+		var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var synchronized = 0;
+		var pending = coordinator.RunAsync(new object(), () => completion.Task, _ => true, () => synchronized++);
+
+		coordinator.Invalidate();
+		completion.SetResult();
+		await pending;
+
+		Assert.Equal(0, synchronized);
+	}
+
+	[Fact]
+	public void CustomFlyoutContentExclusivelyDisablesGeneratedContent()
+	{
+		Assert.True(FlyoutContentMode.UsesGeneratedContent<object>(null));
+		Assert.False(FlyoutContentMode.UsesGeneratedContent(new object()));
+	}
+
+	[Fact]
 	public void RejectedProposalRestoresManagedSelection()
 	{
 		var coordinator = new SelectionProposalCoordinator<string>();

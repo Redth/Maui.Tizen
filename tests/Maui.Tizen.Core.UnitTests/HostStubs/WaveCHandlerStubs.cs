@@ -26,7 +26,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	class TizenNavigationViewHandler : WaveCHostHandler<NavigationPage>;
 	class TizenFlyoutViewHandler : WaveCHostHandler<FlyoutPage>;
 	class TizenTabbedPageHandler : WaveCHostHandler<TabbedPage>;
-	class TizenShellHandler : WaveCHostHandler<Shell>;
 	class TizenCollectionViewHandler : WaveCHostHandler<CollectionView>;
 	class TizenCarouselViewHandler : WaveCHostHandler<CarouselView>;
 }
@@ -36,11 +35,70 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 	using Microsoft.Maui.Controls;
 	using Microsoft.Maui.Graphics;
 
-	public class TizenShellView
+	public class TizenShellView : TizenPlatformView
 	{
+		public bool IsOpened { get; set; }
+		public int FlyoutItemsUpdates { get; private set; }
+		public Brush? FlyoutBackground { get; private set; }
+		public event EventHandler? Toggled;
+
+		public void SetElement(Shell shell, IMauiContext context)
+		{
+		}
+
+		public void UpdateFlyout(IView? flyout)
+		{
+		}
+
+		public void UpdateFlyoutBehavior(FlyoutBehavior behavior)
+		{
+		}
+
+		public void UpdateDrawerWidth(double width)
+		{
+		}
+
+		internal void UpdateFlyoutBackground(Brush? brush) => FlyoutBackground = brush;
+
+		public void UpdateCurrentItem(ShellItem? item)
+		{
+		}
+
+		public void UpdateFlyoutBackDrop(Brush? brush)
+		{
+		}
+
+		public void UpdateFlyoutFooter(Shell shell)
+		{
+		}
+
+		public void UpdateFlyoutHeader(Shell shell)
+		{
+		}
+
+		public void UpdateItems() => FlyoutItemsUpdates++;
+
+		public void UpdateFlyoutContent()
+		{
+		}
+
+		public void UpdateToolbar()
+		{
+		}
+
+		public void UpdateSearchHandler()
+		{
+		}
+
+		public void DetachToolbar()
+		{
+		}
+
 		public void UpdateToolbarColors(Color? foreground, Color? background, Color? title)
 		{
 		}
+
+		public void RaiseToggled() => Toggled?.Invoke(this, EventArgs.Empty);
 	}
 
 	public class TizenShellItemView : IDisposable

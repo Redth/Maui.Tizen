@@ -5,6 +5,7 @@ using Microsoft.Maui.Platform;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
 using Tizen.UIExtensions.NUI;
 
+using NCollectionView = Tizen.UIExtensions.NUI.CollectionView;
 using NView = Tizen.NUI.BaseComponents.View;
 using TSize = Tizen.UIExtensions.Common.Size;
 using XLabel = Microsoft.Maui.Controls.Label;
@@ -94,9 +95,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		public override TSize MeasureItem(int index, double widthConstraint, double heightConstraint)
 		{
 			var allocated = (CollectionView as NView)?.Size.ToCommon() ?? TSize.Zero;
+			var header = _headerFooter?.MeasureHeader(allocated.Width, allocated.Height) ?? TSize.Zero;
+			var footer = _headerFooter?.MeasureFooter(allocated.Width, allocated.Height) ?? TSize.Zero;
+			var horizontal = (CollectionView as NCollectionView)?.LayoutManager?.IsHorizontal == true;
+			var remainingWidth = horizontal
+				? ViewportConstraint.Remaining(allocated.Width, header.Width, footer.Width)
+				: allocated.Width;
+			var remainingHeight = horizontal
+				? allocated.Height
+				: ViewportConstraint.Remaining(allocated.Height, header.Height, footer.Height);
 			return new TSize(
-				(float)ViewportConstraint.Resolve(widthConstraint, allocated.Width),
-				(float)ViewportConstraint.Resolve(heightConstraint, allocated.Height));
+				(float)ViewportConstraint.ResolveWithin(widthConstraint, remainingWidth),
+				(float)ViewportConstraint.ResolveWithin(heightConstraint, remainingHeight));
 		}
 
 		/// <summary>

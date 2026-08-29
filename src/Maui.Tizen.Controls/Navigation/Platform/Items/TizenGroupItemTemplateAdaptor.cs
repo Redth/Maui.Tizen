@@ -147,9 +147,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		public override object GetViewCategory(int index)
 		{
 			if (_groupItemSource.IsGroupHeader(index))
-				return HeaderCategory;
+				return ResolveGroupTemplate(GroupHeaderTemplate, GroupData(index)) ?? HeaderCategory;
 			if (_groupItemSource.IsGroupFooter(index))
-				return FooterCategory;
+				return ResolveGroupTemplate(GroupFooterTemplate, GroupData(index)) ?? FooterCategory;
 
 			if (ItemTemplate is DataTemplateSelector selector)
 			{
@@ -363,9 +363,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		View CreateGroupHeaderView(int index)
 		{
-			if (GroupHeaderTemplate != null)
+			if (ResolveGroupTemplate(GroupHeaderTemplate, GroupData(index)) is { } template)
 			{
-				return GroupHeaderTemplate.CreateContent() as View
+				return template.CreateContent() as View
 					?? throw new InvalidOperationException("The group header template must create a View.");
 			}
 			else
@@ -378,15 +378,34 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		View CreateGroupFooterView(int index)
 		{
-			if (GroupFooterTemplate != null)
+			if (ResolveGroupTemplate(GroupFooterTemplate, GroupData(index)) is { } template)
 			{
-				return GroupFooterTemplate.CreateContent() as View
+				return template.CreateContent() as View
 					?? throw new InvalidOperationException("The group footer template must create a View.");
 			}
 			else
 			{
 				return new XLabel { Text = string.Empty };
 			}
+		}
+
+		object? GroupData(int index) =>
+			this[index] switch
+			{
+				TizenGroupItemSource.GroupHeaderItem header => header.Data,
+				TizenGroupItemSource.GroupFooterItem footer => footer.Data,
+				_ => null,
+			};
+
+		DataTemplate? ResolveGroupTemplate(DataTemplate? template, object? group)
+		{
+			if (template is DataTemplateSelector selector)
+			{
+				return selector.SelectTemplate(group, _itemsView)
+					?? throw new InvalidOperationException("The group template selector returned null.");
+			}
+
+			return template;
 		}
 
 		void ResetBindedView(View view)

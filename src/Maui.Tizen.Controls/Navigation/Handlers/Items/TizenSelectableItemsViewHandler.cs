@@ -85,7 +85,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 					new TizenNativeCollectionSelection(native, Adaptor.Count),
 					e.SelectedIndexes,
 					filter,
-					_lastValidSelectedIndex);
+					VirtualView.SelectionMode == SelectionMode.Single
+						? _lastValidSelectedIndex
+						: null);
 			}
 
 			var selectedItems = RawSelectionProjection.ToItems(

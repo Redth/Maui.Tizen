@@ -35,9 +35,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		public global::Tizen.NUI.BaseComponents.View? GetFooterView() =>
 			Create(ref _footer, _itemsView.Footer, _itemsView.FooterTemplate);
 
-		public TSize MeasureHeader(double width, double height) => Measure(_header, width, height);
+		public TSize MeasureHeader(double width, double height)
+		{
+			if (_header is null && _itemsView.Header is not null)
+				_ = Create(ref _header, _itemsView.Header, _itemsView.HeaderTemplate);
+			return Measure(_header, width, height);
+		}
 
-		public TSize MeasureFooter(double width, double height) => Measure(_footer, width, height);
+		public TSize MeasureFooter(double width, double height)
+		{
+			if (_footer is null && _itemsView.Footer is not null)
+				_ = Create(ref _footer, _itemsView.Footer, _itemsView.FooterTemplate);
+			return Measure(_footer, width, height);
+		}
 
 		global::Tizen.NUI.BaseComponents.View? Create(
 			ref XView? cache,

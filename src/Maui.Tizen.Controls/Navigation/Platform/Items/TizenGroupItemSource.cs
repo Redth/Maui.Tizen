@@ -8,11 +8,12 @@ using Microsoft.Maui.Controls;
 namespace Microsoft.Maui.Platforms.Tizen.Platform
 {
 	/// <summary>
-	/// Observable flattened view of a grouped ItemsSource, including group header/footer rows.
+	/// Observable flattened view of a grouped ItemsSource, including configured group decorations.
 	/// </summary>
-	internal sealed class TizenGroupItemSource : IReadOnlyList<object>, INotifyCollectionChanged, IDisposable
+	internal sealed class TizenGroupItemSource : IList, IReadOnlyList<object>, INotifyCollectionChanged, IDisposable
 	{
 		readonly IEnumerable _source;
+		readonly bool _hasGroupHeader;
 		readonly bool _hasGroupFooter;
 		readonly List<object> _groups = new();
 		readonly List<object> _items = new();
@@ -27,6 +28,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			ArgumentNullException.ThrowIfNull(itemsView);
 
 			_source = itemsView.ItemsSource ?? Array.Empty<object>();
+			_hasGroupHeader = itemsView.GroupHeaderTemplate is not null;
 			_hasGroupFooter = itemsView.GroupFooterTemplate is not null;
 			RebuildSubscriptionsAndItems();
 		}
@@ -36,6 +38,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		public int Count => _items.Count;
 
 		public object this[int index] => _items[index];
+
+		object? IList.this[int index]
+		{
+			get => _items[index];
+			set => throw new NotSupportedException();
+		}
+
+		bool IList.IsFixedSize => true;
+
+		bool IList.IsReadOnly => true;
+
+		bool ICollection.IsSynchronized => false;
+
+		object ICollection.SyncRoot => ((ICollection)_items).SyncRoot;
 
 		public bool IsGroupHeader(int index) => index >= 0 && index < Count && _items[index] is GroupHeaderItem;
 
@@ -50,7 +66,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (itemIndex < 0 || itemIndex >= count)
 				return -1;
 
-			return GroupStart(_groups, groupIndex) + 1 + itemIndex;
+			return GroupStart(_groups, groupIndex) + (_hasGroupHeader ? 1 : 0) + itemIndex;
 		}
 
 		public int GetAbsoluteIndex(object? item)
@@ -102,10 +118,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (itemIndex < 0 || itemIndex >= _items.Count)
 				return -1;
 
-			for (var index = itemIndex; index >= 0; index--)
+			for (var groupIndex = 0; groupIndex < _groups.Count; groupIndex++)
 			{
-				if (_items[index] is GroupHeaderItem)
-					return index;
+				var start = GroupStart(_groups, groupIndex);
+				var end = start + (_hasGroupHeader ? 1 : 0) + ItemCount(_groups[groupIndex])
+					+ (_hasGroupFooter ? 1 : 0);
+				if (itemIndex >= start && itemIndex < end)
+					return start;
 			}
 
 			return -1;
@@ -113,19 +132,38 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		public int GetLastIndex(int groupStartIndex)
 		{
-			if (groupStartIndex < 0 || groupStartIndex >= _items.Count
-				|| _items[groupStartIndex] is not GroupHeaderItem header)
+			if (groupStartIndex < 0 || groupStartIndex >= _items.Count)
 				return -1;
 
-			var groupIndex = _groups.FindIndex(group => ReferenceEquals(group, header.Data));
-			return groupIndex < 0
-				? -1
-				: groupStartIndex + ItemCount(_groups[groupIndex]) + (_hasGroupFooter ? 1 : 0);
+			for (var groupIndex = 0; groupIndex < _groups.Count; groupIndex++)
+			{
+				if (GroupStart(_groups, groupIndex) == groupStartIndex)
+					return groupStartIndex + (_hasGroupHeader ? 1 : 0)
+						+ ItemCount(_groups[groupIndex]) + (_hasGroupFooter ? 1 : 0) - 1;
+			}
+
+			return -1;
 		}
 
 		public IEnumerator<object> GetEnumerator() => _items.GetEnumerator();
 
 		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+		int IList.Add(object? value) => throw new NotSupportedException();
+
+		void IList.Clear() => throw new NotSupportedException();
+
+		bool IList.Contains(object? value) => ((IList)_items).Contains(value);
+
+		int IList.IndexOf(object? value) => ((IList)_items).IndexOf(value);
+
+		void IList.Insert(int index, object? value) => throw new NotSupportedException();
+
+		void IList.Remove(object? value) => throw new NotSupportedException();
+
+		void IList.RemoveAt(int index) => throw new NotSupportedException();
+
+		void ICollection.CopyTo(Array array, int index) => ((ICollection)_items).CopyTo(array, index);
 
 		void OnOuterCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
 		{
@@ -147,12 +185,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			}
 
 			var oldItems = _items.ToList();
-			var oldStart = GroupStart(_groups, groupIndex) + 1;
+			var oldStart = GroupStart(_groups, groupIndex) + (_hasGroupHeader ? 1 : 0);
 			RebuildItems();
 
 			switch (e.Action)
 			{
-				case NotifyCollectionChangedAction.Add when e.NewItems is not null:
+				case NotifyCollectionChangedAction.Add when e.NewItems is not null && e.NewStartingIndex >= 0:
 					CollectionChanged?.Invoke(
 						this,
 						new NotifyCollectionChangedEventArgs(
@@ -160,7 +198,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 							e.NewItems,
 							oldStart + e.NewStartingIndex));
 					break;
-				case NotifyCollectionChangedAction.Remove when e.OldItems is not null:
+				case NotifyCollectionChangedAction.Remove when e.OldItems is not null && e.OldStartingIndex >= 0:
 					CollectionChanged?.Invoke(
 						this,
 						new NotifyCollectionChangedEventArgs(
@@ -168,7 +206,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 							e.OldItems,
 							oldStart + e.OldStartingIndex));
 					break;
-				case NotifyCollectionChangedAction.Replace when e.NewItems is not null && e.OldItems is not null:
+				case NotifyCollectionChangedAction.Replace
+					when e.NewItems is not null
+						&& e.OldItems is not null
+						&& e.NewStartingIndex >= 0
+						&& e.OldStartingIndex >= 0
+						&& e.NewItems.Count == e.OldItems.Count:
 					CollectionChanged?.Invoke(
 						this,
 						new NotifyCollectionChangedEventArgs(
@@ -177,7 +220,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 							e.OldItems,
 							oldStart + e.NewStartingIndex));
 					break;
-				case NotifyCollectionChangedAction.Move when e.NewItems is not null:
+				case NotifyCollectionChangedAction.Move
+					when e.NewItems is not null
+						&& e.NewItems.Count == 1
+						&& e.NewStartingIndex >= 0
+						&& e.OldStartingIndex >= 0:
 					CollectionChanged?.Invoke(
 						this,
 						new NotifyCollectionChangedEventArgs(
@@ -185,6 +232,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 							e.NewItems,
 							oldStart + e.NewStartingIndex,
 							oldStart + e.OldStartingIndex));
+					break;
+				case NotifyCollectionChangedAction.Move:
+					CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
 					break;
 				default:
 					CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
@@ -199,7 +249,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 			switch (e.Action)
 			{
-				case NotifyCollectionChangedAction.Add when e.NewItems is not null:
+				case NotifyCollectionChangedAction.Add when e.NewItems is not null && e.NewStartingIndex >= 0:
 					{
 						var index = GroupStart(_groups, e.NewStartingIndex);
 						var added = FlattenGroups(e.NewItems.Cast<object>()).ToList();
@@ -208,34 +258,59 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 							new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, added, index));
 						break;
 					}
-				case NotifyCollectionChangedAction.Remove when e.OldItems is not null:
+				case NotifyCollectionChangedAction.Remove when e.OldItems is not null && e.OldStartingIndex >= 0:
 					{
 						var index = GroupStart(oldGroups, e.OldStartingIndex);
-						var removed = FlattenGroups(e.OldItems.Cast<object>()).ToList();
+						var removed = oldItems
+							.Skip(index)
+							.Take(e.OldItems.Cast<object>().Sum(FlattenedCount))
+							.ToList();
 						CollectionChanged?.Invoke(
 							this,
 							new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, removed, index));
 						break;
 					}
-				case NotifyCollectionChangedAction.Move when e.OldItems is not null:
+				case NotifyCollectionChangedAction.Move
+					when e.OldItems is not null
+						&& e.NewStartingIndex >= 0
+						&& e.OldStartingIndex >= 0:
 					{
 						var oldIndex = GroupStart(oldGroups, e.OldStartingIndex);
 						var newIndex = GroupStart(_groups, e.NewStartingIndex);
-						var moved = FlattenGroups(e.OldItems.Cast<object>()).ToList();
-						CollectionChanged?.Invoke(
-							this,
-							new NotifyCollectionChangedEventArgs(
-								NotifyCollectionChangedAction.Move,
-								moved,
-								newIndex,
-								oldIndex));
+						var moved = oldItems
+							.Skip(oldIndex)
+							.Take(e.OldItems.Cast<object>().Sum(FlattenedCount))
+							.ToList();
+						if (moved.Count == 1)
+						{
+							CollectionChanged?.Invoke(
+								this,
+								new NotifyCollectionChangedEventArgs(
+									NotifyCollectionChangedAction.Move,
+									moved,
+									newIndex,
+									oldIndex));
+						}
+						else
+						{
+							CollectionChanged?.Invoke(
+								this,
+								new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+						}
 						break;
 					}
-				case NotifyCollectionChangedAction.Replace when e.NewItems is not null && e.OldItems is not null:
+				case NotifyCollectionChangedAction.Replace
+					when e.NewItems is not null
+						&& e.OldItems is not null
+						&& e.NewStartingIndex >= 0
+						&& e.OldStartingIndex >= 0:
 					{
 						var oldIndex = GroupStart(oldGroups, e.OldStartingIndex);
 						var newIndex = GroupStart(_groups, e.NewStartingIndex);
-						var removed = FlattenGroups(e.OldItems.Cast<object>()).ToList();
+						var removed = oldItems
+							.Skip(oldIndex)
+							.Take(e.OldItems.Cast<object>().Sum(FlattenedCount))
+							.ToList();
 						var added = FlattenGroups(e.NewItems.Cast<object>()).ToList();
 
 						if (oldIndex == newIndex && removed.Count == added.Count)
@@ -316,7 +391,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				_markers[group] = markers;
 			}
 
-			yield return markers.Header;
+			if (_hasGroupHeader)
+				yield return markers.Header;
 			if (group is IEnumerable items)
 			{
 				foreach (var item in items)
@@ -326,11 +402,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				yield return markers.Footer;
 		}
 
+		int FlattenedCount(object group) =>
+			(_hasGroupHeader ? 1 : 0) + ItemCount(group) + (_hasGroupFooter ? 1 : 0);
+
 		int GroupStart(IReadOnlyList<object> groups, int groupIndex)
 		{
 			var start = 0;
 			for (var index = 0; index < groupIndex && index < groups.Count; index++)
-				start += 1 + ItemCount(groups[index]) + (_hasGroupFooter ? 1 : 0);
+				start += (_hasGroupHeader ? 1 : 0) + ItemCount(groups[index]) + (_hasGroupFooter ? 1 : 0);
 			return start;
 		}
 

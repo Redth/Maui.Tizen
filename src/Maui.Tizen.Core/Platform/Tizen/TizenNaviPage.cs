@@ -120,16 +120,40 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </remarks>
 		/// <returns>The detached content, or <see langword="null"/> if there was none.</returns>
 		public NView? DetachContent()
+			=> DetachContent(resubscribe: true);
+
+		NView? DetachContent(bool resubscribe)
 		{
 			var content = _content;
 
 			if (content is not null)
 			{
-				content.Unparent();
-				_content = null;
+				_children.CollectionChanged -= OnCollectionChanged;
+				try
+				{
+					content.Unparent();
+					_content = null;
+				}
+				finally
+				{
+					if (resubscribe)
+						_children.CollectionChanged += OnCollectionChanged;
+				}
 			}
 
 			return content;
+		}
+
+		protected override void Dispose(global::Tizen.NUI.DisposeTypes type)
+		{
+			if (type == global::Tizen.NUI.DisposeTypes.Explicit)
+			{
+				_children.CollectionChanged -= OnCollectionChanged;
+				DetachContent(resubscribe: false);
+				TitleView = null;
+			}
+
+			base.Dispose(type);
 		}
 
 		IList<NView> IContainable<NView>.Children => _children;

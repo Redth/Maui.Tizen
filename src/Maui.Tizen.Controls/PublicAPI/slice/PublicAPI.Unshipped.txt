@@ -289,6 +289,8 @@ override Microsoft.Maui.Platforms.Tizen.Platform.TizenCarouselViewControl.Dispos
 override Microsoft.Maui.Platforms.Tizen.Platform.TizenCarouselViewControl.Initialize() -> void
 override Microsoft.Maui.Platforms.Tizen.Platform.TizenCarouselViewControl.Rebind(Microsoft.Maui.Controls.CarouselView! element) -> void
 override Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl<TItemsView>.Dispose(bool disposing) -> void
+override Microsoft.Maui.Platforms.Tizen.Platform.TizenStructuredItemsViewControl<TItemsView>.Dispose(bool disposing) -> void
+override Microsoft.Maui.Platforms.Tizen.Platform.TizenStructuredItemsViewControl<TItemsView>.Rebind(TItemsView! element) -> void
 override Microsoft.Maui.Platforms.Tizen.Platform.TizenSelectableItemsViewControl<TItemsView>.Initialize() -> void
 override Microsoft.Maui.Platforms.Tizen.Platform.TizenSelectableItemsViewControl<TItemsView>.Rebind(TItemsView! element) -> void
 override Microsoft.Maui.Platforms.Tizen.Platform.TizenShellItemView.Dispose(Tizen.NUI.DisposeTypes type) -> void

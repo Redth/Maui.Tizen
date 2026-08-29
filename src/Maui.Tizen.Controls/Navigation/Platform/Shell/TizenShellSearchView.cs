@@ -3,11 +3,14 @@ using System.Collections;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Platforms.Tizen.Adapters;
 using Tizen.NUI;
 using Tizen.NUI.BaseComponents;
+using Tizen.UIExtensions.Common;
 using Tizen.UIExtensions.NUI;
 using NCollectionView = Tizen.UIExtensions.NUI.CollectionView;
 using NView = Tizen.NUI.BaseComponents.View;
+using TSize = Tizen.UIExtensions.Common.Size;
 
 namespace Microsoft.Maui.Platforms.Tizen.Platform
 {
@@ -22,6 +25,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		IMauiContext? _mauiContext;
 		INotifyCollectionChanged? _observableItems;
 		bool _updatingQuery;
+		bool _resultsVisible;
 		bool _disposed;
 
 		public TizenShellSearchView()
@@ -33,8 +37,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			};
 
 			Add(_resultsHost);
+			_resultsHost.Hide();
 			Entry.TextChanged += OnTextChanged;
 			SearchButtonPressed += OnSearchButtonPressed;
+			LayoutUpdated += OnShellLayoutUpdated;
 		}
 
 		public void Bind(SearchHandler? searchHandler, Element parentElement, IMauiContext mauiContext)
@@ -99,6 +105,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			}
 
 			ReplaceResults(((ISearchHandlerController)_searchHandler).ListProxy);
+			UpdateResultsVisibility();
 		}
 
 		void ReplaceResults(IEnumerable? items)
@@ -120,7 +127,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			_collectionView = null;
 
 			if (items is null || _searchHandler is null || _parentElement is null || _mauiContext is null)
+			{
+				UpdateResultsVisibility();
 				return;
+			}
 
 			var template = _searchHandler.ItemTemplate ?? new DataTemplate(() =>
 			{
@@ -141,6 +151,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				Adaptor = _adaptor,
 			};
 			_resultsHost.Add(_collectionView);
+			UpdateResultsVisibility();
 		}
 
 		void OnTextChanged(object? sender, EventArgs e)
@@ -158,7 +169,37 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		void OnSelectionChanged(object? sender, TizenCollectionViewSelectionChangedEventArgs e)
 		{
 			if (_searchHandler is not null && e.SelectedItems?.Count > 0)
-				((ISearchHandlerController)_searchHandler).ItemSelected(e.SelectedItems[0]);
+			{
+				var handler = _searchHandler;
+				((ISearchHandlerController)handler).ItemSelected(e.SelectedItems[0]);
+				if (ReferenceEquals(_searchHandler, handler))
+				{
+					_resultsVisible = false;
+					_resultsHost.Hide();
+					void ClearQuery()
+					{
+						if (!ReferenceEquals(_searchHandler, handler))
+							return;
+
+						handler.Query = string.Empty;
+						_updatingQuery = true;
+						try
+						{
+							Entry.Text = string.Empty;
+						}
+						finally
+						{
+							_updatingQuery = false;
+						}
+						UpdateResultsVisibility();
+					}
+
+					if (handler.Dispatcher is { } dispatcher)
+						dispatcher.Dispatch(ClearQuery);
+					else
+						ClearQuery();
+				}
+			}
 		}
 
 		void OnSearchHandlerPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -217,20 +258,80 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			_mauiContext = null;
 		}
 
+		public override TSize Measure(double availableWidth, double availableHeight)
+		{
+			var search = base.Measure(availableWidth, availableHeight);
+			return new TSize(search.Width, search.Height + MeasureResults(availableWidth, availableHeight));
+		}
+
+		protected override void LayoutContent(float width, float height)
+		{
+			var search = base.Measure(width, height);
+			var searchHeight = (float)Math.Min(height, search.Height);
+			base.LayoutContent(width, searchHeight);
+
+			_resultsHost.Position = new Position(0, searchHeight);
+			_resultsHost.SizeWidth = width;
+			_resultsHost.SizeHeight = (float)MeasureResults(width, double.PositiveInfinity);
+			if (_collectionView is not null)
+			{
+				_collectionView.SizeWidth = _resultsHost.SizeWidth;
+				_collectionView.SizeHeight = _resultsHost.SizeHeight;
+			}
+		}
+
+		double MeasureResults(double width, double height)
+		{
+			if (!_resultsVisible || _adaptor is null)
+				return 0;
+
+			double measured = 0;
+			for (var index = 0; index < _adaptor.Count; index++)
+				measured += _adaptor.MeasureItem(index, width, height).Height;
+
+			return SearchResultsLayout.ConstrainHeight(
+				measured,
+				Devices.DeviceDisplay.MainDisplayInfo.Height);
+		}
+
+		void OnShellLayoutUpdated(object? sender, global::Tizen.UIExtensions.Common.LayoutEventArgs e) =>
+			LayoutContent(SizeWidth, SizeHeight);
+
+		void UpdateResultsVisibility()
+		{
+			var visible = SearchResultsLayout.IsVisible(
+				_searchHandler?.Query,
+				_adaptor?.Count ?? 0,
+				_searchHandler?.SearchBoxVisibility == SearchBoxVisibility.Hidden);
+			if (_resultsVisible == visible)
+				return;
+
+			_resultsVisible = visible;
+			if (visible)
+				_resultsHost.Show();
+			else
+				_resultsHost.Hide();
+		}
+
 		protected override void Dispose(bool disposing)
 		{
 			if (_disposed)
 				return;
 
+			_disposed = true;
 			if (disposing)
 			{
-				Entry.TextChanged -= OnTextChanged;
-				SearchButtonPressed -= OnSearchButtonPressed;
-				DetachSearchHandler();
-				ReplaceResults(null);
+				ExceptionSafeCleanup.Run(
+					() => LayoutUpdated -= OnShellLayoutUpdated,
+					() => Entry.TextChanged -= OnTextChanged,
+					() => SearchButtonPressed -= OnSearchButtonPressed,
+					DetachSearchHandler,
+					() => ReplaceResults(null),
+					DisconnectEvents,
+					() => base.Dispose(disposing));
+				return;
 			}
 
-			_disposed = true;
 			base.Dispose(disposing);
 		}
 	}

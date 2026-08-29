@@ -527,6 +527,11 @@
           "Status": "Supported"
         },
         {
+          "Key": "FlyoutItems",
+          "Method": "MapItems",
+          "Status": "Supported"
+        },
+        {
           "Key": "FlyoutContent",
           "Method": "MapFlyoutContent",
           "Status": "Supported"

@@ -135,10 +135,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			var shellView = VirtualView?.FindParentOfType<Shell>()?.Handler?.PlatformView as TizenShellView;
 			shellView?.UpdateToolbarColors(appearance.ForegroundColor, appearance.BackgroundColor, appearance.TitleColor);
 
-			PlatformView?.UpdateBottomTabBarColors(
-				appearance.BackgroundColor,
-				appearance.TitleColor,
-				appearance.UnselectedColor);
+			if (appearance is IShellAppearanceElement shellAppearance)
+			{
+				PlatformView?.UpdateBottomTabBarColors(
+					shellAppearance.EffectiveTabBarBackgroundColor,
+					shellAppearance.EffectiveTabBarTitleColor,
+					shellAppearance.EffectiveTabBarUnselectedColor);
+			}
 		}
 
 		void AttachAppearanceObserver()

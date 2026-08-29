@@ -161,4 +161,22 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 			return null;
 		}
 	}
+
+	internal static class MenuItemActivation
+	{
+		public static bool CanActivate(MenuItem item)
+		{
+			ArgumentNullException.ThrowIfNull(item);
+			return item.IsEnabled && (item.Command?.CanExecute(item.CommandParameter) ?? true);
+		}
+
+		public static bool Activate(MenuItem item)
+		{
+			if (!CanActivate(item))
+				return false;
+
+			((IMenuItemController)item).Activate();
+			return true;
+		}
+	}
 }

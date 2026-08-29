@@ -128,5 +128,226 @@
         "replace": "// mutation: RequestNavigation omitted"
       }
     ]
+  },
+  {
+    "id": "grouped-ilist-boundary",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenGroupItemTemplateAdaptor.cs",
+    "filter": "FullyQualifiedName~WaveCGroupedItemsSourceTests.ImplementsTheObservableNonGenericListBoundaryRequiredByItemAdaptor",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "ImplementsTheObservableNonGenericListBoundaryRequiredByItemAdaptor",
+    "replacements": [
+      {
+        "search": ": base(groupItemSource)",
+        "replace": ": base(groupItemSource.Cast<object>().ToList())"
+      }
+    ]
+  },
+  {
+    "id": "captured-platform-disconnect",
+    "file": "src/Maui.Tizen.Controls/Navigation/Handlers/Items/TizenItemsViewHandler.cs",
+    "filter": "FullyQualifiedName~WaveCItemsLifecycleSourceTests.DisconnectUsesTheCapturedPlatformViewAndSkipsInstallSynchronization",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "DisconnectUsesTheCapturedPlatformViewAndSkipsInstallSynchronization",
+    "replacements": [
+      {
+        "search": "protected override void DisconnectHandler(NView platformView)\n\t\t{\n\t\t\tvar collectionView = (platformView as TizenItemsViewControl<TItemsView>)?.CollectionView;",
+        "replace": "protected override void DisconnectHandler(NView platformView)\n\t\t{\n\t\t\tvar collectionView = NativeCollectionView;"
+      }
+    ]
+  },
+  {
+    "id": "shell-row-category",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Shell/TizenShellFlyoutItemAdaptor.cs",
+    "filter": "FullyQualifiedName~WaveCItemsLifecycleSourceTests.ShellAdaptorCategoryAndMeasurementShareTheRealRowFactory",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "ShellAdaptorCategoryAndMeasurementShareTheRealRowFactory",
+    "replacements": [
+      {
+        "search": "return typeof(TizenShellFlyoutItemView);",
+        "replace": "return GetFlyoutItemTemplate();"
+      }
+    ]
+  },
+  {
+    "id": "custom-flyout-header-ownership",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/SelectionProposalCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCSelectionProposalCoordinatorTests.CustomFlyoutContentExclusivelyDisablesGeneratedContent",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "CustomFlyoutContentExclusivelyDisablesGeneratedContent",
+    "replacements": [
+      {
+        "search": "customContent is null;",
+        "replace": "customContent is not null;"
+      }
+    ]
+  },
+  {
+    "id": "flyout-items-key",
+    "file": "src/Maui.Tizen.Controls/Navigation/Handlers/Shell/TizenShellHandler.cs",
+    "filter": "FullyQualifiedName~WaveCShellMapperExecutionTests.ShellFlyoutItemsLiteralMapperRunsThroughTheProductionHandler",
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "expected": "ShellFlyoutItemsLiteralMapperRunsThroughTheProductionHandler",
+    "replacements": [
+      {
+        "search": "[\"FlyoutItems\"] = MapItems,",
+        "replace": "// mutation: generated flyout changes are ignored"
+      }
+    ]
+  },
+  {
+    "id": "async-flyout-resync",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/SelectionProposalCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCSelectionProposalCoordinatorTests.AsyncSelectionAlwaysResynchronizesAfterACanceledProposal",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "AsyncSelectionAlwaysResynchronizesAfterACanceledProposal",
+    "replacements": [
+      {
+        "search": "if (generation == _generation && isCurrent(owner))\n\t\t\t\t\tsynchronize();",
+        "replace": "if (generation == _generation && isCurrent(owner))\n\t\t\t\t\t{ }"
+      }
+    ]
+  },
+  {
+    "id": "search-title-ownership",
+    "file": "src/Maui.Tizen.Core/Platform/TizenContentSlot.cs",
+    "filter": "FullyQualifiedName~WaveCToolbarOwnershipTests.SearchTemporarilyOwnsTheContentSlotAndRestoresTheTitle",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "SearchTemporarilyOwnsTheContentSlotAndRestoresTheTitle",
+    "replacements": [
+      {
+        "search": "public T? Current => Search ?? Title;",
+        "replace": "public T? Current => Search;"
+      }
+    ]
+  },
+  {
+    "id": "search-results-layout",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCItemsScrollCoordinatorTests.SearchResultsAreCappedAtHalfTheScreen",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "SearchResultsAreCappedAtHalfTheScreen",
+    "replacements": [
+      {
+        "search": "Math.Min(Math.Max(0, measuredHeight), Math.Max(0, screenHeight) / 2);",
+        "replace": "Math.Max(0, measuredHeight);"
+      }
+    ]
+  },
+  {
+    "id": "menu-controller-activation",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ToolbarDrawerToggle.cs",
+    "filter": "FullyQualifiedName~WaveCToolbarDrawerToggleTests.ToolbarItemActivationUsesThePublicControllerContract",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "ToolbarItemActivationUsesThePublicControllerContract",
+    "replacements": [
+      {
+        "search": "((IMenuItemController)item).Activate();",
+        "replace": "item.Command?.Execute(item.CommandParameter);"
+      }
+    ]
+  },
+  {
+    "id": "synchronous-selection-echo",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/SelectionProposalCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCSelectionProposalCoordinatorTests.SynchronousClearAndFinalSelectionConsumeTheEchoButNotTheNextUserTap",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "SynchronousClearAndFinalSelectionConsumeTheEchoButNotTheNextUserTap",
+    "replacements": [
+      {
+        "search": "if (_gate.IsApplyingManaged)\n\t\t\t{\n\t\t\t\tif (_pendingManagedIndex == nativeIndex)\n\t\t\t\t\t_pendingManagedIndex = null;\n\t\t\t\treturn true;\n\t\t\t}",
+        "replace": "if (_gate.IsApplyingManaged)\n\t\t\t{\n\t\t\t\treturn true;\n\t\t\t}"
+      }
+    ]
+  },
+  {
+    "id": "items-layout-snap",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenCollectionViewControl.cs",
+    "filter": "FullyQualifiedName~WaveCItemsLifecycleSourceTests.RuntimeItemsLayoutChangesRebuildLayoutAndSnapSettings",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "RuntimeItemsLayoutChangesRebuildLayoutAndSnapSettings",
+    "replacements": [
+      {
+        "search": "CollectionView.SnapPointsAlignment = (TSnapPointsAlignment)layout.SnapPointsAlignment;",
+        "replace": "// mutation: snap alignment is not updated"
+      }
+    ]
+  },
+  {
+    "id": "tabbed-page-removal-tracking",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/OwnedReplacementCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCOwnedReplacementCoordinatorTests.RealizedItemOwnershipKeepsMovesAndReleasesRemovedItems",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "RealizedItemOwnershipKeepsMovesAndReleasesRemovedItems",
+    "replacements": [
+      {
+        "search": "_owners.Keys.Where(item => !live.Contains(item)).ToList()",
+        "replace": "_owners.Keys.Where(item => live.Contains(item)).ToList()"
+      }
+    ]
+  },
+  {
+    "id": "animated-pop-content-detach",
+    "file": "src/Maui.Tizen.Core/Platform/Tizen/TizenNaviPage.cs",
+    "filter": "FullyQualifiedName~WaveCShellWiringTests.AnimatedPopDetachesContentInsideWrapperDisposal",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "AnimatedPopDetachesContentInsideWrapperDisposal",
+    "replacements": [
+      {
+        "search": "\t\t\t\tDetachContent(resubscribe: false);",
+        "replace": "\t\t\t\t// mutation: handler-owned content remains attached"
+      }
+    ]
+  },
+  {
+    "id": "shell-toolbar-handler-detach",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Shell/TizenShellView.cs",
+    "filter": "FullyQualifiedName~WaveCShellWiringTests.ShellDetachesToolbarBeforeItsHandlerOwnsDisposal",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "ShellDetachesToolbarBeforeItsHandlerOwnsDisposal",
+    "replacements": [
+      {
+        "search": "container.DetachToolbar(platformToolbar);",
+        "replace": "{ }"
+      }
+    ]
+  },
+  {
+    "id": "queued-selection-generation",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/OwnedReplacementCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCOwnedReplacementCoordinatorTests.QueuedWorkFromAReplacedAdaptorIsIgnored",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "QueuedWorkFromAReplacedAdaptorIsIgnored",
+    "replacements": [
+      {
+        "search": "if (generation != _generation)",
+        "replace": "if (false && generation != _generation)"
+      }
+    ]
+  },
+  {
+    "id": "carousel-layout-deferral",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCItemsScrollCoordinatorTests.CarouselPositionWaitsForLayoutAndRetries",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "CarouselPositionWaitsForLayoutAndRetries",
+    "replacements": [
+      {
+        "search": "if (!hasLayout)",
+        "replace": "if (false && !hasLayout)"
+      }
+    ]
+  },
+  {
+    "id": "empty-decorated-viewport",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ViewportConstraint.cs",
+    "filter": "FullyQualifiedName~WaveCViewportConstraintTests.EmptyContentUsesViewportRemainingAfterDecorations",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "EmptyContentUsesViewportRemainingAfterDecorations",
+    "replacements": [
+      {
+        "search": "Math.Max(0, allocated - header - footer);",
+        "replace": "Math.Max(0, allocated);"
+      }
+    ]
   }
 ]

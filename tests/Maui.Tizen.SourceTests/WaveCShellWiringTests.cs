@@ -19,9 +19,15 @@ public class WaveCShellWiringTests
 	public void NavigationToolbarAttachAndDetachAreSymmetric()
 	{
 		var source = Read("TizenNavigationViewHandler.cs");
+		var flyout = Read("TizenFlyoutViewHandler.cs");
 
 		Assert.Contains("PlatformView.SetToolbar", source, StringComparison.Ordinal);
-		Assert.Contains("platformView.ClearToolbar()", source, StringComparison.Ordinal);
+		Assert.Contains("container.DetachToolbar(platformToolbar)", source, StringComparison.Ordinal);
+		Assert.Contains("elementHandler?.DisconnectHandler()", source, StringComparison.Ordinal);
+		Assert.Contains("platformToolbar.Dispose", source, StringComparison.Ordinal);
+		Assert.Contains("container.SetToolbar(platformToolbar)", flyout, StringComparison.Ordinal);
+		Assert.Contains("container.DetachToolbar(platformToolbar)", flyout, StringComparison.Ordinal);
+		Assert.Contains("elementHandler?.DisconnectHandler()", flyout, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -45,7 +51,7 @@ public class WaveCShellWiringTests
 		Assert.Contains("ShellController.FlyoutHeader", shell, StringComparison.Ordinal);
 		Assert.Contains("ShellController.FlyoutFooter", shell, StringComparison.Ordinal);
 		Assert.Contains("ShellController.FlyoutContent", shell, StringComparison.Ordinal);
-		Assert.DoesNotContain("ResolveFlyoutItemTemplate", adaptor[..adaptor.IndexOf("CreateNativeView", StringComparison.Ordinal)], StringComparison.Ordinal);
+		Assert.DoesNotContain("ResolveFlyoutItemTemplate", adaptor[..adaptor.IndexOf("CreateItemView", StringComparison.Ordinal)], StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -69,6 +75,111 @@ public class WaveCShellWiringTests
 		Assert.DoesNotContain("SendDisappearing", source, StringComparison.Ordinal);
 		var disconnect = source[source.IndexOf("public void DisconnectHandler()", StringComparison.Ordinal)..];
 		Assert.DoesNotContain("ToHandler(", disconnect, StringComparison.Ordinal);
-		Assert.Contains("var handler = child.Handler", disconnect, StringComparison.Ordinal);
+		Assert.Contains("_realizedPageHandlers", disconnect, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void CustomFlyoutNeverRebuildsGeneratedContentAndFlyoutItemsHasAMapper()
+	{
+		var handler = WaveCSource.Handlers.Single(source => source.TypeName == "TizenShellHandler");
+		var source = Read("TizenShellView.cs");
+
+		Assert.Contains(handler.PropertyMappers, mapper => mapper.Key == "FlyoutItems");
+		var start = source.IndexOf("public void UpdateFlyoutHeader", StringComparison.Ordinal);
+		var end = source.IndexOf("public void UpdateFlyoutFooter", start, StringComparison.Ordinal);
+		Assert.Equal(
+			2,
+			source[start..end].Split("FlyoutContentMode.UsesGeneratedContent(_customFlyoutContent)").Length - 1);
+		Assert.Contains("ReleaseFlyoutAdaptor();", source, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void FlyoutSelectionAwaitsPublicControllerAndResynchronizesHierarchy()
+	{
+		var source = Read("TizenShellView.cs");
+
+		var start = source.IndexOf("async Task HandleFlyoutItemSelectedAsync", StringComparison.Ordinal);
+		var end = source.IndexOf("void SynchronizeFlyoutSelection", start, StringComparison.Ordinal);
+		var body = source[start..end];
+		Assert.Contains("OnFlyoutItemSelectedAsync", body, StringComparison.Ordinal);
+		Assert.Contains("_flyoutSelectionResynchronizer.RunAsync", body, StringComparison.Ordinal);
+		Assert.Contains("HierarchySelectionResolver.Resolve", source, StringComparison.Ordinal);
+		Assert.Contains("SynchronizeFlyoutSelection", body, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void SearchOwnsOnlyItsToolbarSlotAndCleansInheritedEvents()
+	{
+		var shell = Read("TizenShellView.cs");
+		var search = Read("TizenShellSearchView.cs");
+		var toolbar = File.ReadAllText(RepoPaths.Combine(
+			"src", "Maui.Tizen.Core", "Platform", "Tizen", "TizenToolbarView.cs"));
+
+		Assert.Contains("ReferenceEquals(toolbar.SearchBar, _searchView)", shell, StringComparison.Ordinal);
+		Assert.Contains("_contentSlot.Current", toolbar, StringComparison.Ordinal);
+		Assert.Contains("DisconnectEvents,", search, StringComparison.Ordinal);
+		Assert.Contains("LayoutUpdated += OnShellLayoutUpdated", search, StringComparison.Ordinal);
+		Assert.Contains("protected override void LayoutContent", search, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void TabbedPageTracksRemovedHandlersAndRebuildsAfterMoves()
+	{
+		var source = Read("TizenTabbedPageView.cs");
+
+		Assert.Contains("PagesChanged += OnPagesChanged", source, StringComparison.Ordinal);
+		Assert.Contains("_realizedPageHandlers", source, StringComparison.Ordinal);
+		Assert.Contains("ReleaseRemoved(_tabbedPage.Children", source, StringComparison.Ordinal);
+		Assert.Contains("_tabbedView.Adaptor = null", source, StringComparison.Ordinal);
+		Assert.Contains("UpdateCurrentPage();", source, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void AnimatedPopDetachesContentInsideWrapperDisposal()
+	{
+		var wrapper = File.ReadAllText(RepoPaths.Combine(
+			"src", "Maui.Tizen.Core", "Platform", "Tizen", "TizenNaviPage.cs"));
+		var manager = File.ReadAllText(RepoPaths.Combine(
+			"src", "Maui.Tizen.Core", "Platform", "Tizen", "TizenStackNavigationManager.cs"));
+		var awaitPop = manager.IndexOf("await PlatformNavigation.Pop(true)", StringComparison.Ordinal);
+		var removal = manager.IndexOf("_pageMap.Remove(page)", awaitPop, StringComparison.Ordinal);
+		var nextDetach = manager.IndexOf("wrapper.DetachContent()", awaitPop, StringComparison.Ordinal);
+
+		var disposeStart = wrapper.IndexOf("protected override void Dispose", StringComparison.Ordinal);
+		var disposeBody = wrapper[disposeStart..];
+		Assert.Contains("DetachContent(resubscribe: false);", disposeBody, StringComparison.Ordinal);
+		Assert.True(awaitPop >= 0 && removal > awaitPop);
+		Assert.True(nextDetach < 0 || nextDetach > manager.IndexOf("else", awaitPop, StringComparison.Ordinal));
+	}
+
+	[Fact]
+	public void ShellDetachesToolbarBeforeItsHandlerOwnsDisposal()
+	{
+		var source = Read("TizenShellView.cs");
+		var start = source.IndexOf("void ReleaseToolbar()", StringComparison.Ordinal);
+		var end = source.IndexOf("void ClearOwnedSearchBar", start, StringComparison.Ordinal);
+		var body = source[start..end];
+
+		var detach = body.IndexOf("container.DetachToolbar(platformToolbar)", StringComparison.Ordinal);
+		var disconnect = body.IndexOf("elementHandler?.DisconnectHandler()", StringComparison.Ordinal);
+		var dispose = body.IndexOf("platformToolbar.Dispose", StringComparison.Ordinal);
+		Assert.True(detach >= 0 && disconnect > detach && dispose > disconnect);
+		Assert.Contains("toolbarElement.Handler = null", body, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void TabAppearanceUsesEffectiveValuesAndSurvivesLazyRootCreation()
+	{
+		var itemHandler = Read("TizenShellItemHandler.cs");
+		var sectionHandler = Read("TizenShellSectionHandler.cs");
+		var stack = Read("TizenShellSectionStackManager.cs");
+
+		Assert.Contains("EffectiveTabBarBackgroundColor", itemHandler, StringComparison.Ordinal);
+		Assert.Contains("EffectiveTabBarTitleColor", itemHandler, StringComparison.Ordinal);
+		Assert.Contains("EffectiveTabBarUnselectedColor", itemHandler, StringComparison.Ordinal);
+		Assert.Contains("EffectiveTabBarBackgroundColor", sectionHandler, StringComparison.Ordinal);
+		Assert.Contains("_pendingAppearance =", stack, StringComparison.Ordinal);
+		Assert.Contains("if (_pendingAppearance is { } appearance)", stack, StringComparison.Ordinal);
+		Assert.Contains("UpdateFlyoutBackground(view.FlyoutBackground)", Read("TizenShellHandler.cs"), StringComparison.Ordinal);
 	}
 }

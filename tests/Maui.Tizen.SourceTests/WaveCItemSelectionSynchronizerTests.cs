@@ -359,6 +359,18 @@ public class WaveCItemSelectionSynchronizerTests
 
 		Assert.Empty(kept);
 		Assert.Contains("unselect:0", native.Operations);
+	}
+
+	[Fact]
+	public void EmptyNativeSelectionDoesNotRestoreWithoutAnInvalidRejection()
+	{
+		var native = new FakeNativeSelection(count: 5, initiallySelected: Array.Empty<int>());
+
+		var kept = new ItemSelectionSynchronizer()
+			.RejectUnselectableIndexes(native, Array.Empty<int>(), new HeaderFooterFilter(0), previousValidIndex: 2);
+
+		Assert.Empty(kept);
+		Assert.DoesNotContain("select:2", native.Operations);
 		Assert.DoesNotContain("select:", string.Join(",", native.Operations.Where(o => o.StartsWith("select:"))));
 	}
 

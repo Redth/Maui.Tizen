@@ -1,10 +1,13 @@
 using System;
+using System.ComponentModel;
 using Microsoft.Maui.Controls;
 using Tizen.NUI;
 using Tizen.UIExtensions.NUI;
 using NCollectionView = Tizen.UIExtensions.NUI.CollectionView;
 using NLayoutParamPolicies = Tizen.NUI.BaseComponents.LayoutParamPolicies;
 using NView = Tizen.NUI.BaseComponents.View;
+using TSnapPointsAlignment = Tizen.UIExtensions.NUI.SnapPointsAlignment;
+using TSnapPointsType = Tizen.UIExtensions.NUI.SnapPointsType;
 using MauiCollectionView = Microsoft.Maui.Controls.CollectionView;
 
 namespace Microsoft.Maui.Platforms.Tizen.Platform
@@ -73,13 +76,55 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 	public class TizenStructuredItemsViewControl<TItemsView> : TizenItemsViewControl<TItemsView>
 		where TItemsView : StructuredItemsView
 	{
+		IItemsLayout? _observedItemsLayout;
+
 		public TizenStructuredItemsViewControl(TItemsView element) : base(element)
 		{
 		}
 
 		public void UpdateLayoutManager(IItemsLayout itemsLayout)
 		{
+			if (!ReferenceEquals(_observedItemsLayout, itemsLayout))
+			{
+				if (_observedItemsLayout is not null)
+					_observedItemsLayout.PropertyChanged -= OnItemsLayoutPropertyChanged;
+
+				_observedItemsLayout = itemsLayout;
+				_observedItemsLayout.PropertyChanged += OnItemsLayoutPropertyChanged;
+			}
+
 			CollectionView.LayoutManager = itemsLayout.ToLayoutManager(Element.ItemSizingStrategy);
+			if (itemsLayout is ItemsLayout layout)
+			{
+				CollectionView.SnapPointsType = (TSnapPointsType)layout.SnapPointsType;
+				CollectionView.SnapPointsAlignment = (TSnapPointsAlignment)layout.SnapPointsAlignment;
+			}
+			CollectionView.ScrollView.HideScrollbar = CollectionView.LayoutManager.IsHorizontal
+				? Element.HorizontalScrollBarVisibility == ScrollBarVisibility.Never
+				: Element.VerticalScrollBarVisibility == ScrollBarVisibility.Never;
+		}
+
+		public override void Rebind(TItemsView element)
+		{
+			base.Rebind(element);
+			UpdateLayoutManager(element.ItemsLayout ?? LinearItemsLayout.Vertical);
+		}
+
+		protected override void Dispose(bool disposing)
+		{
+			if (disposing && _observedItemsLayout is not null)
+			{
+				_observedItemsLayout.PropertyChanged -= OnItemsLayoutPropertyChanged;
+				_observedItemsLayout = null;
+			}
+
+			base.Dispose(disposing);
+		}
+
+		void OnItemsLayoutPropertyChanged(object? sender, PropertyChangedEventArgs e)
+		{
+			if (ReferenceEquals(sender, _observedItemsLayout) && _observedItemsLayout is not null)
+				UpdateLayoutManager(_observedItemsLayout);
 		}
 	}
 

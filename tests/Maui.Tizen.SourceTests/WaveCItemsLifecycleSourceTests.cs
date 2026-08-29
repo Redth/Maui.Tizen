@@ -93,4 +93,50 @@ public class WaveCItemsLifecycleSourceTests
 		Assert.Contains("UpdateSelectedItem();", selectable, StringComparison.Ordinal);
 		Assert.Contains("UpdateSelectedItems();", selectable, StringComparison.Ordinal);
 	}
+
+	[Fact]
+	public void DisconnectUsesTheCapturedPlatformViewAndSkipsInstallSynchronization()
+	{
+		var source = Read("TizenItemsViewHandler.cs");
+		var start = source.IndexOf("protected override void DisconnectHandler", StringComparison.Ordinal);
+		var end = source.IndexOf("public override void SetVirtualView", start, StringComparison.Ordinal);
+		var body = source[start..end];
+
+		Assert.Contains("platformView as TizenItemsViewControl", body, StringComparison.Ordinal);
+		Assert.Contains("notifyInstalled: false", body, StringComparison.Ordinal);
+		Assert.DoesNotContain("NativeCollectionView", body, StringComparison.Ordinal);
+	}
+
+	[Theory]
+	[InlineData("TizenShellFlyoutItemAdaptor.cs")]
+	[InlineData("TizenShellSectionItemAdaptor.cs")]
+	[InlineData("TizenShellContentItemAdaptor.cs")]
+	public void ShellAdaptorCategoryAndMeasurementShareTheRealRowFactory(string fileName)
+	{
+		var source = Read(fileName);
+
+		Assert.Contains("GetViewCategory", source, StringComparison.Ordinal);
+		Assert.Contains("CreateItemView", source, StringComparison.Ordinal);
+		Assert.DoesNotContain("override NView CreateNativeView", source, StringComparison.Ordinal);
+		if (fileName == "TizenShellFlyoutItemAdaptor.cs")
+			Assert.Contains("return typeof(TizenShellFlyoutItemView);", source, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void RuntimeItemsLayoutChangesRebuildLayoutAndSnapSettings()
+	{
+		var collection = Read("TizenCollectionViewControl.cs");
+		var carousel = Read("TizenCarouselViewControl.cs");
+
+		Assert.Contains("PropertyChanged += OnItemsLayoutPropertyChanged", collection, StringComparison.Ordinal);
+		Assert.Contains("SnapPointsType", collection, StringComparison.Ordinal);
+		Assert.Contains(
+			"CollectionView.SnapPointsAlignment = (TSnapPointsAlignment)layout.SnapPointsAlignment;",
+			collection,
+			StringComparison.Ordinal);
+		Assert.Contains("PropertyChanged -= OnItemsLayoutPropertyChanged", collection, StringComparison.Ordinal);
+		Assert.Contains("PropertyChanged += OnItemsLayoutPropertyChanged", carousel, StringComparison.Ordinal);
+		Assert.Contains("SnapPointsAlignment", carousel, StringComparison.Ordinal);
+		Assert.Contains("Relayout += OnRelayout", carousel, StringComparison.Ordinal);
+	}
 }

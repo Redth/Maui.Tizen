@@ -237,24 +237,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		public override object GetViewCategory(int index)
 		{
-			if (ItemTemplate is DataTemplateSelector selector)
-			{
-				return selector.SelectTemplate(this[index], Element);
-			}
-			return base.GetViewCategory(index);
+			return ResolveItemTemplate(index);
 		}
 
 		public override NView CreateNativeView(int index)
 		{
-			View view;
-			if (ItemTemplate is DataTemplateSelector selector)
-			{
-				view = (View)selector.SelectTemplate(GetData(index), Element).CreateContent();
-			}
-			else
-			{
-				view = (View)ItemTemplate.CreateContent();
-			}
+			var view = CreateItemView(index);
 			var native = view.ToPlatformView(MauiContext);
 			RegisterNativeView(native, view);
 
@@ -358,19 +346,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				return (createdView as IView).Measure(widthConstraint, heightConstraint).ToPixel();
 			}
 
-			View view;
-			if (ItemTemplate is DataTemplateSelector selector)
-			{
-				var template = selector.SelectTemplate(GetData(index), Element)
-					?? throw new InvalidOperationException("The item template selector returned null.");
-				view = template.CreateContent() as View
-					?? throw new InvalidOperationException("The item template must create a View.");
-			}
-			else
-			{
-				view = ItemTemplate.CreateContent() as View
-					?? throw new InvalidOperationException("The item template must create a View.");
-			}
+			var view = CreateItemView(index);
 
 			if (Count > index)
 				view.BindingContext = this[index];
@@ -387,6 +363,23 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				view.Handler = null;
 				view.Parent = null;
 			}
+		}
+
+		protected virtual DataTemplate ResolveItemTemplate(int index)
+		{
+			if (ItemTemplate is DataTemplateSelector selector)
+			{
+				return selector.SelectTemplate(GetData(index), Element)
+					?? throw new InvalidOperationException("The item template selector returned null.");
+			}
+
+			return ItemTemplate;
+		}
+
+		protected virtual View CreateItemView(int index)
+		{
+			return ResolveItemTemplate(index).CreateContent() as View
+				?? throw new InvalidOperationException("The item template must create a View.");
 		}
 
 		public override TSize MeasureHeader(double widthConstraint, double heightConstraint)

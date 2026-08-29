@@ -33,19 +33,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		protected override bool IsSelectable => true;
 
-		public override NView CreateNativeView(int index)
-		{
-			var item = this[index];
-			var view = TizenShellSectionItemView.GetSectionItemView(item!, MauiContext, _itemAppearance);
-			view.Parent = ShellItem;
-			view.BindingContext = item;
-			var native = view.ToPlatformView(MauiContext);
+		public override object GetViewCategory(int index) => typeof(TizenShellSectionItemView);
 
-			// Register native-to-MAUI mapping for selection state tracking
-			RegisterNativeView(native, view);
-
-			return native;
-		}
+		protected override View CreateItemView(int index) =>
+			TizenShellSectionItemView.GetSectionItemView(this[index]!, MauiContext, _itemAppearance);
 
 		public override void UpdateViewState(NView view, ViewHolderState state)
 		{

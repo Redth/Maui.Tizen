@@ -182,6 +182,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			}
 
 			TMaterialIconButton more = CreateIconButton(platformToolbar, toolbar.IconColor, MaterialIcons.MoreVert);
+			more.IsEnabled = secondaryActions.Any(MenuItemActivation.CanActivate);
 
 			more.Clicked += async (_, _) =>
 			{
@@ -190,8 +191,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 				if (selected >= 0 && selected < secondaryActions.Count)
 				{
-					ToolbarItem item = secondaryActions[selected];
-					item.Command?.Execute(item.CommandParameter);
+					MenuItemActivation.Activate(secondaryActions[selected]);
 				}
 			};
 
@@ -249,6 +249,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				.Width;
 
 			button.UpdateBackgroundColor(TColor.Transparent);
+			button.IsEnabled = MenuItemActivation.CanActivate(item);
 
 			if (item.IconImageSource is not null && loadIcon is not null)
 			{
@@ -261,9 +262,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				loadIcon(item.IconImageSource, button);
 			}
 
-			button.Clicked += (_, _) => item.Command?.Execute(item.CommandParameter);
+			button.Clicked += (_, _) => MenuItemActivation.Activate(item);
 
 			return button;
 		}
+
 	}
 }

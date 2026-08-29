@@ -320,6 +320,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					section,
 					candidate => ShellItemController.ProposeSection(candidate),
 					SynchronizeNativeSelection);
+				SynchronizeNativeSelection();
 			}
 		}
 
@@ -376,6 +377,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					section,
 					candidate => ShellItemController.ProposeSection(candidate),
 					SynchronizeNativeSelection);
+				SynchronizeNativeSelection();
 				_morePopup?.Close();
 			}
 		}

@@ -15,6 +15,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		protected ShellSection? ShellSection { get; private set; }
 
 		readonly ShellRootMountCoordinator<ShellContent, TizenShellSectionView> _rootMount = new();
+		(GColor Foreground, GColor Background, GColor Title, GColor Unselected)? _pendingAppearance;
 
 		/// <summary>
 		/// Connects this manager to a ShellSection navigation view.
@@ -36,6 +37,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				root.Dispose();
 			});
 			ShellSection = null;
+			_pendingAppearance = null;
 		}
 
 		public void UpdateCurrentItem(ShellContent? content) =>
@@ -46,6 +48,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// </summary>
 		public void UpdateTopTabBarColors(GColor foregroundColor, GColor backgroundColor, GColor titleColor, GColor unselectedColor)
 		{
+			_pendingAppearance = (foregroundColor, backgroundColor, titleColor, unselectedColor);
 			_rootMount.Root?.UpdateTopTabBarColors(foregroundColor, backgroundColor, titleColor, unselectedColor);
 		}
 
@@ -59,6 +62,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			var root = _rootMount.GetOrCreate(
 				() => new TizenShellSectionView(ShellSection!, MauiContext!),
 				static (view, content) => view.UpdateCurrentItem(content));
+			if (_pendingAppearance is { } appearance)
+			{
+				root.UpdateTopTabBarColors(
+					appearance.Foreground,
+					appearance.Background,
+					appearance.Title,
+					appearance.Unselected);
+			}
 
 			await PlatformNavigation.Push(root, false);
 

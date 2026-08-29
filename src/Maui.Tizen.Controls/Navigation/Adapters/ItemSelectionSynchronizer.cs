@@ -184,11 +184,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 			}
 
 			List<int> kept = new();
+			var rejectedInvalidIndex = false;
 
 			foreach (int index in selectedIndexes.ToList())
 			{
 				if (filter?.IsItemSelectableAt(index) == false)
 				{
+					rejectedInvalidIndex = true;
 					_pushingToNative = true;
 
 					try
@@ -208,7 +210,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 
 			// If all items were rejected and we have a previous valid index, restore it.
 			// This ensures SingleAlways mode is never left with no selection.
-			if (kept.Count == 0 && previousValidIndex.HasValue && previousValidIndex.Value >= 0)
+			if (rejectedInvalidIndex
+				&& kept.Count == 0
+				&& previousValidIndex.HasValue
+				&& previousValidIndex.Value >= 0)
 			{
 				int prevIdx = previousValidIndex.Value;
 				// Validate the previous index is still in range and selectable

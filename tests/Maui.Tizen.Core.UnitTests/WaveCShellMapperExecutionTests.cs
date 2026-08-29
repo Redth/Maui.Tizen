@@ -92,6 +92,42 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.True(platform.ConnectCount > before);
 		}
 
+		[Fact]
+		public void ShellFlyoutItemsLiteralMapperRunsThroughTheProductionHandler()
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<TestApplication>()
+				.Build();
+			var shell = new Shell();
+			var handler = Assert.IsType<TizenShellHandler>(
+				app.Services.GetRequiredService<IMauiHandlersFactory>().GetHandler(typeof(Shell)));
+			handler.SetMauiContext(new MauiContext(app.Services));
+			handler.SetVirtualView(shell);
+			var before = handler.PlatformView.FlyoutItemsUpdates;
+
+			handler.UpdateValue("FlyoutItems");
+
+			Assert.Equal(before + 1, handler.PlatformView.FlyoutItemsUpdates);
+		}
+
+		[Fact]
+		public void ShellFlyoutBackgroundMapperUsesTheBrushProperty()
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<TestApplication>()
+				.Build();
+			var brush = new SolidColorBrush(Colors.CornflowerBlue);
+			var shell = new Shell { FlyoutBackground = brush };
+			var handler = Assert.IsType<TizenShellHandler>(
+				app.Services.GetRequiredService<IMauiHandlersFactory>().GetHandler(typeof(Shell)));
+			handler.SetMauiContext(new MauiContext(app.Services));
+			handler.SetVirtualView(shell);
+
+			TizenShellHandler.MapFlyoutBackground(handler, shell);
+
+			Assert.Same(brush, handler.PlatformView.FlyoutBackground);
+		}
+
 		sealed class TestApplication : Application
 		{
 		}

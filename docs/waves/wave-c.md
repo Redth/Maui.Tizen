@@ -28,16 +28,20 @@ no-op bodies.
 - Shell item and section platform views are cached while live, unmounted without disposal during
   selection changes, and disposed when removed or during teardown.
 - Bottom-tab native changes go through `IShellItemController.ProposeSection`. Rejected proposals
-  restore the authored selection. Managed selection updates suppress native echo callbacks.
+  restore the authored selection. Accepted top-tab and More proposals explicitly resynchronize
+  native selection. Managed selection updates suppress synchronous and deferred native echoes.
 - Hidden sections are filtered from the tab adaptor. Visibility and items changes rebuild the bar,
   while `ShowTabs == false` detaches an already-created bar without discarding section state.
 - `TizenShellHandler` and `TizenNavigationViewHandler` both expose reachable toolbar mappings.
-  Toolbar replacement unsubscribes before the owning Core container disposes the outgoing toolbar.
-  Back navigation requires a visible, enabled back button.
+  Shell toolbar replacement first detaches the native container, then disconnects/disposes and
+  clears the persistent handler so reconnection cannot reuse a disposed platform view. Back
+  navigation requires a visible, enabled back button.
 - Search is represented by `TizenShellSearchView`, attached to `TizenToolbarView.SearchBar`. It
   follows the current page's effective `SearchHandler`, query, list proxy, item template, enabled
-  state, visibility, query confirmation, and item selection, and detaches all subscriptions on
-  replacement or teardown.
+  state, visibility, query confirmation, and item selection. Results are measured and arranged
+  below the entry only for an active query, selection clears the query/results, and teardown
+  detaches both Shell subscriptions and the inherited search-control events. The toolbar preserves
+  and restores custom `TitleView` content while search temporarily owns the content slot.
 
 ## Flyout ownership and appearance
 
@@ -48,26 +52,38 @@ Headers have one owner:
 - fixed/default behavior places it in the fixed header slot.
 
 Changing the behavior first releases the old owner, then realizes the new owner. Footer content is
-fixed. Clearing custom flyout content unmounts and disposes it, then restores the default collection.
+fixed. While custom content is active, header/behavior updates never rebuild or overwrite the
+generated collection; fixed header/footer slots still update independently. Clearing custom flyout
+content unmounts and disposes it, then restores the default collection.
 The `FlyoutHeader`, `FlyoutHeaderTemplate`, `FlyoutFooter`, `FlyoutFooterTemplate`,
-`FlyoutContent`, and `FlyoutContentTemplate` mapper keys all refresh these paths.
+`FlyoutContent`, and `FlyoutContentTemplate` mapper keys all refresh these paths. The literal
+`FlyoutItems` notification key refreshes generated content when nested visibility or menu state
+changes.
 
 Built-in flyout and tab rows bind title, icon, and enabled state through their current
 `BindingContext`, so recycled rows do not retain an explicit source from a previous item. Selected
 and unselected colors bind to one shared `TizenItemAppearance` instance and update live.
-Programmatic `Shell.CurrentItem` changes and adaptor rebuilds resynchronize native selection.
+Programmatic item, section, and content navigation and adaptor rebuilds resolve the most-specific
+generated flyout entry and resynchronize native selection. User selection awaits the public
+`IShellController.OnFlyoutItemSelectedAsync` path before checking the resulting hierarchy, so a
+canceled navigation or a `MenuItem` action cannot leave a false native selection.
 
 ## Items, grouping, and selection
 
-`TizenGroupItemSource` is the production flattened grouped source. It observes both the outer group
-collection and every observable inner group and translates add, remove, replace, move, and reset
-notifications into flattened indexes. Grouped `ScrollTo` resolves both `(GroupIndex, Index)` and
-`(Group, Item)` requests to absolute rows, including group headers and optional footers.
+`TizenGroupItemSource` is the production flattened grouped source. It implements non-generic
+`IList` plus `INotifyCollectionChanged`, which keeps the pinned `ItemAdaptor` on the live source
+instead of snapshotting it. It observes both the outer group collection and every observable inner
+group and translates add, remove, replace, move, and reset notifications into flattened indexes;
+multi-row moves emit `Reset`. Group header rows exist only when a `GroupHeaderTemplate` exists.
+Grouped `ScrollTo` resolves both `(GroupIndex, Index)` and `(Group, Item)` requests to absolute rows,
+including configured group decorations.
 
 Native selection events preserve raw indexes. Header/footer indexes are rejected and unselected
 before managed items are projected. Managed selection uses set differences in both directions;
-`null` clears native selection, and the last valid index is restored for `SingleAlways`.
-Selection is reapplied after every adaptor replacement and after source changes.
+`null` clears native selection, and the last valid index is restored only in single-selection mode
+after an invalid native row was actually rejected. Selection is reapplied after every adaptor
+replacement and queued after observable source mutations, guarded by adaptor generation so stale
+work cannot target a replacement.
 
 Adaptor replacement follows one ownership order:
 
@@ -78,20 +94,32 @@ Adaptor replacement follows one ownership order:
 5. install it;
 6. reapply selection.
 
-The sequence is exception-safe through `OwnedReplacementCoordinator`. Reused native controls call
+Disconnect uses MAUI's captured `platformView`, detaches its adaptor before disposal, and skips
+install-time selection synchronization during teardown. The sequence is exception-safe through
+`OwnedReplacementCoordinator`. Reused native controls call
 `Rebind` before mapper updates. Grouped and empty adaptors retain global header/footer support via
 explicit `TizenHeaderFooterPresenter` ownership. Empty content measures against the allocated
-viewport rather than propagating infinite scroll constraints.
+viewport remaining after global header/footer decorations rather than propagating infinite scroll
+constraints.
 
 Native `Scrolled` events publish MAUI `ItemsViewScrolledEventArgs` and remaining-item threshold
-notifications. Scrollbar visibility follows the active layout orientation.
+notifications. `ItemsLayout` changes are observed through disposal/rebind; span, item spacing,
+orientation, snap type, and snap alignment update at runtime. Scrollbar visibility follows the
+active native layout orientation.
 
 ## Carousel feedback
 
 Carousel native scrolling updates both `Position` and `CurrentItem`. Managed updates and their
 deferred native echoes are separated by `CarouselFeedbackCoordinator`, preventing recursive or
-stale feedback. `IsSwipeEnabled` controls the native scroll input switch. Event subscriptions are
-symmetrical across connect, rebind, disconnect, and disposal.
+stale feedback. Initial `Position`/`CurrentItem` is retained until both an adaptor and non-zero
+layout bounds exist, then retried after layout/adaptor changes. `IsSwipeEnabled` controls the native
+scroll input switch. Event subscriptions are symmetrical across connect, rebind, disconnect, and
+disposal.
+
+Animated navigation pops rely on `TizenNaviPage.Dispose` to detach handler-owned content before the
+native wrapper destroys its children; no wrapper is accessed after `NavigationStack.Pop(true)`
+returns. `TabbedPage` observes `PagesChanged`, rebuilds and reselects after moves, tracks every
+realized page handler so removed pages are disposed, and never creates handlers during disconnect.
 
 ## Mapper parity and source closure
 
@@ -118,8 +146,8 @@ projection, and appearance changes. Core host tests build the real
 `UseMauiAppTizenControls<TApp>` path, resolve all concrete Wave C registrations, and execute the
 ShellItem and ShellSection current-item mappers.
 
-`eng/tests/wave-c-mutations.json` is executed by a lock-protected mutation runner. It proves tests
-fail for omissions in:
+`eng/tests/wave-c-mutations.json` contains 27 mutations executed by a lock-protected runner. It
+proves tests fail for omissions in:
 
 - Shell root mounting;
 - toolbar transfer ordering;
@@ -131,6 +159,18 @@ fail for omissions in:
 - carousel feedback;
 - member-access mapper parsing;
 - command mapper coverage.
+- non-generic grouped-source retention;
+- captured-platform disconnect;
+- Shell row category/measurement;
+- custom flyout ownership and `FlyoutItems` dispatch;
+- asynchronous flyout resynchronization;
+- search/title-slot ownership and layout;
+- public menu activation;
+- synchronous selection echoes;
+- runtime items-layout/snap changes;
+- TabbedPage move/removal;
+- animated-pop content detachment;
+- Shell toolbar handler detachment.
 
 The canonical workload-free and hosted validation scripts run these checks along with Core, Wave B,
 Wave C, source, PublicAPI, API15 RefPack, consumer, parity, and repository validation.

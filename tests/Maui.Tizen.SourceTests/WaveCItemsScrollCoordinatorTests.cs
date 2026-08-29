@@ -61,4 +61,49 @@ public class WaveCItemsScrollCoordinatorTests
 
 		Assert.False(applied);
 	}
+
+	[Fact]
+	public void CarouselPositionWaitsForLayoutAndRetries()
+	{
+		var coordinator = new DeferredCarouselPosition();
+		var scrolled = new List<int>();
+		coordinator.SetPosition(2);
+
+		Assert.False(coordinator.TryApply(false, 4, _ => -1, scrolled.Add));
+		Assert.Empty(scrolled);
+		Assert.True(coordinator.TryApply(true, 4, _ => -1, scrolled.Add));
+		Assert.Equal([2], scrolled);
+	}
+
+	[Fact]
+	public void CurrentItemSupersedesAPendingPosition()
+	{
+		var coordinator = new DeferredCarouselPosition();
+		var item = new object();
+		var scrolled = new List<int>();
+		coordinator.SetPosition(1);
+		coordinator.SetCurrentItem(item);
+
+		Assert.True(coordinator.TryApply(true, 4, value => ReferenceEquals(value, item) ? 3 : -1, scrolled.Add));
+		Assert.Equal([3], scrolled);
+	}
+
+	[Theory]
+	[InlineData("query", 1, false, true)]
+	[InlineData("", 1, false, false)]
+	[InlineData("query", 0, false, false)]
+	[InlineData("query", 1, true, false)]
+	public void SearchResultsRequireAnActiveQueryAndVisibleSearchBox(
+		string query,
+		int count,
+		bool hidden,
+		bool expected) =>
+		Assert.Equal(expected, SearchResultsLayout.IsVisible(query, count, hidden));
+
+	[Fact]
+	public void SearchResultsAreCappedAtHalfTheScreen()
+	{
+		Assert.Equal(300, SearchResultsLayout.ConstrainHeight(500, 600));
+		Assert.Equal(200, SearchResultsLayout.ConstrainHeight(200, 600));
+	}
 }

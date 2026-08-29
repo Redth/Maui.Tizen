@@ -4,6 +4,38 @@ namespace Maui.Tizen.SourceTests;
 
 public class WaveCOwnedReplacementCoordinatorTests
 {
+	[Fact]
+	public void QueuedWorkFromAReplacedAdaptorIsIgnored()
+	{
+		var guard = new GenerationGuard();
+		var old = guard.Capture();
+		guard.Advance();
+		var ran = false;
+
+		Assert.False(guard.RunIfCurrent(old, () => ran = true));
+		Assert.False(ran);
+	}
+
+	[Fact]
+	public void RealizedItemOwnershipKeepsMovesAndReleasesRemovedItems()
+	{
+		var ownership = new RealizedItemOwnership<object, string>();
+		var first = new object();
+		var second = new object();
+		var released = new List<string>();
+		ownership.Track(first, "first-handler");
+		ownership.Track(second, "second-handler");
+
+		ownership.ReleaseRemoved(new[] { second, first }, (_, handler) => released.Add(handler));
+		Assert.Empty(released);
+
+		ownership.ReleaseRemoved(new[] { second }, (_, handler) => released.Add(handler));
+		Assert.Equal(["first-handler"], released);
+
+		ownership.ReleaseAll((_, handler) => released.Add(handler));
+		Assert.Equal(["first-handler", "second-handler"], released);
+	}
+
 	sealed class Resource(string name)
 	{
 		public string Name { get; } = name;

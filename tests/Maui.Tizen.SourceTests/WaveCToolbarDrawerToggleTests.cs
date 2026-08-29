@@ -159,6 +159,38 @@ public class WaveCToolbarDrawerToggleTests
 		Assert.Equal(expected, ToolbarDrawerToggle.ShouldNavigateBack(toolbar));
 	}
 
+	[Fact]
+	public void ToolbarItemActivationUsesThePublicControllerContract()
+	{
+		var commandExecutions = 0;
+		var clicked = 0;
+		var item = new ToolbarItem
+		{
+			Command = new Command(() => commandExecutions++),
+		};
+		item.Clicked += (_, _) => clicked++;
+
+		Assert.True(MenuItemActivation.Activate(item));
+		Assert.Equal(1, commandExecutions);
+		Assert.Equal(1, clicked);
+	}
+
+	[Theory]
+	[InlineData(false, true)]
+	[InlineData(true, false)]
+	public void DisabledOrNonExecutableToolbarItemsDoNotActivate(bool enabled, bool canExecute)
+	{
+		var executions = 0;
+		var item = new ToolbarItem
+		{
+			IsEnabled = enabled,
+			Command = new Command(() => executions++, () => canExecute),
+		};
+
+		Assert.False(MenuItemActivation.Activate(item));
+		Assert.Equal(0, executions);
+	}
+
 	// -----------------------------------------------------------------
 	// Owner resolution
 	// -----------------------------------------------------------------

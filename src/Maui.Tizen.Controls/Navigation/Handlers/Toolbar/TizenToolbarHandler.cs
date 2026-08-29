@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Threading.Tasks;
+using System.Windows.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Dispatching;
@@ -35,6 +37,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		ITizenPlatformViewHandler? _titleViewHandler;
 		TizenImageLoader<TizenImageSource> _titleIconLoader = new();
 		readonly List<TizenImageLoader<TizenImageSource>> _actionIconLoaders = new();
+		readonly Dictionary<ToolbarItem, ICommand?> _observedToolbarItems = new();
 
 		public static IPropertyMapper<Toolbar, TizenToolbarHandler> Mapper =
 			new PropertyMapper<Toolbar, TizenToolbarHandler>(ElementMapper)
@@ -92,6 +95,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 			ExceptionSafeCleanup.Run(
 				_titleIconLoader.Dispose,
+				DetachToolbarItemObservers,
 				DisposeActionIconLoaders,
 				() =>
 				{
@@ -182,7 +186,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 			if (_titleViewHandler is not null)
 			{
-				PlatformView.Content = null;
+				PlatformView.SetTitleContent(null);
 				_titleViewHandler.Dispose();
 				_titleViewHandler = null;
 			}
@@ -197,7 +201,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			_titleViewHandler = titleView.Handler as ITizenPlatformViewHandler;
 
 			PlatformView.Title = string.Empty;
-			PlatformView.Content = platformTitleView;
+			PlatformView.SetTitleContent(platformTitleView);
 		}
 
 		internal void UpdateNavigationIcon(Toolbar toolbar, IFlyoutView? owner = null)
@@ -250,8 +254,34 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		void UpdateToolbarItems(Toolbar toolbar)
 		{
+			DetachToolbarItemObservers();
+			foreach (var item in toolbar.ToolbarItems)
+			{
+				item.PropertyChanged += OnToolbarItemPropertyChanged;
+				if (item.Command is not null)
+					item.Command.CanExecuteChanged += OnToolbarItemCanExecuteChanged;
+				_observedToolbarItems[item] = item.Command;
+			}
+
 			DisposeActionIconLoaders();
 			PlatformView.UpdateMenuItems(toolbar, MauiContext, LoadActionIcon);
+		}
+
+		void OnToolbarItemPropertyChanged(object? sender, PropertyChangedEventArgs e) =>
+			UpdateToolbarItems(VirtualView);
+
+		void OnToolbarItemCanExecuteChanged(object? sender, EventArgs e) =>
+			UpdateToolbarItems(VirtualView);
+
+		void DetachToolbarItemObservers()
+		{
+			foreach (var (item, command) in _observedToolbarItems)
+			{
+				item.PropertyChanged -= OnToolbarItemPropertyChanged;
+				if (command is not null)
+					command.CanExecuteChanged -= OnToolbarItemCanExecuteChanged;
+			}
+			_observedToolbarItems.Clear();
 		}
 
 		void LoadActionIcon(ImageSource source, TButton button)
@@ -307,6 +337,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		void DisposeTitleView()
 		{
+			if (PlatformView is not null)
+				PlatformView.SetTitleContent(null);
 			_titleViewHandler?.Dispose();
 			_titleViewHandler = null;
 		}

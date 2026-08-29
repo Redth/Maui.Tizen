@@ -344,6 +344,7 @@ Microsoft.Maui.Platforms.Tizen.TizenNaviPage.DetachContent() -> Tizen.NUI.BaseCo
 Microsoft.Maui.Platforms.Tizen.TizenNaviPage.TitleView.get -> Tizen.UIExtensions.NUI.TitleView?
 Microsoft.Maui.Platforms.Tizen.TizenNaviPage.TitleView.set -> void
 Microsoft.Maui.Platforms.Tizen.TizenNaviPage.TizenNaviPage() -> void
+override Microsoft.Maui.Platforms.Tizen.TizenNaviPage.Dispose(Tizen.NUI.DisposeTypes type) -> void
 Microsoft.Maui.Platforms.Tizen.TizenPageControl
 Microsoft.Maui.Platforms.Tizen.TizenPageControl.DisposeTemplatedViewHandler() -> void
 Microsoft.Maui.Platforms.Tizen.TizenPageControl.Measure(double availableWidth, double availableHeight) -> Tizen.UIExtensions.Common.Size
@@ -406,10 +407,11 @@ Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.Entry.get -> Tizen.UIExtension
 Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.EntryFocused -> System.EventHandler?
 Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.EntryUnfocused -> System.EventHandler?
 Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.FocusEntry() -> bool
-Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.Measure(double availableWidth, double availableHeight) -> Tizen.UIExtensions.Common.Size
 Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.SearchButtonPressed -> System.EventHandler?
 Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.TizenSearchBarView() -> void
 Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.UnfocusEntry() -> void
+virtual Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.LayoutContent(float width, float height) -> void
+virtual Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.Measure(double availableWidth, double availableHeight) -> Tizen.UIExtensions.Common.Size
 Microsoft.Maui.Platforms.Tizen.TizenShapeView
 Microsoft.Maui.Platforms.Tizen.TizenShapeView.TizenShapeView() -> void
 Microsoft.Maui.Platforms.Tizen.TizenShapeViewExtensions
@@ -503,6 +505,7 @@ Microsoft.Maui.Platforms.Tizen.TizenToolbarView.IconPressed -> System.EventHandl
 Microsoft.Maui.Platforms.Tizen.TizenToolbarView.SearchBar.get -> Tizen.NUI.BaseComponents.View?
 Microsoft.Maui.Platforms.Tizen.TizenToolbarView.SearchBar.set -> void
 Microsoft.Maui.Platforms.Tizen.TizenToolbarView.SendIconPressed() -> void
+Microsoft.Maui.Platforms.Tizen.TizenToolbarView.SetTitleContent(Tizen.NUI.BaseComponents.View? content) -> void
 Microsoft.Maui.Platforms.Tizen.TizenToolbarView.TizenToolbarView() -> void
 Microsoft.Maui.Platforms.Tizen.TizenToolbarView.UpdateMenuButton(Microsoft.Maui.IToolbar! toolbar) -> void
 Microsoft.Maui.Platforms.Tizen.TizenToolbarView.UpdateTitle(Microsoft.Maui.IToolbar! toolbar) -> void
@@ -653,6 +656,7 @@ override Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.OnChildRemoved(Tizen.
 override Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.OnEnabled(bool enabled) -> void
 override Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.OnEnabled(bool enabled) -> void
 override Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.Dispose(Tizen.NUI.DisposeTypes type) -> void
+override Microsoft.Maui.Platforms.Tizen.TizenToolbarView.Dispose(bool disposing) -> void
 override Microsoft.Maui.Platforms.Tizen.TizenStepperView.OnEnabled(bool enabled) -> void
 override Microsoft.Maui.Platforms.Tizen.TizenTicker.IsRunning.get -> bool
 override Microsoft.Maui.Platforms.Tizen.TizenTicker.Start() -> void
