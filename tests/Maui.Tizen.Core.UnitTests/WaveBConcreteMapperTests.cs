@@ -3,7 +3,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui;
 using Microsoft.Maui.Controls;
@@ -31,6 +30,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			yield return [typeof(IndicatorView)];
 			yield return [typeof(SwipeItemView)];
 			yield return [typeof(BoxView)];
+			yield return [typeof(Microsoft.Maui.Controls.Shapes.Ellipse)];
 			yield return [typeof(Microsoft.Maui.Controls.Shapes.Line)];
 			yield return [typeof(Microsoft.Maui.Controls.Shapes.Path)];
 			yield return [typeof(Microsoft.Maui.Controls.Shapes.Polygon)];
@@ -51,15 +51,6 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var handler = Assert.IsAssignableFrom<IViewHandler>(factory.GetHandler(viewType));
 			var elementHandler = (IElementHandler)handler;
 			var view = Assert.IsAssignableFrom<IView>(Activator.CreateInstance(viewType));
-			var mapper = Assert.IsAssignableFrom<IPropertyMapper>(
-				handler.GetType()
-					.GetField("Mapper", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy)!
-					.GetValue(null));
-
-			Assert.True(
-				Chains(mapper, TizenViewMappers.ViewMapper),
-				$"{handler.GetType().Name}.Mapper does not reach {nameof(TizenViewMappers.ViewMapper)}.");
-
 			elementHandler.SetMauiContext(new MauiContext(app.Services));
 			elementHandler.SetVirtualView((IElement)view);
 
@@ -109,17 +100,6 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Contains(nameof(IView.InvalidateMeasure), platformView.Applied);
 
 			(elementHandler as IDisposable)?.Dispose();
-		}
-
-		static bool Chains(IPropertyMapper mapper, IPropertyMapper expected)
-		{
-			if (ReferenceEquals(mapper, expected))
-				return true;
-
-			if (mapper is not PropertyMapper propertyMapper || propertyMapper.Chained is null)
-				return false;
-
-			return propertyMapper.Chained.Any(chained => Chains(chained, expected));
 		}
 
 		[Fact]

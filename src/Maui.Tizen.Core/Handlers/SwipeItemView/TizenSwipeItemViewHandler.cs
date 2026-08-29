@@ -30,6 +30,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		ITizenPlatformViewHandler? _contentHandler;
 		TizenNativeView? _contentView;
+		long _contentGeneration;
 
 		public TizenSwipeItemViewHandler()
 			: base(Mapper, CommandMapper)
@@ -67,24 +68,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			PlatformView.CrossPlatformArrange = VirtualView.CrossPlatformArrange;
 		}
 
-		protected override void Dispose(bool disposing)
+		protected override void DisconnectHandler(TizenContentViewGroup platformView)
 		{
-			if (!disposing)
-			{
-				base.Dispose(disposing);
-				return;
-			}
-
-			var platformView = ((IElementHandler)this).PlatformView as TizenContentViewGroup;
 			TizenCleanup.Run(
 				() => ClearContent(platformView),
-				() => base.Dispose(disposing));
+				() => base.DisconnectHandler(platformView));
 		}
 
 		void ClearContent(TizenContentViewGroup? platformView) =>
 			TizenContentOwnership.Clear(
 				ref _contentView,
 				ref _contentHandler,
+				ref _contentGeneration,
 				view => platformView?.Children.Remove(view),
 				static () => { });
 
@@ -104,19 +99,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 					replacementHandler = thandler;
 			}
 
-			TizenCleanup.Run(
-				() => TizenContentOwnership.Replace(
-					ref _contentView,
-					ref _contentHandler,
-					replacementView,
-					replacementHandler,
-					oldView => PlatformView.Children.Remove(oldView),
-					static () => { }),
-				() =>
-				{
-					if (_contentView is not null)
-						PlatformView.Children.Add(_contentView);
-				});
+			TizenContentOwnership.Replace(
+				ref _contentView,
+				ref _contentHandler,
+				ref _contentGeneration,
+				replacementView,
+				replacementHandler,
+				oldView => PlatformView.Children.Remove(oldView),
+				newView => PlatformView.Children.Add(newView),
+				static () => { });
 		}
 
 		public static void MapContent(TizenSwipeItemViewHandler handler, ISwipeItemView page) => handler.UpdateContent();

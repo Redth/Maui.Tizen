@@ -2438,8 +2438,8 @@
         },
         {
           "Key": "Visibility",
-          "Method": "TizenViewMappers.MapVisibility",
-          "Status": "InheritedTizen"
+          "Method": "TizenIndicatorViewHandler.MapVisibility",
+          "Status": "Supported"
         },
         {
           "Key": "Width",
@@ -7333,8 +7333,7 @@
         {
           "Key": "BottomItems",
           "Method": "TizenSwipeViewHandler.MapBottomItems",
-          "Status": "Unsupported",
-          "Reason": "Intentional no-op. TizenSwipeViewGroup reads \u003Csee cref=\u0022ISwipeView.BottomItems\u0022/\u003E directly from the virtual view when a swipe begins, so there is no native state to push on change."
+          "Status": "Supported"
         },
         {
           "Key": "Clip",
@@ -7405,8 +7404,7 @@
         {
           "Key": "LeftItems",
           "Method": "TizenSwipeViewHandler.MapLeftItems",
-          "Status": "Unsupported",
-          "Reason": "The four item-collection mappers are intentional no-ops. TizenSwipeViewGroup reads the item collections directly from the virtual view when a swipe gesture begins, so there is no native state to push on change. See docs/wave-b-mapper-parity.md. Intentional no-op. TizenSwipeViewGroup reads \u003Csee cref=\u0022ISwipeView.LeftItems\u0022/\u003E directly from the virtual view when a swipe begins, so there is no native state to push on change."
+          "Status": "Supported"
         },
         {
           "Key": "MaximumHeight",
@@ -7438,8 +7436,7 @@
         {
           "Key": "RightItems",
           "Method": "TizenSwipeViewHandler.MapRightItems",
-          "Status": "Unsupported",
-          "Reason": "Intentional no-op. TizenSwipeViewGroup reads \u003Csee cref=\u0022ISwipeView.RightItems\u0022/\u003E directly from the virtual view when a swipe begins, so there is no native state to push on change."
+          "Status": "Supported"
         },
         {
           "Key": "Rotation",
@@ -7495,8 +7492,7 @@
         {
           "Key": "TopItems",
           "Method": "TizenSwipeViewHandler.MapTopItems",
-          "Status": "Unsupported",
-          "Reason": "Intentional no-op. TizenSwipeViewGroup reads \u003Csee cref=\u0022ISwipeView.TopItems\u0022/\u003E directly from the virtual view when a swipe begins, so there is no native state to push on change."
+          "Status": "Supported"
         },
         {
           "Key": "TranslationX",

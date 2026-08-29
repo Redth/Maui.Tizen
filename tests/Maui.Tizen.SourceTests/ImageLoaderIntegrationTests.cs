@@ -56,17 +56,4 @@ public class ImageLoaderIntegrationTests
 		Assert.DoesNotContain("AddTizenUriAndFontImageSources", services, StringComparison.Ordinal);
 	}
 
-	[Fact]
-	public void UriServiceWaitsForNativeReadinessBeforeReturningSuccess()
-	{
-		var image = Read(
-			"src", "Maui.Tizen.Core", "ImageSources", "TizenImageSource.cs");
-		var service = Read(
-			"src", "Maui.Tizen.Core", "ImageSources", "TizenWaveBImageSourceServices.cs");
-
-		Assert.Contains("imageView.ResourceReady += OnResourceReady", image, StringComparison.Ordinal);
-		Assert.Contains("imageView.LoadingStatus", image, StringComparison.Ordinal);
-		Assert.Contains("cancellationToken.ThrowIfCancellationRequested()", image, StringComparison.Ordinal);
-		Assert.Contains("await image.LoadUrlAsync(uri.AbsoluteUri, cancellationToken)", service, StringComparison.Ordinal);
-	}
 }

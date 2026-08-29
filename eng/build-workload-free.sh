@@ -227,6 +227,7 @@ if [[ $BUILD_OK -eq 1 ]]; then
   check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
   check "Wave B source tests" "$DOTNET" test tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj --no-build -c Release
   check "migration tooling tests" "$DOTNET" test tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj --no-build -c Release
+  check "Wave B negative controls" env DOTNET="$DOTNET" "$REPO_ROOT/eng/tests/run-wave-b-negative-controls.sh"
 else
   fail "tests skipped - a preceding build failed (running --no-build now would only add cascading noise)"
   FAILURES=$((FAILURES + 1))

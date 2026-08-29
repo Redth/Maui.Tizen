@@ -75,7 +75,7 @@ listed below is `rebuild`.
 | Core image | `TizenImageHandler`, `TizenImageButtonHandler` |
 | Core drawing | `TizenGraphicsViewHandler`, `TizenShapeViewHandler` |
 | Core swipe/indicator | `TizenSwipeViewHandler`, `TizenSwipeItemMenuItemHandler`, `TizenIndicatorViewHandler` |
-| Controls shapes | `TizenBoxViewHandler`, `TizenLineHandler`, `TizenPathHandler`, `TizenPolygonHandler`, `TizenPolylineHandler`, `TizenRectangleHandler`, `TizenRoundRectangleHandler` |
+| Controls shapes | `Ellipse` → `TizenShapeViewHandler`, plus `TizenBoxViewHandler`, `TizenLineHandler`, `TizenPathHandler`, `TizenPolygonHandler`, `TizenPolylineHandler`, `TizenRectangleHandler`, `TizenRoundRectangleHandler` |
 
 ### Image source services
 
@@ -129,6 +129,11 @@ checks remain only for Tizen-only wiring that cannot load on the host:
   accounting for the effective `TizenViewMappers` chain and explicit unsupported bodies;
 - every empty mapper body has a documented justification;
 - the committed parity manifest matches what the sources actually declare.
+
+`eng/tests/run-wave-b-negative-controls.sh` is the reproducible regression runner for the causal
+startup, concrete reachability, mapper, ownership, refresh, image, swipe and indicator cases. The
+canonical workload-free build invokes it; mutation results are not claimed from an uncommitted
+manual edit.
 
 These tests found three real defects during development: two missing command mappers
 (`new(...)` initialisers were not being read), and `ISwipeItemMenuItem.IconColor` having no mapper
@@ -260,16 +265,21 @@ the composition root registers everything:
   **`ConfigureTizenControls`** / **`UseMauiAppTizenControls<TApp>`**, the same layering MAUI itself
   uses. `UseMauiAppTizenControls<TApp>` first calls MAUI Controls' `UseMauiApp<TApp>`, then finalized
   Core configuration, mapper initialization, every Core/Wave A/Wave B concrete registration and
-  the seven shape registrations. It is the only public `ConfigureTizenControls` extension.
+  all eight shape registrations. It is the only public `ConfigureTizenControls` extension.
 
   For a period `AddTizenShapeHandlers` existed, compiled, and was covered by metadata assertions
   while having **no call site anywhere in the product**. Nothing detected it, because the symptom is
-  silent: MAUI Controls already maps all seven shapes to its own neutral handlers, so every shape
+  silent: MAUI Controls already maps all eight shapes to its own neutral handlers, so every shape
   still resolves and lays out — it simply never reaches a Tizen handler and never draws.
   `ShapeCompositionTests` now reads the ref-pack lane's IL to assert the entry points really do call
   the registration.
 - `AddTizenImageSources` — all four image source services through one public seam.
 - `AddTizenFontServices` — the embedded font loader, and the Tizen font manager.
+
+All product projects import `eng/Maui.props` through `TizenPackage.props`, so the API15 reference
+pack pin and the `Tizen.UIExtensions.NUI 0.9.2`/`IsShippable=false` guard are evaluated before any
+package or pack target consumes them. The Controls pack guard therefore fails with
+`MAUITIZEN0101` without command-line properties and only unblocks on an explicit verified override.
 
 #### Why the composition root is a partial method
 
@@ -511,7 +521,9 @@ double-dispose of the same native object. `TizenContentOwnership` now snapshots 
 fields before any callback, cancels animation callbacks, detaches the native view, and then disposes
 either the owning handler or the unowned placeholder exactly once. `TizenCallbackGeneration`
 rejects any animation step or completion that was already queued when replacement or teardown
-invalidated the content.
+invalidated the content. Identical view/handler pairs are a central no-op, and a generation prevents
+an outer A→B replacement from overwriting a reentrant A→C update; the superseded prepared B is
+disposed instead.
 
 ### Animations outlive the views they animate
 
@@ -539,7 +551,8 @@ Handler teardown used to write `IsRefreshing = false` and then dispose the layou
 the base class's completion animation — an `async void` with no cancellation — whose continuation
 then touches the refresh icon the same teardown is disposing. Teardown now cancels replay, marks the
 layout disconnected, detaches content before child disposal, and retains a completing native layout
-until the completion window expires before dispatching its final disposal.
+until its observed native relayout/idle completion before dispatching final disposal. No fixed delay
+is used for replay or lifetime.
 
 ### Image cleanup belongs on the main loop
 

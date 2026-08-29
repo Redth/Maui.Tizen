@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+DOTNET="${DOTNET:-dotnet}"
+cd "$REPO_ROOT"
+
+CORE_FILTER='FullyQualifiedName~ControlsEvaluatesSharedTizenPolicyDefaults|FullyQualifiedName~ExactlyOnePublicConfigureTizenControlsExtensionShips|FullyQualifiedName~ControlsTypeResolvesToTheTizenHandler|FullyQualifiedName~ProductionConcreteHandlerExecutesTheTizenViewMapper|FullyQualifiedName~ScrollHandlerConnectDisconnectReconnectUsesCapturedPlatformView|FullyQualifiedName~IdenticalViewAndHandlerReplacementIsACentralNoOp|FullyQualifiedName~RepeatedContentMappingIsANoOpAndReconnectCreatesFreshChild|FullyQualifiedName~ReentrantBorderReplacementKeepsNewestContentAndDisposesPreparedIntermediate|FullyQualifiedName~ReentrantCleanupObservesAnEmptyOwnershipSlot|FullyQualifiedName~ThrowingBorderChildCannotSkipParentCleanupOrReenter|FullyQualifiedName~InvalidatedGenerationRejectsLateAnimationCallbacks|FullyQualifiedName~EveryItemCollectionMapperInvalidatesTheProductionPlatformView|FullyQualifiedName~DrainingActionItemsRejectsLateTouchesAndLeavesOnlyRebuiltItems|FullyQualifiedName~RepeatedStopCancelsPendingRestartWithoutRescheduling|FullyQualifiedName~ObservedNativeStartCanBeForcedToCompletionWhenDisabled|FullyQualifiedName~DisabledNativePullIsObservedThenForcedThroughCompletion|FullyQualifiedName~DisposeDuringObservedCompletionRetainsPlatformUntilNativeIdle|FullyQualifiedName~CompletionAndLoadingResetRunInTheDispatchedLifecycleCommit|FullyQualifiedName~LateLoadAAfterDisconnectReconnectAndLoadBCannotReplaceB|FullyQualifiedName~SubscribesBeforeImmediateLoadAndUnsubscribesAfterReadyStatus|FullyQualifiedName~RebindUsesCurrentVirtualViewAndVisibilityReappliesHideSingle'
+
+SOURCE_FILTER='FullyQualifiedName~PositionTenUsesWindowSixThroughTenAndTranslatesTaps|FullyQualifiedName~AHiddenIndicatorIsNotRevealedByACountChange|FullyQualifiedName~ScrollNeitherDisablesNativeScrolling'
+
+"$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj \
+  -c Release --filter "$CORE_FILTER" --logger 'console;verbosity=minimal'
+
+"$DOTNET" test tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj \
+  -c Release --filter "$SOURCE_FILTER" --logger 'console;verbosity=minimal'
+
+"$DOTNET" build tests/Maui.Tizen.Controls.ConsumerCompile/Maui.Tizen.Controls.ConsumerCompile.csproj \
+  -c Release --no-restore -v:minimal

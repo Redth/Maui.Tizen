@@ -54,6 +54,8 @@
     <Compile Include="$(MauiTizenCoreDir)Platform/TizenImageLoaderExtensions.cs" LinkBase="Backend" />
     <Compile Include="$(MauiTizenCoreDir)Platform/TizenContentOwnership.cs" LinkBase="WaveB" />
     <Compile Include="$(MauiTizenCoreDir)Platform/TizenRefreshCoordinator.cs" LinkBase="WaveB" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/TizenImageReadinessCoordinator.cs" LinkBase="WaveB" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/TizenSwipeStructureCoordinator.cs" LinkBase="WaveB" />
     <Compile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenTaskExtensions.cs" LinkBase="WaveB" />
     <Compile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenRefreshStateMachine.cs" LinkBase="WaveB" />
     <Compile Include="@(MauiTizenWaveBHandlerCompile)" LinkBase="WaveB" />

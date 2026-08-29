@@ -153,11 +153,12 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[Fact]
 		public void ControlsPackIsBlockedByUnshippableUIExtensions()
 		{
-			var result = RunUIExtensionsPackGuard(isShippable: false);
+			var result = RunUIExtensionsPackGuard(isShippable: null);
 
 			Assert.NotEqual(0, result.ExitCode);
 			Assert.Contains("MAUITIZEN0101", result.Output, StringComparison.Ordinal);
 			Assert.Contains("Maui.Tizen.Controls", result.Output, StringComparison.Ordinal);
+			Assert.Contains("0.9.2", result.Output, StringComparison.Ordinal);
 		}
 
 		[Fact]
@@ -167,6 +168,15 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			Assert.Equal(0, result.ExitCode);
 			Assert.DoesNotContain("MAUITIZEN0101", result.Output, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void ControlsEvaluatesSharedTizenPolicyDefaults()
+		{
+			Assert.Equal("0.9.2", MSBuildEvaluation.GetProperty(ControlsProduct, "TizenUIExtensionsPackageVersion"));
+			Assert.Equal("false", MSBuildEvaluation.GetProperty(ControlsProduct, "TizenUIExtensionsIsShippable"));
+			Assert.Equal("Samsung.Tizen.Ref.API15", MSBuildEvaluation.GetProperty(ControlsProduct, "TizenReferencePackId"));
+			Assert.Equal("15.0.0.19396", MSBuildEvaluation.GetProperty(ControlsProduct, "TizenReferencePackVersion"));
 		}
 
 		[Theory]
@@ -231,7 +241,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			.Select(m => m.Groups[1].Value)
 			.ToHashSet(StringComparer.Ordinal);
 
-		static (int ExitCode, string Output) RunUIExtensionsPackGuard(bool isShippable)
+		static (int ExitCode, string Output) RunUIExtensionsPackGuard(bool? isShippable)
 		{
 			var dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") is { Length: > 0 } host
 				? host
@@ -250,7 +260,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			startInfo.ArgumentList.Add("-nologo");
 			startInfo.ArgumentList.Add("-p:TargetFramework=net11.0");
 			startInfo.ArgumentList.Add("-p:TizenWorkloadAvailable=true");
-			startInfo.ArgumentList.Add($"-p:TizenUIExtensionsIsShippable={isShippable.ToString().ToLowerInvariant()}");
+			if (isShippable.HasValue)
+				startInfo.ArgumentList.Add($"-p:TizenUIExtensionsIsShippable={isShippable.Value.ToString().ToLowerInvariant()}");
 
 			using var process = Process.Start(startInfo)
 				?? throw new InvalidOperationException("Failed to start dotnet msbuild.");

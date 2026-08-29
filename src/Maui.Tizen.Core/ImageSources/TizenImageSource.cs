@@ -66,37 +66,45 @@ namespace Microsoft.Maui.Platforms.Tizen
 		internal async Task<bool> LoadUrlAsync(string url, CancellationToken cancellationToken)
 		{
 			ArgumentException.ThrowIfNullOrEmpty(url);
-			cancellationToken.ThrowIfCancellationRequested();
 
-			using var imageView = new global::Tizen.NUI.BaseComponents.ImageView();
-			var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+			using var target = new NuiImageReadinessTarget();
+			var ready = await TizenImageReadinessCoordinator
+				.WaitAsync(target, url, cancellationToken);
+
+			if (ready)
+				ResourceUrl = url;
+
+			return ready;
+		}
+
+		sealed class NuiImageReadinessTarget : ITizenImageReadinessTarget, IDisposable
+		{
+			readonly global::Tizen.NUI.BaseComponents.ImageView _imageView = new();
+
+			public event EventHandler? ResourceReady;
+
+			public bool IsReady =>
+				_imageView.LoadingStatus ==
+				global::Tizen.NUI.BaseComponents.ImageView.LoadingStatusType.Ready;
+
+			public NuiImageReadinessTarget() =>
+				_imageView.ResourceReady += OnResourceReady;
+
+			public void StartImmediate(string url)
+			{
+				_imageView.LoadPolicy = global::Tizen.NUI.LoadPolicyType.Immediate;
+				_imageView.ResourceUrl = url;
+			}
 
 			void OnResourceReady(
 				object? sender,
 				global::Tizen.NUI.BaseComponents.ImageView.ResourceReadyEventArgs args) =>
-				completion.TrySetResult(
-					imageView.LoadingStatus ==
-					global::Tizen.NUI.BaseComponents.ImageView.LoadingStatusType.Ready);
+				ResourceReady?.Invoke(this, EventArgs.Empty);
 
-			imageView.ResourceReady += OnResourceReady;
-			using var registration = cancellationToken.Register(
-				static state => ((TaskCompletionSource<bool>)state!).TrySetCanceled(),
-				completion);
-
-			try
+			public void Dispose()
 			{
-				imageView.ResourceUrl = url;
-				var ready = await completion.Task;
-				cancellationToken.ThrowIfCancellationRequested();
-
-				if (ready)
-					ResourceUrl = url;
-
-				return ready;
-			}
-			finally
-			{
-				imageView.ResourceReady -= OnResourceReady;
+				_imageView.ResourceReady -= OnResourceReady;
+				_imageView.Dispose();
 			}
 		}
 

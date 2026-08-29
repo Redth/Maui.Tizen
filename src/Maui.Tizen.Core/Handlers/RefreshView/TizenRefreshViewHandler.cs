@@ -6,7 +6,6 @@
 // exists in Microsoft.Maui.Core.
 
 using System;
-using System.Threading.Tasks;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
@@ -54,7 +53,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			var dispatcher = TizenDispatchExtensions.CaptureDispatcher(this);
 			var replacement = new TizenRefreshCoordinator(
 				platformView.RefreshState,
-				token => Task.Delay(TizenRefreshLayout.CompletionWindowMilliseconds, token),
+				platformView.WaitForNativeIdleAsync,
 				dispatcher,
 				platformView.ApplyRefreshState,
 				() =>
@@ -114,6 +113,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		void OnRefreshing(object? sender, EventArgs e)
 		{
+			_refreshCoordinator?.ObserveNativeStart();
+
 			// Tizen's RefreshLayout has no API to disable the pull gesture, so the gesture still
 			// fires when IsRefreshEnabled is false. Refusing it here is what actually makes the
 			// property mean something: without this the control refreshes anyway and immediately
@@ -146,7 +147,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			handler.PlatformView.UpdateRefreshColor(refreshView);
 
 		public static void MapBackground(TizenRefreshViewHandler handler, IRefreshView view) =>
-			TizenViewMappers.MapBackground(handler, view);
+			TizenCleanup.Run(
+				() => TizenViewMappers.MapBackground(handler, view),
+				() => handler.PlatformView.UpdateBackground(view));
 
 		/// <summary>
 		/// Applies <see cref="IRefreshView.IsRefreshEnabled"/>.

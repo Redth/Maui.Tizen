@@ -11,7 +11,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 	{
 		readonly object _gate = new();
 		readonly TizenRefreshStateMachine _state;
-		readonly Func<CancellationToken, Task> _delayCompletion;
+		readonly Func<CancellationToken, Task> _waitForNativeIdle;
 		readonly Func<Action, Task> _dispatch;
 		readonly Action<bool> _applyNative;
 		readonly Func<bool> _canApply;
@@ -23,13 +23,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public TizenRefreshCoordinator(
 			TizenRefreshStateMachine state,
-			Func<CancellationToken, Task> delayCompletion,
+			Func<CancellationToken, Task> waitForNativeIdle,
 			Func<Action, Task> dispatch,
 			Action<bool> applyNative,
 			Func<bool> canApply)
 		{
 			_state = state ?? throw new ArgumentNullException(nameof(state));
-			_delayCompletion = delayCompletion ?? throw new ArgumentNullException(nameof(delayCompletion));
+			_waitForNativeIdle = waitForNativeIdle ?? throw new ArgumentNullException(nameof(waitForNativeIdle));
 			_dispatch = dispatch ?? throw new ArgumentNullException(nameof(dispatch));
 			_applyNative = applyNative ?? throw new ArgumentNullException(nameof(applyNative));
 			_canApply = canApply ?? throw new ArgumentNullException(nameof(canApply));
@@ -75,8 +75,17 @@ namespace Microsoft.Maui.Platforms.Tizen
 				_applyNative(apply.Value);
 
 			return completionToken.HasValue
-				? CompleteAfterDelayAsync(completionToken.Value)
+				? CompleteWhenNativeIdleAsync(completionToken.Value)
 				: null;
+		}
+
+		public void ObserveNativeStart()
+		{
+			lock (_gate)
+			{
+				if (!_disposed)
+					_state.ObserveNativeStart();
+			}
 		}
 
 		public Task RetainPlatformUntilCompletionAsync(Action dispose)
@@ -97,14 +106,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return Task.CompletedTask;
 			}
 
-			return DisposeAfterDelayAsync(dispose);
+			return DisposeWhenNativeIdleAsync(dispose);
 		}
 
-		async Task CompleteAfterDelayAsync(CancellationToken token)
+		async Task CompleteWhenNativeIdleAsync(CancellationToken token)
 		{
 			try
 			{
-				await _delayCompletion(token).ConfigureAwait(false);
+				await _waitForNativeIdle(token).ConfigureAwait(false);
 			}
 			catch (OperationCanceledException) when (token.IsCancellationRequested)
 			{
@@ -131,9 +140,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}).ConfigureAwait(false);
 		}
 
-		async Task DisposeAfterDelayAsync(Action dispose)
+		async Task DisposeWhenNativeIdleAsync(Action dispose)
 		{
-			await _delayCompletion(CancellationToken.None).ConfigureAwait(false);
+			await _waitForNativeIdle(CancellationToken.None).ConfigureAwait(false);
 			await _dispatch(dispose).ConfigureAwait(false);
 		}
 

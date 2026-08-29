@@ -79,14 +79,17 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var bHandler = new FakeHandler();
 			FakeView? currentView = a;
 			FakeHandler? currentHandler = aHandler;
+			long generation = 0;
 			var detached = new List<string>();
 
 			TizenContentOwnership.Replace(
 				ref currentView,
 				ref currentHandler,
+				ref generation,
 				b,
 				bHandler,
 				view => detached.Add(view.Name),
+				static _ => { },
 				static () => { });
 
 			Assert.Same(b, currentView);
@@ -98,6 +101,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			TizenContentOwnership.Clear(
 				ref currentView,
 				ref currentHandler,
+				ref generation,
 				view => detached.Add(view.Name),
 				static () => { });
 
@@ -109,20 +113,51 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Fact]
+		public void IdenticalViewAndHandlerReplacementIsACentralNoOp()
+		{
+			var view = new FakeView("same");
+			var handler = new FakeHandler();
+			FakeView? currentView = view;
+			FakeHandler? currentHandler = handler;
+			long generation = 0;
+			var callbacks = 0;
+
+			var changed = TizenContentOwnership.Replace(
+				ref currentView,
+				ref currentHandler,
+				ref generation,
+				view,
+				handler,
+				_ => callbacks++,
+				_ => callbacks++,
+				() => callbacks++);
+
+			Assert.False(changed);
+			Assert.Equal(0, generation);
+			Assert.Equal(0, callbacks);
+			Assert.Equal(0, handler.DisposeCount);
+			Assert.Same(view, currentView);
+			Assert.Same(handler, currentHandler);
+		}
+
+		[Fact]
 		public void UnownedPlaceholderIsDisposedExactlyOnce()
 		{
 			var placeholder = new FakeView("placeholder");
 			FakeView? currentView = placeholder;
 			FakeHandler? currentHandler = null;
+			long generation = 0;
 
 			TizenContentOwnership.Clear(
 				ref currentView,
 				ref currentHandler,
+				ref generation,
 				static _ => { },
 				static () => { });
 			TizenContentOwnership.Clear(
 				ref currentView,
 				ref currentHandler,
+				ref generation,
 				static _ => { },
 				static () => { });
 
@@ -138,6 +173,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var replacementHandler = new FakeHandler();
 			FakeView? currentView = oldView;
 			FakeHandler? currentHandler = oldHandler;
+			long generation = 0;
 			var detached = 0;
 			var cancelled = 0;
 
@@ -145,9 +181,11 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				TizenContentOwnership.Replace(
 					ref currentView,
 					ref currentHandler,
+					ref generation,
 					replacement,
 					replacementHandler,
 					_ => detached++,
+					static _ => { },
 					() => cancelled++));
 
 			Assert.Same(replacement, currentView);
@@ -159,6 +197,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			TizenContentOwnership.Clear(
 				ref currentView,
 				ref currentHandler,
+				ref generation,
 				static _ => { },
 				static () => { });
 
@@ -187,11 +226,13 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var handler = new FakeHandler();
 			FakeView? currentView = view;
 			FakeHandler? currentHandler = handler;
+			long generation = 0;
 			var reentered = false;
 
 			TizenContentOwnership.Clear(
 				ref currentView,
 				ref currentHandler,
+				ref generation,
 				_ =>
 				{
 					if (reentered)
@@ -201,6 +242,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 					TizenContentOwnership.Clear(
 						ref currentView,
 						ref currentHandler,
+						ref generation,
 						static _ => { },
 						static () => { });
 				},

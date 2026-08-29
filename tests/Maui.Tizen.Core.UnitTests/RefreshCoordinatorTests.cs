@@ -11,21 +11,20 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 {
 	public class RefreshCoordinatorTests
 	{
-		sealed class ManualDelay
+		sealed class ManualNativeIdle
 		{
-			readonly List<TaskCompletionSource> _pending = new();
+			readonly TaskCompletionSource _completion =
+				new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-			public int Count => _pending.Count;
+			public int WaiterCount { get; private set; }
 
 			public Task Wait(CancellationToken token)
 			{
-				var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-				token.Register(() => completion.TrySetCanceled(token));
-				_pending.Add(completion);
-				return completion.Task;
+				WaiterCount++;
+				return _completion.Task.WaitAsync(token);
 			}
 
-			public void Complete(int index) => _pending[index].TrySetResult();
+			public void Complete() => _completion.TrySetResult();
 		}
 
 		static Task DispatchInline(Action action)
@@ -37,11 +36,11 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[Fact]
 		public async Task StopRestartReplaysExactlyOnceAfterCompletion()
 		{
-			var delay = new ManualDelay();
+			var nativeIdle = new ManualNativeIdle();
 			var writes = new List<bool>();
 			var state = new TizenRefreshStateMachine();
 			using var coordinator = new TizenRefreshCoordinator(
-				state, delay.Wait, DispatchInline, writes.Add, static () => true);
+				state, nativeIdle.Wait, DispatchInline, writes.Add, static () => true);
 
 			Assert.Null(coordinator.Request(desired: true, enabled: true));
 			var expiry = coordinator.Request(desired: false, enabled: true);
@@ -51,7 +50,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(new[] { true, false }, writes);
 			Assert.True(state.HasPendingStart);
 
-			delay.Complete(0);
+			nativeIdle.Complete();
 			await expiry!;
 
 			Assert.Equal(new[] { true, false, true }, writes);
@@ -62,20 +61,20 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[Fact]
 		public async Task RepeatedStopCancelsPendingRestartWithoutRescheduling()
 		{
-			var delay = new ManualDelay();
+			var nativeIdle = new ManualNativeIdle();
 			var writes = new List<bool>();
 			var state = new TizenRefreshStateMachine();
 			using var coordinator = new TizenRefreshCoordinator(
-				state, delay.Wait, DispatchInline, writes.Add, static () => true);
+				state, nativeIdle.Wait, DispatchInline, writes.Add, static () => true);
 
 			Assert.Null(coordinator.Request(true, true));
 			var expiry = coordinator.Request(false, true);
 			Assert.Null(coordinator.Request(true, true));
 
 			Assert.Null(coordinator.Request(false, true));
-			Assert.Equal(1, delay.Count);
+			Assert.Equal(1, nativeIdle.WaiterCount);
 
-			delay.Complete(0);
+			nativeIdle.Complete();
 			await expiry!;
 
 			Assert.Equal(new[] { true, false }, writes);
@@ -86,18 +85,18 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[Fact]
 		public async Task DisableClearsDesiredStateAndSuppressesReplay()
 		{
-			var delay = new ManualDelay();
+			var nativeIdle = new ManualNativeIdle();
 			var writes = new List<bool>();
 			var state = new TizenRefreshStateMachine();
 			using var coordinator = new TizenRefreshCoordinator(
-				state, delay.Wait, DispatchInline, writes.Add, static () => true);
+				state, nativeIdle.Wait, DispatchInline, writes.Add, static () => true);
 
 			Assert.Null(coordinator.Request(true, true));
 			var expiry = coordinator.Request(false, true);
 			Assert.Null(coordinator.Request(true, true));
 			Assert.Null(coordinator.Request(false, enabled: false));
 
-			delay.Complete(0);
+			nativeIdle.Complete();
 			await expiry!;
 
 			Assert.Equal(new[] { true, false }, writes);
@@ -108,17 +107,17 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[Fact]
 		public async Task OrdinaryStopExpiresEvenWithoutRestart()
 		{
-			var delay = new ManualDelay();
+			var nativeIdle = new ManualNativeIdle();
 			var state = new TizenRefreshStateMachine();
 			using var coordinator = new TizenRefreshCoordinator(
-				state, delay.Wait, DispatchInline, static _ => { }, static () => true);
+				state, nativeIdle.Wait, DispatchInline, static _ => { }, static () => true);
 
 			Assert.Null(coordinator.Request(true, true));
 			var expiry = coordinator.Request(false, true);
 
 			Assert.True(state.IsCompleting);
 
-			delay.Complete(0);
+			nativeIdle.Complete();
 			await expiry!;
 
 			Assert.False(state.IsCompleting);
@@ -127,11 +126,11 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[Fact]
 		public async Task DisconnectCancelsReplayButRetainsPlatformUntilNativeCompletionWindow()
 		{
-			var delay = new ManualDelay();
+			var nativeIdle = new ManualNativeIdle();
 			var state = new TizenRefreshStateMachine();
 			var disposed = 0;
 			var coordinator = new TizenRefreshCoordinator(
-				state, delay.Wait, DispatchInline, static _ => { }, static () => true);
+				state, nativeIdle.Wait, DispatchInline, static _ => { }, static () => true);
 
 			Assert.Null(coordinator.Request(true, true));
 			var replay = coordinator.Request(false, true);
@@ -141,12 +140,35 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			await replay!;
 
 			Assert.Equal(0, disposed);
-			Assert.Equal(2, delay.Count);
+			Assert.Equal(2, nativeIdle.WaiterCount);
 
-			delay.Complete(1);
+			nativeIdle.Complete();
 			await retainedDisposal;
 
 			Assert.Equal(1, disposed);
+		}
+
+		[Fact]
+		public async Task ObservedNativeStartCanBeForcedToCompletionWhenDisabled()
+		{
+			var nativeIdle = new ManualNativeIdle();
+			var state = new TizenRefreshStateMachine();
+			var writes = new List<bool>();
+			using var coordinator = new TizenRefreshCoordinator(
+				state, nativeIdle.Wait, DispatchInline, writes.Add, static () => true);
+
+			coordinator.ObserveNativeStart();
+			var completion = coordinator.Request(desired: false, enabled: false);
+
+			Assert.NotNull(completion);
+			Assert.Equal(new[] { false }, writes);
+			Assert.True(state.IsCompleting);
+
+			nativeIdle.Complete();
+			await completion!;
+
+			Assert.False(state.IsRefreshing);
+			Assert.False(state.IsCompleting);
 		}
 	}
 }

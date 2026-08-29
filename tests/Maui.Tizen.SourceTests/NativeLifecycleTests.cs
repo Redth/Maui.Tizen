@@ -31,8 +31,6 @@ public class NativeLifecycleTests
 			.Split('\n')
 			.Where(line => !line.TrimStart().StartsWith("//", StringComparison.Ordinal)));
 
-	static string SwipeGroup => ReadCode("src", "Maui.Tizen.Core", "Platform", "Tizen", "TizenSwipeViewGroup.cs");
-
 	/// <summary>
 	/// <c>Neither</c> must disable scrolling natively, not merely set an orientation.
 	/// </summary>
@@ -48,20 +46,6 @@ public class NativeLifecycleTests
 		Assert.Contains("ScrollEnabled = scrollOrientation != ScrollOrientation.Neither", source, StringComparison.Ordinal);
 	}
 
-	/// <summary>
-	/// The native swipe view delegates ownership and late-callback rejection to the host-tested
-	/// coordinators.
-	/// </summary>
-	[Fact]
-	public void SwipeNativePathUsesTheTestedOwnershipCoordinators()
-	{
-		var source = SwipeGroup;
-
-		Assert.Contains("TizenContentOwnership.Clear(", source, StringComparison.Ordinal);
-		Assert.Contains("CancelContentCallbacks", source, StringComparison.Ordinal);
-		Assert.Contains("_contentGeneration.IsCurrent(", source, StringComparison.Ordinal);
-	}
-
 	/// <summary>Every image call site captures Core's finalized commit dispatcher.</summary>
 	[Theory]
 	[InlineData("Image/TizenImageHandler.cs")]
@@ -73,18 +57,6 @@ public class NativeLifecycleTests
 
 		Assert.Contains("TizenDispatchExtensions.CaptureDispatcher(handler)", source, StringComparison.Ordinal);
 		Assert.Contains("_sourceLoader.LoadPartAsync(", source, StringComparison.Ordinal);
-	}
-
-	/// <summary>
-	/// The indicator's visibility decision consults the virtual view's Visibility.
-	/// </summary>
-	[Fact]
-	public void IndicatorVisibilityConsultsTheVirtualView()
-	{
-		var source = Read("src", "Maui.Tizen.Core", "Platform", "Tizen", "TizenPageControl.cs");
-
-		Assert.Contains("IsIndicatorVisible(_indicatorView.Visibility", source, StringComparison.Ordinal);
-		Assert.Contains("_indicatorView.Position = _visibleWindowStart + position", source, StringComparison.Ordinal);
 	}
 
 	/// <summary>

@@ -43,6 +43,17 @@ namespace Microsoft.Maui.Platforms.Tizen
 			LayoutUpdated += OnLayoutUpdated;
 		}
 
+		internal void Rebind(IIndicatorView view)
+		{
+			ArgumentNullException.ThrowIfNull(view);
+
+			if (ReferenceEquals(_indicatorView, view))
+				return;
+
+			_indicatorView = view;
+			ResetIndicators();
+		}
+
 		bool UseDefaultIndicator { get; set; }
 
 		double IndicatorSizeWithMargin => IndicatorSize + DefaultMargin * 2;

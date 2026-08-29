@@ -30,6 +30,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(IIndicatorView.IndicatorColor)] = MapIndicatorColor,
 				[nameof(IIndicatorView.SelectedIndicatorColor)] = MapSelectedIndicatorColor,
 				[nameof(IIndicatorView.IndicatorsShape)] = MapIndicatorShape,
+				[nameof(IView.Visibility)] = MapVisibility,
 			};
 
 		public static CommandMapper<IIndicatorView, TizenIndicatorViewHandler> CommandMapper =
@@ -53,6 +54,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		protected override TizenPageControl CreatePlatformView() => new TizenPageControl(VirtualView);
+
+		public override void SetVirtualView(IView view)
+		{
+			(((IElementHandler)this).PlatformView as TizenPageControl)?.Rebind((IIndicatorView)view);
+			base.SetVirtualView(view);
+			PlatformView.Rebind(VirtualView);
+		}
 
 		/// <inheritdoc />
 		/// <remarks>
@@ -79,5 +87,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public static void MapSelectedIndicatorColor(TizenIndicatorViewHandler handler, IIndicatorView indicator) => handler.PlatformView.ResetIndicators();
 
 		public static void MapIndicatorShape(TizenIndicatorViewHandler handler, IIndicatorView indicator) => handler.PlatformView.ResetIndicators();
+
+		public static void MapVisibility(TizenIndicatorViewHandler handler, IIndicatorView indicator)
+		{
+			TizenViewMappers.MapVisibility(handler, indicator);
+			handler.PlatformView.UpdateCount();
+		}
 	}
 }

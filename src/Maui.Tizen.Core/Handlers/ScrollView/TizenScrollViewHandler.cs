@@ -38,6 +38,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		ITizenPlatformViewHandler? _contentHandler;
+		TizenNativeView? _contentView;
+		long _contentGeneration;
 		double _cachedWidth;
 		double _cachedHeight;
 		Size _measureCache;
@@ -70,31 +72,32 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override void DisconnectHandler(TizenScrollView platformView)
 		{
-			var contentHandler = _contentHandler;
-			_contentHandler = null;
-			_cachedWidth = 0;
-			_cachedHeight = 0;
-			_measureCache = default;
-
 			// ElementHandler clears its PlatformView before this typed callback runs. Every cleanup
 			// action therefore uses the captured parameter and the child snapshot, never the
 			// PlatformView property.
 			TizenCleanup.Run(
+				() => TizenContentOwnership.Clear(
+					ref _contentView,
+					ref _contentHandler,
+					ref _contentGeneration,
+					view =>
+					{
+						if (view is TizenLayoutViewGroup viewGroup)
+							viewGroup.LayoutUpdated -= OnContentLayoutUpdated;
+						platformView.ContentContainer.Remove(view);
+					},
+					static () => { }),
 				() =>
 				{
-					if (contentHandler?.PlatformView is TizenLayoutViewGroup viewGroup)
-						viewGroup.LayoutUpdated -= OnContentLayoutUpdated;
-				},
-				() => platformView.ContentContainer.Remove(contentHandler?.PlatformView),
-				() =>
-				{
+					_cachedWidth = 0;
+					_cachedHeight = 0;
+					_measureCache = default;
 					platformView.ContentContainer.SizeWidth = 0;
 					platformView.ContentContainer.SizeHeight = 0;
 				},
 				() => platformView.Scrolling -= OnScrolled,
 				() => platformView.ScrollAnimationEnded -= ScrollAnimationEnded,
 				() => platformView.Relayout -= OnRelayout,
-				() => contentHandler?.Dispose(),
 				() => base.DisconnectHandler(platformView));
 		}
 
@@ -138,40 +141,39 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		void UpdateContent(ITizenPlatformViewHandler? content)
 		{
-			if (_contentHandler != null)
-			{
-				if (_contentHandler.PlatformView is TizenLayoutViewGroup viewgroup)
+			var replacementView = content?.PlatformView;
+			if (!TizenContentOwnership.Replace(
+				ref _contentView,
+				ref _contentHandler,
+				ref _contentGeneration,
+				replacementView,
+				content,
+				view =>
 				{
-					viewgroup.LayoutUpdated -= OnContentLayoutUpdated;
-				}
+					if (view is TizenLayoutViewGroup viewGroup)
+						viewGroup.LayoutUpdated -= OnContentLayoutUpdated;
+					PlatformView.ContentContainer.Remove(view);
+				},
+				view =>
+				{
+					PlatformView.ContentContainer.Add(view);
+					if (view is TizenLayoutViewGroup viewGroup)
+						viewGroup.LayoutUpdated += OnContentLayoutUpdated;
+				},
+				static () => { }))
+				return;
 
-				PlatformView.ContentContainer.Remove(_contentHandler.PlatformView);
-				_contentHandler.Dispose();
-				_contentHandler = null;
-			}
-			_contentHandler = content;
+			_cachedWidth = 0;
+			_cachedHeight = 0;
+			_measureCache = default;
 
 			if (_contentHandler is null)
 			{
-				// Reset the cached extents too, otherwise the next real content is compared against
-				// the removed child's size and the container is never resized.
-				_cachedWidth = 0;
-				_cachedHeight = 0;
-				_measureCache = default;
 				PlatformView.ContentContainer.SizeWidth = 0;
 				PlatformView.ContentContainer.SizeHeight = 0;
 				return;
 			}
 
-			if (_contentHandler != null)
-			{
-				PlatformView.ContentContainer.Add(_contentHandler.PlatformView);
-
-				if (_contentHandler.PlatformView is TizenLayoutViewGroup viewgroup)
-				{
-					viewgroup.LayoutUpdated += OnContentLayoutUpdated;
-				}
-			}
 			UpdateContentSize();
 		}
 

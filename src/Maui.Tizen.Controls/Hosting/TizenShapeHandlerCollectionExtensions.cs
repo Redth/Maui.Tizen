@@ -30,6 +30,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 			ArgumentNullException.ThrowIfNull(handlers);
 
 			handlers.AddHandler<BoxView, TizenBoxViewHandler>();
+			handlers.AddHandler<Ellipse, TizenShapeViewHandler>();
 			handlers.AddHandler<Line, TizenLineHandler>();
 			handlers.AddHandler<Microsoft.Maui.Controls.Shapes.Path, TizenPathHandler>();
 			handlers.AddHandler<Polygon, TizenPolygonHandler>();

@@ -115,7 +115,6 @@ cannot silently grow.
 |---|---|---|
 | `TizenBorderHandler` | `Shape`, `Stroke`, `StrokeThickness`, `StrokeLineCap`, `StrokeLineJoin`, `StrokeDashPattern`, `StrokeDashOffset`, `StrokeMiterLimit` | **Unsupported, not merely unimplemented.** Upstream drew border strokes on the container `WrapperView`. This backend cannot create a container — MAUI exposes no settable container hook to an out-of-repo assembly, so `TizenViewHandler` pins `NeedsContainer` to `false`. Border strokes do not render. See `docs/net11-status.md`. |
 | `TizenImageButtonHandler` | `Padding` | `View.Padding` does exist, so "no content-inset API" was imprecise — but it is the wrong tool: NUI padding insets a view's *children*, and an `ImageView` renders its image as a visual rather than a child, so writing it would move nothing while inflating the measured size. Insetting the image itself needs a container view, which this backend cannot create (`NeedsContainer` is pinned to `false`). Not verified on a device. |
-| `TizenSwipeViewHandler` | `LeftItems`, `TopItems`, `RightItems`, `BottomItems` | `MauiSwipeView` reads the item collections directly from the virtual view when a swipe begins, so there is no native state to push on change. |
 
 ## Other unsupported native behaviour
 
@@ -170,6 +169,9 @@ A handler answers far more keys than it declares, because mappers chain. All sev
 handlers answer `StrokeDashArray` without one of them declaring it: six chain
 `TizenShapeViewHandler.Mapper` explicitly and `TizenBoxViewHandler` inherits it. A report that
 counts only directly-declared keys therefore shows seven gaps where there are none.
+
+`Ellipse` is the eighth concrete Controls shape and resolves directly to
+`TizenShapeViewHandler`; it needs no specialized subclass.
 
 `EffectiveMapperTests` resolves each key to the Tizen handler and method that will actually run,
 nearest declaration first, matching `PropertyMapper` lookup. It asserts that:

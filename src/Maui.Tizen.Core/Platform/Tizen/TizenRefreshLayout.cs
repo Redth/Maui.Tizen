@@ -13,6 +13,8 @@ using Microsoft.Maui.Platform;
 using Microsoft.Maui.Platforms.Tizen.Handlers;
 using Tizen.UIExtensions.Common;
 using Color = Microsoft.Maui.Graphics.Color;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Microsoft.Maui.Platforms.Tizen
 {
@@ -20,7 +22,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 	{
 		ITizenPlatformViewHandler? _contentHandler;
 		TizenNativeView? _contentView;
+		long _contentGeneration;
 		bool _disconnected;
+		TaskCompletionSource? _nativeIdle;
+
+		public TizenRefreshLayout()
+		{
+			Relayout += OnNativeRelayout;
+		}
 
 		public void UpdateContent(IView? content, IMauiContext? mauiContext)
 		{
@@ -37,20 +46,20 @@ namespace Microsoft.Maui.Platforms.Tizen
 					replacementHandler = thandler;
 			}
 
-			TizenCleanup.Run(
-				() => TizenContentOwnership.Replace(
-					ref _contentView,
-					ref _contentHandler,
-					replacementView,
-					replacementHandler,
-					view =>
-					{
-						if (ReferenceEquals(Content, view))
-							Content = null;
-						view.Unparent();
-					},
-					static () => { }),
-				() => Content = _contentView);
+			TizenContentOwnership.Replace(
+				ref _contentView,
+				ref _contentHandler,
+				ref _contentGeneration,
+				replacementView,
+				replacementHandler,
+				view =>
+				{
+					if (ReferenceEquals(Content, view))
+						Content = null;
+					view.Unparent();
+				},
+				newView => Content = newView,
+				static () => { });
 		}
 
 		/// <summary>Disposes the content handler this layout created.</summary>
@@ -63,6 +72,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			TizenContentOwnership.Clear(
 				ref _contentView,
 				ref _contentHandler,
+				ref _contentGeneration,
 				view =>
 				{
 					if (ReferenceEquals(Content, view))
@@ -75,25 +85,34 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <summary>Serialises IsRefreshing around the base class's private completion animation.</summary>
 		public TizenRefreshStateMachine RefreshState { get; } = new();
 
-		/// <summary>
-		/// How long the native completion animation runs in Tizen.UIExtensions.NUI 0.9.2.
-		/// </summary>
-		/// <remarks>
-		/// The base class exposes no completion event and its state members are private, so the
-		/// window has to be waited out rather than observed. Deliberately a little longer than the
-		/// animation itself: replaying too early is silently dropped, which is the bug being fixed.
-		/// </remarks>
-		public const int CompletionWindowMilliseconds = 150;
-
 		/// <summary>Applies a coordinator-approved state to the native layout.</summary>
 		internal void ApplyRefreshState(bool isRefreshing)
 		{
-			if (!_disconnected)
-				IsRefreshing = isRefreshing;
+			if (_disconnected)
+				return;
+
+			if (!isRefreshing)
+				_nativeIdle = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+			IsRefreshing = isRefreshing;
 		}
 
 		/// <summary>Prevents any late coordinator callback from touching this layout.</summary>
 		internal void MarkDisconnected() => _disconnected = true;
+
+		internal Task WaitForNativeIdleAsync(CancellationToken cancellationToken)
+		{
+			var completion = _nativeIdle;
+			return completion is null
+				? Task.CompletedTask
+				: completion.Task.WaitAsync(cancellationToken);
+		}
+
+		void OnNativeRelayout(object? sender, EventArgs e)
+		{
+			if (!IsRefreshing)
+				_nativeIdle?.TrySetResult();
+		}
 
 		public void UpdateRefreshColor(IRefreshView view)
 		{

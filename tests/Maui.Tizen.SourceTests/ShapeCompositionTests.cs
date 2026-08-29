@@ -15,7 +15,7 @@ namespace Maui.Tizen.SourceTests;
 /// <para>
 /// Registering handlers is only half the job; something has to <em>call</em> the registration. The
 /// failure when nothing does is silent, which is what makes it worth this much test: MAUI Controls
-/// already maps all seven shapes to its own neutral handlers, so every shape still resolves, still
+/// already maps all eight shapes to its own neutral handlers, so every shape still resolves, still
 /// lays out, and simply never draws on Tizen.
 /// </para>
 /// <para>
@@ -23,8 +23,8 @@ namespace Maui.Tizen.SourceTests;
 /// <c>TizenShapeViewHandler</c>, whose platform view is a NUI type, so the CLR cannot even load
 /// them here. That part is honestly integration-only. What these tests do cover, executably, is
 /// every step that can be checked without a device: that the risk is real (the defaults are
-/// neutral), that a late registration actually wins for all seven types, that the registration
-/// lists exactly the right seven, and that the production entry points really do call it.
+/// neutral), that a late registration actually wins for all eight types, that the registration
+/// lists exactly the right eight, and that the production entry points really do call it.
 /// </para>
 /// </remarks>
 public class ShapeCompositionTests
@@ -46,11 +46,12 @@ public class ShapeCompositionTests
 		protected override object CreatePlatformView() => new();
 	}
 
-	/// <summary>The seven Controls shape types the Tizen backend must take over.</summary>
+	/// <summary>The eight Controls shape types the Tizen backend must take over.</summary>
 	public static TheoryData<Type> ShapeTypes =>
 		new()
 		{
 			typeof(BoxView),
+			typeof(Ellipse),
 			typeof(Line),
 			typeof(Microsoft.Maui.Controls.Shapes.Path),
 			typeof(Polygon),
@@ -63,6 +64,7 @@ public class ShapeCompositionTests
 	static readonly (string Shape, string Handler)[] ExpectedRegistrations =
 	{
 		("BoxView", "TizenBoxViewHandler"),
+		("Ellipse", "TizenShapeViewHandler"),
 		("Line", "TizenLineHandler"),
 		("Path", "TizenPathHandler"),
 		("Polygon", "TizenPolygonHandler"),
@@ -97,11 +99,12 @@ public class ShapeCompositionTests
 		var handlerType = BuildHandlers().GetHandlerType(shapeType);
 
 		Assert.NotNull(handlerType);
-		Assert.StartsWith("Microsoft.Maui.Controls.Handlers", handlerType!.Namespace, StringComparison.Ordinal);
+		Assert.StartsWith("Microsoft.Maui", handlerType!.Namespace, StringComparison.Ordinal);
+		Assert.Contains(".Handlers", handlerType.Namespace, StringComparison.Ordinal);
 	}
 
 	/// <summary>
-	/// A registration added after MAUI's defaults wins, for every one of the seven.
+	/// A registration added after MAUI's defaults wins, for every one of the eight.
 	/// </summary>
 	/// <remarks>
 	/// The mechanism <c>AddTizenShapeHandlers</c> relies on. Backend configuration necessarily runs
@@ -119,7 +122,7 @@ public class ShapeCompositionTests
 	}
 
 	/// <summary>
-	/// <c>AddTizenShapeHandlers</c> registers exactly the seven shapes, each on its Tizen handler.
+	/// <c>AddTizenShapeHandlers</c> registers exactly the eight shapes, each on its Tizen handler.
 	/// </summary>
 	/// <remarks>
 	/// A source check because the registration is generic and the handler types cannot be loaded

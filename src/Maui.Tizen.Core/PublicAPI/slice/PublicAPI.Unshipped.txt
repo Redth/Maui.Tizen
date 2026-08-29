@@ -1,7 +1,6 @@
 #nullable enable
 const Microsoft.Maui.Platforms.Tizen.Handlers.TizenShapeViewHandler.StrokeDashArrayKey = "StrokeDashArray" -> string!
 const Microsoft.Maui.Platforms.Tizen.Handlers.TizenSwipeItemMenuItemHandler.IconColorKey = "IconColor" -> string!
-const Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.CompletionWindowMilliseconds = 150 -> int
 const Microsoft.Maui.Platforms.Tizen.TizenSwipeMetrics.SwipeItemWidth = 100 -> double
 const Microsoft.Maui.Platforms.Tizen.TizenSwipeMetrics.SwipeThreshold = 250 -> double
 Microsoft.Maui.Platforms.Tizen.Handlers.ITizenApplicationHandler
@@ -527,7 +526,7 @@ Microsoft.Maui.Platforms.Tizen.TizenWrapperView.UpdateShape(Microsoft.Maui.Graph
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenActivityIndicatorHandler.CreatePlatformView() -> Microsoft.Maui.Platforms.Tizen.TizenActivityIndicatorView!
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenApplicationHandler.CreatePlatformElement() -> Tizen.Applications.CoreApplication!
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenBorderHandler.CreatePlatformView() -> Microsoft.Maui.Platforms.Tizen.TizenContentViewGroup!
-override Microsoft.Maui.Platforms.Tizen.Handlers.TizenBorderHandler.Dispose(bool disposing) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenBorderHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.TizenContentViewGroup! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenBorderHandler.SetVirtualView(Microsoft.Maui.IView! view) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenButtonHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.TizenButtonView! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenButtonHandler.CreatePlatformView() -> Microsoft.Maui.Platforms.Tizen.TizenButtonView!
@@ -558,6 +557,7 @@ override Microsoft.Maui.Platforms.Tizen.Handlers.TizenImageHandler.CreatePlatfor
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenImageHandler.DisconnectHandler(Tizen.UIExtensions.NUI.Image! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenIndicatorViewHandler.CreatePlatformView() -> Microsoft.Maui.Platforms.Tizen.TizenPageControl!
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenIndicatorViewHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.TizenPageControl! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenIndicatorViewHandler.SetVirtualView(Microsoft.Maui.IView! view) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.CreatePlatformView() -> Microsoft.Maui.Platforms.Tizen.TizenLabelView!
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenLayoutHandler.CreatePlatformView() -> Microsoft.Maui.Platforms.Tizen.TizenLayoutViewGroup!
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenLayoutHandler.Dispose(bool disposing) -> void
@@ -592,7 +592,7 @@ override Microsoft.Maui.Platforms.Tizen.Handlers.TizenSwipeItemMenuItemHandler.C
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenSwipeItemMenuItemHandler.CreatePlatformElement() -> Tizen.UIExtensions.NUI.Button!
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenSwipeItemMenuItemHandler.DisconnectHandler(Tizen.UIExtensions.NUI.Button! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenSwipeItemViewHandler.CreatePlatformView() -> Microsoft.Maui.Platforms.Tizen.TizenContentViewGroup!
-override Microsoft.Maui.Platforms.Tizen.Handlers.TizenSwipeItemViewHandler.Dispose(bool disposing) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenSwipeItemViewHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.TizenContentViewGroup! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenSwipeItemViewHandler.SetVirtualView(Microsoft.Maui.IView! view) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenSwipeViewHandler.CreatePlatformView() -> Microsoft.Maui.Platforms.Tizen.TizenSwipeViewGroup!
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenSwipeViewHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.TizenSwipeViewGroup! platformView) -> void
@@ -739,6 +739,7 @@ static Microsoft.Maui.Platforms.Tizen.Handlers.TizenIndicatorViewHandler.MapMaxi
 static Microsoft.Maui.Platforms.Tizen.Handlers.TizenIndicatorViewHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.IIndicatorView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenIndicatorViewHandler!>!
 static Microsoft.Maui.Platforms.Tizen.Handlers.TizenIndicatorViewHandler.MapPosition(Microsoft.Maui.Platforms.Tizen.Handlers.TizenIndicatorViewHandler! handler, Microsoft.Maui.IIndicatorView! indicator) -> void
 static Microsoft.Maui.Platforms.Tizen.Handlers.TizenIndicatorViewHandler.MapSelectedIndicatorColor(Microsoft.Maui.Platforms.Tizen.Handlers.TizenIndicatorViewHandler! handler, Microsoft.Maui.IIndicatorView! indicator) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenIndicatorViewHandler.MapVisibility(Microsoft.Maui.Platforms.Tizen.Handlers.TizenIndicatorViewHandler! handler, Microsoft.Maui.IIndicatorView! indicator) -> void
 static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapBackground(Microsoft.Maui.Handlers.ILabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
 static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapCharacterSpacing(Microsoft.Maui.Handlers.ILabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
 static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLabelHandler.MapFont(Microsoft.Maui.Handlers.ILabelHandler! handler, Microsoft.Maui.ILabel! label) -> void

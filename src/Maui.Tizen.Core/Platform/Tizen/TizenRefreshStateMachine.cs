@@ -58,6 +58,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <summary>Whether a start is being held for replay.</summary>
 		public bool HasPendingStart => _pendingStart;
 
+		/// <summary>Records that the native control started refreshing before the mapper observed it.</summary>
+		internal void ObserveNativeStart()
+		{
+			_isRefreshing = true;
+			_completing = false;
+			_pendingStart = false;
+		}
+
 		/// <summary>Records a requested state and reports what the caller must do.</summary>
 		public TizenRefreshAction Request(bool isRefreshing)
 		{
