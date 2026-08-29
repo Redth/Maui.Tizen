@@ -109,6 +109,7 @@ check "normalize script is syntactically valid" bash -n eng/import/normalize-lay
 check "Tizen workload gate script is syntactically valid" bash -n eng/ci/tizen-workload-gate.sh
 check "real Tizen lane script is syntactically valid" bash -n eng/build-tizen.sh
 check "Tizen workload transition tests are syntactically valid" bash -n eng/tests/test-ci-tizen-workload-gate.sh
+check "Wave C mutation runner is syntactically valid" bash -n eng/tests/run-wave-c-negative-controls.sh
 
 # ---------------------------------------------------------------------------
 # 4. Restore and build the workload-independent projects.
@@ -229,6 +230,7 @@ if [[ $BUILD_OK -eq 1 ]]; then
   check "migration tooling tests" "$DOTNET" test tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj --no-build -c Release
   check "Wave B negative controls" env DOTNET="$DOTNET" "$REPO_ROOT/eng/tests/run-wave-b-negative-controls.sh"
   check "Wave B mutation runner behavior" "$REPO_ROOT/eng/tests/test-wave-b-mutation-runner.sh"
+  check "Wave C negative controls" "$REPO_ROOT/eng/tests/run-wave-c-negative-controls.sh"
 else
   fail "tests skipped - a preceding build failed (running --no-build now would only add cascading noise)"
   FAILURES=$((FAILURES + 1))

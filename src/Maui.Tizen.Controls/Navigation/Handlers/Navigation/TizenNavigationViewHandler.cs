@@ -1,4 +1,5 @@
 using System;
+using Microsoft.Maui.Controls;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Platform;
 
@@ -17,7 +18,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		: TizenViewHandler<IStackNavigationView, TizenStackNavigationManager>, INavigationViewHandler
 	{
 		public static IPropertyMapper<IStackNavigationView, TizenNavigationViewHandler> Mapper =
-			new PropertyMapper<IStackNavigationView, TizenNavigationViewHandler>(TizenViewMappers.ViewMapper);
+			new PropertyMapper<IStackNavigationView, TizenNavigationViewHandler>(TizenViewMappers.ViewMapper)
+			{
+				[nameof(IToolbarElement.Toolbar)] = MapToolbar,
+			};
 
 		public static CommandMapper<IStackNavigationView, TizenNavigationViewHandler> CommandMapper =
 			new(TizenViewMappers.ViewCommandMapper)
@@ -44,7 +48,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void ConnectHandler(TizenStackNavigationManager platformView)
 		{
 			base.ConnectHandler(platformView);
-			platformView.Connect(VirtualView);
+			try
+			{
+				platformView.Connect(VirtualView);
+				UpdateToolbar();
+			}
+			catch
+			{
+				base.DisconnectHandler(platformView);
+				throw;
+			}
 		}
 
 		protected override void DisconnectHandler(TizenStackNavigationManager platformView)
@@ -52,13 +65,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			// The manager's NUI body is disposed independently of the handler (for example when the
 			// owning window closes first). Touching a disposed body throws, so bail out the same way
 			// the in-tree backend did.
-			if (!platformView.HasBody())
+			try
 			{
-				return;
+				if (platformView.HasBody())
+				{
+					platformView.ClearToolbar();
+					platformView.Disconnect();
+				}
 			}
-
-			base.DisconnectHandler(platformView);
-			platformView.Disconnect();
+			finally
+			{
+				base.DisconnectHandler(platformView);
+			}
 		}
 
 		public static void RequestNavigation(TizenNavigationViewHandler handler, IStackNavigation view, object? args)
@@ -71,6 +89,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			{
 				throw new InvalidOperationException($"{nameof(args)} must be a {nameof(NavigationRequest)}.");
 			}
+		}
+
+		public static void MapToolbar(TizenNavigationViewHandler handler, IStackNavigationView view) =>
+			handler.UpdateToolbar();
+
+		void UpdateToolbar()
+		{
+			if (VirtualView is not IToolbarElement { Toolbar: Toolbar toolbar }
+				|| MauiContext is null)
+			{
+				PlatformView.ClearToolbar();
+				return;
+			}
+
+			PlatformView.SetToolbar((TizenToolbarView)toolbar.ToPlatformView(MauiContext));
 		}
 	}
 }

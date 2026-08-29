@@ -10,8 +10,9 @@ MAUI_TIZEN_UPDATE_PARITY=1 dotnet test tests/Maui.Tizen.SourceTests/Maui.Tizen.S
 ## Summary
 
 - 20 migrated handlers
-- 57 supported mappings, 33 documented no-ops
-- 0 handlers with recorded neutral-key gaps
+- 68 supported mappings, 42 documented no-ops
+- 0 handlers with recorded property gaps
+- 0 handlers with recorded command gaps
 
 `UncoveredNeutralKeys` are recorded gaps, not silent omissions. The source tests fail when the
 current MAUI mapper surface and this manifest differ.
@@ -31,7 +32,7 @@ current MAUI mapper surface and this manifest differ.
 | `CurrentItem` | `MapCurrentItem` | Supported |  |
 | `Position` | `MapPosition` | Supported |  |
 | `IsBounceEnabled` | `MapIsBounceEnabled` | NoOp | No-op: IsBounceEnabled is not supported on Tizen. Tizen.UIExtensions.NUI.CollectionView does not support bounce/overscroll effects. This mapper is declared for API completeness but performs no operation. |
-| `IsSwipeEnabled` | `MapIsSwipeEnabled` | NoOp | No-op: IsSwipeEnabled is not directly controllable on Tizen. Tizen.UIExtensions.NUI.CollectionView does not support disabling swipe/scroll gestures. The carousel is always scrollable when items are present. This mapper is declared for API completeness but performs no operation. |
+| `IsSwipeEnabled` | `MapIsSwipeEnabled` | Supported |  |
 | `PeekAreaInsets` | `MapPeekAreaInsets` | NoOp | No-op: PeekAreaInsets is not supported on Tizen. Tizen CollectionView does not support showing parts of adjacent items. This mapper is declared for API completeness but performs no operation. |
 | `Loop` | `MapLoop` | NoOp | No-op: Loop is not supported on Tizen. Tizen.UIExtensions.NUI.CollectionView does not support infinite looping. This mapper is declared for API completeness but performs no operation. |
 | `ItemsLayout` | `MapItemsLayout` | Supported |  |
@@ -87,9 +88,9 @@ current MAUI mapper surface and this manifest differ.
 | `ItemTemplate` | `MapItemTemplate` | Supported |  |
 | `EmptyView` | `MapEmptyView` | Supported |  |
 | `EmptyViewTemplate` | `MapEmptyViewTemplate` | Supported |  |
-| `RemainingItemsThreshold` | `MapRemainingItemsThreshold` | NoOp | No-op: RemainingItemsThreshold is not supported on Tizen. Tizen.UIExtensions.NUI.CollectionView does not currently expose an API for threshold-based notifications when approaching the end of content. |
-| `HorizontalScrollBarVisibility` | `MapHorizontalScrollBarVisibility` | NoOp | No-op: HorizontalScrollBarVisibility is not configurable on Tizen CollectionView. |
-| `VerticalScrollBarVisibility` | `MapVerticalScrollBarVisibility` | NoOp | No-op: VerticalScrollBarVisibility is not configurable on Tizen CollectionView. |
+| `RemainingItemsThreshold` | `MapRemainingItemsThreshold` | Supported |  |
+| `HorizontalScrollBarVisibility` | `MapHorizontalScrollBarVisibility` | Supported |  |
+| `VerticalScrollBarVisibility` | `MapVerticalScrollBarVisibility` | Supported |  |
 | `ItemsUpdatingScrollMode` | `MapItemsUpdatingScrollMode` | NoOp | No-op: ItemsUpdatingScrollMode is not supported on Tizen. |
 | `IsVisible` | `MapIsVisible` | Supported |  |
 
@@ -110,6 +111,15 @@ current MAUI mapper surface and this manifest differ.
 | --- | --- | --- | --- |
 | `IsEnabled` | `MapIsEnabled` | NoOp | Unsupported: IsEnabled has no effect because Tizen NUI ships no menu bar widget, so there is no menu bar surface whose interactivity could be toggled. |
 
+**Command mappers**
+
+| Key | Method | Status | Notes |
+| --- | --- | --- | --- |
+| `Add` | `MapCollectionChange` | NoOp | Add, Remove, Clear, and Insert cannot change a native menu bar because Tizen NUI exposes no menu bar surface. |
+| `Remove` | `MapCollectionChange` | NoOp | Add, Remove, Clear, and Insert cannot change a native menu bar because Tizen NUI exposes no menu bar surface. |
+| `Clear` | `MapCollectionChange` | NoOp | Add, Remove, Clear, and Insert cannot change a native menu bar because Tizen NUI exposes no menu bar surface. |
+| `Insert` | `MapCollectionChange` | NoOp | Add, Remove, Clear, and Insert cannot change a native menu bar because Tizen NUI exposes no menu bar surface. |
+
 ### `TizenMenuBarItemHandler`
 
 - Source: `src/Maui.Tizen.Controls/Navigation/Handlers/Menu/TizenMenuHandlers.cs`
@@ -122,10 +132,28 @@ current MAUI mapper surface and this manifest differ.
 | `Text` | `MapText` | NoOp | Unsupported: Text has no effect because Tizen NUI ships no menu bar, so there is no menu bar item label to render the string into. |
 | `IsEnabled` | `MapIsEnabled` | NoOp | Unsupported: IsEnabled has no effect because Tizen NUI ships no menu bar, so there is no menu bar item whose interactivity could be toggled. |
 
+**Command mappers**
+
+| Key | Method | Status | Notes |
+| --- | --- | --- | --- |
+| `Add` | `MapCollectionChange` | NoOp | Add, Remove, Clear, and Insert cannot change native menu-bar children because Tizen NUI exposes no menu bar surface. |
+| `Remove` | `MapCollectionChange` | NoOp | Add, Remove, Clear, and Insert cannot change native menu-bar children because Tizen NUI exposes no menu bar surface. |
+| `Clear` | `MapCollectionChange` | NoOp | Add, Remove, Clear, and Insert cannot change native menu-bar children because Tizen NUI exposes no menu bar surface. |
+| `Insert` | `MapCollectionChange` | NoOp | Add, Remove, Clear, and Insert cannot change native menu-bar children because Tizen NUI exposes no menu bar surface. |
+
 ### `TizenMenuFlyoutHandler`
 
 - Source: `src/Maui.Tizen.Controls/Navigation/Handlers/Menu/TizenMenuHandlers.cs`
 - Base: `ElementHandler<IMenuFlyout, NView>`
+
+**Command mappers**
+
+| Key | Method | Status | Notes |
+| --- | --- | --- | --- |
+| `Add` | `MapCollectionChange` | NoOp | Add, Remove, Clear, and Insert cannot change native flyout children because Tizen NUI exposes no context-menu surface. |
+| `Remove` | `MapCollectionChange` | NoOp | Add, Remove, Clear, and Insert cannot change native flyout children because Tizen NUI exposes no context-menu surface. |
+| `Clear` | `MapCollectionChange` | NoOp | Add, Remove, Clear, and Insert cannot change native flyout children because Tizen NUI exposes no context-menu surface. |
+| `Insert` | `MapCollectionChange` | NoOp | Add, Remove, Clear, and Insert cannot change native flyout children because Tizen NUI exposes no context-menu surface. |
 
 ### `TizenMenuFlyoutItemHandler`
 
@@ -155,11 +183,26 @@ current MAUI mapper surface and this manifest differ.
 | --- | --- | --- | --- |
 | `Text` | `MapText` | NoOp | Unsupported: Text has no effect because Tizen NUI ships no context-menu primitive, so there is no submenu header to render the string into. |
 
+**Command mappers**
+
+| Key | Method | Status | Notes |
+| --- | --- | --- | --- |
+| `Add` | `MapCollectionChange` | NoOp | Add, Remove, Clear, and Insert cannot change native submenu children because Tizen NUI exposes no context-menu surface. |
+| `Remove` | `MapCollectionChange` | NoOp | Add, Remove, Clear, and Insert cannot change native submenu children because Tizen NUI exposes no context-menu surface. |
+| `Clear` | `MapCollectionChange` | NoOp | Add, Remove, Clear, and Insert cannot change native submenu children because Tizen NUI exposes no context-menu surface. |
+| `Insert` | `MapCollectionChange` | NoOp | Add, Remove, Clear, and Insert cannot change native submenu children because Tizen NUI exposes no context-menu surface. |
+
 ### `TizenNavigationViewHandler`
 
 - Source: `src/Maui.Tizen.Controls/Navigation/Handlers/Navigation/TizenNavigationViewHandler.cs`
 - Base: `TizenViewHandler<IStackNavigationView, TizenStackNavigationManager>`
 - Neutral counterpart: `Microsoft.Maui.Handlers.NavigationViewHandler`
+
+**Property mappers**
+
+| Key | Method | Status | Notes |
+| --- | --- | --- | --- |
+| `Toolbar` | `MapToolbar` | Supported |  |
 
 **Command mappers**
 
@@ -208,15 +251,18 @@ current MAUI mapper surface and this manifest differ.
 | `CurrentItem` | `MapCurrentItem` | Supported |  |
 | `FlyoutBackdrop` | `MapFlyoutBackdrop` | Supported |  |
 | `FlyoutFooter` | `MapFlyoutFooter` | Supported |  |
+| `FlyoutFooterTemplate` | `MapFlyoutFooter` | Supported |  |
 | `FlyoutHeader` | `MapFlyoutHeader` | Supported |  |
+| `FlyoutHeaderTemplate` | `MapFlyoutHeader` | Supported |  |
 | `FlyoutHeaderBehavior` | `MapFlyoutHeaderBehavior` | Supported |  |
 | `Items` | `MapItems` | Supported |  |
 | `FlyoutContent` | `MapFlyoutContent` | Supported |  |
-| `FlowDirection` | `MapFlowDirection` | NoOp | No-op: Tizen does not support FlowDirection on Shell flyout. |
+| `FlyoutContentTemplate` | `MapFlyoutContent` | Supported |  |
 | `FlyoutBackgroundImage` | `MapFlyoutBackgroundImage` | NoOp | No-op: Tizen does not support FlyoutBackgroundImage. |
 | `FlyoutBackgroundImageAspect` | `MapFlyoutBackgroundImageAspect` | NoOp | No-op: Tizen does not support FlyoutBackgroundImageAspect. |
 | `FlyoutVerticalScrollMode` | `MapFlyoutVerticalScrollMode` | NoOp | No-op: Tizen does not support FlyoutVerticalScrollMode. |
 | `FlyoutIcon` | `MapFlyoutIcon` | NoOp | No-op: Tizen does not support custom FlyoutIcon. |
+| `Toolbar` | `MapToolbar` | Supported |  |
 
 ### `TizenShellItemHandler`
 
@@ -228,6 +274,7 @@ current MAUI mapper surface and this manifest differ.
 | Key | Method | Status | Notes |
 | --- | --- | --- | --- |
 | `CurrentItem` | `MapCurrentItem` | Supported |  |
+| `TabBarIsVisible` | `MapTabBarIsVisible` | Supported |  |
 
 ### `TizenShellSectionHandler`
 
@@ -278,7 +325,7 @@ current MAUI mapper surface and this manifest differ.
 | `SelectedTabColor` | `MapSelectedTabColor` | NoOp | No-op: SelectedTabColor styling is handled via bindings in the TabbedItem. The SelectedTabColor is bound directly to the tab items via XAML bindings. This mapper exists for API completeness but performs no additional operation. |
 | `ItemsSource` | `MapItemsSource` | NoOp | No-op: ItemsSource is managed through Children collection. TabbedPage uses the Children collection directly rather than ItemsSource. This mapper exists for API completeness but performs no operation. |
 | `ItemTemplate` | `MapItemTemplate` | NoOp | No-op: ItemTemplate is not used by TabbedPage on Tizen. TabbedPage uses a fixed template for tab items. This mapper exists for API completeness but performs no operation. |
-| `SelectedItem` | `MapSelectedItem` | NoOp | No-op: SelectedItem is managed through CurrentPage. TabbedPage uses CurrentPage rather than SelectedItem. This mapper exists for API completeness but performs no operation. |
+| `SelectedItem` | `MapSelectedItem` | Supported |  |
 | `CurrentPage` | `MapCurrentPage` | Supported |  |
 | `BadgeText` | `MapBadgeText` | NoOp | Unsupported: Tizen has no tab badge affordance. Upstream (dotnet/maui#37755) added <c>BadgeText</c>, <c>BadgeColor</c> and "Tizen exposes the shared API without a platform renderer, matching Shell's current support matrix". Tizen's NUI tab strip is a plain is no badge decoration to drive. The mapping is declared rather than omitted so that the gap is an explicit, reviewable classification in the parity artifact instead of a silent miss. Setting a badge on Tizen binds and raises property changes normally; nothing is drawn. |
 | `BadgeColor` | `MapBadgeColor` | NoOp | Unsupported: Tizen has no tab badge affordance, so there is no badge to colour. See <see cref="MapBadgeText"/> for the full rationale and the upstream reference. |
@@ -302,9 +349,8 @@ current MAUI mapper surface and this manifest differ.
 | `IconColor` | `MapIconColor` | Supported |  |
 | `ToolbarItems` | `MapToolbarItems` | Supported |  |
 | `BackButtonTitle` | `MapBackButtonTitle` | Supported |  |
-| `DrawerToggleVisible` | `MapDrawerToggleVisible` | Supported |  |
 | `BarBackground` | `MapBarBackground` | Supported |  |
 | `BarTextColor` | `MapBarTextColor` | Supported |  |
-| `BackButtonEnabled` | `MapBackButtonEnabled` | NoOp | No-op: Tizen's toolbar icon has no separate enabled state. The in-tree backend simply had no mapping, which meant a silent miss. Declaring it as an explicit no-op keeps <c>Parity/MapperParity.json</c> honest and gives the source tests something to assert against. |
+| `BackButtonEnabled` | `MapBackButtonEnabled` | Supported |  |
 | `DynamicOverflowEnabled` | `MapDynamicOverflowEnabled` | NoOp | No-op: DynamicOverflowEnabled has no effect because Tizen always collapses secondary toolbar items behind the overflow button; there is no fixed-overflow mode to switch to. |
 

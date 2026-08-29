@@ -85,18 +85,35 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
-			if (_toolbar is not null)
-			{
-				Remove(_toolbar);
-				_toolbar.Dispose();
-				_toolbar = null;
-			}
+			ClearToolbar();
 
 			_toolbar = toolbar;
 			Add(toolbar);
 
 			// The toolbar must sit above the navigation stack in the vertical layout.
 			(toolbar.Layout as NLayoutGroup)?.ChangeLayoutSiblingOrder(0);
+		}
+
+		/// <summary>Detaches and disposes the currently owned toolbar, if any.</summary>
+		public void ClearToolbar()
+		{
+			if (_toolbar is null)
+				return;
+
+			var outgoing = _toolbar;
+			_toolbar = null;
+			Remove(outgoing);
+			outgoing.Dispose();
+		}
+
+		/// <inheritdoc />
+		public void DetachToolbar(TizenToolbarView toolbar)
+		{
+			if (!ReferenceEquals(_toolbar, toolbar))
+				return;
+
+			_toolbar = null;
+			Remove(toolbar);
 		}
 
 		/// <summary>Connects this manager to a cross-platform navigation view.</summary>
@@ -112,8 +129,23 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <summary>Disconnects this manager from its navigation view.</summary>
 		public virtual void Disconnect()
 		{
+			ResetNavigationState();
 			NavigationView = null;
 			MauiContext = null;
+		}
+
+		/// <summary>Clears the managed and native page stack owned by this manager.</summary>
+		protected virtual void ResetNavigationState()
+		{
+			for (var index = _navigationStack.Count - 1; index >= 0; index--)
+			{
+				var page = _navigationStack[index];
+				if (_pageMap.TryGetValue(page, out var wrapper))
+					PlatformNavigation.Pop(wrapper);
+				ReleasePage(page);
+			}
+
+			_navigationStack = new List<IView>();
 		}
 
 		/// <summary>Applies a navigation request to the platform stack.</summary>
@@ -260,6 +292,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		/// <summary>Gets the toolbar currently attached, if any.</summary>
 		protected TizenToolbarView? Toolbar => _toolbar;
+
+		/// <inheritdoc />
+		protected override void Dispose(global::Tizen.NUI.DisposeTypes type)
+		{
+			if (type == global::Tizen.NUI.DisposeTypes.Explicit)
+			{
+				ResetNavigationState();
+				ClearToolbar();
+			}
+
+			base.Dispose(type);
+		}
 
 		void Finish(List<IView> stack)
 		{

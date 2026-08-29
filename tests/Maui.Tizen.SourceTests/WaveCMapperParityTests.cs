@@ -36,12 +36,21 @@ public class WaveCMapperParityTests
 			var neutralKeys = neutral is null
 				? Array.Empty<string>()
 				: NeutralMaui.MapperKeys(neutral, "Mapper").ToArray();
+			var neutralCommandKeys = neutral is null
+				? Array.Empty<string>()
+				: NeutralMaui.MapperKeys(neutral, "CommandMapper").ToArray();
 
-			var implemented = ImplementedKeys(handler);
+			var implemented = ImplementedKeys(handler, commands: false);
+			var implementedCommands = ImplementedKeys(handler, commands: true);
 
 			var uncovered = neutralKeys
 				.Where(k => !implemented.Contains(k))
 				.Where(k => !NeutralMaui.ViewMapperKeys.Contains(k))
+				.Distinct(StringComparer.Ordinal)
+				.OrderBy(k => k, StringComparer.Ordinal)
+				.ToList();
+			var uncoveredCommands = neutralCommandKeys
+				.Where(k => !implementedCommands.Contains(k))
 				.Distinct(StringComparer.Ordinal)
 				.OrderBy(k => k, StringComparer.Ordinal)
 				.ToList();
@@ -53,7 +62,8 @@ public class WaveCMapperParityTests
 				neutralKeys.Length > 0 ? neutral!.FullName : null,
 				handler.PropertyMappers.Select(Convert).ToList(),
 				handler.CommandMappers.Select(Convert).ToList(),
-				uncovered));
+				uncovered,
+				uncoveredCommands));
 		}
 
 		return new ParityDocument(
@@ -87,7 +97,8 @@ public class WaveCMapperParityTests
 		builder.AppendLine();
 		builder.AppendLine($"- {document.Handlers.Count} migrated handlers");
 		builder.AppendLine($"- {mappings.Count(mapper => mapper.Status == "Supported")} supported mappings, {mappings.Count(mapper => mapper.Status == "NoOp")} documented no-ops");
-		builder.AppendLine($"- {document.Handlers.Count(handler => handler.UncoveredNeutralKeys.Count > 0)} handlers with recorded neutral-key gaps");
+		builder.AppendLine($"- {document.Handlers.Count(handler => handler.UncoveredNeutralKeys.Count > 0)} handlers with recorded property gaps");
+		builder.AppendLine($"- {document.Handlers.Count(handler => handler.UncoveredNeutralCommandKeys.Count > 0)} handlers with recorded command gaps");
 		builder.AppendLine();
 		builder.AppendLine("`UncoveredNeutralKeys` are recorded gaps, not silent omissions. The source tests fail when the");
 		builder.AppendLine("current MAUI mapper surface and this manifest differ.");
@@ -113,6 +124,14 @@ public class WaveCMapperParityTests
 				builder.AppendLine(
 					"**Recorded gaps:** "
 					+ string.Join(", ", handler.UncoveredNeutralKeys.Select(key => $"`{key}`")));
+				builder.AppendLine();
+			}
+
+			if (handler.UncoveredNeutralCommandKeys.Count > 0)
+			{
+				builder.AppendLine(
+					"**Recorded command gaps:** "
+					+ string.Join(", ", handler.UncoveredNeutralCommandKeys.Select(key => $"`{key}`")));
 				builder.AppendLine();
 			}
 		}
@@ -142,10 +161,10 @@ public class WaveCMapperParityTests
 		builder.AppendLine();
 	}
 
-	static HashSet<string> ImplementedKeys(HandlerSource handler)
+	static HashSet<string> ImplementedKeys(HandlerSource handler, bool commands)
 	{
-		var keys = handler.PropertyMappers.Select(m => m.Key)
-			.Concat(handler.CommandMappers.Select(m => m.Key))
+		var keys = (commands ? handler.CommandMappers : handler.PropertyMappers)
+			.Select(m => m.Key)
 			.ToHashSet(StringComparer.Ordinal);
 
 		// Generic base handlers appear as "TizenStructuredItemsViewHandler<TItemsView>" in a base
@@ -157,7 +176,11 @@ public class WaveCMapperParityTests
 
 		if (baseHandler is not null && baseHandler.TypeName != handler.TypeName)
 		{
-			keys.UnionWith(ImplementedKeys(baseHandler));
+			keys.UnionWith(ImplementedKeys(baseHandler, commands));
+		}
+		else if (commands && handler.BaseType.StartsWith("TizenViewHandler", StringComparison.Ordinal))
+		{
+			keys.UnionWith(WaveBSource.SharedViewMapper.CommandMappers.Select(mapper => mapper.Key));
 		}
 
 		return keys;
@@ -211,17 +234,24 @@ public class WaveCMapperParityTests
 	public void EveryNeutralMapperKeyIsImplementedOrRecorded()
 	{
 		var document = Build();
-		var recorded = LoadRecordedGaps();
+		var recordedProperties = LoadRecordedGaps(commands: false);
+		var recordedCommands = LoadRecordedGaps(commands: true);
 		var failures = new List<string>();
 
 		foreach (var handler in document.Handlers)
 		{
 			foreach (var key in handler.UncoveredNeutralKeys)
 			{
-				if (!recorded.TryGetValue(handler.Handler, out var keys) || !keys.Contains(key))
+				if (!recordedProperties.TryGetValue(handler.Handler, out var keys) || !keys.Contains(key))
 				{
 					failures.Add($"{handler.Handler} does not map '{key}' and it is not recorded in {ManifestRelativePath}.");
 				}
+			}
+
+			foreach (var key in handler.UncoveredNeutralCommandKeys)
+			{
+				if (!recordedCommands.TryGetValue(handler.Handler, out var keys) || !keys.Contains(key))
+					failures.Add($"{handler.Handler} does not map command '{key}' and it is not recorded in {ManifestRelativePath}.");
 			}
 		}
 
@@ -259,7 +289,7 @@ public class WaveCMapperParityTests
 		Assert.Empty(failures);
 	}
 
-	static Dictionary<string, HashSet<string>> LoadRecordedGaps()
+	static Dictionary<string, HashSet<string>> LoadRecordedGaps(bool commands)
 	{
 		var path = RepoPaths.Combine(ManifestRelativePath.Split('/'));
 
@@ -272,7 +302,9 @@ public class WaveCMapperParityTests
 
 		return document?.Handlers.ToDictionary(
 			h => h.Handler,
-			h => h.UncoveredNeutralKeys.ToHashSet(StringComparer.Ordinal),
+			h => ((commands ? h.UncoveredNeutralCommandKeys : h.UncoveredNeutralKeys)
+				?? Array.Empty<string>())
+				.ToHashSet(StringComparer.Ordinal),
 			StringComparer.Ordinal) ?? new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
 	}
 

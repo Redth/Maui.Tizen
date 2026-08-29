@@ -218,11 +218,11 @@ public class WaveCToolbarOwnershipTests
 		var source = File.ReadAllText(RepoPaths.Combine(
 			"src", "Maui.Tizen.Controls", "Navigation", "Platform", "Shell", "TizenShellView.cs"));
 		var methodStart = source.IndexOf("public void UpdateToolbar()", StringComparison.Ordinal);
-		var methodEnd = source.IndexOf("void OnToolbarIconPressed", methodStart, StringComparison.Ordinal);
+		var methodEnd = source.IndexOf("public void DetachToolbar()", methodStart, StringComparison.Ordinal);
 		var body = source[methodStart..methodEnd];
 
-		var release = body.IndexOf("_toolbarOwnership.Release();", StringComparison.Ordinal);
-		var transferOwnership = body.IndexOf("_mainContentView.SetToolbar(platformToolbar);", StringComparison.Ordinal);
+		var release = body.LastIndexOf("_toolbarOwnership.Release();", StringComparison.Ordinal);
+		var transferOwnership = body.LastIndexOf("_mainContentView.SetToolbar(platformToolbar);", StringComparison.Ordinal);
 		var subscribe = body.IndexOf("_toolbarOwnership.Transfer(platformToolbar);", StringComparison.Ordinal);
 
 		Assert.True(release >= 0 && transferOwnership > release && subscribe > transferOwnership);

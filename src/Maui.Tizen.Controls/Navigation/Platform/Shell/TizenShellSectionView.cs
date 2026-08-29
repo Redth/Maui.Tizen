@@ -27,6 +27,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		TizenItemAppearance _appearance;
 		bool _isDisposed;
 		readonly ShellSectionViewCache<ShellContent, NView> _contentCache = new();
+		readonly SelectionProposalCoordinator<ShellContent> _selection = new();
 		readonly Dictionary<Page, IViewHandler?> _handlerMap = new();
 		readonly Dictionary<ShellContent, Page> _pageMap = new();
 
@@ -54,11 +55,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			BuildTopTabBar();
 			Add(_contentArea);
 
-			// Subscribe to items changes
-			if (ShellSection.Items is INotifyCollectionChanged ncc)
-			{
-				ncc.CollectionChanged += OnShellContentsChanged;
-			}
+			((IShellSectionController)ShellSection).ItemsCollectionChanged += OnShellContentsChanged;
 		}
 
 		public ShellSection ShellSection { get; }
@@ -91,7 +88,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		void OnShellContentsChanged(object? sender, NotifyCollectionChangedEventArgs e)
 		{
-			var liveContents = ShellSection.Items.ToHashSet();
+			var liveContents = ((IShellSectionController)ShellSection).GetItems().ToHashSet();
 			foreach (var removed in _pageMap.Keys.Where(content => !liveContents.Contains(content)).ToList())
 			{
 				if (ReferenceEquals(_contentCache.CurrentSection, removed))
@@ -106,7 +103,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		void BuildTopTabBar()
 		{
-			var items = ShellSection.Items.ToList();
+			var items = ((IShellSectionController)ShellSection).GetItems().ToList();
 
 			// Only show tab bar if more than one content
 			if (items.Count <= 1)
@@ -161,14 +158,25 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			Add(_topTabBar);
 			(_topTabBar.Layout as global::Tizen.NUI.LayoutGroup)?.ChangeLayoutSiblingOrder(0);
 			_topTabBar.RaiseToTop();
+			SynchronizeNativeSelection();
 		}
 
 		void OnTopTabSelected(object? sender, TizenCollectionViewSelectionChangedEventArgs e)
 		{
-			if (e.SelectedItems?.Count > 0 && e.SelectedItems[0] is ShellContent content)
-			{
-				ShellSection.CurrentItem = content;
-			}
+			var nativeIndex = e.SelectedIndexes.Count > 0 ? e.SelectedIndexes[0] : -1;
+			if (_selection.ConsumeManagedEcho(nativeIndex)
+				|| e.SelectedItems?.Count is not > 0
+				|| e.SelectedItems[0] is not ShellContent content)
+				return;
+
+			_selection.Propose(
+				content,
+				candidate =>
+				{
+					ShellSection.CurrentItem = candidate;
+					return true;
+				},
+				SynchronizeNativeSelection);
 		}
 
 		/// <summary>
@@ -179,9 +187,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			BuildTopTabBar();
 
 			// Sync tab selection
-			var selectedIdx = _topTabBar?.Adaptor?.GetItemIndex(content) ?? 0;
-			if (selectedIdx >= 0)
-				_topTabBar?.RequestItemSelect(selectedIdx);
+			SynchronizeNativeSelection();
 
 			UpdateContent(content);
 		}
@@ -207,6 +213,22 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			CurrentContent = platformView;
 		}
 
+		void SynchronizeNativeSelection()
+		{
+			if (_topTabBar?.Adaptor is not { } adaptor)
+				return;
+
+			_selection.Synchronize(
+				ShellSection.CurrentItem,
+				adaptor.GetItemIndex,
+				() =>
+				{
+					foreach (var selected in _topTabBar.SelectedItems.ToArray())
+						_topTabBar.RequestItemUnselect(selected);
+				},
+				_topTabBar.RequestItemSelect);
+		}
+
 		public void UpdateAppearance(ShellAppearance appearance)
 		{
 			if (appearance == null)
@@ -228,10 +250,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			_appearance.TitleColor = titleColor;
 			_appearance.UnselectedColor = unselectedColor;
 
-			if (_topTabBar != null && backgroundColor != null)
-			{
-				_topTabBar.BackgroundColor = backgroundColor.ToTizen().ToNative();
-			}
+			if (_topTabBar != null)
+				_topTabBar.BackgroundColor = (backgroundColor ?? Microsoft.Maui.Graphics.Colors.Transparent).ToTizen().ToNative();
 		}
 
 		// NUI's BaseHandle already exposes Dispose(); this participates in that chain rather
@@ -249,10 +269,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			if (type == DisposeTypes.Explicit)
 			{
-				if (ShellSection.Items is INotifyCollectionChanged ncc)
-				{
-					ncc.CollectionChanged -= OnShellContentsChanged;
-				}
+				((IShellSectionController)ShellSection).ItemsCollectionChanged -= OnShellContentsChanged;
 
 				if (_tabBarAdaptor != null)
 				{

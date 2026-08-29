@@ -144,6 +144,8 @@ Microsoft.Maui.Platforms.Tizen.ITizenPlatformViewHandler
 Microsoft.Maui.Platforms.Tizen.ITizenPlatformViewHandler.ContainerView.get -> Tizen.NUI.BaseComponents.View?
 Microsoft.Maui.Platforms.Tizen.ITizenPlatformViewHandler.PlatformView.get -> Tizen.NUI.BaseComponents.View?
 Microsoft.Maui.Platforms.Tizen.ITizenToolbarContainer
+Microsoft.Maui.Platforms.Tizen.ITizenToolbarContainer.ClearToolbar() -> void
+Microsoft.Maui.Platforms.Tizen.ITizenToolbarContainer.DetachToolbar(Microsoft.Maui.Platforms.Tizen.TizenToolbarView! toolbar) -> void
 Microsoft.Maui.Platforms.Tizen.ITizenToolbarContainer.SetToolbar(Microsoft.Maui.Platforms.Tizen.TizenToolbarView! toolbar) -> void
 Microsoft.Maui.Platforms.Tizen.LifecycleEvents.ITizenLifecycleBuilder
 Microsoft.Maui.Platforms.Tizen.LifecycleEvents.TizenLifecycle
@@ -415,6 +417,8 @@ Microsoft.Maui.Platforms.Tizen.TizenSliderExtensions
 Microsoft.Maui.Platforms.Tizen.TizenSliderView
 Microsoft.Maui.Platforms.Tizen.TizenSliderView.TizenSliderView() -> void
 Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.ClearToolbar() -> void
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.DetachToolbar(Microsoft.Maui.Platforms.Tizen.TizenToolbarView! toolbar) -> void
 Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.GetNavigationItem(Microsoft.Maui.IView! page) -> Microsoft.Maui.Platforms.Tizen.TizenNaviPage!
 Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.MauiContext.get -> Microsoft.Maui.IMauiContext?
 Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.MauiContext.set -> void
@@ -648,6 +652,7 @@ override Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.OnChildAdded(Tizen.NU
 override Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.OnChildRemoved(Tizen.NUI.Binding.Element! child) -> void
 override Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.OnEnabled(bool enabled) -> void
 override Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.OnEnabled(bool enabled) -> void
+override Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.Dispose(Tizen.NUI.DisposeTypes type) -> void
 override Microsoft.Maui.Platforms.Tizen.TizenStepperView.OnEnabled(bool enabled) -> void
 override Microsoft.Maui.Platforms.Tizen.TizenTicker.IsRunning.get -> bool
 override Microsoft.Maui.Platforms.Tizen.TizenTicker.Start() -> void
@@ -1237,3 +1242,4 @@ virtual Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.InitializeSta
 virtual Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.OnNavigationFinished(System.Collections.Generic.IReadOnlyList<Microsoft.Maui.IView!>! stack) -> void
 virtual Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.OnPageRemoved(Microsoft.Maui.IView! page) -> void
 virtual Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.RequestNavigation(Microsoft.Maui.NavigationRequest! e) -> void
+virtual Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.ResetNavigationState() -> void

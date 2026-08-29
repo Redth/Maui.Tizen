@@ -85,7 +85,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			IMauiContext mauiContext = handler.MauiContext
 				?? throw new InvalidOperationException($"{nameof(MauiContext)} should have been set by the base class.");
 
+			var toolbar = handler._observedToolbar;
+			if (toolbar is not null && handler.PlatformView is ITizenToolbarContainer oldContainer)
+				oldContainer.DetachToolbar(toolbar);
+
 			handler.PlatformView.UpdateDetail(flyoutView, mauiContext);
+
+			if (toolbar is not null && handler.PlatformView is ITizenToolbarContainer newContainer)
+				newContainer.SetToolbar(toolbar);
 		}
 
 		public static void MapIsPresented(TizenFlyoutViewHandler handler, IFlyoutView flyoutView)
@@ -131,7 +138,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// Re-renders the toolbar's leading icon after a change that can affect the drawer toggle.
 		/// </summary>
 		/// <remarks>
-		/// Nothing is latched: the capability is read-only upstream (dotnet/maui#37863), so this only
+		/// Nothing is latched: the capability is read-only in merged upstream dotnet/maui#37863 (not yet in the pinned package), so this only
 		/// asks the toolbar to recompute and redraw.
 		/// </remarks>
 		internal void RefreshToolbarLeadingIcon()
@@ -144,7 +151,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			}
 
 			if (toolbar.Handler is TizenToolbarHandler toolbarHandler)
-				toolbarHandler.UpdateNavigationIcon(toolbar);
+				toolbarHandler.UpdateNavigationIcon(toolbar, VirtualView);
 			else
 				platformToolbar.UpdateBackButton(toolbar, ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, VirtualView));
 		}
@@ -157,17 +164,25 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			IMauiContext mauiContext = handler.MauiContext
 				?? throw new InvalidOperationException($"{nameof(MauiContext)} should have been set by the base class.");
 
-			handler.DetachToolbar();
-
 			if (handler.VirtualView is not IToolbarElement { Toolbar: { } toolbar })
 			{
+				handler.DetachToolbar();
 				return;
 			}
 
 			if (toolbar.ToPlatformView(mauiContext) is not TizenToolbarView platformToolbar)
 			{
+				handler.DetachToolbar();
 				return;
 			}
+
+			if (ReferenceEquals(handler._observedToolbar, platformToolbar))
+			{
+				handler.RefreshToolbarLeadingIcon();
+				return;
+			}
+
+			handler.DetachToolbar();
 
 			if (handler.PlatformView is ITizenToolbarContainer container)
 			{
@@ -198,6 +213,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 			_observedToolbar = null;
 			_toolbarIconPressed = null;
+
+			if (PlatformView is ITizenToolbarContainer container)
+				container.ClearToolbar();
 		}
 
 		void OnToggled(object? sender, EventArgs e) => VirtualView.IsPresented = PlatformView.IsOpened;

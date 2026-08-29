@@ -184,9 +184,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			{
 				if (_icon is XImage image)
 				{
-					image.SetBinding(XImage.SourceProperty, new Binding(nameof(BaseShellItem.Icon), source: section));
+					image.SetBinding(XImage.SourceProperty, new Binding(nameof(BaseShellItem.Icon)));
 				}
-				_label.SetBinding(XLabel.TextProperty, new Binding(nameof(BaseShellItem.Title), source: section));
+				_label.SetBinding(XLabel.TextProperty, new Binding(nameof(BaseShellItem.Title)));
+				SetBinding(IsEnabledProperty, new Binding(nameof(BaseShellItem.IsEnabled)));
 			}
 			else if (data is TizenMoreItem)
 			{
@@ -197,11 +198,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// <summary>
 		/// Factory method to create a section item view for the adaptor.
 		/// </summary>
-		public static View GetSectionItemView(object data, IMauiContext context)
+		public static View GetSectionItemView(object data, IMauiContext context, TizenItemAppearance? appearance = null)
 		{
 			bool isMoreItem = data is TizenMoreItem;
 			var view = new TizenShellSectionItemView(isMoreItem);
 			view.BindToData(data);
+			if (appearance is not null)
+			{
+				view.SetBinding(SelectedColorProperty, new Binding(nameof(TizenItemAppearance.TitleColor), source: appearance));
+				view.SetBinding(UnselectedColorProperty, new Binding(nameof(TizenItemAppearance.UnselectedColor), source: appearance));
+			}
 			return view;
 		}
 	}

@@ -148,17 +148,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 			if (data is ShellContent content)
 			{
-				_label.SetBinding(XLabel.TextProperty, new Binding(nameof(BaseShellItem.Title), source: content));
+				_label.SetBinding(XLabel.TextProperty, new Binding(nameof(BaseShellItem.Title)));
+				SetBinding(IsEnabledProperty, new Binding(nameof(BaseShellItem.IsEnabled)));
 			}
 		}
 
 		/// <summary>
 		/// Factory method to create a content item view for the adaptor.
 		/// </summary>
-		public static View GetContentItemView(object data, IMauiContext context)
+		public static View GetContentItemView(object data, IMauiContext context, TizenItemAppearance? appearance = null)
 		{
 			var view = new TizenShellContentItemView();
 			view.BindToData(data);
+			if (appearance is not null)
+			{
+				view.SetBinding(SelectedTextColorProperty, new Binding(nameof(TizenItemAppearance.TitleColor), source: appearance));
+				view.SetBinding(SelectedBarColorProperty, new Binding(nameof(TizenItemAppearance.ForegroundColor), source: appearance));
+				view.SetBinding(UnselectedColorProperty, new Binding(nameof(TizenItemAppearance.UnselectedColor), source: appearance));
+			}
 			return view;
 		}
 	}

@@ -28,15 +28,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(Shell.CurrentItem)] = MapCurrentItem,
 				[nameof(Shell.FlyoutBackdrop)] = MapFlyoutBackdrop,
 				[nameof(Shell.FlyoutFooter)] = MapFlyoutFooter,
+				[nameof(Shell.FlyoutFooterTemplate)] = MapFlyoutFooter,
 				[nameof(Shell.FlyoutHeader)] = MapFlyoutHeader,
+				[nameof(Shell.FlyoutHeaderTemplate)] = MapFlyoutHeader,
 				[nameof(Shell.FlyoutHeaderBehavior)] = MapFlyoutHeaderBehavior,
 				[nameof(Shell.Items)] = MapItems,
 				[nameof(Shell.FlyoutContent)] = MapFlyoutContent,
-				[nameof(Shell.FlowDirection)] = MapFlowDirection,
+				[nameof(Shell.FlyoutContentTemplate)] = MapFlyoutContent,
 				[nameof(Shell.FlyoutBackgroundImage)] = MapFlyoutBackgroundImage,
 				[nameof(Shell.FlyoutBackgroundImageAspect)] = MapFlyoutBackgroundImageAspect,
 				[nameof(Shell.FlyoutVerticalScrollMode)] = MapFlyoutVerticalScrollMode,
 				[nameof(Shell.FlyoutIcon)] = MapFlyoutIcon,
+				[nameof(IToolbarElement.Toolbar)] = MapToolbar,
 			};
 
 		public static CommandMapper<Shell, TizenShellHandler> CommandMapper =
@@ -49,6 +52,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public TizenShellHandler(IPropertyMapper? mapper, CommandMapper? commandMapper = null)
 			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
 		{
+		}
+
+		public override void SetVirtualView(IView view)
+		{
+			if (((IElementHandler)this).PlatformView is TizenShellView platformView
+				&& view is Shell shell
+				&& MauiContext is not null)
+			{
+				platformView.SetElement(shell, MauiContext);
+			}
+
+			base.SetVirtualView(view);
 		}
 
 		IFlyoutView IFlyoutViewHandler.VirtualView => VirtualView;
@@ -64,14 +79,33 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override void ConnectHandler(TizenShellView platformView)
 		{
-			platformView.Toggled += OnToggled;
 			base.ConnectHandler(platformView);
+			try
+			{
+				platformView.Toggled += OnToggled;
+				platformView.UpdateToolbar();
+				platformView.UpdateSearchHandler();
+			}
+			catch
+			{
+				platformView.Toggled -= OnToggled;
+				platformView.DetachToolbar();
+				base.DisconnectHandler(platformView);
+				throw;
+			}
 		}
 
 		protected override void DisconnectHandler(TizenShellView platformView)
 		{
-			platformView.Toggled -= OnToggled;
-			base.DisconnectHandler(platformView);
+			try
+			{
+				platformView.Toggled -= OnToggled;
+				platformView.DetachToolbar();
+			}
+			finally
+			{
+				base.DisconnectHandler(platformView);
+			}
 		}
 
 		public static void MapFlyout(TizenShellHandler handler, IFlyoutView flyoutView)
@@ -131,15 +165,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapFlyoutContent(TizenShellHandler handler, Shell view)
 		{
-			handler.PlatformView.UpdateFlyoutContent(view.FlyoutContent);
+			handler.PlatformView.UpdateFlyoutContent();
 		}
 
-		/// <summary>
-		/// No-op: Tizen does not support FlowDirection on Shell flyout.
-		/// </summary>
-		public static void MapFlowDirection(TizenShellHandler handler, Shell view)
-		{
-		}
+		public static void MapToolbar(TizenShellHandler handler, Shell view) =>
+			handler.PlatformView.UpdateToolbar();
 
 		/// <summary>
 		/// No-op: Tizen does not support FlyoutBackgroundImage.

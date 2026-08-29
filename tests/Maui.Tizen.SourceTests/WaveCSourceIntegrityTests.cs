@@ -198,11 +198,23 @@ public class WaveCSourceIntegrityTests
 		Assert.True(Directory.Exists(adaptersRoot), $"Missing Wave C adapters directory: {adaptersRoot}");
 
 		var requests = File.ReadAllText(Path.Combine(adaptersRoot, "UpstreamApiRequests.cs"));
+		var implementationHelpers = new HashSet<string>(StringComparer.Ordinal)
+		{
+			"BidirectionalUpdateGate",
+			"ExceptionSafeCleanup",
+			"ItemsScrollCoordinator",
+			"OwnedReplacementCoordinator",
+			"RawSelectionProjection",
+			"ViewportConstraint",
+			"SelectionProposalCoordinator",
+			"ShellRootMountCoordinator",
+		};
 
 		var missing = Directory
 			.EnumerateFiles(adaptersRoot, "*.cs")
 			.Select(Path.GetFileNameWithoutExtension)
 			.Where(name => name is not (null or "UpstreamApiRequests"))
+			.Where(name => !implementationHelpers.Contains(name!))
 			// A generic adapter can only be named as an open generic - nameof(Foo<,>) - so accept
 			// that form too rather than forcing a string literal that would drift silently.
 			.Where(name => !requests.Contains($"nameof({name})", StringComparison.Ordinal)

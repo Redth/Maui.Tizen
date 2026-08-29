@@ -188,6 +188,21 @@ public static class WaveBSource
 		if (argument is IdentifierNameSyntax identifier && constants.TryGetValue(identifier.Identifier.Text, out var constant))
 			return constant;
 
+		if (argument is MemberAccessExpressionSyntax member)
+		{
+			if (member.Name.Identifier.Text == "PropertyName"
+				&& member.Expression is MemberAccessExpressionSyntax property)
+			{
+				var name = property.Name.Identifier.Text;
+				return name.EndsWith("Property", StringComparison.Ordinal)
+					? name[..^"Property".Length]
+					: name;
+			}
+
+			if (constants.TryGetValue(member.Name.Identifier.Text, out var memberConstant))
+				return memberConstant;
+		}
+
 		return null;
 	}
 

@@ -47,4 +47,50 @@ public class WaveCItemsLifecycleSourceTests
 				|| body.Contains("Remove(native, out", StringComparison.Ordinal));
 		Assert.Contains("(view.Handler as IDisposable)?.Dispose();", body, StringComparison.Ordinal);
 	}
+
+	[Fact]
+	public void GroupedAndEmptyAdaptorsShareExplicitHeaderFooterOwnership()
+	{
+		Assert.Contains("TizenHeaderFooterPresenter", Read("TizenGroupItemTemplateAdaptor.cs"), StringComparison.Ordinal);
+		Assert.Contains("TizenHeaderFooterPresenter", Read("TizenEmptyItemAdaptor.cs"), StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void ReusedItemsPlatformViewsAreReboundBeforeMapperUpdates()
+	{
+		Assert.Contains("platformView.Rebind(itemsView)", Read("TizenItemsViewHandler.cs"), StringComparison.Ordinal);
+		Assert.Contains("public virtual void Rebind", Read("TizenCollectionViewControl.cs"), StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void NativeScrollAndOrientationAwareScrollbarsAreWired()
+	{
+		var source = Read("TizenItemsViewHandler.cs");
+
+		Assert.Contains("collectionView.Scrolled += OnCollectionViewScrolled", source, StringComparison.Ordinal);
+		Assert.Contains("collectionView.Scrolled -= OnCollectionViewScrolled", source, StringComparison.Ordinal);
+		Assert.Contains("LayoutManager.IsHorizontal", source, StringComparison.Ordinal);
+		Assert.Contains("SendRemainingItemsThresholdReached", source, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void CarouselUsesNativeFeedbackAndSwipeCapability()
+	{
+		var source = Read("TizenCarouselViewHandler.cs");
+
+		Assert.Contains("carousel.Scrolled += OnCarouselScrolled", source, StringComparison.Ordinal);
+		Assert.Contains("CarouselFeedbackCoordinator", source, StringComparison.Ordinal);
+		Assert.Contains("ScrollEnabled = VirtualView.IsSwipeEnabled", source, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void EveryAdaptorInstallationReappliesManagedSelection()
+	{
+		var items = Read("TizenItemsViewHandler.cs");
+		var selectable = Read("TizenSelectableItemsViewHandler.cs");
+
+		Assert.Contains("OnAdaptorInstalled();", items, StringComparison.Ordinal);
+		Assert.Contains("UpdateSelectedItem();", selectable, StringComparison.Ordinal);
+		Assert.Contains("UpdateSelectedItems();", selectable, StringComparison.Ordinal);
+	}
 }

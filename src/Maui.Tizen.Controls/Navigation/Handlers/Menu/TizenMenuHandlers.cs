@@ -59,7 +59,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(IMenuBar.IsEnabled)] = MapIsEnabled,
 			};
 
-		public static CommandMapper<IMenuBar, TizenMenuBarHandler> CommandMapper = new(ElementCommandMapper);
+		public static CommandMapper<IMenuBar, TizenMenuBarHandler> CommandMapper =
+			new(ElementCommandMapper)
+			{
+				[nameof(Add)] = MapCollectionChange,
+				[nameof(Remove)] = MapCollectionChange,
+				[nameof(Clear)] = MapCollectionChange,
+				[nameof(Insert)] = MapCollectionChange,
+			};
 
 		public TizenMenuBarHandler()
 			: base(Mapper, CommandMapper)
@@ -100,6 +107,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public void Insert(int index, IMenuBarItem view)
 		{
 		}
+
+		/// <summary>Unsupported: Tizen NUI has no menu bar collection to mutate.</summary>
+		/// <remarks>
+		/// Add, Remove, Clear, and Insert cannot change a native menu bar because Tizen NUI exposes
+		/// no menu bar surface.
+		/// </remarks>
+		public static void MapCollectionChange(TizenMenuBarHandler handler, IMenuBar view, object? args)
+		{
+		}
 	}
 
 	/// <summary>
@@ -114,7 +130,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(IMenuBarItem.IsEnabled)] = MapIsEnabled,
 			};
 
-		public static CommandMapper<IMenuBarItem, TizenMenuBarItemHandler> CommandMapper = new(ElementCommandMapper);
+		public static CommandMapper<IMenuBarItem, TizenMenuBarItemHandler> CommandMapper =
+			new(ElementCommandMapper)
+			{
+				[nameof(Add)] = MapCollectionChange,
+				[nameof(Remove)] = MapCollectionChange,
+				[nameof(Clear)] = MapCollectionChange,
+				[nameof(Insert)] = MapCollectionChange,
+			};
 
 		public TizenMenuBarItemHandler()
 			: base(Mapper, CommandMapper)
@@ -163,6 +186,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public void Insert(int index, IMenuElement view)
 		{
 		}
+
+		/// <summary>Unsupported: Tizen NUI has no menu bar item collection to mutate.</summary>
+		/// <remarks>
+		/// Add, Remove, Clear, and Insert cannot change native menu-bar children because Tizen NUI
+		/// exposes no menu bar surface.
+		/// </remarks>
+		public static void MapCollectionChange(TizenMenuBarItemHandler handler, IMenuBarItem view, object? args)
+		{
+		}
 	}
 
 	/// <summary>
@@ -173,7 +205,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public static IPropertyMapper<IMenuFlyout, TizenMenuFlyoutHandler> Mapper =
 			new PropertyMapper<IMenuFlyout, TizenMenuFlyoutHandler>(ElementMapper);
 
-		public static CommandMapper<IMenuFlyout, TizenMenuFlyoutHandler> CommandMapper = new(ElementCommandMapper);
+		public static CommandMapper<IMenuFlyout, TizenMenuFlyoutHandler> CommandMapper =
+			new(ElementCommandMapper)
+			{
+				[nameof(Add)] = MapCollectionChange,
+				[nameof(Remove)] = MapCollectionChange,
+				[nameof(Clear)] = MapCollectionChange,
+				[nameof(Insert)] = MapCollectionChange,
+			};
 
 		public TizenMenuFlyoutHandler()
 			: base(Mapper, CommandMapper)
@@ -204,6 +243,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		public void Insert(int index, IMenuElement view)
+		{
+		}
+
+		/// <summary>Unsupported: Tizen NUI has no menu flyout collection to mutate.</summary>
+		/// <remarks>
+		/// Add, Remove, Clear, and Insert cannot change native flyout children because Tizen NUI
+		/// exposes no context-menu surface.
+		/// </remarks>
+		public static void MapCollectionChange(TizenMenuFlyoutHandler handler, IMenuFlyout view, object? args)
 		{
 		}
 	}
@@ -266,7 +314,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(IMenuFlyoutSubItem.Text)] = MapText,
 			};
 
-		public static CommandMapper<IMenuFlyoutSubItem, TizenMenuFlyoutSubItemHandler> CommandMapper = new(ElementCommandMapper);
+		public static CommandMapper<IMenuFlyoutSubItem, TizenMenuFlyoutSubItemHandler> CommandMapper =
+			new(ElementCommandMapper)
+			{
+				[nameof(Add)] = MapCollectionChange,
+				[nameof(Remove)] = MapCollectionChange,
+				[nameof(Clear)] = MapCollectionChange,
+				[nameof(Insert)] = MapCollectionChange,
+			};
 
 		public TizenMenuFlyoutSubItemHandler()
 			: base(Mapper, CommandMapper)
@@ -305,6 +360,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		public void Insert(int index, IMenuElement view)
+		{
+		}
+
+		/// <summary>Unsupported: Tizen NUI has no menu flyout sub-item collection to mutate.</summary>
+		/// <remarks>
+		/// Add, Remove, Clear, and Insert cannot change native submenu children because Tizen NUI
+		/// exposes no context-menu surface.
+		/// </remarks>
+		public static void MapCollectionChange(TizenMenuFlyoutSubItemHandler handler, IMenuFlyoutSubItem view, object? args)
 		{
 		}
 	}

@@ -86,18 +86,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		public override void RemoveNativeView(NView native)
 		{
+			UnBinding(native);
 			// Unregister rather than just look up: leaving the entry behind keeps the view alive and
 			// lets a recycled native view resolve to a MAUI view whose handler is already disposed.
 			if (UnregisterNativeView(native) is { } view)
 			{
-				if (view.Handler is ITizenPlatformViewHandler handler)
-				{
-					handler.Dispose();
-					view.Handler = null;
-				}
+				(view.Handler as IDisposable)?.Dispose();
+				view.Handler = null;
 			}
-
-			base.RemoveNativeView(native);
 		}
 
 	}

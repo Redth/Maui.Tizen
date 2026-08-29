@@ -1,8 +1,11 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Dispatching;
 using Microsoft.Maui.Handlers;
+using Microsoft.Maui.Platforms.Tizen.Adapters;
 using Microsoft.Maui.Platforms.Tizen.Platform;
 using Tizen.UIExtensions.NUI;
 using NView = Tizen.NUI.BaseComponents.View;
@@ -28,9 +31,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	public abstract class TizenItemsViewHandler<TItemsView> : TizenViewHandler<TItemsView, NView>
 		where TItemsView : ItemsView
 	{
-		ItemAdaptor? _adaptor;
+		readonly OwnedReplacementCoordinator<ItemAdaptor> _adaptorOwnership = new();
 		INotifyCollectionChanged? _observableCollection;
 		bool _isShowingEmptyAdaptor;
+		int _remainingItemsThreshold = -1;
 
 		/// <summary>
 		/// Property mapper for <see cref="ItemsView"/> properties.
@@ -76,38 +80,64 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>
 		/// Gets or sets the current item adaptor.
 		/// </summary>
-		protected ItemAdaptor? Adaptor => _adaptor;
-
-		void SetCurrentAdaptor(ItemAdaptor? value)
-		{
-			if (_adaptor is ITizenItemTemplateAdaptor oldSelectionAdaptor)
-			{
-				oldSelectionAdaptor.SelectionChanged -= OnAdaptorSelectionChanged;
-			}
-
-			_adaptor = value;
-
-			if (_adaptor is ITizenItemTemplateAdaptor newSelectionAdaptor)
-			{
-				newSelectionAdaptor.SelectionChanged += OnAdaptorSelectionChanged;
-			}
-		}
+		protected ItemAdaptor? Adaptor => _adaptorOwnership.Current;
 
 		protected override void ConnectHandler(NView platformView)
 		{
 			base.ConnectHandler(platformView);
-			UpdateItemsSource();
+			try
+			{
+				_remainingItemsThreshold = VirtualView.RemainingItemsThreshold;
+				if (NativeCollectionView is { } collectionView)
+					collectionView.Scrolled += OnCollectionViewScrolled;
+				UpdateItemsSource();
+				UpdateScrollBarVisibility();
+			}
+			catch
+			{
+				try
+				{
+					UnsubscribeFromCollectionChanges();
+					if (NativeCollectionView is { } collectionView)
+					{
+						collectionView.Scrolled -= OnCollectionViewScrolled;
+						SetAdaptor(collectionView, null);
+					}
+				}
+				finally
+				{
+					base.DisconnectHandler(platformView);
+				}
+				throw;
+			}
 		}
 
 		protected override void DisconnectHandler(NView platformView)
 		{
-			UnsubscribeFromCollectionChanges();
-			if (_adaptor != null)
+			try
 			{
-				(_adaptor as IDisposable)?.Dispose();
-				SetCurrentAdaptor(null);
+				UnsubscribeFromCollectionChanges();
+				if (NativeCollectionView is { } collectionView)
+				{
+					collectionView.Scrolled -= OnCollectionViewScrolled;
+					SetAdaptor(collectionView, null);
+				}
 			}
-			base.DisconnectHandler(platformView);
+			finally
+			{
+				base.DisconnectHandler(platformView);
+			}
+		}
+
+		public override void SetVirtualView(IView view)
+		{
+			if (((IElementHandler)this).PlatformView is TizenItemsViewControl<TItemsView> platformView
+				&& view is TItemsView itemsView)
+			{
+				platformView.Rebind(itemsView);
+			}
+
+			base.SetVirtualView(view);
 		}
 
 		protected virtual void UpdateItemsSource()
@@ -166,7 +196,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (collectionView == null || VirtualView == null)
 				return;
 
-			if (VirtualView.EmptyView != null || VirtualView.EmptyViewTemplate != null)
+			if (VirtualView.EmptyView != null
+				|| VirtualView.EmptyViewTemplate != null
+				|| VirtualView is StructuredItemsView { Header: not null }
+				|| VirtualView is StructuredItemsView { Footer: not null })
 			{
 				var emptyAdaptor = new TizenEmptyItemAdaptor(VirtualView);
 				SetAdaptor(collectionView, emptyAdaptor);
@@ -183,19 +216,74 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// Atomically sets the adaptor on the native view, updating the backing field, disposing the
 		/// old adaptor, and managing selection event subscriptions.
 		/// </summary>
-		void SetAdaptor(NCollectionView collectionView, ItemAdaptor? newAdaptor)
+		protected void SetAdaptor(NCollectionView collectionView, ItemAdaptor? newAdaptor)
 		{
-			// Get the old adaptor before we overwrite it
-			var oldAdaptor = _adaptor;
-
-			SetCurrentAdaptor(newAdaptor);
-			collectionView.Adaptor = newAdaptor;
-
-			// Dispose the old adaptor after it's been replaced
-			if (oldAdaptor != null && !ReferenceEquals(oldAdaptor, newAdaptor))
+			try
 			{
-				(oldAdaptor as IDisposable)?.Dispose();
+				_adaptorOwnership.Replace(
+					newAdaptor,
+					() => collectionView.Adaptor = null,
+					adaptor =>
+					{
+						if (adaptor is ITizenItemTemplateAdaptor selectionAdaptor)
+						{
+							selectionAdaptor.SelectionChanged -= OnAdaptorSelectionChanged;
+							selectionAdaptor.ItemsChanged -= OnAdaptorItemsChanged;
+						}
+					},
+					adaptor => (adaptor as IDisposable)?.Dispose(),
+					adaptor =>
+					{
+						if (adaptor is ITizenItemTemplateAdaptor selectionAdaptor)
+						{
+							selectionAdaptor.SelectionChanged += OnAdaptorSelectionChanged;
+							selectionAdaptor.ItemsChanged += OnAdaptorItemsChanged;
+						}
+					},
+					adaptor => collectionView.Adaptor = adaptor);
 			}
+			finally
+			{
+				if (ReferenceEquals(_adaptorOwnership.Current, newAdaptor))
+					OnAdaptorInstalled();
+			}
+		}
+
+		protected virtual void OnAdaptorInstalled()
+		{
+		}
+
+		protected virtual void OnAdaptorItemsChanged(object? sender, EventArgs e) => OnItemsChanged();
+
+		protected virtual void OnItemsChanged()
+		{
+		}
+
+		void OnCollectionViewScrolled(object? sender, CollectionViewScrolledEventArgs e)
+		{
+			ItemsScrollCoordinator.Publish(
+				Adaptor?.Count ?? 0,
+				_remainingItemsThreshold,
+				e.HorizontalDelta.ToScaledDP(),
+				e.HorizontalOffset.ToScaledDP(),
+				e.VerticalDelta.ToScaledDP(),
+				e.VerticalOffset.ToScaledDP(),
+				e.FirstVisibleItemIndex,
+				e.CenterItemIndex,
+				e.LastVisibleItemIndex,
+				VirtualView.SendScrolled,
+				VirtualView.SendRemainingItemsThresholdReached);
+		}
+
+		protected void UpdateScrollBarVisibility()
+		{
+			var collectionView = NativeCollectionView;
+			if (collectionView?.LayoutManager is null)
+				return;
+
+			collectionView.ScrollView.HideScrollbar = collectionView.LayoutManager.IsHorizontal
+				? VirtualView.HorizontalScrollBarVisibility == ScrollBarVisibility.Never
+				: VirtualView.VerticalScrollBarVisibility == ScrollBarVisibility.Never;
 		}
 
 		protected virtual ItemAdaptor CreateAdaptor()
@@ -249,6 +337,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			{
 				TransitionToRealAdaptor();
 			}
+
+			if (VirtualView.Dispatcher is { IsDispatchRequired: true } dispatcher)
+				dispatcher.Dispatch(OnItemsChanged);
+			else
+				OnItemsChanged();
 		}
 
 		void UnsubscribeFromCollectionChanges()
@@ -285,14 +378,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </remarks>
 		public static void MapIsVisible(TizenItemsViewHandler<TItemsView> handler, TItemsView itemsView)
 		{
-			if (itemsView.IsVisible)
-			{
-				handler.PlatformView.Show();
-			}
-			else
-			{
-				handler.PlatformView.Hide();
-			}
+			handler.PlatformView.UpdateVisibility(itemsView);
 		}
 
 		/// <summary>
@@ -328,31 +414,31 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		/// <summary>
-		/// No-op: RemainingItemsThreshold is not supported on Tizen.
+		/// Updates the threshold consumed by the native Scrolled event bridge.
 		/// </summary>
 		/// <remarks>
-		/// Tizen.UIExtensions.NUI.CollectionView does not currently expose an API for threshold-based
-		/// notifications when approaching the end of content.
+		/// Tizen exposes visible indexes on its Scrolled event, so the handler computes the remaining
+		/// count and raises MAUI's threshold event.
 		/// </remarks>
 		public static void MapRemainingItemsThreshold(TizenItemsViewHandler<TItemsView> handler, TItemsView view)
 		{
-			// No-op: Tizen does not support RemainingItemsThreshold
+			handler._remainingItemsThreshold = view.RemainingItemsThreshold;
 		}
 
 		/// <summary>
-		/// No-op: HorizontalScrollBarVisibility is not configurable on Tizen CollectionView.
+		/// Maps horizontal scrollbar visibility when the active layout is horizontal.
 		/// </summary>
 		public static void MapHorizontalScrollBarVisibility(TizenItemsViewHandler<TItemsView> handler, TItemsView view)
 		{
-			// No-op: Tizen CollectionView does not expose scrollbar visibility settings
+			handler.UpdateScrollBarVisibility();
 		}
 
 		/// <summary>
-		/// No-op: VerticalScrollBarVisibility is not configurable on Tizen CollectionView.
+		/// Maps vertical scrollbar visibility when the active layout is vertical.
 		/// </summary>
 		public static void MapVerticalScrollBarVisibility(TizenItemsViewHandler<TItemsView> handler, TItemsView view)
 		{
-			// No-op: Tizen CollectionView does not expose scrollbar visibility settings
+			handler.UpdateScrollBarVisibility();
 		}
 
 		/// <summary>
@@ -377,11 +463,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 			if (scrollArgs.Mode == ScrollToMode.Position)
 			{
-				collectionView.ScrollTo(scrollArgs.Index, (TScrollToPosition)scrollArgs.ScrollToPosition, scrollArgs.IsAnimated);
+				var index = handler.Adaptor is TizenGroupItemTemplateAdaptor grouped
+					? grouped.GetAbsoluteIndex(scrollArgs.GroupIndex, scrollArgs.Index)
+					: scrollArgs.Index;
+				if (index >= 0)
+					collectionView.ScrollTo(index, (TScrollToPosition)scrollArgs.ScrollToPosition, scrollArgs.IsAnimated);
 			}
 			else if (scrollArgs.Item != null && collectionView.Adaptor != null)
 			{
-				int index = collectionView.Adaptor.GetItemIndex(scrollArgs.Item);
+				int index = handler.Adaptor is TizenGroupItemTemplateAdaptor grouped
+					? grouped.GetAbsoluteIndex(scrollArgs.Group, scrollArgs.Item)
+					: collectionView.Adaptor.GetItemIndex(scrollArgs.Item);
 				if (index >= 0)
 				{
 					collectionView.ScrollTo(index, (TScrollToPosition)scrollArgs.ScrollToPosition, scrollArgs.IsAnimated);

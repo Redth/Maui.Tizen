@@ -8,7 +8,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// This is the <b>adoption seam</b> for dotnet/maui#37862. Its signature is deliberately
+	/// This is the <b>adoption seam</b> for dotnet/maui#37862, merged upstream but absent from the pinned package. Its signature is deliberately
 	/// identical to the redesigned upstream API:
 	/// </para>
 	/// <code>

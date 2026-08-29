@@ -21,16 +21,45 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 	internal class TizenShellFlyoutItemView : Frame
 	{
 		static readonly BindableProperty SelectedStateProperty = BindableProperty.Create(nameof(IsSelected), typeof(bool), typeof(TizenShellFlyoutItemView), false, propertyChanged: (b, o, n) => ((TizenShellFlyoutItemView)b).UpdateSelectedState());
+		static readonly BindableProperty SelectedColorProperty = BindableProperty.Create(nameof(SelectedColor), typeof(GColor), typeof(TizenShellFlyoutItemView), null, propertyChanged: (b, o, n) => ((TizenShellFlyoutItemView)b).UpdateSelectedState());
+		static readonly BindableProperty UnselectedColorProperty = BindableProperty.Create(nameof(UnselectedColor), typeof(GColor), typeof(TizenShellFlyoutItemView), null, propertyChanged: (b, o, n) => ((TizenShellFlyoutItemView)b).UpdateSelectedState());
+		static readonly BindableProperty SelectedTextColorProperty = BindableProperty.Create(nameof(SelectedTextColor), typeof(GColor), typeof(TizenShellFlyoutItemView), null, propertyChanged: (b, o, n) => ((TizenShellFlyoutItemView)b).UpdateSelectedState());
+		static readonly BindableProperty UnselectedTextColorProperty = BindableProperty.Create(nameof(UnselectedTextColor), typeof(GColor), typeof(TizenShellFlyoutItemView), null, propertyChanged: (b, o, n) => ((TizenShellFlyoutItemView)b).UpdateSelectedState());
 
 		static readonly GColor s_defaultBackgroundColor = GColor.FromRgb(33, 150, 243);
 		static readonly GColor s_selectedBackgroundColor = GColor.FromRgb(21, 101, 192);
 
 		Grid _grid;
+		XLabel _label;
 
 		public bool IsSelected
 		{
 			get => (bool)GetValue(SelectedStateProperty);
 			set => SetValue(SelectedStateProperty, value);
+		}
+
+		public GColor? SelectedColor
+		{
+			get => (GColor?)GetValue(SelectedColorProperty);
+			set => SetValue(SelectedColorProperty, value);
+		}
+
+		public GColor? UnselectedColor
+		{
+			get => (GColor?)GetValue(UnselectedColorProperty);
+			set => SetValue(UnselectedColorProperty, value);
+		}
+
+		public GColor? SelectedTextColor
+		{
+			get => (GColor?)GetValue(SelectedTextColorProperty);
+			set => SetValue(SelectedTextColorProperty, value);
+		}
+
+		public GColor? UnselectedTextColor
+		{
+			get => (GColor?)GetValue(UnselectedTextColorProperty);
+			set => SetValue(UnselectedTextColorProperty, value);
 		}
 
 #pragma warning disable CS8618
@@ -56,7 +85,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				VerticalOptions = LayoutOptions.Center,
 			};
 
-			var label = new XLabel
+			_label = new XLabel
 			{
 				Margin = new Thickness(15, 15),
 				FontSize = 16,
@@ -73,7 +102,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				HeightRequest = 50,
 			};
 			_grid.Add(icon, 0, 0);
-			_grid.Add(label, 1, 0);
+			_grid.Add(_label, 1, 0);
 
 			Content = _grid;
 
@@ -121,7 +150,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		void UpdateSelectedState()
 		{
-			BackgroundColor = IsSelected ? s_selectedBackgroundColor : s_defaultBackgroundColor;
+			BackgroundColor = IsSelected
+				? SelectedColor ?? s_selectedBackgroundColor
+				: UnselectedColor ?? s_defaultBackgroundColor;
+			_label.TextColor = IsSelected
+				? SelectedTextColor ?? GColors.White
+				: UnselectedTextColor ?? GColors.White;
 		}
 
 		/// <summary>
@@ -140,11 +174,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					{
 						if (data is IMenuItemController)
 						{
-							icon.SetBinding(XImage.SourceProperty, new Binding(nameof(MenuItem.IconImageSource), source: bo));
+							icon.SetBinding(XImage.SourceProperty, nameof(MenuItem.IconImageSource));
 						}
 						else
 						{
-							icon.SetBinding(XImage.SourceProperty, new Binding(nameof(BaseShellItem.Icon), source: bo));
+							icon.SetBinding(XImage.SourceProperty, nameof(BaseShellItem.Icon));
 						}
 					}
 
@@ -152,13 +186,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					{
 						if (data is IMenuItemController menuItem)
 						{
-							label.SetBinding(XLabel.TextProperty, new Binding(nameof(MenuItem.Text), source: bo));
+							label.SetBinding(XLabel.TextProperty, nameof(MenuItem.Text));
 						}
 						else
 						{
-							label.SetBinding(XLabel.TextProperty, new Binding(nameof(BaseShellItem.Title), source: bo));
+							label.SetBinding(XLabel.TextProperty, nameof(BaseShellItem.Title));
 						}
 					}
+
+					SetBinding(
+						IsEnabledProperty,
+						new Binding(data is IMenuItemController
+							? nameof(MenuItem.IsEnabled)
+							: nameof(BaseShellItem.IsEnabled)));
 				}
 			}
 		}
@@ -169,8 +209,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			view.BindToData(data);
 			if (appearance != null)
 			{
-				// Use explicit source so binding works even when BindingContext is the flyout item
-				view.SetBinding(View.BackgroundColorProperty, static (TizenItemAppearance app) => app.BackgroundColor, source: appearance);
+				view.SetBinding(SelectedColorProperty, new Binding(nameof(TizenItemAppearance.ForegroundColor), source: appearance));
+				view.SetBinding(UnselectedColorProperty, new Binding(nameof(TizenItemAppearance.BackgroundColor), source: appearance));
+				view.SetBinding(SelectedTextColorProperty, new Binding(nameof(TizenItemAppearance.TitleColor), source: appearance));
+				view.SetBinding(UnselectedTextColorProperty, new Binding(nameof(TizenItemAppearance.UnselectedColor), source: appearance));
 			}
 			return view;
 		}

@@ -44,6 +44,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			Add(CollectionView);
 		}
 
+		public virtual void Rebind(TItemsView element)
+		{
+			ArgumentNullException.ThrowIfNull(element);
+			Element = element;
+		}
+
 		protected override void Dispose(bool disposing)
 		{
 			if (_disposed)
@@ -51,7 +57,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			if (disposing)
 			{
-				CollectionView.Adaptor?.Dispose();
+				var adaptor = CollectionView.Adaptor;
+				CollectionView.Adaptor = null;
+				adaptor?.Dispose();
 				CollectionView.Dispose();
 			}
 			_disposed = true;
@@ -94,6 +102,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		public void UpdateSelectionMode()
 		{
 			CollectionView.SelectionMode = Element.SelectionMode.ToNative();
+		}
+
+		public override void Rebind(TItemsView element)
+		{
+			base.Rebind(element);
+			UpdateSelectionMode();
 		}
 	}
 

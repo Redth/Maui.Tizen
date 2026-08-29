@@ -49,6 +49,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		void ITizenToolbarContainer.SetToolbar(TizenToolbarView toolbar) => SetToolbar(toolbar);
 
+		void ITizenToolbarContainer.ClearToolbar() => ClearToolbar();
+
+		void ITizenToolbarContainer.DetachToolbar(TizenToolbarView toolbar)
+		{
+			if (!ReferenceEquals(_titleView, toolbar))
+				return;
+
+			_titleView = null;
+			Remove(toolbar);
+		}
+
 		internal void SetToolbar(TizenToolbarView toolbar)
 		{
 			ArgumentNullException.ThrowIfNull(toolbar);

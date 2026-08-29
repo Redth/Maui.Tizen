@@ -93,6 +93,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[InlineData("Microsoft.Maui.Platforms.Tizen.TizenToolbarView.SendIconPressed() -> void")]
 		// The container contract, implemented by the navigation manager.
 		[InlineData("Microsoft.Maui.Platforms.Tizen.ITizenToolbarContainer.SetToolbar(")]
+		[InlineData("Microsoft.Maui.Platforms.Tizen.ITizenToolbarContainer.ClearToolbar() -> void")]
+		[InlineData("Microsoft.Maui.Platforms.Tizen.ITizenToolbarContainer.DetachToolbar(")]
 		// The navigation contract Wave C's navigation handler drives.
 		[InlineData("Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.Connect(")]
 		[InlineData("Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.Disconnect() -> void")]

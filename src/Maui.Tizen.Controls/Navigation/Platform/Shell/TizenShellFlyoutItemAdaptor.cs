@@ -16,28 +16,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 	internal class TizenShellFlyoutItemAdaptor : TizenItemTemplateAdaptor
 	{
 		TizenItemAppearance? _itemAppearance;
-		IMenuItemController? _headerMenu;
-		IMenuItemController? _footerMenu;
+		readonly View? _scrollingHeader;
 
-		public TizenShellFlyoutItemAdaptor(Shell shell, IEnumerable items) :
+		public TizenShellFlyoutItemAdaptor(Shell shell, IEnumerable items, View? scrollingHeader = null) :
 			base(shell, items, GetFlyoutItemTemplate())
 		{
 			Shell = shell;
+			_scrollingHeader = scrollingHeader;
 		}
 
 		public Shell Shell { get; }
-
-		public IMenuItemController? HeaderMenu
-		{
-			get => _headerMenu;
-			set => _headerMenu = value;
-		}
-
-		public IMenuItemController? FooterMenu
-		{
-			get => _footerMenu;
-			set => _footerMenu = value;
-		}
 
 		public TizenItemAppearance? ItemAppearance
 		{
@@ -47,51 +35,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		protected override bool IsSelectable => true;
 
-		protected override View? CreateHeaderView()
-		{
-			var controller = (IShellController)Shell;
-			var header = controller.FlyoutHeader;
+		protected override View? CreateHeaderView() => _scrollingHeader;
 
-			if (header != null)
-			{
-				DataTemplate? template = header is BindableObject headerItem
-					? ShellFlyoutTemplateResolution.ResolveFlyoutItemTemplate(Shell, headerItem)
-					: null;
-
-				View? view = null;
-				if (template != null)
-				{
-					// The resolver may return a selector; resolving it is the caller's job, matching
-					// upstream's documented usage pattern.
-					var selectedTemplate = template.SelectDataTemplate(header, Shell)
-						?? throw new InvalidOperationException("The Shell flyout header template selector returned null.");
-					view = selectedTemplate.CreateContent() as View
-						?? throw new InvalidOperationException("The Shell flyout header template must create a View.");
-					view.BindingContext = header;
-				}
-				else if (header is View vw)
-				{
-					view = vw;
-				}
-				return view;
-			}
-			return null;
-		}
-
-		protected override View? CreateFooterView()
-		{
-			var controller = (IShellController)Shell;
-			var footer = controller.FlyoutFooter;
-
-			if (footer != null)
-			{
-				if (footer is View view)
-				{
-					return view;
-				}
-			}
-			return null;
-		}
+		protected override View? CreateFooterView() => null;
 
 		public override NView CreateNativeView(int index)
 		{
@@ -130,7 +76,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 				// Register native-to-MAUI mapping for selection state tracking
 				RegisterNativeView(native, view);
-				ItemSelectionState.TrackEnabledState(view);
 
 				return native;
 			}
@@ -166,18 +111,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		public override void RemoveNativeView(NView native)
 		{
+			UnBinding(native);
 			// Unregister rather than just look up: leaving the entry behind keeps the view alive and
 			// lets a recycled native view resolve to a MAUI view whose handler is already disposed.
 			if (UnregisterNativeView(native) is { } view)
 			{
-				if (view.Handler is ITizenPlatformViewHandler handler)
-				{
-					handler.Dispose();
-					view.Handler = null;
-				}
+				(view.Handler as IDisposable)?.Dispose();
+				view.Handler = null;
 			}
-
-			base.RemoveNativeView(native);
 		}
 
 

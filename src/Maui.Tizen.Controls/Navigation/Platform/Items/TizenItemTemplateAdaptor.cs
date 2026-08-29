@@ -25,6 +25,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// </summary>
 		event EventHandler<TizenCollectionViewSelectionChangedEventArgs>? SelectionChanged;
 
+		event EventHandler? ItemsChanged;
+
 		/// <summary>
 		/// Gets the templated view for the specified native view.
 		/// </summary>
@@ -89,6 +91,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// </summary>
 		public event EventHandler<TizenCollectionViewSelectionChangedEventArgs>? SelectionChanged;
 
+		event EventHandler? ITizenItemTemplateAdaptor.ItemsChanged
+		{
+			add { }
+			remove { }
+		}
+
 		protected DataTemplate ItemTemplate { get; set; }
 
 		protected Element Element { get; set; }
@@ -106,8 +114,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		public override void SendItemSelected(IEnumerable<int> selected)
 		{
+			var indexes = selected.Where(index => index >= 0 && index < Count).ToList();
 			var items = new List<object>();
-			foreach (var idx in selected)
+			foreach (var idx in indexes)
 			{
 				if (idx < 0 || Count <= idx)
 					continue;
@@ -119,7 +128,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			SelectionChanged?.Invoke(this, new TizenCollectionViewSelectionChangedEventArgs
 			{
-				SelectedItems = items
+				SelectedItems = items,
+				SelectedIndexes = indexes,
 			});
 		}
 

@@ -109,17 +109,18 @@ public class WaveCNeutralKeyCoverageTests
 	}
 
 	/// <summary>
-	/// The mapping must actually show or hide the platform view.
+	/// The mapping must delegate to Core's shared visibility implementation.
 	/// </summary>
 	[Fact]
-	public void TheIsVisibleMappingShowsOrHidesThePlatformView()
+	public void TheIsVisibleMappingUsesTheSharedTizenImplementation()
 	{
 		var source = File.ReadAllText(RepoPaths.Combine(
 			"src", "Maui.Tizen.Controls", "Navigation", "Handlers", "Items", "TizenItemsViewHandler.cs"));
 
 		Assert.Contains("MapIsVisible", source, StringComparison.Ordinal);
-		Assert.Contains("PlatformView.Show()", source, StringComparison.Ordinal);
-		Assert.Contains("PlatformView.Hide()", source, StringComparison.Ordinal);
+		Assert.Contains("PlatformView.UpdateVisibility(itemsView)", source, StringComparison.Ordinal);
+		Assert.DoesNotContain("PlatformView.Show()", source, StringComparison.Ordinal);
+		Assert.DoesNotContain("PlatformView.Hide()", source, StringComparison.Ordinal);
 	}
 
 	/// <summary>

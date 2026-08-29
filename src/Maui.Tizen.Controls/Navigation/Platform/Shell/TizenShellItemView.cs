@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Linq;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
@@ -12,13 +13,14 @@ using Tizen.UIExtensions.NUI;
 using TCollectionView = Tizen.UIExtensions.NUI.CollectionView;
 using TPopup = Tizen.UIExtensions.NUI.Popup;
 using NView = Tizen.NUI.BaseComponents.View;
+using XColor = Microsoft.Maui.Graphics.Color;
 
 namespace Microsoft.Maui.Platforms.Tizen.Platform
 {
 	/// <summary>
 	/// Platform view for a ShellItem (represents the bottom tab bar and its sections).
 	/// </summary>
-	public class TizenShellItemView : NView, IAppearanceObserver, IDisposable
+	public class TizenShellItemView : NView, IDisposable
 	{
 		const int MaxBottomTabs = 5;
 
@@ -30,15 +32,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		TizenShellSectionItemAdaptor? _moreAdaptor;
 		List<ShellSection>? _visibleSections;
 		List<ShellSection>? _moreSections;
+		TizenMoreItem? _moreItem;
 		bool _hasMoreTab;
 		TizenItemAppearance _appearance;
 		bool _isDisposed;
 		bool _isTabBarVisible = true;
-		int _lastSelected;
 		// The lazy-creation and current-section rules live in a NUI-free helper so they can be
 		// executed in a host test; this view is an NView and cannot be instantiated off-device.
 		readonly ShellSectionViewCache<ShellSection, NView> _shellSectionStackCache = new();
+		readonly SelectionProposalCoordinator<ShellSection> _selection = new();
 		IList<ShellSection>? _cachedGroups;
+		readonly List<ShellSection> _trackedSections = new();
 
 		public TizenShellItemView(ShellItem shellItem, IMauiContext context)
 		{
@@ -65,34 +69,72 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			UpdateTabBar(true);
 
 			// Subscribe to items changes
-			if (ShellItem.Items is INotifyCollectionChanged ncc)
-			{
-				ncc.CollectionChanged += OnShellSectionsChanged;
-			}
+			ShellItemController.ItemsCollectionChanged += OnShellSectionsChanged;
+			RefreshSectionSubscriptions();
 
-			// Subscribe to appearance changes - IAppearanceObserver is public
-			var shell = ShellItem.Parent as Shell;
-			if (shell != null)
-			{
-				((IShellController)shell).AddAppearanceObserver(this, ShellItem);
-			}
 		}
 
-		public ShellItem ShellItem { get; }
+		public ShellItem ShellItem { get; private set; }
 
 		protected IShellItemController ShellItemController => (ShellItem as IShellItemController)!;
 
 		public IMauiContext MauiContext { get; }
 
-		void IAppearanceObserver.OnAppearanceChanged(ShellAppearance appearance)
+		public void Rebind(ShellItem shellItem)
 		{
-			UpdateAppearance(appearance);
+			ArgumentNullException.ThrowIfNull(shellItem);
+			if (ReferenceEquals(ShellItem, shellItem))
+				return;
+
+			ShellItemController.ItemsCollectionChanged -= OnShellSectionsChanged;
+			foreach (var section in _trackedSections)
+			{
+				section.PropertyChanged -= OnSectionPropertyChanged;
+				if (section.Handler is IDisposable handler)
+				{
+					handler.Dispose();
+					section.Handler = null;
+				}
+			}
+			_trackedSections.Clear();
+			_shellSectionStackCache.Clear();
+			if (_currentSectionStack is not null)
+				Remove(_currentSectionStack);
+			_currentSectionStack = null;
+
+			if (_tabBarAdaptor is not null)
+			{
+				if (_bottomTabBar is not null)
+					_bottomTabBar.Adaptor = null;
+				_tabBarAdaptor.SelectionChanged -= OnTabBarSelectionChanged;
+				_tabBarAdaptor.Dispose();
+				_tabBarAdaptor = null;
+			}
+
+			if (_moreAdaptor is not null)
+			{
+				if (_morePopup?.Content is TCollectionView moreCollection)
+					moreCollection.Adaptor = null;
+				_moreAdaptor.SelectionChanged -= OnMoreItemSelected;
+				_moreAdaptor.Dispose();
+				_moreAdaptor = null;
+			}
+			_morePopup?.Dispose();
+			_morePopup = null;
+
+			ShellItem = shellItem;
+			_cachedGroups = null;
+			ShellItemController.ItemsCollectionChanged += OnShellSectionsChanged;
+			RefreshSectionSubscriptions();
+			UpdateTabBar(_isTabBarVisible);
 		}
 
 		void OnShellSectionsChanged(object? sender, NotifyCollectionChangedEventArgs e)
 		{
+			var previousSections = _trackedSections.ToList();
+			RefreshSectionSubscriptions();
 			var liveSections = ShellItem.Items.ToHashSet();
-			foreach (var removed in (_cachedGroups ?? Array.Empty<ShellSection>())
+			foreach (var removed in previousSections
 				.Where(section => !liveSections.Contains(section))
 				.ToList())
 			{
@@ -118,12 +160,30 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			UpdateTabBar(_isTabBarVisible);
 		}
 
+		void OnSectionPropertyChanged(object? sender, PropertyChangedEventArgs e)
+		{
+			if (e.PropertyName == nameof(BaseShellItem.IsVisible))
+				UpdateTabBar(_isTabBarVisible);
+		}
+
+		void RefreshSectionSubscriptions()
+		{
+			foreach (var section in _trackedSections)
+				section.PropertyChanged -= OnSectionPropertyChanged;
+
+			_trackedSections.Clear();
+			_trackedSections.AddRange(ShellItem.Items);
+
+			foreach (var section in _trackedSections)
+				section.PropertyChanged += OnSectionPropertyChanged;
+		}
+
 		/// <summary>
 		/// Updates the tab bar visibility.
 		/// </summary>
 		public void UpdateTabBar(bool isVisible)
 		{
-			if (isVisible)
+			if (isVisible && ShellItemController.ShowTabs)
 				ShowTabBar();
 			else
 				HideTabBar();
@@ -152,10 +212,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		void ShowTabBar()
 		{
-			if (!ShellItemController.ShowTabs)
-				return;
+			var items = ShellItemController.GetItems()
+				.Where(static section => section.IsVisible)
+				.ToList();
 
-			var items = ShellItem.Items.ToList();
+			if (items.Count == 0)
+			{
+				HideTabBar();
+				_cachedGroups = items;
+				return;
+			}
 
 			// BLOCKER C FIX: Re-attach the tab bar BEFORE the unchanged-items fast path.
 			// If the tab bar was previously hidden/detached via HideTabBar(), we need to re-add
@@ -188,8 +254,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			var tabItems = new List<object>(_visibleSections!);
 			if (_hasMoreTab)
 			{
-				tabItems.Add(new TizenMoreItem());
+				_moreItem = new TizenMoreItem();
+				tabItems.Add(_moreItem);
 			}
+			else
+				_moreItem = null;
 
 			if (_tabBarAdaptor != null)
 			{
@@ -206,7 +275,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				{
 					HeightSpecification = (int)80d.ToScaledPixel(),
 					WidthSpecification = LayoutParamPolicies.MatchParent,
-					LayoutManager = new GridLayoutManager(false, items.Count > MaxBottomTabs ? MaxBottomTabs : items.Count),
 					SelectionMode = CollectionViewSelectionMode.SingleAlways,
 				};
 				_bottomTabBar.ScrollView.HideScrollbar = true;
@@ -214,12 +282,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				Add(_bottomTabBar);
 			}
 
+			_bottomTabBar.LayoutManager = new GridLayoutManager(
+				false,
+				items.Count > MaxBottomTabs ? MaxBottomTabs : items.Count);
+
 			_tabBarAdaptor = new TizenShellSectionItemAdaptor(ShellItem, tabItems);
 			_tabBarAdaptor.ItemAppearance = _appearance;
 			_bottomTabBar.Adaptor = _tabBarAdaptor;
 			_tabBarAdaptor.SelectionChanged += OnTabBarSelectionChanged;
 
-			_bottomTabBar.RequestItemSelect(_lastSelected);
+			SynchronizeNativeSelection();
 			_cachedGroups = items;
 		}
 
@@ -231,18 +303,23 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		void OnTabBarSelectionChanged(object? sender, TizenCollectionViewSelectionChangedEventArgs e)
 		{
-			if (e.SelectedItems?.Count > 0)
-			{
-				var selected = e.SelectedItems[0];
+			var nativeIndex = e.SelectedIndexes.Count > 0 ? e.SelectedIndexes[0] : -1;
+			if (_selection.ConsumeManagedEcho(nativeIndex) || e.SelectedItems?.Count is not > 0)
+				return;
 
-				if (selected is TizenMoreItem)
-				{
-					ShowMorePopup();
-				}
-				else if (selected is ShellSection section)
-				{
-					ShellItem.CurrentItem = section;
-				}
+			var selected = e.SelectedItems[0];
+
+			if (selected is TizenMoreItem)
+			{
+				ShowMorePopup();
+				SynchronizeNativeSelection();
+			}
+			else if (selected is ShellSection section)
+			{
+				_selection.Propose(
+					section,
+					candidate => ShellItemController.ProposeSection(candidate),
+					SynchronizeNativeSelection);
 			}
 		}
 
@@ -295,27 +372,41 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 			if (e.SelectedItems?.Count > 0 && e.SelectedItems[0] is ShellSection section)
 			{
-				ShellItem.CurrentItem = section;
+				_selection.Propose(
+					section,
+					candidate => ShellItemController.ProposeSection(candidate),
+					SynchronizeNativeSelection);
 				_morePopup?.Close();
 			}
 		}
 
-		void UpdateAppearance(ShellAppearance? appearance)
+		public void UpdateBottomTabBarColors(XColor? backgroundColor, XColor? titleColor, XColor? unselectedColor)
 		{
-			if (appearance == null)
-				return;
+			_appearance.BackgroundColor = backgroundColor;
+			_appearance.TitleColor = titleColor;
+			_appearance.UnselectedColor = unselectedColor;
 
-			_appearance.BackgroundColor = appearance.BackgroundColor;
-			_appearance.ForegroundColor = appearance.ForegroundColor;
-			_appearance.TitleColor = appearance.TitleColor;
-			_appearance.UnselectedColor = appearance.UnselectedColor;
+			if (_bottomTabBar is not null)
+			{
+				_bottomTabBar.BackgroundColor =
+					(backgroundColor ?? Microsoft.Maui.Graphics.Colors.Transparent).ToTizen().ToNative();
+			}
 		}
 
 		/// <summary>
 		/// Updates the current item by mounting the section view and syncing tab selection.
 		/// </summary>
-		public void UpdateCurrentItem(ShellSection section)
+		public void UpdateCurrentItem(ShellSection? section)
 		{
+			if (section is null)
+			{
+				if (_currentSectionStack is not null)
+					Remove(_currentSectionStack);
+				_currentSectionStack = null;
+				SynchronizeNativeSelection();
+				return;
+			}
+
 			_currentSectionStack = _shellSectionStackCache.SetCurrent(
 				section,
 				create: s => s.ToPlatformView(MauiContext),
@@ -326,12 +417,30 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				return;
 			}
 
-			var selectedIdx = _bottomTabBar?.Adaptor?.GetItemIndex(section) ?? 0;
-			_lastSelected = selectedIdx < 0 ? MaxBottomTabs - 1 : selectedIdx;
-			_bottomTabBar?.RequestItemSelect(_lastSelected);
+			SynchronizeNativeSelection();
 
 			Add(_currentSectionStack);
 			(_currentSectionStack.Layout as global::Tizen.NUI.LayoutGroup)?.ChangeLayoutSiblingOrder(0);
+		}
+
+		void SynchronizeNativeSelection()
+		{
+			if (_bottomTabBar?.Adaptor is not { } adaptor)
+				return;
+
+			var current = ShellItem.CurrentItem;
+
+			_selection.Synchronize(
+				current,
+				section => _moreSections?.Contains(section) == true && _moreItem is not null
+					? adaptor.GetItemIndex(_moreItem)
+					: adaptor.GetItemIndex(section),
+				() =>
+				{
+					foreach (var selected in _bottomTabBar.SelectedItems.ToArray())
+						_bottomTabBar.RequestItemUnselect(selected);
+				},
+				_bottomTabBar.RequestItemSelect);
 		}
 
 		// NUI's BaseHandle already exposes Dispose(); this participates in that chain rather
@@ -349,16 +458,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			if (type == DisposeTypes.Explicit)
 			{
-				var shell = ShellItem.Parent as Shell;
-				if (shell != null)
-				{
-					((IShellController)shell).RemoveAppearanceObserver(this);
-				}
-
-				if (ShellItem.Items is INotifyCollectionChanged ncc)
-				{
-					ncc.CollectionChanged -= OnShellSectionsChanged;
-				}
+				ShellItemController.ItemsCollectionChanged -= OnShellSectionsChanged;
+				foreach (var section in _trackedSections)
+					section.PropertyChanged -= OnSectionPropertyChanged;
+				_trackedSections.Clear();
 
 				if (_tabBarAdaptor != null)
 				{
@@ -387,8 +490,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				_morePopup?.Dispose();
 				_morePopup = null;
 
-				// Dispose all cached section stacks
-				_shellSectionStackCache.Clear(static stack => stack.Dispose());
+				// ShellSection handlers own their platform stacks and are disposed by the parent
+				// handler. Clear only this view's cache to avoid disposing the same stack twice.
+				_shellSectionStackCache.Clear();
 			}
 
 			_isDisposed = true;

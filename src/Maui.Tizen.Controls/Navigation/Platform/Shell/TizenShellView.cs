@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Linq;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Platform;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
@@ -12,6 +15,7 @@ using Tizen.UIExtensions.NUI;
 using TCollectionView = Tizen.UIExtensions.NUI.CollectionView;
 using NView = Tizen.NUI.BaseComponents.View;
 using NColor = Tizen.NUI.Color;
+using XView = Microsoft.Maui.Controls.View;
 using XColor = Microsoft.Maui.Graphics.Color;
 using XShadow = Microsoft.Maui.Controls.Shadow;
 
@@ -28,7 +32,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		TCollectionView? _flyoutCollectionView;
 		TizenShellFlyoutItemAdaptor? _flyoutAdaptor;
 		TizenShellItemView? _currentShellItemView;
-		IDisposable? _currentShellItemHandler;
+		readonly ShellSectionViewCache<ShellItem, TizenShellItemView> _shellItemCache = new();
+		readonly Dictionary<ShellItem, IDisposable> _shellItemHandlers = new();
+		TizenShellSearchView? _searchView;
+		SearchHandler? _currentSearchHandler;
+		Page? _currentPage;
+		readonly List<Element> _searchOwners = new();
+		XView? _fixedHeader;
+		XView? _fixedFooter;
+		XView? _customFlyoutContent;
+		readonly SelectionProposalCoordinator<Element> _flyoutSelection = new();
 		// Ownership tracker rather than a cached field: Core's ITizenToolbarContainer.SetToolbar
 		// DISPOSES the toolbar it replaces, so a raw cached reference can be observed after disposal.
 		readonly ToolbarOwnership<TizenToolbarView> _toolbarOwnership;
@@ -36,6 +49,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		bool _isDisposed;
 		bool _isOpen;
 		ShellAppearance? _appearance;
+		readonly TizenItemAppearance _itemAppearance = new();
 
 		static readonly XColor DefaultBackgroundColor = new XColor(1f, 1f, 1f, 1f);
 		static readonly XColor DefaultBackdropColor = new XColor(0.2f, 0.2f, 0.2f, 0.2f);
@@ -73,6 +87,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// Gets the shell controller.
 		/// </summary>
 		protected IShellController? ShellController => Shell as IShellController;
+
+		bool HeaderOnMenu => Shell?.FlyoutHeaderBehavior is
+			FlyoutHeaderBehavior.Scroll or FlyoutHeaderBehavior.CollapseOnScroll;
 
 		/// <summary>
 		/// Gets or sets whether the flyout is open.
@@ -125,23 +142,91 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// </summary>
 		public void SetElement(Shell shell, IMauiContext context)
 		{
+			if (ReferenceEquals(Shell, shell))
+			{
+				MauiContext = context;
+				return;
+			}
+
+			if (Shell is not null && !ReferenceEquals(Shell, shell))
+				ResetElementState();
+
 			Shell = shell ?? throw new ArgumentNullException(nameof(shell));
 			MauiContext = context ?? throw new ArgumentNullException(nameof(context));
 
-			_navigationDrawer = CreateNavigationDrawer();
+			if (_navigationDrawer is null)
+			{
+				_navigationDrawer = CreateNavigationDrawer();
 
-			_flyoutView = CreateNavigationView();
-			_navigationDrawer.Drawer = _flyoutView.TargetView;
+				_flyoutView = CreateNavigationView();
+				_navigationDrawer.Drawer = _flyoutView.TargetView;
 
-			_mainContentView = CreateNavigationContentView();
-			_navigationDrawer.Content = _mainContentView.TargetView;
+				_mainContentView = CreateNavigationContentView();
+				_navigationDrawer.Content = _mainContentView.TargetView;
 
-			_navigationDrawer.Toggled += OnDrawerToggled;
-
-			Add((NView)_navigationDrawer);
+				_navigationDrawer.Toggled += OnDrawerToggled;
+				Add((NView)_navigationDrawer);
+			}
 
 			// Subscribe to appearance changes - IAppearanceObserver is public
 			((IShellController)Shell).AddAppearanceObserver(this, Shell);
+			Shell.PropertyChanged += OnShellPropertyChanged;
+			if (Shell.Items is INotifyCollectionChanged items)
+				items.CollectionChanged += OnShellItemsChanged;
+		}
+
+		void ResetElementState()
+		{
+			if (Shell is not null)
+			{
+				((IShellController)Shell).RemoveAppearanceObserver(this);
+				Shell.PropertyChanged -= OnShellPropertyChanged;
+				if (Shell.Items is INotifyCollectionChanged items)
+					items.CollectionChanged -= OnShellItemsChanged;
+			}
+
+			if (_currentPage is not null)
+				_currentPage.PropertyChanged -= OnCurrentPagePropertyChanged;
+			_currentPage = null;
+			RefreshSearchOwnerSubscriptions(null);
+			DetachToolbar();
+
+			if (_flyoutView is not null)
+			{
+				SetFixedFlyoutView(ref _fixedHeader, null, value => _flyoutView.Header = value);
+				SetFixedFlyoutView(ref _fixedFooter, null, value => _flyoutView.Footer = value);
+				_flyoutView.Content = null;
+			}
+
+			if (_flyoutCollectionView is not null)
+				_flyoutCollectionView.Adaptor = null;
+			if (_flyoutAdaptor is not null)
+			{
+				_flyoutAdaptor.SelectionChanged -= OnFlyoutItemSelected;
+				_flyoutAdaptor.Dispose();
+				_flyoutAdaptor = null;
+			}
+
+			if (_customFlyoutContent is not null)
+			{
+				(_customFlyoutContent.Handler as IDisposable)?.Dispose();
+				_customFlyoutContent.Handler = null;
+				_customFlyoutContent.Parent = null;
+				_customFlyoutContent = null;
+			}
+
+			CurrentShellItemView = null;
+			_shellItemCache.Clear();
+			foreach (var handler in _shellItemHandlers.Values)
+				handler.Dispose();
+			foreach (var item in _shellItemHandlers.Keys)
+				item.Handler = null;
+			_shellItemHandlers.Clear();
+			_appearance = null;
+			_itemAppearance.BackgroundColor = null;
+			_itemAppearance.ForegroundColor = null;
+			_itemAppearance.TitleColor = null;
+			_itemAppearance.UnselectedColor = null;
 		}
 
 		/// <summary>
@@ -175,6 +260,34 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			Toggled?.Invoke(this, EventArgs.Empty);
 		}
 
+		void OnShellPropertyChanged(object? sender, PropertyChangedEventArgs e)
+		{
+			if (e.PropertyName == Shell.CurrentStateProperty.PropertyName
+				|| e.PropertyName == Shell.SearchHandlerProperty.PropertyName)
+				UpdateSearchHandler();
+		}
+
+		void OnShellItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+		{
+			if (Shell is null)
+				return;
+
+			var liveItems = Shell.Items.ToHashSet();
+			foreach (var removed in _shellItemHandlers.Keys.Where(item => !liveItems.Contains(item)).ToList())
+			{
+				if (ReferenceEquals(_shellItemCache.CurrentSection, removed))
+					CurrentShellItemView = null;
+
+				_shellItemCache.Remove(removed);
+				if (_shellItemHandlers.Remove(removed, out var handler))
+					handler.Dispose();
+				removed.Handler = null;
+			}
+
+			UpdateItems();
+			SynchronizeFlyoutSelection();
+		}
+
 		/// <summary>
 		/// Called when appearance changes.
 		/// </summary>
@@ -184,27 +297,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			UpdateAppearance(appearance);
 		}
 
-		IView? _customFlyoutView;
-
 		/// <summary>
 		/// Updates the custom flyout view.
 		/// </summary>
-		public void UpdateFlyout(IView? flyout)
-		{
-			_customFlyoutView = flyout;
-
-			if (_customFlyoutView != null && _flyoutView != null && MauiContext != null)
-			{
-				_flyoutView.Content = _customFlyoutView.ToPlatformView(MauiContext);
-			}
-		}
+		public void UpdateFlyout(IView? flyout) => UpdateFlyoutContent();
 
 		/// <summary>
 		/// Refreshes the flyout items.
 		/// </summary>
 		public void UpdateItems()
 		{
-			if (_customFlyoutView != null)
+			if (_customFlyoutContent != null)
 				return;
 
 			if (Shell != null)
@@ -217,6 +320,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		public void UpdateFlyoutItems(Shell shell)
 		{
 			if (ShellController == null || MauiContext == null || _flyoutView == null)
+				return;
+
+			if (_customFlyoutContent is not null)
+				return;
+
+			UpdateFlyoutItemsCore(shell, HeaderOnMenu ? ShellController.FlyoutHeader : null);
+		}
+
+		void UpdateFlyoutItemsCore(Shell shell, XView? scrollingHeader)
+		{
+			if (ShellController == null || _flyoutView == null)
 				return;
 
 			var groups = ShellController.GenerateFlyoutGrouping();
@@ -245,11 +359,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				_flyoutAdaptor.Dispose();
 			}
 
-			_flyoutAdaptor = new TizenShellFlyoutItemAdaptor(shell, items);
+			_flyoutAdaptor = new TizenShellFlyoutItemAdaptor(shell, items, scrollingHeader)
+			{
+				ItemAppearance = _itemAppearance,
+			};
 			_flyoutAdaptor.SelectionChanged += OnFlyoutItemSelected;
 
 			_flyoutCollectionView.Adaptor = _flyoutAdaptor;
 			_flyoutView.Content = _flyoutCollectionView;
+			SynchronizeFlyoutSelection();
 		}
 
 		void OnFlyoutItemSelected(object? sender, TizenCollectionViewSelectionChangedEventArgs e)
@@ -257,13 +375,23 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (Shell == null || ShellController == null)
 				return;
 
-			if (e.SelectedItems == null || e.SelectedItems.Count == 0)
+			var nativeIndex = e.SelectedIndexes.Count > 0 ? e.SelectedIndexes[0] : -1;
+			if (_flyoutSelection.ConsumeManagedEcho(nativeIndex)
+				|| e.SelectedItems == null
+				|| e.SelectedItems.Count == 0)
 				return;
 
 			var selected = e.SelectedItems[0];
 			if (selected is Element element)
 			{
-				ShellController.OnFlyoutItemSelected(element);
+				_flyoutSelection.Propose(
+					element,
+					selected =>
+					{
+						ShellController.OnFlyoutItemSelected(selected);
+						return true;
+					},
+					SynchronizeFlyoutSelection);
 			}
 
 			// Close the drawer after selection for flyout behavior
@@ -271,6 +399,22 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			{
 				_ = _navigationDrawer?.CloseAsync(true);
 			}
+		}
+
+		void SynchronizeFlyoutSelection()
+		{
+			if (_flyoutCollectionView?.Adaptor is not { } adaptor || Shell is null)
+				return;
+
+			_flyoutSelection.Synchronize(
+				Shell.CurrentItem,
+				adaptor.GetItemIndex,
+				() =>
+				{
+					foreach (var selected in _flyoutCollectionView.SelectedItems.ToArray())
+						_flyoutCollectionView.RequestItemUnselect(selected);
+				},
+				_flyoutCollectionView.RequestItemSelect);
 		}
 
 		/// <summary>
@@ -323,6 +467,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			if (backdrop != null && !backdrop.IsEmpty)
 				_backdropView.UpdateBackground(backdrop);
+			else
+				_backdropView.BackgroundColor = DefaultBackdropColor.ToTizen().ToNative();
 		}
 
 		/// <summary>
@@ -333,10 +479,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (_flyoutView == null)
 				return;
 
-			if (color != null)
-			{
-				_flyoutView.BackgroundColor = color.ToTizen().ToNative();
-			}
+			_flyoutView.BackgroundColor = (color ?? DefaultBackgroundColor).ToTizen().ToNative();
 		}
 
 		/// <summary>
@@ -344,33 +487,111 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// </summary>
 		public void UpdateCurrentItem(ShellItem? item)
 		{
-			// Dispose the previous item's handler to release resources
-			_currentShellItemHandler?.Dispose();
-			_currentShellItemHandler = null;
+			if (MauiContext is null)
+				return;
 
-			if (item != null && MauiContext != null)
-			{
-				var handler = item.ToHandler(MauiContext);
-				if (handler is Handlers.TizenShellItemHandler shellItemHandler)
+			CurrentShellItemView = _shellItemCache.SetCurrent(
+				item,
+				current =>
 				{
-					_currentShellItemHandler = shellItemHandler;
-					CurrentShellItemView = shellItemHandler.PlatformView;
-				}
-				UpdateSearchHandler();
-			}
-			else
-			{
-				CurrentShellItemView = null;
-			}
+					var handler = current.ToHandler(MauiContext);
+					if (handler is not Handlers.TizenShellItemHandler shellItemHandler)
+						throw new InvalidOperationException(
+							$"The handler for {current.GetType().FullName} is not {nameof(Handlers.TizenShellItemHandler)}.");
+
+					_shellItemHandlers[current] = shellItemHandler;
+					return shellItemHandler.PlatformView;
+				},
+				_ => CurrentShellItemView = null);
+
+			UpdateSearchHandler();
+			SynchronizeFlyoutSelection();
 		}
 
 		/// <summary>
 		/// Updates the search handler based on current content.
 		/// </summary>
-		void UpdateSearchHandler()
+		public void UpdateSearchHandler()
 		{
-			// Search handler update based on current navigation state
-			// The search view is managed separately through the shell search handler property
+			if (Shell is null || MauiContext is null)
+				return;
+
+			var page = Shell.GetCurrentShellPage();
+			if (!ReferenceEquals(_currentPage, page))
+			{
+				if (_currentPage is not null)
+					_currentPage.PropertyChanged -= OnCurrentPagePropertyChanged;
+
+				_currentPage = page;
+				if (_currentPage is not null)
+					_currentPage.PropertyChanged += OnCurrentPagePropertyChanged;
+
+				RefreshSearchOwnerSubscriptions(_currentPage);
+			}
+
+			var searchHandler = Shell.GetEffectiveValue<SearchHandler?>(
+				Shell.SearchHandlerProperty,
+				defaultValue: null);
+
+			if (!ReferenceEquals(_currentSearchHandler, searchHandler))
+			{
+				if (_currentSearchHandler is not null)
+					_currentSearchHandler.PropertyChanged -= OnCurrentSearchHandlerPropertyChanged;
+				_currentSearchHandler = searchHandler;
+				if (_currentSearchHandler is not null)
+					_currentSearchHandler.PropertyChanged += OnCurrentSearchHandlerPropertyChanged;
+			}
+
+			if (_currentSearchHandler is null)
+			{
+				if (_toolbarOwnership.Current is not null)
+					_toolbarOwnership.Current.SearchBar = null;
+				_searchView?.Dispose();
+				_searchView = null;
+				return;
+			}
+
+			_searchView ??= new TizenShellSearchView();
+			_searchView.Bind(_currentSearchHandler, Shell, MauiContext);
+
+			if (_toolbarOwnership.Current is not null)
+			{
+				_toolbarOwnership.Current.SearchBar =
+					_currentSearchHandler.SearchBoxVisibility == SearchBoxVisibility.Hidden
+						? null
+						: _searchView;
+			}
+		}
+
+		void OnCurrentPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
+		{
+			if (e.PropertyName == Shell.SearchHandlerProperty.PropertyName)
+				UpdateSearchHandler();
+		}
+
+		void OnCurrentSearchHandlerPropertyChanged(object? sender, PropertyChangedEventArgs e)
+		{
+			if (e.PropertyName == nameof(SearchHandler.SearchBoxVisibility))
+				UpdateSearchHandler();
+		}
+
+		void OnSearchOwnerPropertyChanged(object? sender, PropertyChangedEventArgs e)
+		{
+			if (e.PropertyName == Shell.SearchHandlerProperty.PropertyName)
+				UpdateSearchHandler();
+		}
+
+		void RefreshSearchOwnerSubscriptions(Page? page)
+		{
+			foreach (var owner in _searchOwners)
+				owner.PropertyChanged -= OnSearchOwnerPropertyChanged;
+			_searchOwners.Clear();
+
+			for (Element? owner = page?.Parent; owner is not null && !ReferenceEquals(owner, Shell); owner = owner.Parent)
+			{
+				owner.PropertyChanged += OnSearchOwnerPropertyChanged;
+				_searchOwners.Add(owner);
+			}
 		}
 
 		/// <summary>
@@ -378,10 +599,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// </summary>
 		public void UpdateFlyoutHeader(Shell shell)
 		{
-			if (_flyoutView == null || _flyoutAdaptor == null)
+			if (_flyoutView == null || ShellController == null || MauiContext == null)
 				return;
 
-			_flyoutView.Header = _flyoutAdaptor.GetHeaderView();
+			var header = ShellController.FlyoutHeader;
+			if (HeaderOnMenu)
+			{
+				SetFixedFlyoutView(ref _fixedHeader, null, value => _flyoutView.Header = value);
+				UpdateFlyoutItemsCore(shell, header);
+			}
+			else
+			{
+				UpdateFlyoutItemsCore(shell, scrollingHeader: null);
+				SetFixedFlyoutView(ref _fixedHeader, header, value => _flyoutView.Header = value);
+			}
 		}
 
 		/// <summary>
@@ -389,25 +620,41 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// </summary>
 		public void UpdateFlyoutFooter(Shell shell)
 		{
-			if (_flyoutView == null || _flyoutAdaptor == null)
+			if (_flyoutView == null || ShellController == null || MauiContext == null)
 				return;
 
-			_flyoutView.Footer = _flyoutAdaptor.GetFooterView();
+			SetFixedFlyoutView(ref _fixedFooter, ShellController.FlyoutFooter, value => _flyoutView.Footer = value);
 		}
 
 		/// <summary>
 		/// Updates the flyout content.
 		/// </summary>
-		public void UpdateFlyoutContent(object? content)
+		public void UpdateFlyoutContent()
 		{
-			// Custom flyout content replaces the default items view
-			if (content == null || _flyoutView == null || MauiContext == null)
+			if (_flyoutView == null || ShellController == null || MauiContext == null || Shell is null)
 				return;
 
-			if (content is Microsoft.Maui.Controls.View view)
+			var content = ShellController.FlyoutContent;
+			if (ReferenceEquals(_customFlyoutContent, content))
+				return;
+
+			if (_customFlyoutContent is not null)
 			{
-				_flyoutView.Content = view.ToPlatformView(MauiContext);
+				_flyoutView.Content = null;
+				(_customFlyoutContent.Handler as IDisposable)?.Dispose();
+				_customFlyoutContent.Handler = null;
+				_customFlyoutContent.Parent = null;
 			}
+
+			_customFlyoutContent = content;
+			if (_customFlyoutContent is not null)
+			{
+				_customFlyoutContent.Parent = Shell;
+				_flyoutView.Content = _customFlyoutContent.ToPlatformView(MauiContext);
+				return;
+			}
+
+			UpdateFlyoutItems(Shell);
 		}
 
 		/// <summary>
@@ -422,10 +669,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			if (toolbar == null)
 			{
-				// Release before clearing the slot, never after: the instance may be disposed once
-				// it is no longer owned.
-				_toolbarOwnership.Release();
-				_mainContentView.ClearToolbar();
+				DetachToolbar();
 				return;
 			}
 
@@ -442,14 +686,54 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (ReferenceEquals(_toolbarOwnership.Current, platformToolbar))
 			{
 				_mainContentView.SetToolbar(platformToolbar);
+				UpdateSearchHandler();
 				return;
 			}
 
 			// Unsubscribe before the container disposes the outgoing toolbar, transfer ownership,
 			// then subscribe to the incoming instance.
+			if (_toolbarOwnership.Current is not null)
+				_toolbarOwnership.Current.SearchBar = null;
 			_toolbarOwnership.Release();
 			_mainContentView.SetToolbar(platformToolbar);
 			_toolbarOwnership.Transfer(platformToolbar);
+			UpdateSearchHandler();
+			RefreshToolbarLeadingIcon();
+		}
+
+		public void DetachToolbar()
+		{
+			if (_toolbarOwnership.Current is not null)
+				_toolbarOwnership.Current.SearchBar = null;
+
+			_searchView?.Dispose();
+			_searchView = null;
+			if (_currentSearchHandler is not null)
+				_currentSearchHandler.PropertyChanged -= OnCurrentSearchHandlerPropertyChanged;
+			_currentSearchHandler = null;
+			_toolbarOwnership.Release();
+			_mainContentView?.ClearToolbar();
+		}
+
+		void SetFixedFlyoutView(ref XView? current, XView? next, Action<NView?> setNative)
+		{
+			if (ReferenceEquals(current, next))
+				return;
+
+			setNative(null);
+			if (current is not null)
+			{
+				(current.Handler as IDisposable)?.Dispose();
+				current.Handler = null;
+				current.Parent = null;
+			}
+
+			current = next;
+			if (current is not null && MauiContext is not null && Shell is not null)
+			{
+				current.Parent = Shell;
+				setNative(current.ToPlatformView(MauiContext));
+			}
 		}
 
 		/// <summary>
@@ -483,8 +767,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// </summary>
 		public void UpdateToolbarColors(XColor? foreground, XColor? background, XColor? title)
 		{
-			// Toolbar colors are handled via appearance - no direct implementation needed
-			// since appearance observer notifies updates
+			_toolbarOwnership.Current?.UpdateBarIconColor(foreground);
+			_toolbarOwnership.Current?.UpdateBarBackgroundColor(background);
+			_toolbarOwnership.Current?.UpdateBarTextColor(title);
 		}
 
 		/// <summary>
@@ -507,7 +792,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				&& _toolbarOwnership.Current is { } platformToolbar)
 			{
 				if (toolbar.Handler is TizenToolbarHandler toolbarHandler)
-					toolbarHandler.UpdateNavigationIcon(toolbar);
+					toolbarHandler.UpdateNavigationIcon(toolbar, Shell);
 				else
 					platformToolbar.UpdateBackButton(toolbar, ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, Shell));
 			}
@@ -518,12 +803,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (_flyoutView == null || Shell == null)
 				return;
 
+			if (appearance is not null)
+			{
+				_itemAppearance.BackgroundColor = appearance.BackgroundColor;
+				_itemAppearance.ForegroundColor = appearance.ForegroundColor;
+				_itemAppearance.TitleColor = appearance.TitleColor;
+				_itemAppearance.UnselectedColor = appearance.UnselectedColor;
+				UpdateToolbarColors(
+					appearance.ForegroundColor,
+					appearance.BackgroundColor,
+					appearance.TitleColor);
+			}
+
 			// Update flyout background from shell appearance
 			var flyoutBg = ShellElementTree.GetEffectiveValue<XColor>(Shell, Shell.FlyoutBackgroundColorProperty, null);
-			if (flyoutBg != null)
-			{
-				_flyoutView.BackgroundColor = flyoutBg.ToTizen().ToNative();
-			}
+			UpdateBackgroundColor(flyoutBg);
 		}
 
 		/// <inheritdoc/>
@@ -550,16 +844,36 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				if (Shell != null)
 				{
 					((IShellController)Shell).RemoveAppearanceObserver(this);
+					Shell.PropertyChanged -= OnShellPropertyChanged;
+					if (Shell.Items is INotifyCollectionChanged items)
+						items.CollectionChanged -= OnShellItemsChanged;
 				}
+
+				if (_currentPage is not null)
+					_currentPage.PropertyChanged -= OnCurrentPagePropertyChanged;
+				_currentPage = null;
+				RefreshSearchOwnerSubscriptions(null);
 
 				if (_navigationDrawer != null)
 				{
 					_navigationDrawer.Toggled -= OnDrawerToggled;
 				}
 
-				// Idempotent: a second teardown, or one that runs after SetToolbar already disposed
-				// the instance, sees no owner and does nothing.
-				_toolbarOwnership.Release();
+				DetachToolbar();
+
+				if (_flyoutView is not null)
+				{
+					SetFixedFlyoutView(ref _fixedHeader, null, value => _flyoutView.Header = value);
+					SetFixedFlyoutView(ref _fixedFooter, null, value => _flyoutView.Footer = value);
+				}
+
+				if (_customFlyoutContent is not null)
+				{
+					(_customFlyoutContent.Handler as IDisposable)?.Dispose();
+					_customFlyoutContent.Handler = null;
+					_customFlyoutContent.Parent = null;
+					_customFlyoutContent = null;
+				}
 
 				if (_flyoutAdaptor != null)
 				{
@@ -576,8 +890,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					_flyoutCollectionView = null;
 				}
 
-				_currentShellItemHandler?.Dispose();
-				_currentShellItemHandler = null;
+				_shellItemCache.Clear();
+				foreach (var handler in _shellItemHandlers.Values)
+					handler.Dispose();
+				foreach (var item in _shellItemHandlers.Keys)
+					item.Handler = null;
+				_shellItemHandlers.Clear();
 				_currentShellItemView = null;
 			}
 

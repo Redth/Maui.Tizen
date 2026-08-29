@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Platform;
+using Microsoft.Maui.Platforms.Tizen.Adapters;
 using Tizen.NUI;
 using Tizen.UIExtensions.NUI;
 
@@ -23,10 +24,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 	/// </remarks>
 	public class TizenTabbedPageView : NView
 	{
-		readonly TabbedPage _tabbedPage;
+		TabbedPage _tabbedPage;
 		NCollectionView _tabbedView;
 		TizenTabbedPageAdaptor _adaptor;
 		ViewGroup _content;
+		readonly SelectionProposalCoordinator<Page> _selection = new();
 		IMauiContext MauiContext => _tabbedPage.Handler?.MauiContext ?? throw new InvalidOperationException("MauiContext cannot be null here");
 		bool _isDisconnected;
 		bool _isDisposed;
@@ -66,10 +68,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			Add(_content);
 			_adaptor.SelectionChanged += OnTabItemSelected;
 
-			// Use public Children instead of internal InternalChildren
-			var currentPageIndex = tabbedPage.Children.IndexOf(tabbedPage.CurrentPage);
-			if (currentPageIndex != -1)
-				_tabbedView!.RequestItemSelect(currentPageIndex);
 		}
 
 		/// <summary>
@@ -77,20 +75,60 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// </summary>
 		public ViewGroup ContentContainer => _content;
 
+		public void Rebind(TabbedPage tabbedPage)
+		{
+			ArgumentNullException.ThrowIfNull(tabbedPage);
+			if (ReferenceEquals(_tabbedPage, tabbedPage))
+				return;
+
+			ReleasePageHandlers(_tabbedPage);
+			_tabbedView.Adaptor = null;
+			_adaptor.SelectionChanged -= OnTabItemSelected;
+			_adaptor.Dispose();
+
+			_tabbedPage = tabbedPage;
+			_adaptor = new TizenTabbedPageAdaptor(tabbedPage);
+			_adaptor.SelectionChanged += OnTabItemSelected;
+			_tabbedView.Adaptor = _adaptor;
+			UpdateCurrentPage();
+		}
+
 		/// <summary>
 		/// Updates the current page display.
 		/// </summary>
 		public void UpdateCurrentPage()
 		{
 			if (_tabbedPage.CurrentPage == null)
+			{
+				_selection.Synchronize(
+					null,
+					_ => -1,
+					() =>
+					{
+						foreach (var selected in _tabbedView.SelectedItems.ToArray())
+							_tabbedView.RequestItemUnselect(selected);
+					},
+					_tabbedView.RequestItemSelect);
+
+				if (_content.Children.FirstOrDefault() is { } old)
+					_content.Remove(old);
 				return;
+			}
 
 			// Sync the native tab selection to match the current page
 			// Use public Children instead of internal InternalChildren
 			var currentPageIndex = _tabbedPage.Children.IndexOf(_tabbedPage.CurrentPage);
 			if (currentPageIndex != -1)
 			{
-				_tabbedView!.RequestItemSelect(currentPageIndex);
+				_selection.Synchronize(
+					_tabbedPage.CurrentPage,
+					page => _tabbedPage.Children.IndexOf(page),
+					() =>
+					{
+						foreach (var selected in _tabbedView.SelectedItems.ToArray())
+							_tabbedView.RequestItemUnselect(selected);
+					},
+					_tabbedView.RequestItemSelect);
 			}
 
 			try
@@ -108,8 +146,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 							_content.Remove(old);
 						}
 						_content.Add(current);
-						// Use IPageController (public) instead of direct Page.SendAppearing (internal)
-						(_tabbedPage.CurrentPage as IPageController)?.SendAppearing();
 					}
 				}
 			}
@@ -121,15 +157,23 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		void OnTabItemSelected(object? sender, TizenCollectionViewSelectionChangedEventArgs e)
 		{
-			if (e.SelectedItems is null || e.SelectedItems.Count == 0)
+			var nativeIndex = e.SelectedIndexes.Count > 0 ? e.SelectedIndexes[0] : -1;
+			if (_selection.ConsumeManagedEcho(nativeIndex)
+				|| e.SelectedItems is null
+				|| e.SelectedItems.Count == 0)
 				return;
 
 			Page? current = e.SelectedItems[0] as Page;
-			if (_tabbedPage.CurrentPage != current)
+			if (current is not null && _tabbedPage.CurrentPage != current)
 			{
-				// Use IPageController (public) instead of direct Page.SendDisappearing (internal)
-				(_tabbedPage.CurrentPage as IPageController)?.SendDisappearing();
-				_tabbedPage.CurrentPage = current;
+				_selection.Propose(
+					current,
+					page =>
+					{
+						_tabbedPage.CurrentPage = page;
+						return true;
+					},
+					UpdateCurrentPage);
 			}
 		}
 
@@ -147,31 +191,31 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			_tabbedView.Adaptor = null;
 			_adaptor.Dispose();
 
-			// Use public Children instead of internal InternalChildren
-			foreach (var child in _tabbedPage.Children)
-			{
-				try
-				{
-					var handler = child.ToHandler(MauiContext);
-					if (handler?.PlatformView is NView native && ReferenceEquals(native.GetParent(), _content))
-						_content.Remove(native);
-
-					if (handler is IDisposable disposable)
-						disposable.Dispose();
-					else
-						handler?.DisconnectHandler();
-
-					if (ReferenceEquals(child.Handler, handler))
-						child.Handler = null;
-				}
-				catch (InvalidOperationException)
-				{
-					// Ignore if MauiContext not available during disconnect
-				}
-			}
+			ReleasePageHandlers(_tabbedPage);
 
 			_tabbedView.Dispose();
 			_content.Dispose();
+		}
+
+		void ReleasePageHandlers(TabbedPage tabbedPage)
+		{
+			foreach (var child in tabbedPage.Children)
+			{
+				var handler = child.Handler;
+				if (handler is null)
+					continue;
+
+				if (handler.PlatformView is NView native && ReferenceEquals(native.GetParent(), _content))
+					_content.Remove(native);
+
+				if (handler is IDisposable disposable)
+					disposable.Dispose();
+				else
+					handler.DisconnectHandler();
+
+				if (ReferenceEquals(child.Handler, handler))
+					child.Handler = null;
+			}
 		}
 
 		protected override void Dispose(bool disposing)
@@ -197,10 +241,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// Initializes a new instance of <see cref="TizenTabbedPageAdaptor"/>.
 		/// </summary>
 		/// <param name="page">The TabbedPage to adapt.</param>
-		public TizenTabbedPageAdaptor(TabbedPage page) 
+		public TizenTabbedPageAdaptor(TabbedPage page)
 			// Use public Children instead of internal InternalChildren
-			: base(page, page.Children, GetTemplate(page)) 
-		{ 
+			: base(page, page.Children, GetTemplate(page))
+		{
 		}
 
 		/// <inheritdoc/>
@@ -224,23 +268,23 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 	{
 		// Use plain bool values instead of internal BooleanBoxes
 		static readonly BindableProperty SelectedStateProperty = BindableProperty.Create(
-			nameof(IsSelected), 
-			typeof(bool), 
-			typeof(TizenTabbedItem), 
-			false, 
+			nameof(IsSelected),
+			typeof(bool),
+			typeof(TizenTabbedItem),
+			false,
 			propertyChanged: (b, o, n) => ((TizenTabbedItem)b).UpdateSelectedState());
 
 		static readonly BindableProperty SelectedTabColorProperty = BindableProperty.Create(
-			nameof(SelectedTabColor), 
-			typeof(GColor), 
-			typeof(TizenTabbedItem), 
+			nameof(SelectedTabColor),
+			typeof(GColor),
+			typeof(TizenTabbedItem),
 			default(GColor),
 			propertyChanged: (b, o, n) => ((TizenTabbedItem)b).UpdateSelectedState());
 
 		static readonly BindableProperty UnselectedTabColorProperty = BindableProperty.Create(
-			nameof(UnselectedTabColor), 
-			typeof(GColor), 
-			typeof(TizenTabbedItem), 
+			nameof(UnselectedTabColor),
+			typeof(GColor),
+			typeof(TizenTabbedItem),
 			default(GColor),
 			propertyChanged: (b, o, n) => ((TizenTabbedItem)b).UpdateSelectedState());
 

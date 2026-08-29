@@ -75,4 +75,14 @@ public class WaveCApi15LaneTests
 		Assert.False(File.Exists(RepoPaths.Combine("eng", "validation", "validation-lane.csproj.template")));
 		Assert.DoesNotContain("net9.0-tizen7.0", SourcesProps(), StringComparison.Ordinal);
 	}
+
+	[Fact]
+	public void ImplementationAdaptersAreNotPartOfTheShippingPublicApi()
+	{
+		var api = File.ReadAllText(RepoPaths.Combine(
+			"src", "Maui.Tizen.Controls", "PublicAPI", "slice", "PublicAPI.Unshipped.txt"));
+
+		Assert.DoesNotContain("Microsoft.Maui.Platforms.Tizen.Adapters.", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("ToolbarOwnership", api, StringComparison.Ordinal);
+	}
 }

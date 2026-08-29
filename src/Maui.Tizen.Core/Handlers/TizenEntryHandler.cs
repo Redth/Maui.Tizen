@@ -132,7 +132,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// through <c>view.Handler</c>, so handing the extension only the paint discards the one
 		/// thing that path requires. Behaviour is unchanged today - <c>clearWhenNull: false</c>
 		/// preserves the previous semantics exactly - but the view now reaches the seam where
-		/// dotnet/maui#37864 will be adopted.
+		/// dotnet/maui#37864 is merged upstream but will be adopted only after the pinned package
+		/// exposes it.
 		/// </para>
 		/// </remarks>
 		public static void MapBackground(IEntryHandler handler, IEntry entry)

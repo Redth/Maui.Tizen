@@ -28,6 +28,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 		}
 
+		public override void Rebind(CarouselView element)
+		{
+			base.Rebind(element);
+			_lastPosition = -1;
+			UpdateLayoutManager();
+		}
+
 		/// <summary>
 		/// Raised when the scroll position changes.
 		/// </summary>
@@ -66,7 +73,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		public void UpdatePosition(int position)
 		{
-			if (position < 0)
+			if (position < 0 || CollectionView.Adaptor is null || position >= CollectionView.Adaptor.Count)
 				return;
 
 			CollectionView.ScrollTo(position, animate: false);

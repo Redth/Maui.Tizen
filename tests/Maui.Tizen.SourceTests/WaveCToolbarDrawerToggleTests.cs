@@ -9,8 +9,9 @@ namespace Maui.Tizen.SourceTests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The capability is read-only upstream (dotnet/maui#37863 adds
-/// <c>IToolbarDrawerToggleVisible</c> additively; <c>IToolbar</c> is unchanged). The in-tree Tizen
+/// The capability is read-only upstream (dotnet/maui#37863 merged and adds
+/// <c>IToolbarDrawerToggleVisible</c> additively, but the pinned package does not contain it;
+/// <c>IToolbar</c> is unchanged). The in-tree Tizen
 /// backend instead <em>wrote</em> a latched <c>drawerToggle &amp;&amp; !backButton</c>, and an
 /// earlier revision of this backend reproduced that.
 /// </para>
@@ -32,7 +33,7 @@ public class WaveCToolbarDrawerToggleTests
 		return shell;
 	}
 
-		static IToolbar ToolbarOf(Shell shell) => ((IToolbarElement)shell).Toolbar!;
+	static IToolbar ToolbarOf(Shell shell) => ((IToolbarElement)shell).Toolbar!;
 
 	static bool Capability(Shell shell) =>
 		ToolbarDrawerToggle.GetDrawerToggleVisible(ToolbarOf(shell), shell);
@@ -135,6 +136,27 @@ public class WaveCToolbarDrawerToggleTests
 			writers.Count == 0,
 			"The drawer-toggle capability is read-only upstream; found writer(s): "
 				+ string.Join(", ", writers));
+	}
+
+	[Theory]
+	[InlineData(true, true, true, true)]
+	[InlineData(true, false, true, false)]
+	[InlineData(false, true, true, false)]
+	[InlineData(true, true, false, false)]
+	public void BackNavigationRequiresVisibleEnabledBackButton(
+		bool backVisible,
+		bool backEnabled,
+		bool toolbarVisible,
+		bool expected)
+	{
+		var toolbar = new Toolbar(new ContentPage())
+		{
+			BackButtonVisible = backVisible,
+			BackButtonEnabled = backEnabled,
+			IsVisible = toolbarVisible,
+		};
+
+		Assert.Equal(expected, ToolbarDrawerToggle.ShouldNavigateBack(toolbar));
 	}
 
 	// -----------------------------------------------------------------

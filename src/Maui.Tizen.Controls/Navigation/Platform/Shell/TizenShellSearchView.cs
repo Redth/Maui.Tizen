@@ -1,97 +1,125 @@
 using System;
 using System.Collections;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using Microsoft.Maui.Controls;
-using Microsoft.Maui.Graphics;
-using Microsoft.Maui.Platform;
 using Tizen.NUI;
 using Tizen.NUI.BaseComponents;
 using Tizen.UIExtensions.NUI;
-using TCollectionView = Tizen.UIExtensions.NUI.CollectionView;
+using NCollectionView = Tizen.UIExtensions.NUI.CollectionView;
 using NView = Tizen.NUI.BaseComponents.View;
 
 namespace Microsoft.Maui.Platforms.Tizen.Platform
 {
-	/// <summary>
-	/// Platform view for Shell's search handler results display.
-	/// </summary>
-	internal class TizenShellSearchView : NView
+	/// <summary>Search editor and result list hosted by the Shell toolbar.</summary>
+	internal sealed class TizenShellSearchView : TizenSearchBarView
 	{
-		TCollectionView? _collectionView;
+		readonly NView _resultsHost;
+		NCollectionView? _collectionView;
 		TizenShellSearchItemAdaptor? _adaptor;
 		SearchHandler? _searchHandler;
 		Element? _parentElement;
+		IMauiContext? _mauiContext;
+		INotifyCollectionChanged? _observableItems;
+		bool _updatingQuery;
+		bool _disposed;
 
 		public TizenShellSearchView()
 		{
-			Layout = new LinearLayout();
-			WidthSpecification = LayoutParamPolicies.MatchParent;
-			HeightSpecification = LayoutParamPolicies.WrapContent;
-		}
-
-		public IMauiContext? MauiContext { get; set; }
-
-		/// <summary>
-		/// Gets or sets the parent Element (typically the Shell) used as context for template bindings.
-		/// </summary>
-		public Element? ParentElement
-		{
-			get => _parentElement;
-			set => _parentElement = value;
-		}
-
-		public SearchHandler? SearchHandler
-		{
-			get => _searchHandler;
-			set
+			_resultsHost = new NView
 			{
-				if (_searchHandler != null)
-				{
-					if (_searchHandler.ItemsSource is INotifyCollectionChanged oldCollection)
-					{
-						oldCollection.CollectionChanged -= OnItemsSourceChanged;
-					}
-				}
+				WidthSpecification = LayoutParamPolicies.MatchParent,
+				HeightSpecification = LayoutParamPolicies.WrapContent,
+			};
 
-				_searchHandler = value;
-
-				if (_searchHandler != null)
-				{
-					if (_searchHandler.ItemsSource is INotifyCollectionChanged newCollection)
-					{
-						newCollection.CollectionChanged += OnItemsSourceChanged;
-					}
-					UpdateContent();
-				}
-			}
+			Add(_resultsHost);
+			Entry.TextChanged += OnTextChanged;
+			SearchButtonPressed += OnSearchButtonPressed;
 		}
 
-		void OnItemsSourceChanged(object? sender, NotifyCollectionChangedEventArgs e)
+		public void Bind(SearchHandler? searchHandler, Element parentElement, IMauiContext mauiContext)
 		{
-			UpdateContent();
-		}
+			ArgumentNullException.ThrowIfNull(parentElement);
+			ArgumentNullException.ThrowIfNull(mauiContext);
 
-		void UpdateContent()
-		{
-			if (_searchHandler == null || MauiContext == null)
+			if (ReferenceEquals(_searchHandler, searchHandler)
+				&& ReferenceEquals(_parentElement, parentElement)
+				&& ReferenceEquals(_mauiContext, mauiContext))
+			{
+				Refresh();
 				return;
-
-			if (_collectionView != null)
-			{
-				Remove(_collectionView);
-				_collectionView.Dispose();
-				_collectionView = null;
 			}
 
-			if (_adaptor != null)
+			DetachSearchHandler();
+			_searchHandler = searchHandler;
+			_parentElement = parentElement;
+			_mauiContext = mauiContext;
+
+			if (_searchHandler is null)
+			{
+				Refresh();
+				return;
+			}
+
+			_searchHandler.PropertyChanged += OnSearchHandlerPropertyChanged;
+			((ISearchHandlerController)_searchHandler).ListProxyChanged += OnListProxyChanged;
+			SubscribeItems(_searchHandler.ItemsSource);
+			Refresh();
+		}
+
+		void Refresh()
+		{
+			if (_searchHandler is null)
+			{
+				IsEnabled = false;
+				Entry.Text = string.Empty;
+				Entry.PlaceholderText = string.Empty;
+				ReplaceResults(null);
+				return;
+			}
+
+			IsEnabled = _searchHandler.IsSearchEnabled;
+			if (_searchHandler.SearchBoxVisibility == SearchBoxVisibility.Hidden)
+				Hide();
+			else
+				Show();
+			Entry.PlaceholderText = _searchHandler.Placeholder ?? string.Empty;
+
+			if (!string.Equals(Entry.Text, _searchHandler.Query, StringComparison.Ordinal))
+			{
+				_updatingQuery = true;
+				try
+				{
+					Entry.Text = _searchHandler.Query ?? string.Empty;
+				}
+				finally
+				{
+					_updatingQuery = false;
+				}
+			}
+
+			ReplaceResults(((ISearchHandlerController)_searchHandler).ListProxy);
+		}
+
+		void ReplaceResults(IEnumerable? items)
+		{
+			if (_collectionView is not null)
+			{
+				_collectionView.Adaptor = null;
+				_resultsHost.Remove(_collectionView);
+			}
+
+			if (_adaptor is not null)
 			{
 				_adaptor.SelectionChanged -= OnSelectionChanged;
 				_adaptor.Dispose();
 				_adaptor = null;
 			}
 
-			var items = _searchHandler.ItemsSource;
-			if (items == null)
+			_collectionView?.Dispose();
+			_collectionView = null;
+
+			if (items is null || _searchHandler is null || _parentElement is null || _mauiContext is null)
 				return;
 
 			var template = _searchHandler.ItemTemplate ?? new DataTemplate(() =>
@@ -101,60 +129,108 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				return label;
 			});
 
-			// Use the parent Element (Shell) for template binding context.
-			// If no parent is set, we use the SearchHandler's BindingContext or a dummy element.
-			var parentElement = _parentElement ?? new ContentView { BindingContext = _searchHandler.BindingContext };
-			_adaptor = new TizenShellSearchItemAdaptor(parentElement, _searchHandler, items, template);
+			_adaptor = new TizenShellSearchItemAdaptor(_parentElement, _searchHandler, items, template);
 			_adaptor.SelectionChanged += OnSelectionChanged;
 
-			_collectionView = new TCollectionView
+			_collectionView = new NCollectionView
 			{
 				LayoutManager = new LinearLayoutManager(false),
 				SelectionMode = CollectionViewSelectionMode.Single,
+				WidthSpecification = LayoutParamPolicies.MatchParent,
+				HeightSpecification = LayoutParamPolicies.WrapContent,
+				Adaptor = _adaptor,
 			};
+			_resultsHost.Add(_collectionView);
+		}
 
-			_collectionView.Adaptor = _adaptor;
+		void OnTextChanged(object? sender, EventArgs e)
+		{
+			if (!_updatingQuery && _searchHandler is not null)
+				_searchHandler.Query = Entry.Text;
+		}
 
-			Add(_collectionView);
+		void OnSearchButtonPressed(object? sender, EventArgs e)
+		{
+			if (_searchHandler is not null)
+				((ISearchHandlerController)_searchHandler).QueryConfirmed();
 		}
 
 		void OnSelectionChanged(object? sender, TizenCollectionViewSelectionChangedEventArgs e)
 		{
-			if (_searchHandler == null)
+			if (_searchHandler is not null && e.SelectedItems?.Count > 0)
+				((ISearchHandlerController)_searchHandler).ItemSelected(e.SelectedItems[0]);
+		}
+
+		void OnSearchHandlerPropertyChanged(object? sender, PropertyChangedEventArgs e)
+		{
+			if (_searchHandler is null)
 				return;
 
-			var controller = _searchHandler as ISearchHandlerController;
-			if (e.SelectedItems?.Count > 0)
+			if (e.PropertyName == nameof(SearchHandler.ItemsSource))
+				SubscribeItems(_searchHandler.ItemsSource);
+
+			if (e.PropertyName is nameof(SearchHandler.Query)
+				or nameof(SearchHandler.ItemsSource)
+				or nameof(SearchHandler.ItemTemplate)
+				or nameof(SearchHandler.Placeholder)
+				or nameof(SearchHandler.IsSearchEnabled)
+				or nameof(SearchHandler.SearchBoxVisibility)
+				or nameof(SearchHandler.Command)
+				or nameof(SearchHandler.CommandParameter))
 			{
-				controller?.ItemSelected(e.SelectedItems[0]);
+				Refresh();
 			}
+		}
+
+		void OnItemsSourceChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
+			ReplaceResults(_searchHandler is null
+				? null
+				: ((ISearchHandlerController)_searchHandler).ListProxy);
+
+		void OnListProxyChanged(object? sender, ListProxyChangedEventArgs e) =>
+			ReplaceResults(_searchHandler is null
+				? null
+				: ((ISearchHandlerController)_searchHandler).ListProxy);
+
+		void SubscribeItems(IEnumerable? items)
+		{
+			if (_observableItems is not null)
+				_observableItems.CollectionChanged -= OnItemsSourceChanged;
+
+			_observableItems = items as INotifyCollectionChanged;
+			if (_observableItems is not null)
+				_observableItems.CollectionChanged += OnItemsSourceChanged;
+		}
+
+		void DetachSearchHandler()
+		{
+			SubscribeItems(null);
+
+			if (_searchHandler is not null)
+			{
+				_searchHandler.PropertyChanged -= OnSearchHandlerPropertyChanged;
+				((ISearchHandlerController)_searchHandler).ListProxyChanged -= OnListProxyChanged;
+			}
+
+			_searchHandler = null;
+			_parentElement = null;
+			_mauiContext = null;
 		}
 
 		protected override void Dispose(bool disposing)
 		{
+			if (_disposed)
+				return;
+
 			if (disposing)
 			{
-				if (_searchHandler != null)
-				{
-					if (_searchHandler.ItemsSource is INotifyCollectionChanged collection)
-					{
-						collection.CollectionChanged -= OnItemsSourceChanged;
-					}
-				}
-
-				if (_collectionView != null)
-				{
-					_collectionView.Dispose();
-					_collectionView = null;
-				}
-
-				if (_adaptor != null)
-				{
-					_adaptor.SelectionChanged -= OnSelectionChanged;
-					_adaptor.Dispose();
-					_adaptor = null;
-				}
+				Entry.TextChanged -= OnTextChanged;
+				SearchButtonPressed -= OnSearchButtonPressed;
+				DetachSearchHandler();
+				ReplaceResults(null);
 			}
+
+			_disposed = true;
 			base.Dispose(disposing);
 		}
 	}

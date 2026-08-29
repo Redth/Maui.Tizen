@@ -154,7 +154,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// Today both overloads behave identically, because MAUI's <c>ImageSourcePaint</c> is
 		/// internal and an image background cannot be detected at all (see the ADOPTION SEAM in the
 		/// <see cref="Paint"/> overload and <c>UpstreamGapExpiryTests</c>). Keeping the view flowing
-		/// to here is what makes that a one-place fix when dotnet/maui#37864 ships, instead of an
+		/// to here is what makes that a one-place fix when the pinned package contains the API
+		/// merged by dotnet/maui#37864, instead of an
 		/// audit of every call site.
 		/// </para>
 		/// </remarks>
@@ -235,7 +236,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
-			// ADOPTION SEAM for dotnet/maui#37864 (public read-only IImageSourcePaint).
+			// ADOPTION SEAM for the public read-only IImageSourcePaint merged by
+			// dotnet/maui#37864 but absent from the pinned package.
 			//
 			// Consumption only: never implement IImageSourcePaint on a custom Paint. Upstream
 			// states external implementation is unsupported and that members may be added, so an

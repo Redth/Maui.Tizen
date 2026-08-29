@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Platform;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
@@ -23,6 +24,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		readonly Dictionary<object, View?> _dataBindedViewTable = new();
 		readonly GroupableItemsView _itemsView;
 		readonly TizenGroupItemSource _groupItemSource;
+		readonly TizenHeaderFooterPresenter _headerFooter;
 
 		public TizenGroupItemTemplateAdaptor(GroupableItemsView itemsView)
 			: this(itemsView, new TizenGroupItemSource(itemsView))
@@ -34,12 +36,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 			_itemsView = itemsView;
 			_groupItemSource = groupItemSource;
+			_headerFooter = new TizenHeaderFooterPresenter(
+				itemsView,
+				() => MauiContext,
+				() => CollectionView?.ItemMeasureInvalidated(-1));
+			_groupItemSource.CollectionChanged += OnGroupItemsChanged;
 		}
 
 		/// <summary>
 		/// Raised when the user changes selection from the UI.
 		/// </summary>
 		public event EventHandler<TizenCollectionViewSelectionChangedEventArgs>? SelectionChanged;
+
+		public event EventHandler? ItemsChanged;
 
 		protected IMauiContext MauiContext => _itemsView.Handler!.MauiContext!;
 
@@ -53,8 +62,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		public override void SendItemSelected(IEnumerable<int> selected)
 		{
+			var indexes = selected.Where(index => index >= 0 && index < Count).ToList();
 			var items = new List<object>();
-			foreach (var idx in selected)
+			foreach (var idx in indexes)
 			{
 				if (idx < 0 || Count <= idx)
 					continue;
@@ -70,9 +80,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			SelectionChanged?.Invoke(this, new TizenCollectionViewSelectionChangedEventArgs
 			{
-				SelectedItems = items
+				SelectedItems = items,
+				SelectedIndexes = indexes,
 			});
 		}
+
+		public int GetAbsoluteIndex(int groupIndex, int itemIndex) =>
+			_groupItemSource.GetAbsoluteIndex(groupIndex, itemIndex);
+
+		public int GetAbsoluteIndex(object? item) => _groupItemSource.GetAbsoluteIndex(item);
+
+		public int GetAbsoluteIndex(object? group, object? item) =>
+			_groupItemSource.GetAbsoluteIndex(group, item);
 
 		public override void UpdateViewState(NView view, ViewHolderState state)
 		{
@@ -152,22 +171,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// <summary>
 		/// Gets the header view. Not used for grouped items (uses per-group headers instead).
 		/// </summary>
-		public override NView? GetHeaderView() => null;
+		public override NView? GetHeaderView() => _headerFooter.GetHeaderView();
 
 		/// <summary>
 		/// Gets the footer view. Not used for grouped items (uses per-group footers instead).
 		/// </summary>
-		public override NView? GetFooterView() => null;
+		public override NView? GetFooterView() => _headerFooter.GetFooterView();
 
 		/// <summary>
 		/// Measures the header. Returns zero size since headers are per-group, not top-level.
 		/// </summary>
-		public override TSize MeasureHeader(double widthConstraint, double heightConstraint) => new TSize(0, 0);
+		public override TSize MeasureHeader(double widthConstraint, double heightConstraint) =>
+			_headerFooter.MeasureHeader(widthConstraint, heightConstraint);
 
 		/// <summary>
 		/// Measures the footer. Returns zero size since footers are per-group, not top-level.
 		/// </summary>
-		public override TSize MeasureFooter(double widthConstraint, double heightConstraint) => new TSize(0, 0);
+		public override TSize MeasureFooter(double widthConstraint, double heightConstraint) =>
+			_headerFooter.MeasureFooter(widthConstraint, heightConstraint);
 
 		public override NView CreateNativeView(int index)
 		{
@@ -324,11 +345,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 			if (ItemTemplate is DataTemplateSelector selector)
 			{
-				return (View)selector.SelectTemplate(this[index], _itemsView).CreateContent();
+				var template = selector.SelectTemplate(this[index], _itemsView)
+					?? throw new InvalidOperationException("The grouped item template selector returned null.");
+				return template.CreateContent() as View
+					?? throw new InvalidOperationException("The grouped item template must create a View.");
 			}
 			else if (ItemTemplate != null)
 			{
-				return (View)ItemTemplate.CreateContent();
+				return ItemTemplate.CreateContent() as View
+					?? throw new InvalidOperationException("The grouped item template must create a View.");
 			}
 			else
 			{
@@ -340,7 +365,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 			if (GroupHeaderTemplate != null)
 			{
-				return (View)GroupHeaderTemplate.CreateContent();
+				return GroupHeaderTemplate.CreateContent() as View
+					?? throw new InvalidOperationException("The group header template must create a View.");
 			}
 			else
 			{
@@ -354,7 +380,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 			if (GroupFooterTemplate != null)
 			{
-				return (View)GroupFooterTemplate.CreateContent();
+				return GroupFooterTemplate.CreateContent() as View
+					?? throw new InvalidOperationException("The group footer template must create a View.");
 			}
 			else
 			{
@@ -401,5 +428,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				}
 			}
 		}
+
+		protected override void Dispose(bool disposing)
+		{
+			if (disposing)
+			{
+				_groupItemSource.CollectionChanged -= OnGroupItemsChanged;
+				_headerFooter.Dispose();
+				_groupItemSource.Dispose();
+			}
+
+			base.Dispose(disposing);
+		}
+
+		void OnGroupItemsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) =>
+			ItemsChanged?.Invoke(this, EventArgs.Empty);
 	}
 }

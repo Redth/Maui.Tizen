@@ -19,14 +19,25 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		static readonly object[] s_emptyItems = new object[] { new object() };
 		readonly Dictionary<NView, View> _nativeTable = new();
 		readonly ItemsView _itemsView;
+		readonly TizenHeaderFooterPresenter? _headerFooter;
 
 		public TizenEmptyItemAdaptor(ItemsView itemsView)
-			: base(s_emptyItems)
+			: base(HasEmptyContent(itemsView) ? s_emptyItems : Array.Empty<object>())
 		{
 			_itemsView = itemsView;
+			if (itemsView is StructuredItemsView structured)
+			{
+				_headerFooter = new TizenHeaderFooterPresenter(
+					structured,
+					() => MauiContext,
+					() => CollectionView?.ItemMeasureInvalidated(-1));
+			}
 		}
 
 		protected IMauiContext MauiContext => _itemsView.Handler!.MauiContext!;
+
+		static bool HasEmptyContent(ItemsView itemsView) =>
+			itemsView.EmptyView is not null || itemsView.EmptyViewTemplate is not null;
 
 		public override NView CreateNativeView(int index)
 		{
@@ -82,29 +93,33 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		public override TSize MeasureItem(int index, double widthConstraint, double heightConstraint)
 		{
-			// The empty view should fill the available space
-			return new TSize((float)widthConstraint, (float)heightConstraint);
+			var allocated = (CollectionView as NView)?.Size.ToCommon() ?? TSize.Zero;
+			return new TSize(
+				(float)ViewportConstraint.Resolve(widthConstraint, allocated.Width),
+				(float)ViewportConstraint.Resolve(heightConstraint, allocated.Height));
 		}
 
 		/// <summary>
 		/// Gets the header view. Not used for empty adaptor.
 		/// </summary>
-		public override NView? GetHeaderView() => null;
+		public override NView? GetHeaderView() => _headerFooter?.GetHeaderView();
 
 		/// <summary>
 		/// Gets the footer view. Not used for empty adaptor.
 		/// </summary>
-		public override NView? GetFooterView() => null;
+		public override NView? GetFooterView() => _headerFooter?.GetFooterView();
 
 		/// <summary>
 		/// Measures the header. Returns zero size since there is no header.
 		/// </summary>
-		public override TSize MeasureHeader(double widthConstraint, double heightConstraint) => new TSize(0, 0);
+		public override TSize MeasureHeader(double widthConstraint, double heightConstraint) =>
+			_headerFooter?.MeasureHeader(widthConstraint, heightConstraint) ?? new TSize(0, 0);
 
 		/// <summary>
 		/// Measures the footer. Returns zero size since there is no footer.
 		/// </summary>
-		public override TSize MeasureFooter(double widthConstraint, double heightConstraint) => new TSize(0, 0);
+		public override TSize MeasureFooter(double widthConstraint, double heightConstraint) =>
+			_headerFooter?.MeasureFooter(widthConstraint, heightConstraint) ?? new TSize(0, 0);
 
 		View CreateEmptyView()
 		{
@@ -130,6 +145,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			{
 				return new ContentView();
 			}
+		}
+
+		protected override void Dispose(bool disposing)
+		{
+			if (disposing)
+				_headerFooter?.Dispose();
+
+			base.Dispose(disposing);
 		}
 	}
 }

@@ -12,5 +12,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// Gets or sets the list of currently selected items.
 		/// </summary>
 		public IList<object>? SelectedItems { get; set; }
+
+		public IReadOnlyList<int> SelectedIndexes { get; set; } = Array.Empty<int>();
 	}
 }

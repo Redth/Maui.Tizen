@@ -8,7 +8,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// Adoption seam for the additive capability proposed by dotnet/maui#37863:
+	/// Adoption seam for the additive capability merged by dotnet/maui#37863 but absent from the pinned package:
 	/// <c>public interface IToolbarDrawerToggleVisible { bool DrawerToggleVisible { get; } }</c>.
 	/// <see cref="IToolbar"/> itself is unchanged, so this is additive rather than breaking.
 	/// </para>
@@ -33,7 +33,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 	/// <c>TizenToolbarExtensions.UpdateBackButton</c>.
 	/// </para>
 	/// <para>
-	/// Once #37863 merges and reaches the referenced package, the body below becomes a pattern match
+	/// Once #37863 reaches the referenced package, the body below becomes a pattern match
 	/// on the real interface and this adapter is deleted - see
 	/// <see cref="UpstreamApiRequests.ToolbarDrawerToggleVisible"/>.
 	/// </para>
@@ -117,6 +117,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 			return TizenToolbarNavigationSlot.GetNavigationIconKind(toolbar, GetDrawerToggleVisible(toolbar, owner))
 				== TizenNavigationIconKind.DrawerToggle;
 		}
+
+		public static bool ShouldNavigateBack(Toolbar? toolbar) =>
+			toolbar is { BackButtonVisible: true, BackButtonEnabled: true, IsVisible: true };
 
 		/// <summary>
 		/// Finds the flyout view that owns <paramref name="toolbar"/>, when the caller did not

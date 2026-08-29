@@ -55,6 +55,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected virtual void UpdateItemsLayout()
 		{
 			PlatformView?.UpdateLayoutManager(VirtualView.ItemsLayout ?? LinearItemsLayout.Vertical);
+			UpdateScrollBarVisibility();
 		}
 
 		protected virtual void UpdateHeader()

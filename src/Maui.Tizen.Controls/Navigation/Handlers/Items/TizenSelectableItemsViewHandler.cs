@@ -65,8 +65,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 			base.OnAdaptorSelectionChanged(sender, e);
 
-			if (VirtualView == null || e.SelectedItems == null)
+			if (VirtualView == null || Adaptor == null)
 				return;
+
+			IReadOnlyList<int> keptIndexes = e.SelectedIndexes;
 
 			// Group headers and footers share one flat index space with real items and must never
 			// become selected. Rejecting them here - before anything reaches the virtual view -
@@ -79,22 +81,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			// the collection from being left with nothing selected.
 			if (Adaptor is ITizenSelectableItemFilter filter && NativeCollectionView is { } native)
 			{
-				var kept = _selection.RejectUnselectableIndexes(
+				keptIndexes = _selection.RejectUnselectableIndexes(
 					new TizenNativeCollectionSelection(native, Adaptor.Count),
-					e.SelectedItems.Select(item => Adaptor.GetItemIndex(item)),
+					e.SelectedIndexes,
 					filter,
 					_lastValidSelectedIndex);
-
-				if (kept.Count != e.SelectedItems.Count)
-				{
-					// Some items were rejected. If any were kept, update the last valid index.
-					if (kept.Count > 0)
-					{
-						_lastValidSelectedIndex = kept[0];
-					}
-					return;
-				}
 			}
+
+			var selectedItems = RawSelectionProjection.ToItems(
+				keptIndexes,
+				Adaptor.Count,
+				index => (Adaptor as ITizenSelectableItemFilter)?.IsItemSelectableAt(index) != false,
+				index => Adaptor[index]);
+
+			if (VirtualView.SelectionMode == SelectionMode.Single && keptIndexes.Count > 0)
+				_lastValidSelectedIndex = keptIndexes[0];
 
 			// Guarded: writing the virtual view raises property changes that run the mappers, which
 			// push straight back into the native view. Without recording the direction of travel
@@ -104,7 +105,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				switch (VirtualView.SelectionMode)
 				{
 					case SelectionMode.Single:
-						VirtualView.SelectedItem = e.SelectedItems.FirstOrDefault();
+						VirtualView.SelectedItem = selectedItems.FirstOrDefault();
 						// Track the valid selection for SingleAlways preservation
 						if (Adaptor != null && VirtualView.SelectedItem != null)
 						{
@@ -114,13 +115,28 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 					case SelectionMode.Multiple:
 						// Assign rather than Clear()+Add(): clearing an observable collection that
 						// the virtual view is watching raises a reset its own handlers react to.
-						VirtualView.SelectedItems = e.SelectedItems.ToList();
+						VirtualView.SelectedItems = selectedItems.ToList();
 						break;
 					case SelectionMode.None:
 						// Selection is disabled; nothing is propagated.
 						break;
 				}
 			});
+		}
+
+		protected override void OnAdaptorInstalled()
+		{
+			base.OnAdaptorInstalled();
+			UpdateSelectionMode();
+			UpdateSelectedItem();
+			UpdateSelectedItems();
+		}
+
+		protected override void OnItemsChanged()
+		{
+			base.OnItemsChanged();
+			UpdateSelectedItem();
+			UpdateSelectedItems();
 		}
 
 		protected virtual void UpdateSelectionMode()
@@ -134,12 +150,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (collectionView == null || Adaptor == null)
 				return;
 
-			if (VirtualView.SelectionMode == SelectionMode.None)
-				return;
-
 			// A null SelectedItem is a real instruction to clear the selection, so it must reach the
 			// synchronizer as an empty set rather than being skipped.
-			int index = VirtualView.SelectedItem is null ? -1 : Adaptor.GetItemIndex(VirtualView.SelectedItem);
+			int index = VirtualView.SelectionMode == SelectionMode.None || VirtualView.SelectedItem is null
+				? -1
+				: Adaptor.GetItemIndex(VirtualView.SelectedItem);
+			_lastValidSelectedIndex = index >= 0 ? index : null;
 
 			_selection.PushToNative(
 				new TizenNativeCollectionSelection(collectionView, Adaptor.Count),

@@ -72,7 +72,7 @@ Verified by reflection over `Microsoft.Maui` 11.0.0-preview.7.26426.4:
 
 The concrete `ImageSourcePaint` is intentionally internal and is expected to stay that way, so this
 is not a class waiting to be made public. What is missing is the public **consumption-only**
-interface `IImageSourcePaint` (upstream PR #37864), which a backend would match on to recognise an
+interface `IImageSourcePaint` (merged upstream in #37864 but absent from the pinned package), which a backend would match on to recognise an
 image background. Until that ships in a package this repository pins, an out-of-repo backend cannot
 detect an image background at all.
 
@@ -422,8 +422,8 @@ registered through `IFontRegistrar` will not be resolved until this is addressed
 **Modal navigation.** dotnet/maui's `WindowExtensions.Initialize` creates a per-window
 `NavigationStack` and routes window content through it. This backend ports the orientation
 registration and the hardware back-key wiring from that method, but not the modal stack: window
-content is parented directly and replaced in place. `GetModalStack` / `IToolbarContainer` and
-anything built on them are therefore absent.
+content is parented directly and replaced in place. The modal-stack seam and APIs built on it are
+therefore absent; the independent Tizen toolbar-container contract is available for navigation.
 
 **Container-backed decoration.** See G1 - gradient/image backgrounds, clip and shadow are not
 rendered, because the container hook is not reachable from outside MAUI.
@@ -433,8 +433,9 @@ mappers into the Tizen handlers, so the implemented LineBreakMode and accessibil
 real Controls apps. `MaxLines` and `FormattedText` remain unsupported as described in G10 and belong
 to Wave A.
 
-**Everything else.** All other handlers (button, entry, image, scroll view, web view, navigation,
-shell, ...) remain raw imported sources and are not yet ported.
+**Other handler waves.** Wave A controls, Wave B image/scroll/refresh/swipe/indicator handlers, and
+Wave C navigation/Shell/items/toolbar/menu handlers are now explicit shipping sources. The raw
+import remains on disk only as provenance and is excluded from every compile list.
 
 ### Core-owned platform primitives for Wave C
 

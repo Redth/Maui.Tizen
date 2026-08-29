@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
@@ -19,6 +20,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		IAppearanceObserver, IDisposable
 	{
 		bool _disposedValue;
+		Shell? _observedShell;
 
 		public static PropertyMapper<ShellItem, TizenShellItemHandler> Mapper =
 			new PropertyMapper<ShellItem, TizenShellItemHandler>(ElementMapper)
@@ -39,27 +41,51 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 		}
 
+		public override void SetVirtualView(IElement view)
+		{
+			DetachAppearanceObserver();
+			if (((IElementHandler)this).PlatformView is TizenShellItemView platformView
+				&& view is ShellItem shellItem)
+			{
+				platformView.Rebind(shellItem);
+			}
+
+			base.SetVirtualView(view);
+			if (((IElementHandler)this).PlatformView is not null)
+				AttachAppearanceObserver();
+		}
+
 		protected override TizenShellItemView CreatePlatformElement()
 			=> new TizenShellItemView(VirtualView, MauiContext!);
 
 		protected override void ConnectHandler(TizenShellItemView platformView)
 		{
-			var shell = VirtualView.Parent as Shell;
-			if (shell != null)
-			{
-				((IShellController)shell).AddAppearanceObserver(this, (Element)VirtualView);
-			}
 			base.ConnectHandler(platformView);
+			try
+			{
+				AttachAppearanceObserver();
+
+				platformView.UpdateTabBar(Shell.GetTabBarIsVisible(VirtualView));
+				platformView.UpdateCurrentItem(VirtualView.CurrentItem);
+			}
+			catch
+			{
+				DetachAppearanceObserver();
+				base.DisconnectHandler(platformView);
+				throw;
+			}
 		}
 
 		protected override void DisconnectHandler(TizenShellItemView platformView)
 		{
-			var shell = VirtualView.Parent as Shell;
-			if (shell != null)
+			try
 			{
-				((IShellController)shell).RemoveAppearanceObserver(this);
+				DetachAppearanceObserver();
 			}
-			base.DisconnectHandler(platformView);
+			finally
+			{
+				base.DisconnectHandler(platformView);
+			}
 		}
 
 		public static void MapTabBarIsVisible(TizenShellItemHandler handler, ShellItem item)
@@ -69,8 +95,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapCurrentItem(TizenShellItemHandler handler, ShellItem item)
 		{
-			if (item.CurrentItem != null)
-				handler.PlatformView.UpdateCurrentItem(item.CurrentItem);
+			handler.PlatformView.UpdateCurrentItem(item.CurrentItem);
 		}
 
 		public void Dispose()
@@ -81,49 +106,60 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected virtual void Dispose(bool disposing)
 		{
-			if (!_disposedValue)
-			{
-				if (disposing)
-				{
-					var platformView = PlatformView;
-					foreach (var item in VirtualView.Items)
-					{
-						if (item.Handler is IDisposable thandler)
-						{
-							thandler.Dispose();
-						}
-					}
+			if (_disposedValue)
+				return;
 
-					var shell = VirtualView.FindParentOfType<Shell>();
-					if (shell != null)
-					{
-						((IShellController)shell).RemoveAppearanceObserver(this);
-					}
+			_disposedValue = true;
+			if (!disposing)
+				return;
 
-					(this as IElementHandler)?.DisconnectHandler();
-					platformView?.Dispose();
-				}
+			var platformView = PlatformView;
+			var actions = VirtualView.Items
+				.Select(item => item.Handler)
+				.OfType<IDisposable>()
+				.Select<IDisposable, Action>(handler => handler.Dispose)
+				.ToList();
+			actions.Add(DetachAppearanceObserver);
+			actions.Add(() => (this as IElementHandler)?.DisconnectHandler());
+			if (platformView is not null)
+				actions.Add(platformView.Dispose);
 
-				_disposedValue = true;
-			}
+			ExceptionSafeCleanup.Run(actions.ToArray());
 		}
 
 		void IAppearanceObserver.OnAppearanceChanged(ShellAppearance appearance)
 		{
-			if (appearance != null)
-			{
-				var shellView = VirtualView?.FindParentOfType<Shell>()?.Handler?.PlatformView as TizenShellView;
-				shellView?.UpdateToolbarColors(appearance.ForegroundColor, appearance.BackgroundColor, appearance.TitleColor);
-			}
+			if (appearance is null)
+				return;
 
-			if (appearance is IShellAppearanceElement shellAppearance)
-			{
-				var tabBarBackgroundColor = shellAppearance.EffectiveTabBarBackgroundColor;
-				var tabBarTitleColor = shellAppearance.EffectiveTabBarTitleColor;
-				var tabBarUnselectedColor = shellAppearance.EffectiveTabBarUnselectedColor;
+			var shellView = VirtualView?.FindParentOfType<Shell>()?.Handler?.PlatformView as TizenShellView;
+			shellView?.UpdateToolbarColors(appearance.ForegroundColor, appearance.BackgroundColor, appearance.TitleColor);
 
-				// Tab bar colors are handled through appearance observer in platform view
-			}
+			PlatformView?.UpdateBottomTabBarColors(
+				appearance.BackgroundColor,
+				appearance.TitleColor,
+				appearance.UnselectedColor);
+		}
+
+		void AttachAppearanceObserver()
+		{
+			var shell = VirtualView?.FindParentOfType<Shell>();
+			if (ReferenceEquals(_observedShell, shell))
+				return;
+
+			DetachAppearanceObserver();
+			_observedShell = shell;
+			if (_observedShell is not null)
+				((IShellController)_observedShell).AddAppearanceObserver(this, VirtualView);
+		}
+
+		void DetachAppearanceObserver()
+		{
+			if (_observedShell is null)
+				return;
+
+			((IShellController)_observedShell).RemoveAppearanceObserver(this);
+			_observedShell = null;
 		}
 	}
 }

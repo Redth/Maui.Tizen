@@ -27,8 +27,7 @@
         {
           "Key": "IsSwipeEnabled",
           "Method": "MapIsSwipeEnabled",
-          "Status": "NoOp",
-          "Reason": "No-op: IsSwipeEnabled is not directly controllable on Tizen. Tizen.UIExtensions.NUI.CollectionView does not support disabling swipe/scroll gestures. The carousel is always scrollable when items are present. This mapper is declared for API completeness but performs no operation."
+          "Status": "Supported"
         },
         {
           "Key": "PeekAreaInsets",
@@ -49,7 +48,8 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenCollectionViewHandler",
@@ -58,7 +58,8 @@
       "NeutralHandler": "Microsoft.Maui.Controls.Handlers.Items.CollectionViewHandler",
       "PropertyMappers": [],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenFlyoutViewHandler",
@@ -108,7 +109,8 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenGroupableItemsViewHandler",
@@ -132,7 +134,8 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenItemsViewHandler",
@@ -162,20 +165,17 @@
         {
           "Key": "RemainingItemsThreshold",
           "Method": "MapRemainingItemsThreshold",
-          "Status": "NoOp",
-          "Reason": "No-op: RemainingItemsThreshold is not supported on Tizen. Tizen.UIExtensions.NUI.CollectionView does not currently expose an API for threshold-based notifications when approaching the end of content."
+          "Status": "Supported"
         },
         {
           "Key": "HorizontalScrollBarVisibility",
           "Method": "MapHorizontalScrollBarVisibility",
-          "Status": "NoOp",
-          "Reason": "No-op: HorizontalScrollBarVisibility is not configurable on Tizen CollectionView."
+          "Status": "Supported"
         },
         {
           "Key": "VerticalScrollBarVisibility",
           "Method": "MapVerticalScrollBarVisibility",
-          "Status": "NoOp",
-          "Reason": "No-op: VerticalScrollBarVisibility is not configurable on Tizen CollectionView."
+          "Status": "Supported"
         },
         {
           "Key": "ItemsUpdatingScrollMode",
@@ -196,7 +196,8 @@
           "Status": "Supported"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenMenuBarHandler",
@@ -210,8 +211,34 @@
           "Reason": "Unsupported: IsEnabled has no effect because Tizen NUI ships no menu bar widget, so there is no menu bar surface whose interactivity could be toggled."
         }
       ],
-      "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "CommandMappers": [
+        {
+          "Key": "Add",
+          "Method": "MapCollectionChange",
+          "Status": "NoOp",
+          "Reason": "Add, Remove, Clear, and Insert cannot change a native menu bar because Tizen NUI exposes no menu bar surface."
+        },
+        {
+          "Key": "Remove",
+          "Method": "MapCollectionChange",
+          "Status": "NoOp",
+          "Reason": "Add, Remove, Clear, and Insert cannot change a native menu bar because Tizen NUI exposes no menu bar surface."
+        },
+        {
+          "Key": "Clear",
+          "Method": "MapCollectionChange",
+          "Status": "NoOp",
+          "Reason": "Add, Remove, Clear, and Insert cannot change a native menu bar because Tizen NUI exposes no menu bar surface."
+        },
+        {
+          "Key": "Insert",
+          "Method": "MapCollectionChange",
+          "Status": "NoOp",
+          "Reason": "Add, Remove, Clear, and Insert cannot change a native menu bar because Tizen NUI exposes no menu bar surface."
+        }
+      ],
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenMenuBarItemHandler",
@@ -231,16 +258,68 @@
           "Reason": "Unsupported: IsEnabled has no effect because Tizen NUI ships no menu bar, so there is no menu bar item whose interactivity could be toggled."
         }
       ],
-      "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "CommandMappers": [
+        {
+          "Key": "Add",
+          "Method": "MapCollectionChange",
+          "Status": "NoOp",
+          "Reason": "Add, Remove, Clear, and Insert cannot change native menu-bar children because Tizen NUI exposes no menu bar surface."
+        },
+        {
+          "Key": "Remove",
+          "Method": "MapCollectionChange",
+          "Status": "NoOp",
+          "Reason": "Add, Remove, Clear, and Insert cannot change native menu-bar children because Tizen NUI exposes no menu bar surface."
+        },
+        {
+          "Key": "Clear",
+          "Method": "MapCollectionChange",
+          "Status": "NoOp",
+          "Reason": "Add, Remove, Clear, and Insert cannot change native menu-bar children because Tizen NUI exposes no menu bar surface."
+        },
+        {
+          "Key": "Insert",
+          "Method": "MapCollectionChange",
+          "Status": "NoOp",
+          "Reason": "Add, Remove, Clear, and Insert cannot change native menu-bar children because Tizen NUI exposes no menu bar surface."
+        }
+      ],
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenMenuFlyoutHandler",
       "BaseType": "ElementHandler\u003CIMenuFlyout, NView\u003E",
       "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Menu/TizenMenuHandlers.cs",
       "PropertyMappers": [],
-      "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "CommandMappers": [
+        {
+          "Key": "Add",
+          "Method": "MapCollectionChange",
+          "Status": "NoOp",
+          "Reason": "Add, Remove, Clear, and Insert cannot change native flyout children because Tizen NUI exposes no context-menu surface."
+        },
+        {
+          "Key": "Remove",
+          "Method": "MapCollectionChange",
+          "Status": "NoOp",
+          "Reason": "Add, Remove, Clear, and Insert cannot change native flyout children because Tizen NUI exposes no context-menu surface."
+        },
+        {
+          "Key": "Clear",
+          "Method": "MapCollectionChange",
+          "Status": "NoOp",
+          "Reason": "Add, Remove, Clear, and Insert cannot change native flyout children because Tizen NUI exposes no context-menu surface."
+        },
+        {
+          "Key": "Insert",
+          "Method": "MapCollectionChange",
+          "Status": "NoOp",
+          "Reason": "Add, Remove, Clear, and Insert cannot change native flyout children because Tizen NUI exposes no context-menu surface."
+        }
+      ],
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenMenuFlyoutItemHandler",
@@ -261,7 +340,8 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenMenuFlyoutSeparatorHandler",
@@ -269,7 +349,8 @@
       "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Menu/TizenMenuHandlers.cs",
       "PropertyMappers": [],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenMenuFlyoutSubItemHandler",
@@ -283,15 +364,47 @@
           "Reason": "Unsupported: Text has no effect because Tizen NUI ships no context-menu primitive, so there is no submenu header to render the string into."
         }
       ],
-      "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "CommandMappers": [
+        {
+          "Key": "Add",
+          "Method": "MapCollectionChange",
+          "Status": "NoOp",
+          "Reason": "Add, Remove, Clear, and Insert cannot change native submenu children because Tizen NUI exposes no context-menu surface."
+        },
+        {
+          "Key": "Remove",
+          "Method": "MapCollectionChange",
+          "Status": "NoOp",
+          "Reason": "Add, Remove, Clear, and Insert cannot change native submenu children because Tizen NUI exposes no context-menu surface."
+        },
+        {
+          "Key": "Clear",
+          "Method": "MapCollectionChange",
+          "Status": "NoOp",
+          "Reason": "Add, Remove, Clear, and Insert cannot change native submenu children because Tizen NUI exposes no context-menu surface."
+        },
+        {
+          "Key": "Insert",
+          "Method": "MapCollectionChange",
+          "Status": "NoOp",
+          "Reason": "Add, Remove, Clear, and Insert cannot change native submenu children because Tizen NUI exposes no context-menu surface."
+        }
+      ],
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenNavigationViewHandler",
       "BaseType": "TizenViewHandler\u003CIStackNavigationView, TizenStackNavigationManager\u003E",
       "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Navigation/TizenNavigationViewHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.NavigationViewHandler",
-      "PropertyMappers": [],
+      "PropertyMappers": [
+        {
+          "Key": "Toolbar",
+          "Method": "MapToolbar",
+          "Status": "Supported"
+        }
+      ],
       "CommandMappers": [
         {
           "Key": "RequestNavigation",
@@ -299,7 +412,8 @@
           "Status": "Supported"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenReorderableItemsViewHandler",
@@ -314,7 +428,8 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenSelectableItemsViewHandler",
@@ -338,7 +453,8 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenShellHandler",
@@ -386,7 +502,17 @@
           "Status": "Supported"
         },
         {
+          "Key": "FlyoutFooterTemplate",
+          "Method": "MapFlyoutFooter",
+          "Status": "Supported"
+        },
+        {
           "Key": "FlyoutHeader",
+          "Method": "MapFlyoutHeader",
+          "Status": "Supported"
+        },
+        {
+          "Key": "FlyoutHeaderTemplate",
           "Method": "MapFlyoutHeader",
           "Status": "Supported"
         },
@@ -406,10 +532,9 @@
           "Status": "Supported"
         },
         {
-          "Key": "FlowDirection",
-          "Method": "MapFlowDirection",
-          "Status": "NoOp",
-          "Reason": "No-op: Tizen does not support FlowDirection on Shell flyout."
+          "Key": "FlyoutContentTemplate",
+          "Method": "MapFlyoutContent",
+          "Status": "Supported"
         },
         {
           "Key": "FlyoutBackgroundImage",
@@ -434,10 +559,16 @@
           "Method": "MapFlyoutIcon",
           "Status": "NoOp",
           "Reason": "No-op: Tizen does not support custom FlyoutIcon."
+        },
+        {
+          "Key": "Toolbar",
+          "Method": "MapToolbar",
+          "Status": "Supported"
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenShellItemHandler",
@@ -448,10 +579,16 @@
           "Key": "CurrentItem",
           "Method": "MapCurrentItem",
           "Status": "Supported"
+        },
+        {
+          "Key": "TabBarIsVisible",
+          "Method": "MapTabBarIsVisible",
+          "Status": "Supported"
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenShellSectionHandler",
@@ -471,7 +608,8 @@
           "Status": "Supported"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenStructuredItemsViewHandler",
@@ -510,7 +648,8 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenTabbedPageHandler",
@@ -562,8 +701,7 @@
         {
           "Key": "SelectedItem",
           "Method": "MapSelectedItem",
-          "Status": "NoOp",
-          "Reason": "No-op: SelectedItem is managed through CurrentPage. TabbedPage uses CurrentPage rather than SelectedItem. This mapper exists for API completeness but performs no operation."
+          "Status": "Supported"
         },
         {
           "Key": "CurrentPage",
@@ -590,7 +728,8 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenToolbarHandler",
@@ -639,11 +778,6 @@
           "Status": "Supported"
         },
         {
-          "Key": "DrawerToggleVisible",
-          "Method": "MapDrawerToggleVisible",
-          "Status": "Supported"
-        },
-        {
           "Key": "BarBackground",
           "Method": "MapBarBackground",
           "Status": "Supported"
@@ -656,8 +790,7 @@
         {
           "Key": "BackButtonEnabled",
           "Method": "MapBackButtonEnabled",
-          "Status": "NoOp",
-          "Reason": "No-op: Tizen\u0027s toolbar icon has no separate enabled state. The in-tree backend simply had no mapping, which meant a silent miss. Declaring it as an explicit no-op keeps \u003Cc\u003EParity/MapperParity.json\u003C/c\u003E honest and gives the source tests something to assert against."
+          "Status": "Supported"
         },
         {
           "Key": "DynamicOverflowEnabled",
@@ -667,7 +800,8 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     }
   ]
 }

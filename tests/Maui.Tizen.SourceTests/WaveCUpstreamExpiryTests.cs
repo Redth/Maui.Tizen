@@ -36,7 +36,7 @@ public class WaveCUpstreamExpiryTests
 	{
 		// Upstream settled on an ADDITIVE capability interface rather than a new IToolbar member, so
 		// watching IToolbar alone would never fire. Both shapes are checked: the capability
-		// interface that #37863 proposes, and a direct IToolbar member in case review moves again.
+		// interface that #37863 merged upstream but the pinned package lacks, and a direct IToolbar member in case review moves again.
 		var capability = NeutralMaui.Core.GetType("Microsoft.Maui.IToolbarDrawerToggleVisible");
 
 		Assert.True(
@@ -69,7 +69,7 @@ public class WaveCUpstreamExpiryTests
 	/// bare <c>MenuItem</c> in a flyout therefore falls back to the shell-level template.
 	/// </para>
 	/// <para>
-	/// DELIBERATELY NAME-AGNOSTIC. The proposed API has already changed shape twice while this
+	/// DELIBERATELY NAME-AGNOSTIC. The upstream API changed shape twice before merge while this
 	/// adapter sat here: first as the internal <c>GetBindableObjectWithFlyoutItemTemplate</c>, then
 	/// as a three-method contract (<c>IsFlyoutItemTemplateSet</c>,
 	/// <c>GetFlyoutItemTemplateSource</c>, <c>GetFlyoutItemTemplateProperty</c>), and it is now
@@ -78,7 +78,7 @@ public class WaveCUpstreamExpiryTests
 	/// item itself retained as the binding context. Independent review rejected the decomposed
 	/// three-member shape.
 	/// <para>
-	/// The current proposed head (6cc7f668f0) settles on a single symbol:
+	/// The merged change settles on a single symbol, which is not in the pinned package:
 	/// <c>public static DataTemplate? Shell.ResolveFlyoutItemTemplate(Shell? shell, BindableObject
 	/// flyoutItem)</c>. <see cref="ExplicitlyRecognisesTheProposedResolverSymbol"/> pins that name so
 	/// it is unmistakably covered, but the broad match below is retained rather than replaced by it:
@@ -89,8 +89,8 @@ public class WaveCUpstreamExpiryTests
 	/// Each time this test named members explicitly it silently stopped detecting anything, which is
 	/// worse than having no test at all - a green build then implies the adapter is still needed
 	/// when it may not be. It therefore stays deliberately broad and covers BOTH the rejected
-	/// three-member proposal and the expected single-resolver replacement, so no merged shape can
-	/// slip past while the design settles.
+	/// three-member draft and the merged single-resolver replacement, so no packaged shape can
+	/// slip past unnoticed.
 	/// </para>
 	/// </para>
 	/// <para>
@@ -222,7 +222,7 @@ public class WaveCUpstreamExpiryTests
 
 
 	/// <summary>
-	/// Pins the exact symbol proposed by the current dotnet/maui#37862 head.
+	/// Pins the merged dotnet/maui#37862 symbol that the pinned package does not yet expose.
 	/// </summary>
 	/// <remarks>
 	/// Belt and braces alongside the concept match: if the API merges under this name, this asserts
@@ -235,7 +235,7 @@ public class WaveCUpstreamExpiryTests
 
 		Assert.True(
 			IsNewFlyoutTemplateContractMember(ProposedSymbol),
-			$"The detector must recognise '{ProposedSymbol}', the symbol proposed by dotnet/maui#37862 "
+			$"The detector must recognise '{ProposedSymbol}', the symbol merged by dotnet/maui#37862 but absent from the pinned package "
 				+ "head 6cc7f668f0.");
 
 		// And it must not yet exist on the referenced package - adoption waits for merge AND a

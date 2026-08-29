@@ -103,9 +103,29 @@
              LinkBase="WaveCAdapters" />
     <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ItemSelectionState.cs"
              LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/BidirectionalUpdateGate.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/SelectionProposalCoordinator.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/OwnedReplacementCoordinator.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/RawSelectionProjection.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ViewportConstraint.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ExceptionSafeCleanup.cs"
+             LinkBase="WaveCAdapters" />
     <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ItemSelectionSynchronizer.cs"
              LinkBase="WaveCAdapters" />
     <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ShellSectionViewCache.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ShellRootMountCoordinator.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenGroupItemSource.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Platform/Shell/TizenItemAppearance.cs"
              LinkBase="WaveCAdapters" />
   </ItemGroup>
 

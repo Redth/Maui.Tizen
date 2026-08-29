@@ -92,11 +92,28 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			return new TizenTabbedPageView(VirtualView);
 		}
 
+		public override void SetVirtualView(IView view)
+		{
+			if (((IElementHandler)this).PlatformView is TizenTabbedPageView platformView
+				&& view is TabbedPage tabbedPage)
+			{
+				platformView.Rebind(tabbedPage);
+			}
+
+			base.SetVirtualView(view);
+		}
+
 		/// <inheritdoc/>
 		protected override void DisconnectHandler(NView platformView)
 		{
-			PlatformView?.DisconnectHandler();
-			base.DisconnectHandler(platformView);
+			try
+			{
+				PlatformView?.DisconnectHandler();
+			}
+			finally
+			{
+				base.DisconnectHandler(platformView);
+			}
 		}
 
 		#region Mapper Methods
@@ -234,7 +251,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </remarks>
 		public static void MapSelectedItem(TizenTabbedPageHandler handler, TabbedPage view)
 		{
-			// Selection is managed through CurrentPage
+			handler.PlatformView?.UpdateCurrentPage();
 		}
 
 		/// <summary>

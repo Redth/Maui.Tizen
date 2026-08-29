@@ -1,5 +1,6 @@
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Handlers;
+using Microsoft.Maui.Platforms.Tizen.Adapters;
 using Microsoft.Maui.Platforms.Tizen.Platform;
 using Tizen.UIExtensions.NUI;
 using NView = Tizen.NUI.BaseComponents.View;
@@ -23,6 +24,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// </remarks>
 	public class TizenCarouselViewHandler : TizenItemsViewHandler<CarouselView>
 	{
+		readonly CarouselFeedbackCoordinator _feedback = new();
 		/// <summary>
 		/// Property mapper for <see cref="CarouselView"/>.
 		/// </summary>
@@ -85,7 +87,40 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void ConnectHandler(NView platformView)
 		{
 			base.ConnectHandler(platformView);
-			UpdateItemsLayout();
+			try
+			{
+				if (PlatformView is { } carousel)
+					carousel.Scrolled += OnCarouselScrolled;
+				UpdateItemsLayout();
+				UpdateIsSwipeEnabled();
+				UpdateCurrentItemFromManaged();
+			}
+			catch
+			{
+				if (PlatformView is { } carousel)
+					carousel.Scrolled -= OnCarouselScrolled;
+				base.DisconnectHandler(platformView);
+				throw;
+			}
+		}
+
+		protected override void DisconnectHandler(NView platformView)
+		{
+			try
+			{
+				if (PlatformView is { } carousel)
+					carousel.Scrolled -= OnCarouselScrolled;
+			}
+			finally
+			{
+				base.DisconnectHandler(platformView);
+			}
+		}
+
+		protected override void OnAdaptorInstalled()
+		{
+			base.OnAdaptorInstalled();
+			UpdateCurrentItemFromManaged();
 		}
 
 		protected virtual void UpdateItemsLayout()
@@ -100,7 +135,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </summary>
 		public static void MapCurrentItem(TizenCarouselViewHandler handler, CarouselView view)
 		{
-			handler.PlatformView?.UpdateCurrentItem(view.CurrentItem);
+			handler.UpdateCurrentItemFromManaged();
 		}
 
 		/// <summary>
@@ -108,7 +143,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </summary>
 		public static void MapPosition(TizenCarouselViewHandler handler, CarouselView view)
 		{
-			handler.PlatformView?.UpdatePosition(view.Position);
+			handler.UpdatePositionFromManaged();
 		}
 
 		/// <summary>
@@ -124,16 +159,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		/// <summary>
-		/// No-op: IsSwipeEnabled is not directly controllable on Tizen.
+		/// Maps IsSwipeEnabled to the native scroll input switch.
 		/// </summary>
 		/// <remarks>
-		/// Tizen.UIExtensions.NUI.CollectionView does not support disabling swipe/scroll gestures.
-		/// The carousel is always scrollable when items are present.
-		/// This mapper is declared for API completeness but performs no operation.
+		/// Programmatic position changes continue to work while user drag input is disabled.
 		/// </remarks>
 		public static void MapIsSwipeEnabled(TizenCarouselViewHandler handler, CarouselView view)
 		{
-			// No-op: Cannot disable swipe on Tizen CollectionView
+			handler.UpdateIsSwipeEnabled();
 		}
 
 		/// <summary>
@@ -166,6 +199,49 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public static void MapItemsLayout(TizenCarouselViewHandler handler, CarouselView view)
 		{
 			handler.UpdateItemsLayout();
+		}
+
+		void UpdateCurrentItemFromManaged()
+		{
+			if (_feedback.IsApplyingNative || PlatformView is null)
+				return;
+
+			var expectedPosition = VirtualView.CurrentItem is not null && Adaptor is not null
+				? Adaptor.GetItemIndex(VirtualView.CurrentItem)
+				: -1;
+
+			_feedback.ApplyManaged(expectedPosition, () =>
+				PlatformView.UpdateCurrentItem(VirtualView.CurrentItem));
+		}
+
+		void UpdatePositionFromManaged()
+		{
+			if (_feedback.IsApplyingNative || PlatformView is null)
+				return;
+
+			_feedback.ApplyManaged(
+				VirtualView.Position,
+				() => PlatformView.UpdatePosition(VirtualView.Position));
+		}
+
+		void UpdateIsSwipeEnabled()
+		{
+			if (PlatformView is not null)
+				PlatformView.CollectionView.ScrollView.ScrollEnabled = VirtualView.IsSwipeEnabled;
+		}
+
+		void OnCarouselScrolled(object? sender, int position)
+		{
+			if (Adaptor is null)
+				return;
+
+			_feedback.ApplyNative(
+				position,
+				Adaptor.Count,
+				index => Adaptor[index],
+				value => VirtualView.Position = value,
+				value => VirtualView.CurrentItem = value);
+			VirtualView.IsScrolling = false;
 		}
 
 		#endregion

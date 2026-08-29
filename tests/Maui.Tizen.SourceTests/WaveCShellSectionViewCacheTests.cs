@@ -83,6 +83,20 @@ public class WaveCShellSectionViewCacheTests
 		Assert.Same(firstView, reused);
 	}
 
+	[Fact]
+	public void ReapplyingCurrentSectionDoesNotUnmountIt()
+	{
+		var cache = NewCache();
+		var section = new Section("a");
+		var unmounted = 0;
+		var first = cache.SetCurrent(section, s => new PlatformView(s), _ => unmounted++);
+
+		var same = cache.SetCurrent(section, _ => throw new InvalidOperationException(), _ => unmounted++);
+
+		Assert.Same(first, same);
+		Assert.Equal(0, unmounted);
+	}
+
 	/// <summary>
 	/// Only sections that have been shown are ever created.
 	/// </summary>
@@ -413,7 +427,7 @@ public class WaveCShellContentSourceTests
 	{
 		var body = BodyOf(
 			ReadWaveCSource("TizenShellView.cs"),
-			"public void UpdateFlyoutItems");
+			"void UpdateFlyoutItemsCore");
 
 		var dispose = body.IndexOf("_flyoutAdaptor.Dispose();", StringComparison.Ordinal);
 		var replacement = body.IndexOf(
@@ -424,23 +438,27 @@ public class WaveCShellContentSourceTests
 	}
 
 	// -----------------------------------------------------------------
-	// Blocker C: Flyout appearance binding with explicit source
+	// Flyout appearance and recycled item binding
 	// -----------------------------------------------------------------
 
 	/// <summary>
-	/// Flyout item views must use explicit source for appearance bindings.
+	/// Flyout item data must bind through the current BindingContext while appearance uses the
+	/// shared appearance object.
 	/// </summary>
 	/// <remarks>
-	/// Blocker C: When the BindingContext is the flyout item, bindings to TizenItemAppearance
-	/// silently broke. The fix uses the explicit source: parameter.
+	/// Explicit item sources become stale when a native row is recycled. The item title/icon/enabled
+	/// bindings therefore use BindingContext, while the stable shared appearance source remains
+	/// explicit.
 	/// </remarks>
 	[Fact]
-	public void FlyoutAppearanceBindingsUseExplicitSource()
+	public void FlyoutBindingsSeparateRecycledItemAndSharedAppearanceSources()
 	{
-		var source = ReadWaveCSource("TizenShellFlyoutItemAdaptor.cs");
+		var source = ReadWaveCSource("TizenShellFlyoutItemView.cs");
 
-		// Must use source: parameter in SetBinding for appearance
-		Assert.Contains("source: _itemAppearance", source, StringComparison.Ordinal);
+		Assert.Contains("SetBinding(XLabel.TextProperty, nameof(BaseShellItem.Title))", source, StringComparison.Ordinal);
+		Assert.Contains("nameof(BaseShellItem.IsEnabled)", source, StringComparison.Ordinal);
+		Assert.Contains("source: appearance", source, StringComparison.Ordinal);
+		Assert.DoesNotContain("source: section", source, StringComparison.Ordinal);
 	}
 
 	/// <summary>

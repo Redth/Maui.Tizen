@@ -55,6 +55,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 		{
 			ArgumentNullException.ThrowIfNull(create);
 
+			if (ReferenceEquals(CurrentSection, section))
+				return CurrentView;
+
 			if (CurrentView is { } previous)
 			{
 				// Detached, NOT disposed: the view stays in the cache so returning to this section

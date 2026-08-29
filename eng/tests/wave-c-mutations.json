@@ -1,0 +1,132 @@
+[
+  {
+    "id": "shell-root-mount",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ShellRootMountCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCShellRootMountCoordinatorTests",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "WaveCShellRootMountCoordinatorTests",
+    "replacements": [
+      {
+        "search": "Root ??= create();\n\t\t\tif (_current is not null)\n\t\t\t\tupdate(Root, _current);",
+        "replace": "Root ??= create();\n\t\t\tif (false && _current is not null)\n\t\t\t\tupdate(Root, _current);"
+      }
+    ]
+  },
+  {
+    "id": "toolbar-transfer-order",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Toolbar/ToolbarOwnership.cs",
+    "filter": "FullyQualifiedName~WaveCToolbarOwnershipTests",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "WaveCToolbarOwnershipTests",
+    "replacements": [
+      {
+        "search": "// Always detach from the outgoing instance FIRST. After the caller hands it to\n\t\t\t// SetToolbar it may be disposed, and touching it then is undefined.\n\t\t\tRelease();",
+        "replace": "// Mutated: skip releasing the outgoing toolbar.\n\t\t\t// Release();"
+      }
+    ]
+  },
+  {
+    "id": "tab-proposal-restore",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/SelectionProposalCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCSelectionProposalCoordinatorTests",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "WaveCSelectionProposalCoordinatorTests",
+    "replacements": [
+      {
+        "search": "if (!accepted)\n\t\t\t\trestore();",
+        "replace": "if (false && !accepted)\n\t\t\t\trestore();"
+      }
+    ]
+  },
+  {
+    "id": "recycled-row-unregister",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenItemTemplateAdaptor.cs",
+    "filter": "FullyQualifiedName~WaveCItemsLifecycleSourceTests.RemovedRowsDropTheirNativeRegistrationBeforeDisposal",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "RemovedRowsDropTheirNativeRegistrationBeforeDisposal",
+    "replacements": [
+      {
+        "search": "if (UnregisterNativeView(native) is { } view)",
+        "replace": "if (GetRegisteredView(native) is { } view)"
+      }
+    ]
+  },
+  {
+    "id": "group-inner-observation",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenGroupItemSource.cs",
+    "filter": "FullyQualifiedName~WaveCGroupedItemsSourceTests.InnerAddRaisesFlattenedAddAfterHeader",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "InnerAddRaisesFlattenedAddAfterHeader",
+    "replacements": [
+      {
+        "search": "group.CollectionChanged += OnInnerCollectionChanged;",
+        "replace": "// mutation: inner collection is not observed"
+      }
+    ]
+  },
+  {
+    "id": "raw-index-selection",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/RawSelectionProjection.cs",
+    "filter": "FullyQualifiedName~WaveCRawSelectionProjectionTests.RejectsHeaderAndFooterIndexesBeforeProjectingItems",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "RejectsHeaderAndFooterIndexesBeforeProjectingItems",
+    "replacements": [
+      {
+        "search": ".Where(isSelectable)",
+        "replace": ".Where(_ => true)"
+      }
+    ]
+  },
+  {
+    "id": "adaptor-replacement-order",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/OwnedReplacementCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCOwnedReplacementCoordinatorTests.ReplacementUsesRequiredOwnershipOrder",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "ReplacementUsesRequiredOwnershipOrder",
+    "replacements": [
+      {
+        "search": "Capture(detachNative, ref errors);",
+        "replace": "// mutation: native ownership was not detached"
+      }
+    ]
+  },
+  {
+    "id": "carousel-feedback",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCItemsScrollCoordinatorTests.CarouselNativeFeedbackIsBidirectionalAndBoundsChecked",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "CarouselNativeFeedbackIsBidirectionalAndBoundsChecked",
+    "replacements": [
+      {
+        "search": "setCurrentItem(getItem(position));",
+        "replace": "// mutation: CurrentItem was not updated"
+      }
+    ]
+  },
+  {
+    "id": "mapper-member-access",
+    "file": "tests/Maui.Tizen.SourceTests/WaveBSource.cs",
+    "filter": "FullyQualifiedName~WaveCMapperParserTests.ParserSeparatesPropertyAndCommandKeysAndResolvesMemberAccess",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "ParserSeparatesPropertyAndCommandKeysAndResolvesMemberAccess",
+    "replacements": [
+      {
+        "search": "member.Name.Identifier.Text == \"PropertyName\"",
+        "replace": "false && member.Name.Identifier.Text == \"PropertyName\""
+      }
+    ]
+  },
+  {
+    "id": "command-mapper-omission",
+    "file": "src/Maui.Tizen.Controls/Navigation/Handlers/Navigation/TizenNavigationViewHandler.cs",
+    "filter": "FullyQualifiedName~WaveCMapperParserTests.NavigationCommandMapperCoversNeutralCommands",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "NavigationCommandMapperCoversNeutralCommands",
+    "replacements": [
+      {
+        "search": "[nameof(IStackNavigation.RequestNavigation)] = RequestNavigation,",
+        "replace": "// mutation: RequestNavigation omitted"
+      }
+    ]
+  }
+]

@@ -48,11 +48,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(Toolbar.ToolbarItems)] = MapToolbarItems,
 				[nameof(Toolbar.BackButtonTitle)] = MapBackButtonTitle,
 
-				// Upstream dotnet/maui#37863 adds Toolbar.MapDrawerToggleVisible for the additive
-				// IToolbarDrawerToggleVisible capability. A literal rather than a constant reference so
-				// the parity generator can extract the key; the string is identical either way, so this
-				// becomes nameof(IToolbarDrawerToggleVisible.DrawerToggleVisible) on adoption.
-				["DrawerToggleVisible"] = MapDrawerToggleVisible,
 				[nameof(Toolbar.BarBackground)] = MapBarBackground,
 				[nameof(Toolbar.BarTextColor)] = MapBarTextColor,
 				[nameof(Toolbar.BackButtonEnabled)] = MapBackButtonEnabled,
@@ -86,56 +81,25 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			var outgoing = _titleIconLoader;
 			_titleIconLoader = replacement;
 
-			try
-			{
-				outgoing.Dispose();
-			}
-			finally
-			{
-				try
-				{
-					DisposeActionIconLoaders();
-				}
-				finally
-				{
-					base.ConnectHandler(platformView);
-					platformView.IconPressed += OnIconPressed;
-				}
-			}
+			ExceptionSafeCleanup.Run(
+				outgoing.Dispose,
+				DisposeActionIconLoaders,
+				() => base.ConnectHandler(platformView),
+				() => platformView.IconPressed += OnIconPressed);
 		}
 
 		protected override void DisconnectHandler(TizenToolbarView platformView)
 		{
-			try
-			{
-				_titleIconLoader.Dispose();
-			}
-			finally
-			{
-				try
+			ExceptionSafeCleanup.Run(
+				_titleIconLoader.Dispose,
+				DisposeActionIconLoaders,
+				() =>
 				{
-					DisposeActionIconLoaders();
-				}
-				finally
-				{
-					try
-					{
-						if (platformView.HasBody())
-							platformView.IconPressed -= OnIconPressed;
-					}
-					finally
-					{
-						try
-						{
-							DisposeTitleView();
-						}
-						finally
-						{
-							base.DisconnectHandler(platformView);
-						}
-					}
-				}
-			}
+					if (platformView.HasBody())
+						platformView.IconPressed -= OnIconPressed;
+				},
+				DisposeTitleView,
+				() => base.DisconnectHandler(platformView));
 		}
 
 		public static void MapTitle(TizenToolbarHandler handler, Toolbar toolbar)
@@ -160,18 +124,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public static void MapTitleIcon(TizenToolbarHandler handler, Toolbar toolbar)
 			=> handler.UpdateNavigationIcon(toolbar);
 
-		/// <summary>
-		/// Redraws the leading icon when the drawer-toggle capability changes.
-		/// </summary>
-		/// <remarks>
-		/// The capability is read-only, so this maps a notification rather than applying a value.
-		/// Rendering uses back-precedence: <see cref="IToolbar.BackButtonVisible"/> wins, and the
-		/// drawer toggle is drawn only when no back button is showing. The capability itself stays
-		/// true while a back button is up - the two are not mutually exclusive.
-		/// </remarks>
-		public static void MapDrawerToggleVisible(TizenToolbarHandler handler, Toolbar toolbar)
-			=> handler.UpdateNavigationIcon(toolbar);
-
 		public static void MapTitleView(TizenToolbarHandler handler, Toolbar toolbar)
 			=> handler.UpdateTitleView(toolbar);
 
@@ -188,16 +140,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			=> handler.PlatformView.UpdateBarIconColor(toolbar.IconColor);
 
 		/// <summary>
-		/// No-op: Tizen's toolbar icon has no separate enabled state.
+		/// Re-evaluates the leading icon; press handling checks BackButtonEnabled before navigating.
 		/// </summary>
 		/// <remarks>
-		/// The in-tree backend simply had no mapping, which meant a silent miss. Declaring it as an
-		/// explicit no-op keeps <c>Parity/MapperParity.json</c> honest and gives the source tests
-		/// something to assert against.
+		/// NUI has no separate disabled visual for the back glyph, but the interaction contract is
+		/// still enforced by <see cref="OnIconPressed"/>.
 		/// </remarks>
-		public static void MapBackButtonEnabled(TizenToolbarHandler handler, Toolbar toolbar)
-		{
-		}
+		public static void MapBackButtonEnabled(TizenToolbarHandler handler, Toolbar toolbar) =>
+			handler.UpdateNavigationIcon(toolbar);
 
 		/// <summary>
 		/// No-op: DynamicOverflowEnabled has no effect because Tizen always collapses secondary
@@ -222,8 +172,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// On adoption this collapses to a pattern match on the toolbar alone.
 		/// </para>
 		/// </remarks>
-		bool GetDrawerToggleVisible(Toolbar toolbar)
-			=> ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, owner: null);
+		bool GetDrawerToggleVisible(Toolbar toolbar, IFlyoutView? owner = null)
+			=> ToolbarDrawerToggle.GetDrawerToggleVisible(toolbar, owner);
 
 		void UpdateTitleView(Toolbar toolbar)
 		{
@@ -250,9 +200,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			PlatformView.Content = platformTitleView;
 		}
 
-		internal void UpdateNavigationIcon(Toolbar toolbar)
+		internal void UpdateNavigationIcon(Toolbar toolbar, IFlyoutView? owner = null)
 		{
-			var drawerToggleVisible = GetDrawerToggleVisible(toolbar);
+			var drawerToggleVisible = GetDrawerToggleVisible(toolbar, owner);
 			var kind = TizenToolbarNavigationSlot.GetNavigationIconKind(toolbar, drawerToggleVisible);
 
 			PlatformView.UpdateBackButton(toolbar, drawerToggleVisible);
@@ -331,7 +281,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			var replacement = new TizenImageLoader<TizenImageSource>();
 			var outgoing = _titleIconLoader;
 			_titleIconLoader = replacement;
-			outgoing.Dispose();
+			ExceptionSafeCleanup.Run(outgoing.Dispose);
 		}
 
 		void DisposeActionIconLoaders()
@@ -374,7 +324,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		async void OnIconPressed(object? sender, EventArgs args)
 		{
-			if (VirtualView is { BackButtonVisible: true, IsVisible: true })
+			if (ToolbarDrawerToggle.ShouldNavigateBack(VirtualView))
 			{
 				// Delay so that other handlers attached to the same press (for example a
 				// FlyoutPage's own back handling) observe it before the pop happens.

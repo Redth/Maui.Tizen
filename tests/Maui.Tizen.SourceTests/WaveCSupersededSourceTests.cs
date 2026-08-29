@@ -81,8 +81,6 @@ public class WaveCSupersededSourceTests
 
 		foreach (var superseded in Superseded())
 		{
-			var fileName = Path.GetFileName(superseded);
-
 			foreach (var buildFile in buildFiles)
 			{
 				var text = File.ReadAllText(buildFile);
@@ -92,9 +90,10 @@ public class WaveCSupersededSourceTests
 				foreach (var line in text.Split('\n'))
 				{
 					if (line.Contains("<Compile", StringComparison.Ordinal)
-						&& line.Contains(fileName, StringComparison.Ordinal))
+						&& (line.Contains(superseded, StringComparison.Ordinal)
+							|| line.Contains(superseded.Replace('/', '\\'), StringComparison.Ordinal)))
 					{
-						offenders.Add($"{Path.GetRelativePath(RepoPaths.Root, buildFile)} compiles superseded {fileName}");
+						offenders.Add($"{Path.GetRelativePath(RepoPaths.Root, buildFile)} compiles superseded {superseded}");
 					}
 				}
 			}

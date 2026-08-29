@@ -21,6 +21,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	{
 		bool _disposedValue;
 		Page? _dummyPage;
+		bool _rebinding;
+		ShellSection? _observedSection;
+		Shell? _observedShell;
 
 		public static PropertyMapper<ShellSection, TizenShellSectionHandler> Mapper =
 			new PropertyMapper<ShellSection, TizenShellSectionHandler>(ElementMapper)
@@ -43,6 +46,35 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 		}
 
+		public override void SetVirtualView(IElement view)
+		{
+			var platformView = ((IElementHandler)this).PlatformView as TizenShellSectionStackManager;
+			if (platformView is not null && view is ShellSection section)
+			{
+				DetachObservers();
+				platformView.Disconnect();
+				platformView.Connect(section);
+			}
+
+			_rebinding = platformView is not null;
+			try
+			{
+				base.SetVirtualView(view);
+			}
+			finally
+			{
+				_rebinding = false;
+			}
+
+			if (platformView is not null)
+			{
+				platformView.Connect(VirtualView);
+				AttachObservers();
+				platformView.UpdateCurrentItem(VirtualView.CurrentItem);
+				SyncNavigationStack(animated: false);
+			}
+		}
+
 		~TizenShellSectionHandler()
 		{
 			Dispose(disposing: false);
@@ -55,7 +87,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapCurrentItem(TizenShellSectionHandler handler, ShellSection item)
 		{
-			handler.SyncNavigationStack(animated: true);
+			if (handler._rebinding)
+				return;
+
+			handler.PlatformView.UpdateCurrentItem(item.CurrentItem);
+			handler.SyncNavigationStack(animated: false);
 		}
 
 		public static void RequestNavigation(TizenShellSectionHandler handler, IStackNavigation view, object? arg3)
@@ -73,31 +109,37 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override void ConnectHandler(TizenShellSectionStackManager platformView)
 		{
-			platformView.Connect(VirtualView);
-
-			// Subscribe to navigation events to honour animated flag
-			((IShellSectionController)VirtualView).NavigationRequested += OnNavigationRequested;
-
-			var shell = VirtualView.FindParentOfType<Shell>();
-			if (shell != null)
-			{
-				((IShellController)shell).AddAppearanceObserver(this, (Element)VirtualView);
-			}
-
 			base.ConnectHandler(platformView);
+			try
+			{
+				platformView.Connect(VirtualView);
+
+				AttachObservers();
+
+				platformView.UpdateCurrentItem(VirtualView.CurrentItem);
+				SyncNavigationStack(animated: false);
+			}
+			catch
+			{
+				DetachObservers();
+				platformView.Disconnect();
+				base.DisconnectHandler(platformView);
+				throw;
+			}
 		}
 
 		protected override void DisconnectHandler(TizenShellSectionStackManager platformView)
 		{
-			((IShellSectionController)VirtualView).NavigationRequested -= OnNavigationRequested;
-
-			var shell = VirtualView.FindParentOfType<Shell>();
-			if (shell != null)
+			try
 			{
-				((IShellController)shell).RemoveAppearanceObserver(this);
-			}
+				DetachObservers();
 
-			base.DisconnectHandler(platformView);
+				platformView.Disconnect();
+			}
+			finally
+			{
+				base.DisconnectHandler(platformView);
+			}
 		}
 
 		void OnNavigationRequested(object? sender, Microsoft.Maui.Controls.Internals.NavigationRequestedEventArgs e)
@@ -113,32 +155,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected virtual void Dispose(bool disposing)
 		{
-			if (!_disposedValue)
-			{
-				if (disposing)
-				{
-					var platformView = PlatformView;
-					foreach (var item in VirtualView.Items)
-					{
-						if (item.Handler is IDisposable thandler)
-						{
-							thandler.Dispose();
-						}
-					}
+			if (_disposedValue)
+				return;
 
-					((IShellSectionController)VirtualView).NavigationRequested -= OnNavigationRequested;
+			_disposedValue = true;
+			if (!disposing)
+				return;
 
-					var shell = VirtualView.FindParentOfType<Shell>();
-					if (shell != null)
-					{
-						((IShellController)shell).RemoveAppearanceObserver(this);
-					}
-
-					(this as IElementHandler)?.DisconnectHandler();
-				}
-
-				_disposedValue = true;
-			}
+			var platformView = PlatformView;
+			ExceptionSafeCleanup.Run(
+				DetachObservers,
+				() => (this as IElementHandler)?.DisconnectHandler(),
+				() => platformView?.Dispose());
 		}
 
 		/// <summary>
@@ -163,7 +191,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				pageStack.Add(VirtualView.Navigation.NavigationStack[i]);
 			}
 
-			(VirtualView as IStackNavigation).RequestNavigation(new NavigationRequest(pageStack, animated));
+			PlatformView.RequestNavigation(new NavigationRequest(pageStack, animated));
 		}
 
 		/// <summary>
@@ -171,7 +199,45 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </summary>
 		void IAppearanceObserver.OnAppearanceChanged(ShellAppearance appearance)
 		{
-			// Top tab bar appearance is handled in the shell section view
+			PlatformView?.UpdateTopTabBarColors(
+				appearance.ForegroundColor,
+				appearance.BackgroundColor,
+				appearance.TitleColor,
+				appearance.UnselectedColor);
+		}
+
+		void AttachObservers()
+		{
+			if (!ReferenceEquals(_observedSection, VirtualView))
+			{
+				_observedSection = VirtualView;
+				((IShellSectionController)_observedSection).NavigationRequested += OnNavigationRequested;
+			}
+
+			var shell = VirtualView.FindParentOfType<Shell>();
+			if (!ReferenceEquals(_observedShell, shell))
+			{
+				if (_observedShell is not null)
+					((IShellController)_observedShell).RemoveAppearanceObserver(this);
+				_observedShell = shell;
+				if (_observedShell is not null)
+					((IShellController)_observedShell).AddAppearanceObserver(this, VirtualView);
+			}
+		}
+
+		void DetachObservers()
+		{
+			if (_observedSection is not null)
+			{
+				((IShellSectionController)_observedSection).NavigationRequested -= OnNavigationRequested;
+				_observedSection = null;
+			}
+
+			if (_observedShell is not null)
+			{
+				((IShellController)_observedShell).RemoveAppearanceObserver(this);
+				_observedShell = null;
+			}
 		}
 	}
 

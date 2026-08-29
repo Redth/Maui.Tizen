@@ -144,5 +144,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </para>
 		/// </remarks>
 		void SetToolbar(TizenToolbarView toolbar);
+
+		/// <summary>Detaches and disposes the toolbar currently owned by the container.</summary>
+		void ClearToolbar();
+
+		/// <summary>Detaches <paramref name="toolbar"/> without disposing it for an ownership transfer.</summary>
+		void DetachToolbar(TizenToolbarView toolbar);
 	}
 }
