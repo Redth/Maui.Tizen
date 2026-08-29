@@ -324,6 +324,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 				&& !isFocused
 				&& string.IsNullOrEmpty(query);
 
+		public static bool ShouldFocusNative(bool requested, bool searchEnabled, bool searchBoxHidden) =>
+			requested && searchEnabled && !searchBoxHidden;
+
 		public static double ConstrainHeight(double measuredHeight, double screenHeight) =>
 			Math.Min(Math.Max(0, measuredHeight), Math.Max(0, screenHeight) / 2);
 	}
@@ -335,5 +338,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 
 		public static bool CanProject(int index, int logicalCount) =>
 			index >= 0 && index < logicalCount;
+	}
+
+	internal static class CarouselPositionDecision
+	{
+		public static bool ShouldScroll(int targetIndex, int lastPosition) =>
+			targetIndex != lastPosition;
+
+		public static bool StartsScrolling(bool shouldScroll, bool animate) =>
+			shouldScroll && animate;
 	}
 }

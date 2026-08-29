@@ -37,9 +37,12 @@ public class WaveCDataTemplateResolverTests
 			path => Path.GetFileName(path) == "TizenEmptyItemAdaptor.cs"));
 		var decorations = File.ReadAllText(WaveCSource.Files.Single(
 			path => Path.GetFileName(path) == "TizenHeaderFooterPresenter.cs"));
+		var ungrouped = File.ReadAllText(WaveCSource.Files.Single(
+			path => Path.GetFileName(path) == "TizenItemTemplateAdaptor.cs"));
 
 		Assert.Contains("CreateViewFromTemplate", empty, StringComparison.Ordinal);
 		Assert.Contains("CreateViewFromTemplate", decorations, StringComparison.Ordinal);
+		Assert.Equal(2, ungrouped.Split("CreateViewFromTemplate").Length - 1);
 		Assert.DoesNotContain("EmptyViewTemplate.CreateContent", empty, StringComparison.Ordinal);
 		Assert.DoesNotContain("template?.CreateContent", decorations, StringComparison.Ordinal);
 	}

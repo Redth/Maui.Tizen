@@ -45,14 +45,43 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				app.Services.GetRequiredService<IMauiHandlersFactory>().GetHandler(typeof(ShellSection)));
 			handler.SetMauiContext(new MauiContext(app.Services));
 			handler.SetVirtualView(section);
+			Assert.Equal(1, handler.PlatformView.NavigationRequests);
 			handler.PlatformView.Calls.Clear();
 
 			TizenShellSectionHandler.MapCurrentItem(handler, section);
 
 			Assert.Same(content, handler.PlatformView.CurrentItem);
 			Assert.True(handler.PlatformView.CurrentItemUpdates > 0);
-			Assert.True(handler.PlatformView.NavigationRequests > 0);
-			Assert.Equal(["current", "navigation"], handler.PlatformView.Calls);
+			Assert.Equal(2, handler.PlatformView.NavigationRequests);
+			Assert.Equal(["current", "navigation", "finish"], handler.PlatformView.Calls);
+		}
+
+		[Fact]
+		public void ShellSectionNavigationUsesTheVirtualRequestCompletionHandshakeOnce()
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<TestApplication>()
+				.Build();
+			var dispatched = 0;
+			var commands = new CommandMapper<ShellSection, TizenShellSectionHandler>(
+				TizenShellSectionHandler.CommandMapper)
+			{
+				[nameof(IStackNavigation.RequestNavigation)] = (handler, view, args) =>
+				{
+					dispatched++;
+					TizenShellSectionHandler.RequestNavigation(handler, view, args);
+				},
+			};
+			var section = new ShellSection();
+			section.Items.Add(new ShellContent { Content = new ContentPage() });
+			var handler = new TizenShellSectionHandler(TizenShellSectionHandler.Mapper, commands);
+			handler.SetMauiContext(new MauiContext(app.Services));
+
+			handler.SetVirtualView(section);
+
+			Assert.Equal(1, dispatched);
+			Assert.Equal(1, handler.PlatformView.NavigationRequests);
+			Assert.Equal(["current", "navigation", "finish"], handler.PlatformView.Calls);
 		}
 
 		[Fact]

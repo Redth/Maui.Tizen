@@ -387,19 +387,22 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (selected is Element element)
 			{
 				var shell = Shell;
+				var drawer = _navigationDrawer;
 				var controller = ShellController;
-				await _flyoutSelectionResynchronizer.RunAsync(
+				var isCurrent = await _flyoutSelectionResynchronizer.RunAsync(
 					shell,
 					() => controller.OnFlyoutItemSelectedAsync(element),
-					current => !_isDisposed && ReferenceEquals(Shell, current),
+					current => !_isDisposed
+						&& ReferenceEquals(Shell, current)
+						&& ReferenceEquals(_navigationDrawer, drawer),
 					SynchronizeFlyoutSelection).ConfigureAwait(true);
+				if (!isCurrent)
+					return;
+
+				if (shell.FlyoutBehavior == FlyoutBehavior.Flyout && drawer is not null)
+					_ = drawer.CloseAsync(true);
 			}
 
-			// Close the drawer after selection for flyout behavior
-			if (Shell.FlyoutBehavior == FlyoutBehavior.Flyout)
-			{
-				_ = _navigationDrawer?.CloseAsync(true);
-			}
 		}
 
 		void SynchronizeFlyoutSelection()

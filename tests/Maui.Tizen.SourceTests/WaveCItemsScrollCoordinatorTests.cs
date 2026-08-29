@@ -133,6 +133,21 @@ public class WaveCItemsScrollCoordinatorTests
 		Assert.Null(current);
 	}
 
+	[Theory]
+	[InlineData(2, 2, true, false, false)]
+	[InlineData(2, 1, false, true, false)]
+	[InlineData(2, 1, true, true, true)]
+	public void CarouselNoOpPositionRefreshDoesNotStartScrolling(
+		int target,
+		int last,
+		bool animate,
+		bool shouldScroll,
+		bool startsScrolling)
+	{
+		Assert.Equal(shouldScroll, CarouselPositionDecision.ShouldScroll(target, last));
+		Assert.Equal(startsScrolling, CarouselPositionDecision.StartsScrolling(shouldScroll, animate));
+	}
+
 	[Fact]
 	public void CarouselPositionWaitsForLayoutAndRetries()
 	{
@@ -280,4 +295,16 @@ public class WaveCItemsScrollCoordinatorTests
 		string query,
 		bool expected) =>
 		Assert.Equal(expected, SearchResultsLayout.IsCollapsed(visibility, focused, query));
+
+	[Theory]
+	[InlineData(true, true, false, true)]
+	[InlineData(true, false, false, false)]
+	[InlineData(true, true, true, false)]
+	[InlineData(false, true, false, false)]
+	public void SearchFocusRequiresAnEnabledVisibleRequest(
+		bool requested,
+		bool enabled,
+		bool hidden,
+		bool expected) =>
+		Assert.Equal(expected, SearchResultsLayout.ShouldFocusNative(requested, enabled, hidden));
 }

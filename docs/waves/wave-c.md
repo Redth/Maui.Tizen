@@ -24,7 +24,9 @@ no-op bodies.
 
 - `TizenShellSectionStackManager` owns one lazily-created `TizenShellSectionView` root. A current
   `ShellContent` set before root creation is applied when the root is first mounted. Later
-  `CurrentItem` mappings update the root before synchronizing the navigation stack.
+  `CurrentItem` mappings update the root before synchronizing the navigation stack. Synchronization
+  enters through `IStackNavigation.RequestNavigation`, so MAUI creates and completes the same
+  request handshake; initial connection and each current-item mapping issue exactly one request.
 - Shell item and section platform views are cached while live, unmounted without disposal during
   selection changes, and disposed when removed or during teardown.
 - Bottom-tab native changes go through `IShellItemController.ProposeSection`. Rejected proposals
@@ -143,7 +145,9 @@ reapplied when real items return.
 
 Animated navigation pops rely on `TizenNaviPage.Dispose` to detach handler-owned content before the
 native wrapper destroys its children; no wrapper is accessed after `NavigationStack.Pop(true)`
-returns. Navigation handler rebinds disconnect the old manager, suppress mapper side effects until
+returns. A completed physical pop is committed to the manager's partial stack before a superseding
+request can cancel the remainder, so the queued request plans from native truth. Navigation handler
+rebinds disconnect the old manager, suppress mapper side effects until
 the new virtual view is installed, then reconnect and resynchronize stack and toolbar. Request
 generations suppress stale completion callbacks. `TabbedPage` observes `PagesChanged`, rebuilds and
 reselects after moves, tracks every realized page handler so removed pages are disposed, and never
@@ -176,7 +180,7 @@ Shell, ShellItem, ShellSection, and NavigationPage production handlers/mappers. 
 inspect the actual pinned `Tizen.UIExtensions.NUI.ItemAdaptor` implementation to prove its
 non-generic `IList` retention and `INotifyCollectionChanged` subscription behavior.
 
-`eng/tests/wave-c-mutations.json` contains 67 mutations executed by a lock-protected runner. It
+`eng/tests/wave-c-mutations.json` contains 76 mutations executed by a lock-protected runner. It
 proves tests fail for omissions in:
 
 - Shell root mounting;

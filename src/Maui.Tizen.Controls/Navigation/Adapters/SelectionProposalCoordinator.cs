@@ -118,7 +118,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 
 		public void Invalidate() => _generation++;
 
-		public async Task RunAsync(
+		public async Task<bool> RunAsync(
 			TOwner owner,
 			Func<Task> select,
 			Func<TOwner, bool> isCurrent,
@@ -130,15 +130,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 			ArgumentNullException.ThrowIfNull(synchronize);
 
 			var generation = ++_generation;
+			var current = false;
 			try
 			{
 				await select().ConfigureAwait(true);
 			}
 			finally
 			{
-				if (generation == _generation && isCurrent(owner))
+				current = generation == _generation && isCurrent(owner);
+				if (current)
 					synchronize();
 			}
+			return current;
 		}
 	}
 

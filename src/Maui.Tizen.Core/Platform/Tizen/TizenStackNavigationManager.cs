@@ -428,6 +428,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 					// Ownership was transferred to Pop(true); drop the mapping without touching
 					// the wrapper, which is already disposed at this point.
+					_navigationStack = TizenNavigationReconciler.CommitCompletedPop(_navigationStack, page);
 					_pageMap.Remove(page);
 					ReleasePage(page);
 					if (!IsCurrentNavigationRequest)
@@ -440,6 +441,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 					// the ordinary cleanup dispose the wrapper.
 					wrapper.DetachContent();
 					PlatformNavigation.Pop(wrapper);
+					_navigationStack = TizenNavigationReconciler.CommitCompletedPop(_navigationStack, page);
 				}
 
 				ReleasePage(page);

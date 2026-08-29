@@ -115,9 +115,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				platformView.Connect(VirtualView);
 
 				AttachObservers();
-
-				platformView.UpdateCurrentItem(VirtualView.CurrentItem);
-				SyncNavigationStack(animated: false);
 			}
 			catch
 			{
@@ -191,7 +188,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				pageStack.Add(VirtualView.Navigation.NavigationStack[i]);
 			}
 
-			PlatformView.RequestNavigation(new NavigationRequest(pageStack, animated));
+			((IStackNavigation)VirtualView).RequestNavigation(new NavigationRequest(pageStack, animated));
 		}
 
 		/// <summary>

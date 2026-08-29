@@ -225,6 +225,8 @@ public class WaveCItemsLifecycleSourceTests
 		Assert.Contains("RealizedRowIndexMap<NView, View>", source, StringComparison.Ordinal);
 		Assert.DoesNotContain("Dictionary<object, View?>", source, StringComparison.Ordinal);
 		Assert.Contains("_realizedRows.Unbind(native)", source, StringComparison.Ordinal);
+		Assert.Contains("BeforeCollectionChanged += OnBeforeCollectionChanged", source, StringComparison.Ordinal);
+		Assert.Contains("_realizedRows.Apply(e)", source, StringComparison.Ordinal);
 	}
 
 	[Fact]

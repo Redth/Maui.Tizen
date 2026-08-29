@@ -96,6 +96,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			CollectionView.ScrollView.HideScrollbar = CollectionView.LayoutManager.IsHorizontal
 				? Element.HorizontalScrollBarVisibility == ScrollBarVisibility.Never
 				: Element.VerticalScrollBarVisibility == ScrollBarVisibility.Never;
+			_lastPosition = -1;
 			TryApplyPendingPosition();
 			ItemsLayoutChanged?.Invoke(this, EventArgs.Empty);
 		}
@@ -146,6 +147,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 			if (!_viewport.Update(Size.Width, Size.Height))
 				return;
+
+			_lastPosition = -1;
 			if (Element.CurrentItem is not null)
 				_deferredPosition.SetCurrentItem(Element.CurrentItem);
 			else
@@ -171,12 +174,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				item => item is null ? -1 : adaptor?.GetItemIndex(item) ?? -1,
 				(index, animate) =>
 				{
-					if (animate)
+					var shouldScroll = CarouselPositionDecision.ShouldScroll(index, _lastPosition);
+					if (CarouselPositionDecision.StartsScrolling(shouldScroll, animate))
 					{
 						_interaction.BeginAnimation();
 						ApplyInteractionState();
 					}
-					CollectionView.ScrollTo(index, animate: animate);
+					if (shouldScroll)
+					{
+						CollectionView.ScrollTo(index, animate: animate);
+						_lastPosition = index;
+					}
 					RefreshVisibleViews(index);
 				});
 		}
@@ -200,6 +208,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (_logicalItemCount == 0)
 			{
 				_deferredPosition.Clear();
+				_lastPosition = -1;
 				_firstVisibleIndex = -1;
 				_lastVisibleIndex = -1;
 				ClearVisibleViews(Element);

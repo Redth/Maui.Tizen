@@ -142,6 +142,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 	public class TizenShellSectionStackManager : IDisposable
 	{
+		IStackNavigation? _navigationView;
+
 		public List<string> Calls { get; } = new();
 		public ShellContent? CurrentItem { get; private set; }
 		public int CurrentItemUpdates { get; private set; }
@@ -150,11 +152,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		public void Connect(IElement element)
 		{
+			_navigationView = (IStackNavigation)element;
 			ConnectCount++;
 		}
 
 		public void Disconnect()
 		{
+			_navigationView = null;
 		}
 
 		public void UpdateCurrentItem(ShellContent? content)
@@ -168,6 +172,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 			Calls.Add("navigation");
 			NavigationRequests++;
+			_navigationView?.NavigationFinished(request.NavigationStack);
+			Calls.Add("finish");
 		}
 
 		public void UpdateTopTabBarColors(Color foreground, Color background, Color title, Color unselected)

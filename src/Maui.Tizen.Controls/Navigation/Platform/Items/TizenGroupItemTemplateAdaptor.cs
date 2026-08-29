@@ -41,6 +41,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				itemsView,
 				() => MauiContext,
 				() => CollectionView?.ItemMeasureInvalidated(-1));
+			_groupItemSource.BeforeCollectionChanged += OnBeforeCollectionChanged;
 			_groupItemSource.CollectionChanged += OnGroupItemsChanged;
 		}
 
@@ -234,6 +235,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 			if (_nativeMauiTable.TryGetValue(native, out View? view))
 			{
+				view.MeasureInvalidated -= OnItemMeasureInvalidated;
 				ResetBindedView(native, view);
 
 				object? bindingContext;
@@ -406,9 +408,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		void ResetBindedView(NView native, View view)
 		{
-			if (_realizedRows.TryGetIndex(view, out _))
+			if (_realizedRows.Unbind(native))
 			{
-				_realizedRows.Unbind(native);
 				_itemsView.RemoveLogicalChild(view);
 				view.BindingContext = null;
 			}
@@ -429,6 +430,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			{
 				foreach (var native in _nativeMauiTable.Keys.ToList())
 					RemoveNativeView(native);
+				_groupItemSource.BeforeCollectionChanged -= OnBeforeCollectionChanged;
 				_groupItemSource.CollectionChanged -= OnGroupItemsChanged;
 				_headerFooter.Dispose();
 				_groupItemSource.Dispose();
@@ -440,5 +442,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		void OnGroupItemsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) =>
 			ItemsChanged?.Invoke(this, EventArgs.Empty);
+
+		void OnBeforeCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) =>
+			_realizedRows.Apply(e);
 	}
 }

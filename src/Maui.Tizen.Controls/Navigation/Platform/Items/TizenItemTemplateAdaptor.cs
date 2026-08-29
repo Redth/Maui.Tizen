@@ -79,6 +79,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			new(ReferenceEqualityComparer.Instance);
 		readonly RealizedRowIndexMap<NView, View> _realizedRows = new();
 		readonly TizenObservableItemSource? _ownedItemsSource;
+		readonly ITizenIndexTransformSource? _indexTransformSource;
 		protected View? _headerCache;
 		protected View? _footerCache;
 
@@ -97,6 +98,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			Element = itemsView;
 			IsSelectable = itemsView is SelectableItemsView;
 			_ownedItemsSource = items as TizenObservableItemSource;
+			_indexTransformSource = items as ITizenIndexTransformSource;
+			if (_indexTransformSource is not null)
+				_indexTransformSource.BeforeCollectionChanged += OnBeforeCollectionChanged;
 		}
 
 		/// <summary>
@@ -313,6 +317,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 			if (_nativeMauiTable.TryGetValue(native, out View? view))
 			{
+				view.MeasureInvalidated -= OnItemMeasureInvalidated;
 				ResetBindedView(native, view);
 				view.BindingContext = this[index];
 				_realizedRows.Bind(native, index, view);
@@ -427,7 +432,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					}
 					else if (structuredItemsView.HeaderTemplate != null)
 					{
-						header = (View)structuredItemsView.HeaderTemplate.CreateContent();
+						header = structuredItemsView.HeaderTemplate.CreateViewFromTemplate(
+							structuredItemsView.Header,
+							structuredItemsView,
+							"header");
 						header.BindingContext = structuredItemsView.Header;
 					}
 					else if (structuredItemsView.Header is string str)
@@ -453,7 +461,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					}
 					else if (structuredItemsView.FooterTemplate != null)
 					{
-						footer = (View)structuredItemsView.FooterTemplate.CreateContent();
+						footer = structuredItemsView.FooterTemplate.CreateViewFromTemplate(
+							structuredItemsView.Footer,
+							structuredItemsView,
+							"footer");
 						footer.BindingContext = structuredItemsView.Footer;
 					}
 					else if (structuredItemsView.Footer is string str)
@@ -475,6 +486,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				ReleaseCachedView(ref _headerCache);
 				ReleaseCachedView(ref _footerCache);
 				_realizedRows.Clear();
+				if (_indexTransformSource is not null)
+					_indexTransformSource.BeforeCollectionChanged -= OnBeforeCollectionChanged;
 				_ownedItemsSource?.Dispose();
 			}
 			base.Dispose(disposing);
@@ -494,9 +507,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		void ResetBindedView(NView native, View view)
 		{
-			if (_realizedRows.TryGetIndex(view, out _))
+			if (_realizedRows.Unbind(native))
 			{
-				_realizedRows.Unbind(native);
 				RemoveLogicalChild(view);
 				view.BindingContext = null;
 			}
@@ -515,6 +527,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 			CollectionView?.ItemMeasureInvalidated(-1);
 		}
+
+		void OnBeforeCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) =>
+			_realizedRows.Apply(e);
 
 		void AddLogicalChild(Element element)
 		{

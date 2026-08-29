@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Linq;
 
 namespace Microsoft.Maui.Platforms.Tizen.Adapters
@@ -143,10 +144,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 			_viewIndexes[view] = index;
 		}
 
-		public void Unbind(THolder holder)
+		public bool Unbind(THolder holder)
 		{
 			if (!_holderRows.Remove(holder, out var row))
-				return;
+				return false;
 
 			if (_indexViews.TryGetValue(row.Index, out var indexedView)
 				&& ReferenceEquals(indexedView, row.View))
@@ -154,6 +155,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 				_indexViews.Remove(row.Index);
 			}
 			_viewIndexes.Remove(row.View);
+			return true;
 		}
 
 		public TView? GetView(int index) =>
@@ -161,11 +163,97 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 
 		public bool TryGetIndex(TView view, out int index) => _viewIndexes.TryGetValue(view, out index);
 
+		public void Apply(NotifyCollectionChangedEventArgs change)
+		{
+			ArgumentNullException.ThrowIfNull(change);
+
+			switch (change.Action)
+			{
+				case NotifyCollectionChangedAction.Add when change.NewStartingIndex >= 0:
+					ShiftIndexes(change.NewStartingIndex, change.NewItems?.Count ?? 0);
+					break;
+				case NotifyCollectionChangedAction.Remove when change.OldStartingIndex >= 0:
+					RemoveIndexes(change.OldStartingIndex, change.OldItems?.Count ?? 0);
+					break;
+				case NotifyCollectionChangedAction.Replace
+					when change.NewStartingIndex >= 0
+						&& change.NewItems?.Count == 1
+						&& change.OldItems?.Count == 1:
+					InvalidateIndex(change.NewStartingIndex);
+					break;
+				default:
+					InvalidateIndexes();
+					break;
+			}
+		}
+
 		public void Clear()
 		{
 			_holderRows.Clear();
 			_indexViews.Clear();
 			_viewIndexes.Clear();
+		}
+
+		void ShiftIndexes(int startIndex, int count)
+		{
+			if (count <= 0)
+				return;
+
+			foreach (var holder in _holderRows.Keys.ToList())
+			{
+				var row = _holderRows[holder];
+				if (row.Index >= startIndex)
+					_holderRows[holder] = (row.Index + count, row.View);
+			}
+			RebuildIndexes();
+		}
+
+		void RemoveIndexes(int startIndex, int count)
+		{
+			if (count <= 0)
+				return;
+
+			var endIndex = startIndex + count;
+			foreach (var holder in _holderRows.Keys.ToList())
+			{
+				var row = _holderRows[holder];
+				if (row.Index >= startIndex && row.Index < endIndex)
+				{
+					_indexViews.Remove(row.Index);
+					_viewIndexes.Remove(row.View);
+					_holderRows[holder] = (-1, row.View);
+				}
+				else if (row.Index >= endIndex)
+				{
+					_holderRows[holder] = (row.Index - count, row.View);
+				}
+			}
+			RebuildIndexes();
+		}
+
+		void InvalidateIndex(int index)
+		{
+			if (_indexViews.Remove(index, out var view))
+				_viewIndexes.Remove(view);
+		}
+
+		void InvalidateIndexes()
+		{
+			_indexViews.Clear();
+			_viewIndexes.Clear();
+		}
+
+		void RebuildIndexes()
+		{
+			_indexViews.Clear();
+			_viewIndexes.Clear();
+			foreach (var row in _holderRows.Values)
+			{
+				if (row.Index < 0 || _viewIndexes.ContainsKey(row.View))
+					continue;
+				_indexViews[row.Index] = row.View;
+				_viewIndexes[row.View] = row.Index;
+			}
 		}
 	}
 }

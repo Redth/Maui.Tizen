@@ -7,10 +7,15 @@ using Microsoft.Maui.Controls;
 
 namespace Microsoft.Maui.Platforms.Tizen.Platform
 {
+	internal interface ITizenIndexTransformSource
+	{
+		event NotifyCollectionChangedEventHandler? BeforeCollectionChanged;
+	}
+
 	/// <summary>
 	/// Observable flattened view of a grouped ItemsSource, including configured group decorations.
 	/// </summary>
-	internal sealed class TizenGroupItemSource : IList, IReadOnlyList<object>, INotifyCollectionChanged, IDisposable
+	internal sealed class TizenGroupItemSource : IList, IReadOnlyList<object>, INotifyCollectionChanged, ITizenIndexTransformSource, IDisposable
 	{
 		readonly IEnumerable _source;
 		readonly bool _hasGroupHeader;
@@ -34,6 +39,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		}
 
 		public event NotifyCollectionChangedEventHandler? CollectionChanged;
+
+		public event NotifyCollectionChangedEventHandler? BeforeCollectionChanged;
 
 		public int Count => _items.Count;
 
@@ -393,9 +400,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		void Raise(NotifyCollectionChangedEventArgs args)
 		{
 			var handlers = CollectionChanged;
+			RaiseHandlers(BeforeCollectionChanged, args);
+			if (_disposed)
+				return;
+			RaiseHandlers(handlers, args);
+		}
+
+		void RaiseHandlers(NotifyCollectionChangedEventHandler? handlers, NotifyCollectionChangedEventArgs args)
+		{
 			if (_disposed || handlers is null)
 				return;
-
 			foreach (NotifyCollectionChangedEventHandler handler in handlers.GetInvocationList())
 			{
 				if (_disposed)
@@ -430,6 +444,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			foreach (var subscription in _innerSubscriptions)
 				subscription.CollectionChanged -= OnInnerCollectionChanged;
 			_innerSubscriptions.Clear();
+			BeforeCollectionChanged = null;
 			CollectionChanged = null;
 		}
 
@@ -448,7 +463,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		}
 	}
 
-	internal sealed class TizenObservableItemSource : IList, INotifyCollectionChanged, IDisposable
+	internal sealed class TizenObservableItemSource : IList, INotifyCollectionChanged, ITizenIndexTransformSource, IDisposable
 	{
 		readonly IEnumerable _source;
 		IList _items;
@@ -465,6 +480,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		}
 
 		public event NotifyCollectionChangedEventHandler? CollectionChanged;
+
+		public event NotifyCollectionChangedEventHandler? BeforeCollectionChanged;
 
 		public int Count => _items.Count;
 		public object? this[int index]
@@ -505,14 +522,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			};
 
 			var handlers = CollectionChanged;
+			RaiseHandlers(BeforeCollectionChanged, normalized);
+			if (_disposed)
+				return;
+			RaiseHandlers(handlers, normalized);
+		}
+
+		void RaiseHandlers(NotifyCollectionChangedEventHandler? handlers, NotifyCollectionChangedEventArgs args)
+		{
 			if (_disposed || handlers is null)
 				return;
-
 			foreach (NotifyCollectionChangedEventHandler handler in handlers.GetInvocationList())
 			{
 				if (_disposed)
 					break;
-				handler(this, normalized);
+				handler(this, args);
 			}
 		}
 
@@ -525,6 +549,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (_observable is not null)
 				_observable.CollectionChanged -= OnCollectionChanged;
 			_observable = null;
+			BeforeCollectionChanged = null;
 			CollectionChanged = null;
 		}
 	}

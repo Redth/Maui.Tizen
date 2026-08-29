@@ -86,6 +86,35 @@ public class WaveCOwnedReplacementCoordinatorTests
 		Assert.Same(secondView, rows.GetView(3));
 	}
 
+	[Fact]
+	public void RealizedRowsShiftAcrossInsertionsAndRemovals()
+	{
+		var rows = new RealizedRowIndexMap<object, object>();
+		var removedHolder = new object();
+		var shiftedHolder = new object();
+		var removedView = new object();
+		var shiftedView = new object();
+		rows.Bind(removedHolder, 2, removedView);
+		rows.Bind(shiftedHolder, 4, shiftedView);
+
+		rows.Apply(new System.Collections.Specialized.NotifyCollectionChangedEventArgs(
+			System.Collections.Specialized.NotifyCollectionChangedAction.Add,
+			new[] { new object(), new object() },
+			1));
+		Assert.Same(removedView, rows.GetView(4));
+		Assert.Same(shiftedView, rows.GetView(6));
+
+		rows.Apply(new System.Collections.Specialized.NotifyCollectionChangedEventArgs(
+			System.Collections.Specialized.NotifyCollectionChangedAction.Remove,
+			new[] { new object(), new object() },
+			3));
+		Assert.False(rows.TryGetIndex(removedView, out _));
+		Assert.Same(shiftedView, rows.GetView(4));
+		Assert.True(rows.Unbind(removedHolder));
+		Assert.True(rows.TryGetIndex(shiftedView, out var shiftedIndex));
+		Assert.Equal(4, shiftedIndex);
+	}
+
 	sealed class Resource(string name)
 	{
 		public string Name { get; } = name;

@@ -60,6 +60,19 @@ public class WaveCShellWiringTests
 		Assert.Contains("SearchResultsLayout.IsCollapsed", source, StringComparison.Ordinal);
 		Assert.Contains("SetCollapsed(false)", source, StringComparison.Ordinal);
 		Assert.Contains("UnfocusEntry();", source, StringComparison.Ordinal);
+		var refreshStart = source.IndexOf("void Refresh()", StringComparison.Ordinal);
+		var replaceStart = source.IndexOf("void ReplaceResults", refreshStart, StringComparison.Ordinal);
+		Assert.Equal(
+			1,
+			source[refreshStart..replaceStart].Split(
+				"ReplaceResults(((ISearchHandlerController)_searchHandler).ListProxy)").Length - 1);
+		var bindStart = source.IndexOf("public void Bind(", StringComparison.Ordinal);
+		var bindEnd = source.IndexOf("void Refresh()", bindStart, StringComparison.Ordinal);
+		var bind = source[bindStart..bindEnd];
+		var clearOldFocus = bind.IndexOf("previous.SetIsFocused(false)", StringComparison.Ordinal);
+		var assignNewHandler = bind.IndexOf("_searchHandler = searchHandler", StringComparison.Ordinal);
+		Assert.True(clearOldFocus >= 0 && assignNewHandler > clearOldFocus);
+		Assert.Contains("ReconcileFocus();", bind, StringComparison.Ordinal);
 		Assert.Contains("ItemSelected", source, StringComparison.Ordinal);
 	}
 
@@ -126,6 +139,10 @@ public class WaveCShellWiringTests
 		Assert.Contains("_flyoutSelectionResynchronizer.RunAsync", body, StringComparison.Ordinal);
 		Assert.Contains("HierarchySelectionResolver.Resolve", source, StringComparison.Ordinal);
 		Assert.Contains("SynchronizeFlyoutSelection", body, StringComparison.Ordinal);
+		Assert.Contains("var drawer = _navigationDrawer", body, StringComparison.Ordinal);
+		Assert.Contains("ReferenceEquals(_navigationDrawer, drawer)", body, StringComparison.Ordinal);
+		Assert.Contains("if (!isCurrent)", body, StringComparison.Ordinal);
+		Assert.Contains("drawer.CloseAsync(true)", body, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -166,13 +183,15 @@ public class WaveCShellWiringTests
 		var manager = File.ReadAllText(RepoPaths.Combine(
 			"src", "Maui.Tizen.Core", "Platform", "Tizen", "TizenStackNavigationManager.cs"));
 		var awaitPop = manager.IndexOf("await PlatformNavigation.Pop(true)", StringComparison.Ordinal);
+		var commit = manager.IndexOf("CommitCompletedPop(_navigationStack, page)", awaitPop, StringComparison.Ordinal);
 		var removal = manager.IndexOf("_pageMap.Remove(page)", awaitPop, StringComparison.Ordinal);
+		var cancellation = manager.IndexOf("if (!IsCurrentNavigationRequest)", awaitPop, StringComparison.Ordinal);
 		var nextDetach = manager.IndexOf("wrapper.DetachContent()", awaitPop, StringComparison.Ordinal);
 
 		var disposeStart = wrapper.IndexOf("protected override void Dispose", StringComparison.Ordinal);
 		var disposeBody = wrapper[disposeStart..];
 		Assert.Contains("DetachContent(resubscribe: false);", disposeBody, StringComparison.Ordinal);
-		Assert.True(awaitPop >= 0 && removal > awaitPop);
+		Assert.True(awaitPop >= 0 && commit > awaitPop && removal > commit && cancellation > removal);
 		Assert.True(nextDetach < 0 || nextDetach > manager.IndexOf("else", awaitPop, StringComparison.Ordinal));
 	}
 

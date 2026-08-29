@@ -56,7 +56,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				return;
 			}
 
+			var previous = _searchHandler;
 			DetachSearchHandler();
+			if (previous is not null)
+			{
+				UnfocusEntry();
+				previous.SetIsFocused(false);
+			}
 			_searchHandler = searchHandler;
 			_parentElement = parentElement;
 			_mauiContext = mauiContext;
@@ -74,6 +80,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			EntryUnfocused += OnEntryUnfocused;
 			SubscribeItems(_searchHandler.ItemsSource);
 			Refresh();
+			ReconcileFocus();
 		}
 
 		void Refresh()
@@ -110,7 +117,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					_updatingQuery = false;
 				}
 			}
-			ReplaceResults(((ISearchHandlerController)_searchHandler).ListProxy);
 			ReplaceResults(((ISearchHandlerController)_searchHandler).ListProxy);
 		}
 
@@ -242,6 +248,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			{
 				Refresh();
 			}
+
+			if (e.PropertyName is nameof(SearchHandler.IsFocused)
+				or nameof(SearchHandler.IsSearchEnabled)
+				or nameof(SearchHandler.SearchBoxVisibility))
+			{
+				ReconcileFocus();
+			}
 		}
 
 		void OnItemsSourceChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
@@ -323,6 +336,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					_searchHandler.SearchBoxVisibility,
 					isFocused: false,
 					_searchHandler.Query));
+		}
+
+		void ReconcileFocus()
+		{
+			if (_searchHandler is null)
+				return;
+
+			if (SearchResultsLayout.ShouldFocusNative(
+				_searchHandler.IsFocused,
+				_searchHandler.IsSearchEnabled,
+				_searchHandler.SearchBoxVisibility == SearchBoxVisibility.Hidden))
+			{
+				SetCollapsed(false);
+				if (!FocusEntry())
+					_searchHandler.SetIsFocused(false);
+			}
+			else
+			{
+				UnfocusEntry();
+			}
 		}
 
 		public override TSize Measure(double availableWidth, double availableHeight)

@@ -213,5 +213,20 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.False(generations.IsCurrent(first, owner));
 			Assert.True(generations.IsCurrent(second, owner));
 		}
+
+		[Fact]
+		public void CompletedStalePopIsCommittedBeforeQueuedRequestPlans()
+		{
+			var a = new Page("A");
+			var b = new Page("B");
+			var previous = new IView[] { a, b };
+
+			var afterPhysicalPop = TizenNavigationReconciler.CommitCompletedPop(previous, b);
+			var queued = TizenNavigationReconciler.Reconcile(afterPhysicalPop, previous);
+
+			Assert.Equal(new[] { "A" }, Names(afterPhysicalPop));
+			Assert.Empty(queued.Pops);
+			Assert.Equal(new[] { "B" }, Names(queued.Pushes));
+		}
 	}
 }

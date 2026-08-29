@@ -94,12 +94,13 @@ public class WaveCSelectionProposalCoordinatorTests
 		var owner = new object();
 		var synchronized = 0;
 
-		await coordinator.RunAsync(
+		var current = await coordinator.RunAsync(
 			owner,
 			() => Task.CompletedTask,
 			current => ReferenceEquals(current, owner),
 			() => synchronized++);
 
+		Assert.True(current);
 		Assert.Equal(1, synchronized);
 	}
 
@@ -113,7 +114,7 @@ public class WaveCSelectionProposalCoordinatorTests
 
 		coordinator.Invalidate();
 		completion.SetResult();
-		await pending;
+		Assert.False(await pending);
 
 		Assert.Equal(0, synchronized);
 	}

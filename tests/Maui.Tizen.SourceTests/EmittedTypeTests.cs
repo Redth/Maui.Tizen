@@ -194,6 +194,23 @@ public class EmittedTypeTests
 	}
 
 	[Fact]
+	public void ItemsControlPublishesTheNativeMeasurableContract()
+	{
+		using var stream = File.OpenRead(ControlsRefPackAssembly.Path);
+		using var pe = new PEReader(stream);
+		var reader = pe.GetMetadataReader();
+		var control = FindType(
+			reader,
+			"Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl`1");
+		var interfaces = control.GetInterfaceImplementations()
+			.Select(handle => reader.GetInterfaceImplementation(handle).Interface)
+			.Select(handle => TypeName(reader, handle))
+			.ToHashSet(StringComparer.Ordinal);
+
+		Assert.Contains("Tizen.UIExtensions.Common.IMeasurable", interfaces);
+	}
+
+	[Fact]
 	public void PinnedItemAdaptorRetainsIListAndSubscribesToItsNotifications()
 	{
 		var versions = XDocument.Load(RepoPaths.Combine("Directory.Packages.props"));

@@ -202,8 +202,8 @@
     "expected": "AsyncSelectionAlwaysResynchronizesAfterACanceledProposal",
     "replacements": [
       {
-        "search": "if (generation == _generation && isCurrent(owner))\n\t\t\t\t\tsynchronize();",
-        "replace": "if (generation == _generation && isCurrent(owner))\n\t\t\t\t\t{ }"
+        "search": "if (current)\n\t\t\t\t\tsynchronize();",
+        "replace": "if (false && current)\n\t\t\t\t\tsynchronize();"
       }
     ]
   },
@@ -358,8 +358,8 @@
     "expected": "DisposalFromAnInFlightResetStopsAllLaterCallbacks",
     "replacements": [
       {
-        "search": "void Raise(NotifyCollectionChangedEventArgs args)\n\t\t{\n\t\t\tvar handlers = CollectionChanged;\n\t\t\tif (_disposed || handlers is null)\n\t\t\t\treturn;\n\n\t\t\tforeach (NotifyCollectionChangedEventHandler handler in handlers.GetInvocationList())\n\t\t\t{\n\t\t\t\tif (_disposed)\n\t\t\t\t\tbreak;",
-        "replace": "void Raise(NotifyCollectionChangedEventArgs args)\n\t\t{\n\t\t\tvar handlers = CollectionChanged;\n\t\t\tif (_disposed || handlers is null)\n\t\t\t\treturn;\n\n\t\t\tforeach (NotifyCollectionChangedEventHandler handler in handlers.GetInvocationList())\n\t\t\t{\n\t\t\t\tif (false && _disposed)\n\t\t\t\t\tbreak;"
+        "search": "void RaiseHandlers(NotifyCollectionChangedEventHandler? handlers, NotifyCollectionChangedEventArgs args)\n\t\t{\n\t\t\tif (_disposed || handlers is null)\n\t\t\t\treturn;\n\t\t\tforeach (NotifyCollectionChangedEventHandler handler in handlers.GetInvocationList())\n\t\t\t{\n\t\t\t\tif (_disposed)\n\t\t\t\t\tbreak;\n\t\t\t\thandler(this, args);\n\t\t\t}\n\t\t}\n\n\t\tint GroupStart",
+        "replace": "void RaiseHandlers(NotifyCollectionChangedEventHandler? handlers, NotifyCollectionChangedEventArgs args)\n\t\t{\n\t\t\tif (_disposed || handlers is null)\n\t\t\t\treturn;\n\t\t\tforeach (NotifyCollectionChangedEventHandler handler in handlers.GetInvocationList())\n\t\t\t{\n\t\t\t\tif (false && _disposed)\n\t\t\t\t\tbreak;\n\t\t\t\thandler(this, args);\n\t\t\t}\n\t\t}\n\n\t\tint GroupStart"
       }
     ]
   },
@@ -867,6 +867,123 @@
       {
         "search": "Scrolled?.Invoke(this, currentIndex);",
         "replace": "Scrolled?.Invoke(this, -1);"
+      }
+    ]
+  },
+  {
+    "id": "shell-navigation-handshake",
+    "file": "src/Maui.Tizen.Controls/Navigation/Handlers/Shell/TizenShellSectionHandler.cs",
+    "filter": "FullyQualifiedName~WaveCShellMapperExecutionTests.ShellSectionNavigationUsesTheVirtualRequestCompletionHandshakeOnce",
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "expected": "ShellSectionNavigationUsesTheVirtualRequestCompletionHandshakeOnce",
+    "replacements": [
+      {
+        "search": "((IStackNavigation)VirtualView).RequestNavigation(new NavigationRequest(pageStack, animated));",
+        "replace": "PlatformView.RequestNavigation(new NavigationRequest(pageStack, animated));"
+      }
+    ]
+  },
+  {
+    "id": "shell-navigation-single-initial-request",
+    "file": "src/Maui.Tizen.Controls/Navigation/Handlers/Shell/TizenShellSectionHandler.cs",
+    "filter": "FullyQualifiedName~WaveCShellMapperExecutionTests.ShellSectionNavigationUsesTheVirtualRequestCompletionHandshakeOnce",
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "expected": "ShellSectionNavigationUsesTheVirtualRequestCompletionHandshakeOnce",
+    "replacements": [
+      {
+        "search": "AttachObservers();\n\t\t\t}",
+        "replace": "AttachObservers();\n\t\t\t\tSyncNavigationStack(animated: false);\n\t\t\t}"
+      }
+    ]
+  },
+  {
+    "id": "animated-pop-partial-accounting",
+    "file": "src/Maui.Tizen.Core/Platform/TizenNavigationReconciler.cs",
+    "filter": "FullyQualifiedName~NavigationReconcilerTests.CompletedStalePopIsCommittedBeforeQueuedRequestPlans",
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "expected": "CompletedStalePopIsCommittedBeforeQueuedRequestPlans",
+    "replacements": [
+      {
+        "search": "if (ReferenceEquals(updated[index], popped))",
+        "replace": "if (false && ReferenceEquals(updated[index], popped))"
+      }
+    ]
+  },
+  {
+    "id": "realized-row-index-shift",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/OwnedReplacementCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCOwnedReplacementCoordinatorTests.RealizedRowsShiftAcrossInsertionsAndRemovals",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "RealizedRowsShiftAcrossInsertionsAndRemovals",
+    "replacements": [
+      {
+        "search": "ShiftIndexes(change.NewStartingIndex, change.NewItems?.Count ?? 0);",
+        "replace": "// mutation: realized indexes are not shifted"
+      }
+    ]
+  },
+  {
+    "id": "stale-flyout-drawer-identity",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Shell/TizenShellView.cs",
+    "filter": "FullyQualifiedName~WaveCShellWiringTests.FlyoutSelectionAwaitsPublicControllerAndResynchronizesHierarchy",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "FlyoutSelectionAwaitsPublicControllerAndResynchronizesHierarchy",
+    "replacements": [
+      {
+        "search": "&& ReferenceEquals(_navigationDrawer, drawer)",
+        "replace": "&& true"
+      }
+    ]
+  },
+  {
+    "id": "search-single-results-rebuild",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Shell/TizenShellSearchView.cs",
+    "filter": "FullyQualifiedName~WaveCShellWiringTests.ShellSearchViewOwnsQueryResultsAndCommandSubscriptions",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "ShellSearchViewOwnsQueryResultsAndCommandSubscriptions",
+    "replacements": [
+      {
+        "search": "ReplaceResults(((ISearchHandlerController)_searchHandler).ListProxy);",
+        "replace": "ReplaceResults(((ISearchHandlerController)_searchHandler).ListProxy);\n\t\t\tReplaceResults(((ISearchHandlerController)_searchHandler).ListProxy);"
+      }
+    ]
+  },
+  {
+    "id": "search-focus-transfer",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Shell/TizenShellSearchView.cs",
+    "filter": "FullyQualifiedName~WaveCShellWiringTests.ShellSearchViewOwnsQueryResultsAndCommandSubscriptions",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "ShellSearchViewOwnsQueryResultsAndCommandSubscriptions",
+    "replacements": [
+      {
+        "search": "previous.SetIsFocused(false);",
+        "replace": "// mutation: old SearchHandler retains managed focus"
+      }
+    ]
+  },
+  {
+    "id": "ungrouped-multi-replace-normalization",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenGroupItemSource.cs",
+    "filter": "FullyQualifiedName~WaveCGroupedItemsSourceTests.UngroupedMoveAndMultiReplaceAreNormalizedForPinnedItemAdaptor",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "UngroupedMoveAndMultiReplaceAreNormalizedForPinnedItemAdaptor",
+    "replacements": [
+      {
+        "search": "when e.NewItems?.Count != 1 || e.OldItems?.Count != 1 =>",
+        "replace": "when false =>"
+      }
+    ]
+  },
+  {
+    "id": "carousel-noop-scrolling-state",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCItemsScrollCoordinatorTests.CarouselNoOpPositionRefreshDoesNotStartScrolling",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "CarouselNoOpPositionRefreshDoesNotStartScrolling",
+    "replacements": [
+      {
+        "search": "shouldScroll && animate;",
+        "replace": "animate;"
       }
     ]
   }
