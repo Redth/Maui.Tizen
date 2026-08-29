@@ -155,8 +155,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 					ReferenceEquals(VirtualView.PresentedContent, expectedContent));
 		}
 
-		public static void MapBackground(TizenBorderHandler handler, IBorderView border) =>
-			TizenViewMappers.MapBackground(handler, border);
+		public static void MapBackground(TizenBorderHandler handler, IBorderView border)
+		{
+			if (Platform(handler) is not null)
+				TizenViewMappers.MapBackground(handler, border);
+		}
 
 		public static void MapContent(TizenBorderHandler handler, IBorderView border) => handler.UpdateContent();
 
@@ -247,5 +250,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public static void MapStrokeMiterLimit(TizenBorderHandler handler, IBorderView border)
 		{
 		}
+
+		static TizenContentViewGroup? Platform(TizenBorderHandler handler) =>
+			!handler._disconnecting.IsDisconnecting &&
+			TizenHandlerLifecycle.TryGetLivePlatformView(handler, out TizenContentViewGroup? platformView)
+				? platformView
+				: null;
 	}
 }

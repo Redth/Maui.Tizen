@@ -132,8 +132,10 @@ checks remain only for Tizen-only wiring that cannot load on the host:
 
 `eng/tests/run-wave-b-negative-controls.sh` applies the mutations declared in
 `eng/tests/wave-b-mutations.json` one at a time, requires nonzero test discovery and the expected
-failure, restores exact original bytes in a trap, and verifies the working-tree status is unchanged.
-The canonical workload-free build invokes it.
+failure, holds a worktree-scoped exclusive lock, restores exact original bytes in a trap, and
+verifies the working-tree status is unchanged. Because mutation builds exercise canonical output
+paths, the runner finishes by rebuilding restored sources and running `--no-build` checks; mutated
+assemblies cannot survive the lane. The canonical workload-free build invokes it.
 
 These tests found three real defects during development: two missing command mappers
 (`new(...)` initialisers were not being read), and `ISwipeItemMenuItem.IconColor` having no mapper
@@ -528,6 +530,11 @@ the superseded prepared B is disposed instead. Disconnecting is marked before ch
 mapper reentry cannot touch a cleared platform view. Retained content/scroll/swipe platforms rebind
 their cached virtual view before the next mapper pass.
 
+The coupled Core `TizenContentViewHandler` now uses the same reservation, identity, disconnecting and
+rebind path. Every Wave B handler-specific mapper/command resolves its target through the shared
+live-platform gate, so child-disposal reentry after `ElementHandler` clears `PlatformView` is a
+no-op rather than a stale native access.
+
 ### Animations outlive the views they animate
 
 The swipe animation is committed under a fixed handle, so it survives a content change or a handler
@@ -552,7 +559,9 @@ this side: `TizenRefreshCoordinator` holds a restart requested during completion
 enabled/desired/connected state on the dispatcher before replay. `TizenRefreshNativeIdlePoller`
 reads the actual native `IsRefreshing` state once per frame through the dispatcher. Polling is
 bounded; timeout completes safely without authorizing replay or disposal. Repeated stop and disable
-clear pending restart intent without starting another observer.
+clear pending restart intent without starting another observer. A bounded interval is diagnostic,
+not terminal: polling re-arms while the async owner retains the native layout, and only actual idle
+advances `CompletionElapsed` or permits disposal.
 
 ### Teardown must not start an animation
 
@@ -561,7 +570,9 @@ the base class's completion animation â€” an `async void` with no cancellation â
 then touches the refresh icon the same teardown is disposing. Teardown now cancels replay, marks the
 layout disconnected, detaches content before child disposal, and retains a completing native layout
 until bounded native-state polling observes it idle. A timeout retains the platform instead of
-disposing beneath UIExtensions' private continuation.
+disposing beneath UIExtensions' private continuation. The layout also tracks the full native touch
+pull/reset lifecycle; a below-threshold release requires a conservative quiet-frame interval before
+the retained platform is released.
 
 ### Image cleanup belongs on the main loop
 

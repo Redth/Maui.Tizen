@@ -67,10 +67,35 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			handler.Dispose();
 
+			Assert.True(platform.IsDisconnected);
+			Assert.True(platform.PollingStartedAfterDisconnect);
 			Assert.False(platform.IsDisposed);
 
 			platform.NotifyNativeIdle();
 			Assert.True(SpinWait.SpinUntil(() => platform.IsDisposed, TimeSpan.FromSeconds(1)));
+		}
+
+		[Fact]
+		public void BelowThresholdPullRetainsPlatformThroughNativeResetFrames()
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<ControlsApp>()
+				.Build();
+			var view = new RefreshView { IsRefreshEnabled = true };
+			var handler = Assert.IsType<TizenRefreshViewHandler>(
+				app.Services.GetRequiredService<IMauiHandlersFactory>().GetHandler(typeof(RefreshView)));
+			var elementHandler = (IElementHandler)handler;
+			elementHandler.SetMauiContext(new MauiContext(app.Services));
+			elementHandler.SetVirtualView(view);
+			var platform = Assert.IsType<TizenRefreshLayout>(elementHandler.PlatformView);
+
+			platform.BeginBelowThresholdPull();
+			platform.ReleaseBelowThresholdPull();
+			handler.Dispose();
+
+			Assert.False(platform.IsDisposed);
+			Assert.True(SpinWait.SpinUntil(() => platform.IsDisposed, TimeSpan.FromSeconds(1)));
+			Assert.Equal(0, platform.NativeStateReadAfterDisposeCount);
 		}
 
 		sealed class ControlsApp : Application

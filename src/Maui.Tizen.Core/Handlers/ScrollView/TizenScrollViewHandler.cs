@@ -257,17 +257,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapHorizontalScrollBarVisibility(TizenScrollViewHandler handler, IScrollView scrollView)
 		{
-			handler.PlatformView?.UpdateHorizontalScrollBarVisibility(scrollView.HorizontalScrollBarVisibility);
+			Platform(handler)?.UpdateHorizontalScrollBarVisibility(scrollView.HorizontalScrollBarVisibility);
 		}
 
 		public static void MapVerticalScrollBarVisibility(TizenScrollViewHandler handler, IScrollView scrollView)
 		{
-			handler.PlatformView?.UpdateVerticalScrollBarVisibility(scrollView.VerticalScrollBarVisibility);
+			Platform(handler)?.UpdateVerticalScrollBarVisibility(scrollView.VerticalScrollBarVisibility);
 		}
 
 		public static void MapOrientation(TizenScrollViewHandler handler, IScrollView scrollView)
 		{
-			handler.PlatformView?.UpdateOrientation(scrollView.Orientation);
+			Platform(handler)?.UpdateOrientation(scrollView.Orientation);
 		}
 
 		/// <summary>
@@ -296,13 +296,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				return;
 			}
 
+			var platformView = Platform(handler);
+			if (platformView is null)
+				return;
+
 			if (scrollView.Orientation != ScrollOrientation.Neither)
 			{
 				var offset = scrollView.Orientation == ScrollOrientation.Horizontal
 					? request.HorizontalOffset
 					: request.VerticalOffset;
 
-				handler.PlatformView.ScrollTo(offset.ToPixel(), !request.Instant);
+				platformView.ScrollTo(offset.ToPixel(), !request.Instant);
 			}
 
 			// A request that cannot move the view must still complete, or the caller waits forever.
@@ -311,5 +315,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				scrollView.ScrollFinished();
 			}
 		}
+
+		static TizenScrollView? Platform(TizenScrollViewHandler handler) =>
+			TizenHandlerLifecycle.TryGetLivePlatformView(handler, out TizenScrollView? platformView)
+				? platformView
+				: null;
 	}
 }

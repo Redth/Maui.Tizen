@@ -52,6 +52,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override TizenImageView CreatePlatformView() => new TizenImageView();
 
+		public override void SetVirtualView(IView view)
+		{
+			if (!ReferenceEquals(((IElementHandler)this).VirtualView, view))
+			{
+				var replacement = new TizenImageLoader<TizenImageSource>();
+				TizenCleanup.Run(
+					_sourceEvents.Invalidate,
+					_sourceLoader.Dispose,
+					() => _sourceLoader = replacement);
+			}
+
+			base.SetVirtualView(view);
+		}
+
 		protected override void ConnectHandler(TizenImageView platformView)
 		{
 			var replacement = new TizenImageLoader<TizenImageSource>();
@@ -74,19 +88,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapBackground(TizenImageHandler handler, IImage image)
 		{
-			TizenViewMappers.MapBackground(handler, image);
+			if (Platform(handler) is not null)
+				TizenViewMappers.MapBackground(handler, image);
 		}
 
 		public static void MapAspect(TizenImageHandler handler, IImage image) =>
-			handler.PlatformView?.UpdateAspect(image);
+			Platform(handler)?.UpdateAspect(image);
 
 		public static void MapIsAnimationPlaying(TizenImageHandler handler, IImage image) =>
-			handler.PlatformView?.UpdateIsAnimationPlaying(image);
+			Platform(handler)?.UpdateIsAnimationPlaying(image);
 
 		public static void MapSource(TizenImageHandler handler, IImage image)
 		{
 #if TIZEN
-			MapSourceAsync(handler, image).FireAndForget(handler);
+			if (Platform(handler) is not null)
+				MapSourceAsync(handler, image).FireAndForget(handler);
 #endif
 		}
 
@@ -97,10 +113,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				return Task.CompletedTask;
 			}
 
+			var target = Platform(handler);
+			if (target is null)
+				return Task.CompletedTask;
+
 			var provider = handler.GetRequiredService<IImageSourceServiceProvider>();
 			var source = image.Source;
 			var virtualView = handler.VirtualView;
-			var target = handler.PlatformView;
 			var commitOnUiThread = TizenDispatchExtensions.CaptureDispatcher(handler);
 
 			return handler._sourceLoader.LoadPartAsync(
@@ -111,7 +130,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				(platformImage, token) => target.ApplyAndWaitForReadyAsync(platformImage, token),
 				() =>
 					ReferenceEquals(handler.VirtualView, virtualView) &&
-					ReferenceEquals(handler.PlatformView, target));
+					ReferenceEquals(Platform(handler), target));
 		}
+
+		static TizenImageView? Platform(TizenImageHandler handler) =>
+			TizenHandlerLifecycle.TryGetLivePlatformView(handler, out TizenImageView? platformView)
+				? platformView
+				: null;
 	}
 }

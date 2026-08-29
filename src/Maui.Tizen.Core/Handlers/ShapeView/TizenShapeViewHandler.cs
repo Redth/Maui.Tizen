@@ -67,26 +67,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapShape(TizenShapeViewHandler handler, IShapeView shapeView)
 		{
-			handler.PlatformView?.UpdateShape(shapeView);
+			Platform(handler)?.UpdateShape(shapeView);
 		}
 
-		public static void MapAspect(TizenShapeViewHandler handler, IShapeView shapeView) => handler.PlatformView?.InvalidateShape(shapeView);
+		public static void MapAspect(TizenShapeViewHandler handler, IShapeView shapeView) => Platform(handler)?.InvalidateShape(shapeView);
 
-		public static void MapFill(TizenShapeViewHandler handler, IShapeView shapeView) => handler.PlatformView?.InvalidateShape(shapeView);
+		public static void MapFill(TizenShapeViewHandler handler, IShapeView shapeView) => Platform(handler)?.InvalidateShape(shapeView);
 
-		public static void MapStroke(TizenShapeViewHandler handler, IShapeView shapeView) => handler.PlatformView?.InvalidateShape(shapeView);
+		public static void MapStroke(TizenShapeViewHandler handler, IShapeView shapeView) => Platform(handler)?.InvalidateShape(shapeView);
 
-		public static void MapStrokeThickness(TizenShapeViewHandler handler, IShapeView shapeView) => handler.PlatformView?.InvalidateShape(shapeView);
+		public static void MapStrokeThickness(TizenShapeViewHandler handler, IShapeView shapeView) => Platform(handler)?.InvalidateShape(shapeView);
 
-		public static void MapStrokeDashPattern(TizenShapeViewHandler handler, IShapeView shapeView) => handler.PlatformView?.InvalidateShape(shapeView);
+		public static void MapStrokeDashPattern(TizenShapeViewHandler handler, IShapeView shapeView) => Platform(handler)?.InvalidateShape(shapeView);
 
-		public static void MapStrokeDashOffset(TizenShapeViewHandler handler, IShapeView shapeView) => handler.PlatformView?.InvalidateShape(shapeView);
+		public static void MapStrokeDashOffset(TizenShapeViewHandler handler, IShapeView shapeView) => Platform(handler)?.InvalidateShape(shapeView);
 
-		public static void MapStrokeLineCap(TizenShapeViewHandler handler, IShapeView shapeView) => handler.PlatformView?.InvalidateShape(shapeView);
+		public static void MapStrokeLineCap(TizenShapeViewHandler handler, IShapeView shapeView) => Platform(handler)?.InvalidateShape(shapeView);
 
-		public static void MapStrokeLineJoin(TizenShapeViewHandler handler, IShapeView shapeView) => handler.PlatformView?.InvalidateShape(shapeView);
+		public static void MapStrokeLineJoin(TizenShapeViewHandler handler, IShapeView shapeView) => Platform(handler)?.InvalidateShape(shapeView);
 
-		public static void MapStrokeMiterLimit(TizenShapeViewHandler handler, IShapeView shapeView) => handler.PlatformView?.InvalidateShape(shapeView);
+		public static void MapStrokeMiterLimit(TizenShapeViewHandler handler, IShapeView shapeView) => Platform(handler)?.InvalidateShape(shapeView);
 
 		/// <summary>
 		/// The <c>StrokeDashArray</c> mapper key, contributed by Microsoft.Maui.Controls rather than
@@ -101,6 +101,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// Mirrors upstream <c>Shape.Tizen.cs</c>, which invalidates the shape. The dash array feeds
 		/// <see cref="IShapeView.StrokeDashPattern"/>, so a redraw is all that is required.
 		/// </remarks>
-		public static void MapStrokeDashArray(TizenShapeViewHandler handler, IShapeView shapeView) => handler.PlatformView?.InvalidateShape(shapeView);
+		public static void MapStrokeDashArray(TizenShapeViewHandler handler, IShapeView shapeView) => Platform(handler)?.InvalidateShape(shapeView);
+
+		static TizenShapeView? Platform(TizenShapeViewHandler handler) =>
+			TizenHandlerLifecycle.TryGetLivePlatformView(handler, out TizenShapeView? platformView)
+				? platformView
+				: null;
 	}
 }

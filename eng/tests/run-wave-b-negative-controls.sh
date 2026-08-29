@@ -6,10 +6,17 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOTNET="${DOTNET:-dotnet}"
 MANIFEST="$REPO_ROOT/eng/tests/wave-b-mutations.json"
 SCRATCH="$REPO_ROOT/artifacts/wave-b-mutations/$$"
+LOCK_ROOT="$REPO_ROOT/artifacts/locks"
+LOCK_DIR="$LOCK_ROOT/wave-b-mutations.lock"
 CURRENT_FILE=""
 CURRENT_BACKUP=""
 
 cd "$REPO_ROOT"
+mkdir -p "$LOCK_ROOT"
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  echo "Another Wave B mutation runner owns '$LOCK_DIR'." >&2
+  exit 1
+fi
 mkdir -p "$SCRATCH"
 
 restore_current() {
@@ -23,6 +30,7 @@ restore_current() {
 cleanup() {
   restore_current
   rm -rf "$SCRATCH"
+  rmdir "$LOCK_DIR" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
@@ -90,6 +98,37 @@ PY
 
   printf 'PASS %s\n' "$mutation_id"
 done
+
+# Every mutation builds into the ordinary project graph so the test runner exercises the same
+# compilation users do. Rebuild the exact restored sources before leaving, then prove --no-build
+# execution uses those clean outputs rather than a surviving mutated assembly.
+"$DOTNET" build tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj \
+  -c Release --no-restore -v:minimal >"$SCRATCH/final-core-build.log" 2>&1
+"$DOTNET" build tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj \
+  -c Release --no-restore -v:minimal >"$SCRATCH/final-source-build.log" 2>&1
+"$DOTNET" build tests/Maui.Tizen.Controls.ConsumerCompile/Maui.Tizen.Controls.ConsumerCompile.csproj \
+  -c Release --no-restore -v:minimal >"$SCRATCH/final-consumer-build.log" 2>&1
+
+"$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj \
+  -c Release --no-build --filter 'FullyQualifiedName~ReservedOperationRejectsStalePreparedReplacement' \
+  --logger 'console;verbosity=minimal' >"$SCRATCH/final-core-test.log" 2>&1
+"$DOTNET" test tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj \
+  -c Release --no-build --filter 'FullyQualifiedName~MapperParityTests.ParityManifestMatchesSource' \
+  --logger 'console;verbosity=minimal' >"$SCRATCH/final-source-test.log" 2>&1
+
+CORE_ASSEMBLY="$REPO_ROOT/artifacts/bin/Maui.Tizen.Core.UnitTests/Release/net11.0/Maui.Tizen.Core.UnitTests.dll"
+SOURCE_ASSEMBLY="$REPO_ROOT/artifacts/bin/Maui.Tizen.SourceTests/Release/net11.0/Maui.Tizen.SourceTests.dll"
+test -f "$CORE_ASSEMBLY"
+test -f "$SOURCE_ASSEMBLY"
+
+if find src tests/Maui.Tizen.Core.UnitTests -name '*.cs' -newer "$CORE_ASSEMBLY" -print -quit | grep -q .; then
+  echo "Core test output is older than restored source." >&2
+  exit 1
+fi
+if find tests/Maui.Tizen.SourceTests eng/Maui.Tizen.Core.Sources.props -newer "$SOURCE_ASSEMBLY" -print -quit | grep -q .; then
+  echo "Source-test output is older than restored inputs." >&2
+  exit 1
+fi
 
 FINAL_STATUS="$(git status --porcelain=v1)"
 if [[ "$FINAL_STATUS" != "$INITIAL_STATUS" ]]; then

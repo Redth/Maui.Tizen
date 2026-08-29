@@ -88,33 +88,33 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 		}
 
-		public Task RetainPlatformUntilCompletionAsync(Action dispose)
+		public Func<Task> PreparePlatformDisposal(Action dispose, bool retainForNativeActivity = false)
 		{
 			ArgumentNullException.ThrowIfNull(dispose);
 
-			var disposeImmediately = false;
+			bool retain;
 
 			lock (_gate)
+				retain = _state.IsCompleting || retainForNativeActivity;
+
+			if (!retain)
 			{
-				if (!_state.IsCompleting)
-					disposeImmediately = true;
+				return () =>
+				{
+					dispose();
+					return Task.CompletedTask;
+				};
 			}
 
-			if (disposeImmediately)
-			{
-				dispose();
-				return Task.CompletedTask;
-			}
-
-			return DisposeWhenNativeIdleAsync(dispose);
+			return () => DisposeWhenNativeIdleAsync(dispose);
 		}
 
 		async Task CompleteWhenNativeIdleAsync(CancellationToken token)
 		{
 			try
 			{
-				if (!await _waitForNativeIdle(token).ConfigureAwait(false))
-					return;
+				while (!await _waitForNativeIdle(token).ConfigureAwait(false))
+					token.ThrowIfCancellationRequested();
 			}
 			catch (OperationCanceledException) when (token.IsCancellationRequested)
 			{
@@ -143,8 +143,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		async Task DisposeWhenNativeIdleAsync(Action dispose)
 		{
-			if (await _waitForNativeIdle(CancellationToken.None).ConfigureAwait(false))
-				await _dispatch(dispose).ConfigureAwait(false);
+			while (!await _waitForNativeIdle(CancellationToken.None).ConfigureAwait(false))
+			{
+				// A bounded interval is diagnostic, not terminal. Keeping this async method alive
+				// retains the captured platform owner until native idle is actually observed.
+			}
+
+			await _dispatch(dispose).ConfigureAwait(false);
 		}
 
 		public void Dispose()

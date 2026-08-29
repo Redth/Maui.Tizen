@@ -13,18 +13,20 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	{
 		sealed class ManualNativeIdle
 		{
-			readonly TaskCompletionSource<bool> _completion =
-				new(TaskCreationOptions.RunContinuationsAsynchronously);
+			readonly List<TaskCompletionSource<bool>> _pending = new();
 
-			public int WaiterCount { get; private set; }
+			public int WaiterCount => _pending.Count;
 
 			public Task<bool> Wait(CancellationToken token)
 			{
-				WaiterCount++;
-				return _completion.Task.WaitAsync(token);
+				var completion = new TaskCompletionSource<bool>(
+					TaskCreationOptions.RunContinuationsAsynchronously);
+				_pending.Add(completion);
+				return completion.Task.WaitAsync(token);
 			}
 
-			public void Complete(bool observed = true) => _completion.TrySetResult(observed);
+			public void Complete(int index = 0, bool observed = true) =>
+				_pending[index].TrySetResult(observed);
 		}
 
 		static Task DispatchInline(Action action)
@@ -134,15 +136,17 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			Assert.Null(coordinator.Request(true, true));
 			var replay = coordinator.Request(false, true);
-			var retainedDisposal = coordinator.RetainPlatformUntilCompletionAsync(() => disposed++);
+			var releasePlatform = coordinator.PreparePlatformDisposal(() => disposed++);
 
 			coordinator.Dispose();
 			await replay!;
 
 			Assert.Equal(0, disposed);
-			Assert.Equal(2, nativeIdle.WaiterCount);
+			Assert.Equal(1, nativeIdle.WaiterCount);
 
-			nativeIdle.Complete();
+			var retainedDisposal = releasePlatform();
+			Assert.Equal(2, nativeIdle.WaiterCount);
+			nativeIdle.Complete(1);
 			await retainedDisposal;
 
 			Assert.Equal(1, disposed);
@@ -172,7 +176,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Fact]
-		public async Task NativeIdleTimeoutCompletesSafelyWithoutDisposingPlatform()
+		public async Task MultipleDiagnosticIntervalsRetainOwnerUntilNativeIdle()
 		{
 			var nativeIdle = new ManualNativeIdle();
 			var state = new TizenRefreshStateMachine();
@@ -182,14 +186,29 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			coordinator.ObserveNativeStart();
 			var completion = coordinator.Request(desired: false, enabled: true);
-			var retainedDisposal = coordinator.RetainPlatformUntilCompletionAsync(() => disposed++);
+			var releasePlatform = coordinator.PreparePlatformDisposal(() => disposed++);
+			var retainedDisposal = releasePlatform();
 
-			nativeIdle.Complete(observed: false);
-			await completion!;
-			await retainedDisposal;
+			nativeIdle.Complete(0, observed: false);
+			nativeIdle.Complete(1, observed: false);
+			Assert.True(SpinWait.SpinUntil(() => nativeIdle.WaiterCount >= 4, TimeSpan.FromSeconds(1)));
 
 			Assert.Equal(0, disposed);
 			Assert.True(state.IsCompleting);
+
+			nativeIdle.Complete(2, observed: false);
+			nativeIdle.Complete(3, observed: false);
+			Assert.True(SpinWait.SpinUntil(() => nativeIdle.WaiterCount >= 6, TimeSpan.FromSeconds(1)));
+
+			Assert.Equal(0, disposed);
+
+			nativeIdle.Complete(4, observed: true);
+			nativeIdle.Complete(5, observed: true);
+			await completion!;
+			await retainedDisposal;
+
+			Assert.Equal(1, disposed);
+			Assert.False(state.IsCompleting);
 
 			coordinator.Dispose();
 		}

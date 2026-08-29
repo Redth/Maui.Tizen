@@ -26,6 +26,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 		long _contentGeneration;
 		bool _disconnected;
 		const int MaximumNativeCompletionFrames = 120;
+		const int RequiredNativeQuietFrames = 120;
+		readonly TizenRefreshNativeActivity _nativeActivity = new();
+
+		public TizenRefreshLayout()
+		{
+			TouchEvent += OnNativeTouch;
+		}
 
 		public void UpdateContent(IView? content, IMauiContext? mauiContext) =>
 			UpdateContent(content, mauiContext, static () => true);
@@ -102,16 +109,35 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <summary>Prevents any late coordinator callback from touching this layout.</summary>
 		internal void MarkDisconnected() => _disconnected = true;
 
+		internal bool HasPendingNativeActivity => _nativeActivity.HasPendingActivity;
+
 		internal Task<bool> WaitForNativeIdleAsync(
 			Func<Action, Task> dispatch,
 			Func<CancellationToken, Task> nextFrame,
 			CancellationToken cancellationToken) =>
 			TizenRefreshNativeIdlePoller.WaitAsync(
-				() => IsRefreshing,
+				() => _nativeActivity.IsBusy(IsRefreshing, RequiredNativeQuietFrames),
 				dispatch,
 				nextFrame,
 				MaximumNativeCompletionFrames,
 				cancellationToken);
+
+		bool OnNativeTouch(object source, TouchEventArgs e)
+		{
+			switch (e.Touch.GetState(0))
+			{
+				case global::Tizen.NUI.PointStateType.Down:
+				case global::Tizen.NUI.PointStateType.Motion:
+					_nativeActivity.BeginPull();
+					break;
+				case global::Tizen.NUI.PointStateType.Up:
+				case global::Tizen.NUI.PointStateType.Interrupted:
+					_nativeActivity.ReleasePull();
+					break;
+			}
+
+			return false;
+		}
 
 		public void UpdateRefreshColor(IRefreshView view)
 		{

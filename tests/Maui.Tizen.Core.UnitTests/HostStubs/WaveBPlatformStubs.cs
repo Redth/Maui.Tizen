@@ -37,9 +37,12 @@ namespace Tizen.UIExtensions.NUI
 		public Microsoft.Maui.Platforms.Tizen.TizenPlatformContainer ContentContainer { get; } = new();
 
 		public Rect ScrollBound { get; set; }
+		public int ScrollToCount { get; private set; }
+		public int OrientationUpdateCount { get; set; }
 
 		public void ScrollTo(int position, bool animated)
 		{
+			ScrollToCount++;
 		}
 	}
 
@@ -229,6 +232,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		ITizenPlatformViewHandler? _contentHandler;
 		long _contentGeneration;
 		bool _disconnected;
+		readonly TizenRefreshNativeActivity _nativeActivity = new();
 
 		public event EventHandler? Refreshing
 		{
@@ -239,6 +243,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public bool IsRefreshing { get; set; }
 		public bool DelayNativeCompletion { get; set; }
 		public bool NativeIsRefreshing { get; private set; }
+		public int NativeStateReadAfterDisposeCount { get; private set; }
+		public bool HasPendingNativeActivity => _nativeActivity.HasPendingActivity;
+		public bool IsDisconnected => _disconnected;
+		public bool PollingStartedAfterDisconnect { get; private set; }
 		public TizenRefreshStateMachine RefreshState { get; } = new();
 		public TizenPlatformView? Content { get; set; }
 
@@ -280,13 +288,21 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public Task<bool> WaitForNativeIdleAsync(
 			Func<Action, Task> dispatch,
 			Func<CancellationToken, Task> nextFrame,
-			CancellationToken token) =>
-			TizenRefreshNativeIdlePoller.WaitAsync(
-				() => NativeIsRefreshing,
+			CancellationToken token)
+		{
+			PollingStartedAfterDisconnect = _disconnected;
+			return TizenRefreshNativeIdlePoller.WaitAsync(
+				() =>
+				{
+					if (IsDisposed)
+						NativeStateReadAfterDisposeCount++;
+					return _nativeActivity.IsBusy(NativeIsRefreshing, requiredQuietFrames: 3);
+				},
 				dispatch,
 				nextFrame,
 				maximumFrames: 8,
 				token);
+		}
 
 		public void RaiseRefreshing()
 		{
@@ -296,6 +312,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 		}
 
 		public void NotifyNativeIdle() => NativeIsRefreshing = false;
+
+		public void BeginBelowThresholdPull() => _nativeActivity.BeginPull();
+
+		public void ReleaseBelowThresholdPull() => _nativeActivity.ReleasePull();
 
 		public void UpdateContent(IView? content, IMauiContext? context) =>
 			UpdateContent(content, context, static () => true);
@@ -346,6 +366,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public void Rebind(ISwipeView view) => base.Rebind(view);
 
 		public int StructuralInvalidationCount { get; private set; }
+		public int OpenRequestCount { get; private set; }
+		public int CloseRequestCount { get; private set; }
 
 		public void DisposeChildHandlers()
 		{
@@ -409,10 +431,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public void OnOpenRequested(SwipeViewOpenRequest request)
 		{
+			OpenRequestCount++;
 		}
 
 		public void OnCloseRequested(SwipeViewCloseRequest request)
 		{
+			CloseRequestCount++;
 		}
 
 		public void UpdateIsVisibleSwipeItem(ISwipeItem item)
@@ -427,6 +451,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public IIndicatorView BoundView { get; private set; }
 		public bool IsShown { get; private set; }
 		public int ResetCount { get; private set; }
+		public int UpdateCountCount { get; private set; }
 
 		public void Rebind(IIndicatorView view)
 		{
@@ -439,6 +464,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public void UpdateCount()
 		{
+			UpdateCountCount++;
 			IsShown =
 				BoundView.Visibility == Visibility.Visible &&
 				!(BoundView.HideSingle && BoundView.Count <= 1);
@@ -505,6 +531,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public static void UpdateAspect(this TizenPlatformView view, IImage virtualView)
 		{
+			view.Record("WaveBAspect");
 		}
 
 		public static void UpdateIsAnimationPlaying(this TizenPlatformView view, IImage virtualView)
@@ -541,6 +568,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public static void InvalidateShape(this TizenShapeView view, IShapeView virtualView)
 		{
+			view.Record("WaveBShape");
 		}
 
 		public static void UpdateVisibility(this TizenPlatformView view, IView virtualView)
@@ -567,6 +595,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			this global::Tizen.UIExtensions.NUI.ScrollView view,
 			ScrollOrientation orientation)
 		{
+			view.OrientationUpdateCount++;
 		}
 
 		public static void UpdateText(this global::Tizen.UIExtensions.NUI.Button view, ISwipeItemMenuItem item)

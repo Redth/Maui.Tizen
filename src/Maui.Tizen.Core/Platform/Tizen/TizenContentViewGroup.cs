@@ -39,7 +39,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			_virtualView = virtualView;
 			_measureCache = default;
-			_needMeasureUpdate = true;
+			SetNeedMeasureUpdate();
 		}
 
 		/// <summary>Gets or sets the cross-platform measure callback.</summary>

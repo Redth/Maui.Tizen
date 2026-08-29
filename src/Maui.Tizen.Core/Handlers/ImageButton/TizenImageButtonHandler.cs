@@ -59,12 +59,27 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				Focusable = true,
 			};
 
+		public override void SetVirtualView(IView view)
+		{
+			if (!ReferenceEquals(((IElementHandler)this).VirtualView, view))
+			{
+				var replacement = new TizenImageLoader<TizenImageSource>();
+				TizenCleanup.Run(
+					_sourceEvents.Invalidate,
+					_sourceLoader.Dispose,
+					() => _sourceLoader = replacement);
+			}
+
+			base.SetVirtualView(view);
+		}
+
 		protected override void ConnectHandler(TizenImageButtonView platformView)
 		{
 			var replacement = new TizenImageLoader<TizenImageSource>();
 
 			TizenCleanup.Run(
 				_sourceEvents.Invalidate,
+				() => platformView.ResourceUrl = null,
 				_sourceLoader.Dispose,
 				() => _sourceLoader = replacement,
 				() => base.ConnectHandler(platformView),
@@ -103,15 +118,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		void OnClicked(object? sender, EventArgs e) => VirtualView?.Clicked();
 
 		public static void MapAspect(TizenImageButtonHandler handler, IImageButton imageButton) =>
-			handler.PlatformView?.UpdateAspect(imageButton);
+			Platform(handler)?.UpdateAspect(imageButton);
 
 		public static void MapIsAnimationPlaying(TizenImageButtonHandler handler, IImageButton imageButton) =>
-			handler.PlatformView?.UpdateIsAnimationPlaying(imageButton);
+			Platform(handler)?.UpdateIsAnimationPlaying(imageButton);
 
 		public static void MapSource(TizenImageButtonHandler handler, IImageButton imageButton)
 		{
 #if TIZEN
-			MapSourceAsync(handler, imageButton).FireAndForget(handler);
+			if (Platform(handler) is not null)
+				MapSourceAsync(handler, imageButton).FireAndForget(handler);
 #endif
 		}
 
@@ -122,10 +138,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				return Task.CompletedTask;
 			}
 
+			var target = Platform(handler);
+			if (target is null)
+				return Task.CompletedTask;
+
 			var provider = handler.GetRequiredService<IImageSourceServiceProvider>();
 			var source = imageButton.Source;
 			var virtualView = handler.VirtualView;
-			var target = handler.PlatformView;
 			var commitOnUiThread = TizenDispatchExtensions.CaptureDispatcher(handler);
 
 			return handler._sourceLoader.LoadPartAsync(
@@ -136,21 +155,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				(platformImage, token) => target.ApplyAndWaitForReadyAsync(platformImage, token),
 				() =>
 					ReferenceEquals(handler.VirtualView, virtualView) &&
-					ReferenceEquals(handler.PlatformView, target));
+					ReferenceEquals(Platform(handler), target));
 		}
 
 		public static void MapStrokeColor(TizenImageButtonHandler handler, IButtonStroke buttonStroke) =>
-			handler.PlatformView.UpdateStrokeColor(buttonStroke);
+			Platform(handler)?.UpdateStrokeColor(buttonStroke);
 
 		public static void MapStrokeThickness(TizenImageButtonHandler handler, IButtonStroke buttonStroke)
 		{
-			handler.PlatformView.UpdateStrokeThickness(buttonStroke);
+			Platform(handler)?.UpdateStrokeThickness(buttonStroke);
 			handler.UpdateValue(nameof(IImageButton.Padding));
 		}
 
 		public static void MapCornerRadius(TizenImageButtonHandler handler, IButtonStroke buttonStroke)
 		{
-			handler.PlatformView.UpdateCornerRadius(buttonStroke);
+			Platform(handler)?.UpdateCornerRadius(buttonStroke);
 			handler.UpdateValue(nameof(IImageButton.Padding));
 		}
 
@@ -174,5 +193,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public static void MapPadding(TizenImageButtonHandler handler, IImageButton imageButton)
 		{
 		}
+
+		static TizenImageButtonView? Platform(TizenImageButtonHandler handler) =>
+			TizenHandlerLifecycle.TryGetLivePlatformView(handler, out TizenImageButtonView? platformView)
+				? platformView
+				: null;
 	}
 }

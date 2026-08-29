@@ -189,16 +189,40 @@ namespace Microsoft.Maui.Platforms.Tizen
 		void CreateTemplatedView()
 		{
 			UseDefaultIndicator = false;
-			var layout = (_indicatorView as ITemplatedIndicatorView)?.IndicatorsLayoutOverride;
+			var indicatorView = _indicatorView;
+			var layout = (indicatorView as ITemplatedIndicatorView)?.IndicatorsLayoutOverride;
 			if (layout == null || _indicatorView?.Handler?.MauiContext == null)
 				return;
-			_contentView = layout.ToPlatformView(_indicatorView.Handler.MauiContext);
-			_templatedView = layout;
-			_templatedViewHandler = layout.Handler as ITizenPlatformViewHandler;
 
-			_contentView.WidthSpecification = NLayoutParamPolicies.MatchParent;
-			_contentView.HeightSpecification = NLayoutParamPolicies.MatchParent;
-			Children.Add(_contentView);
+			var operation = TizenContentOwnership.Reserve(ref _templatedContentGeneration);
+			var contentView = layout.ToPlatformView(_indicatorView.Handler.MauiContext);
+			var contentHandler = layout.Handler as ITizenPlatformViewHandler;
+			var installed = TizenContentOwnership.Replace(
+				operation,
+				ref _contentView,
+				ref _templatedViewHandler,
+				ref _templatedContentGeneration,
+				contentView,
+				contentHandler,
+				view =>
+				{
+					Children.Remove(view);
+					view.Unparent();
+				},
+				view =>
+				{
+					view.WidthSpecification = NLayoutParamPolicies.MatchParent;
+					view.HeightSpecification = NLayoutParamPolicies.MatchParent;
+					Children.Add(view);
+				},
+				static () => { },
+				() =>
+					ReferenceEquals(_indicatorView, indicatorView) &&
+					ReferenceEquals(
+						(_indicatorView as ITemplatedIndicatorView)?.IndicatorsLayoutOverride,
+						layout));
+
+			_templatedView = installed ? layout : null;
 		}
 
 		void CreateDefaultView()

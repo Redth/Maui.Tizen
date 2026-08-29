@@ -535,7 +535,9 @@ override Microsoft.Maui.Platforms.Tizen.Handlers.TizenButtonHandler.DisconnectHa
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenCheckBoxHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.TizenCheckBoxView! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenCheckBoxHandler.CreatePlatformView() -> Microsoft.Maui.Platforms.Tizen.TizenCheckBoxView!
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenCheckBoxHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.TizenCheckBoxView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenContentViewHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.TizenContentViewGroup! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenContentViewHandler.CreatePlatformView() -> Microsoft.Maui.Platforms.Tizen.TizenContentViewGroup!
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenContentViewHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.TizenContentViewGroup! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenContentViewHandler.Dispose(bool disposing) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenContentViewHandler.SetVirtualView(Microsoft.Maui.IView! view) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenDatePickerHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.TizenPickerView! platformView) -> void
@@ -553,9 +555,11 @@ override Microsoft.Maui.Platforms.Tizen.Handlers.TizenGraphicsViewHandler.Discon
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenImageButtonHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.TizenImageButtonView! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenImageButtonHandler.CreatePlatformView() -> Microsoft.Maui.Platforms.Tizen.TizenImageButtonView!
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenImageButtonHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.TizenImageButtonView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenImageButtonHandler.SetVirtualView(Microsoft.Maui.IView! view) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenImageHandler.ConnectHandler(Tizen.UIExtensions.NUI.Image! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenImageHandler.CreatePlatformView() -> Tizen.UIExtensions.NUI.Image!
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenImageHandler.DisconnectHandler(Tizen.UIExtensions.NUI.Image! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenImageHandler.SetVirtualView(Microsoft.Maui.IView! view) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenIndicatorViewHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.TizenPageControl! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenIndicatorViewHandler.CreatePlatformView() -> Microsoft.Maui.Platforms.Tizen.TizenPageControl!
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenIndicatorViewHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.TizenPageControl! platformView) -> void

@@ -297,6 +297,20 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Fact]
+		public void BeginningAReboundPartClearsDetachedOriginalLoadingState()
+		{
+			var events = new TizenImageLoadEvents();
+			var original = new FakePart { Source = new FakeSource() };
+			var rebound = new FakePart { Source = new FakeSource() };
+			original.UpdateIsLoading(true);
+
+			events.Begin(original);
+			events.Begin(rebound);
+
+			Assert.False(original.IsLoading);
+		}
+
+		[Fact]
 		public async Task DestinationReadinessCompletesBeforeLoadingCompleted()
 		{
 			using var loader = new TizenImageLoader<FakeImage>();

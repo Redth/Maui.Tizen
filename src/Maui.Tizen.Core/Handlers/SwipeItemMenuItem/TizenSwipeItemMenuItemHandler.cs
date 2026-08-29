@@ -20,6 +20,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// <summary>Tizen handler for <see cref="ISwipeItemMenuItem"/>.</summary>
 	public class TizenSwipeItemMenuItemHandler : ElementHandler<ISwipeItemMenuItem, TizenButton>
 	{
+		readonly TizenDisconnectingState _disconnecting = new();
 		public static IPropertyMapper<ISwipeItemMenuItem, TizenSwipeItemMenuItemHandler> Mapper =
 			new PropertyMapper<ISwipeItemMenuItem, TizenSwipeItemMenuItemHandler>(ElementMapper)
 			{
@@ -66,9 +67,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <inheritdoc />
 		protected override void ConnectHandler(TizenButton platformView)
 		{
+			_disconnecting.Connected();
 			var replacement = new TizenImageLoader<TizenImageSource>();
 
 			TizenCleanup.Run(
+				_disconnecting.BeginDisconnect,
 				_sourceEvents.Invalidate,
 				_sourceLoader.Dispose,
 				() => _sourceLoader = replacement,
@@ -93,10 +96,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		public static void MapText(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view) =>
-			handler.PlatformView?.UpdateText(view);
+			Platform(handler)?.UpdateText(view);
 
 		public static void MapTextColor(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view) =>
-			handler.PlatformView?.UpdateTextColor(view);
+			Platform(handler)?.UpdateTextColor(view);
 
 		/// <summary>
 		/// Applies the label's character spacing.
@@ -111,7 +114,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public static void MapCharacterSpacing(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view)
 		{
 			if (view is ITextStyle textStyle)
-				handler?.PlatformView?.UpdateCharacterSpacing(textStyle);
+				Platform(handler)?.UpdateCharacterSpacing(textStyle);
 		}
 
 		/// <summary>
@@ -127,42 +130,48 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public static void MapFont(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view)
 		{
 			if (view is ITextStyle textStyle)
-				handler?.PlatformView?.UpdateTizenFont(textStyle, handler.GetService<IFontManager>());
+				Platform(handler)?.UpdateTizenFont(textStyle, handler.GetService<IFontManager>());
 		}
 
 		public static void MapBackground(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view)
 		{
-			if (handler.PlatformView == null)
+			var platformView = Platform(handler);
+			if (platformView is null)
 				return;
 
-			handler.PlatformView.UpdateBackground(handler.VirtualView.Background);
+			platformView.UpdateBackground(handler.VirtualView.Background);
 
 			var textColor = handler.VirtualView.TextColor.ToTizenCommonColor();
 			if (textColor != TColor.Default)
 			{
-				handler.PlatformView.TextColor = textColor;
+				platformView.TextColor = textColor;
 			}
 		}
 
 		public static void MapVisibility(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view)
 		{
+			var platformView = Platform(handler);
+			if (platformView is null)
+				return;
+
 			if (view.Visibility.ToPlatformVisibility())
 			{
-				handler.PlatformView.Show();
+				platformView.Show();
 			}
 			else
 			{
-				handler.PlatformView.Hide();
+				platformView.Hide();
 			}
 
-			var swipeView = handler.PlatformView.GetParentOfType<TizenSwipeViewGroup>();
+			var swipeView = platformView.GetParentOfType<TizenSwipeViewGroup>();
 			swipeView?.UpdateIsVisibleSwipeItem(view);
 		}
 
 		public static void MapSource(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view)
 		{
 #if TIZEN
-			MapSourceAsync(handler, view).FireAndForget(handler);
+			if (Platform(handler) is not null)
+				MapSourceAsync(handler, view).FireAndForget(handler);
 #endif
 		}
 
@@ -196,7 +205,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </remarks>
 		public static void MapIconColor(TizenSwipeItemMenuItemHandler handler, ISwipeItemMenuItem view)
 		{
-			if (handler?.PlatformView?.Icon is not { } icon)
+			if (Platform(handler)?.Icon is not { } icon)
 				return;
 
 			var color = (view as ISwipeItemMenuItemIconColor)?.IconColor;
@@ -218,10 +227,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				return Task.CompletedTask;
 			}
 
+			var target = Platform(handler);
+			if (target is null)
+				return Task.CompletedTask;
+
 			var provider = handler.GetRequiredService<IImageSourceServiceProvider>();
 			var source = view.Source;
 			var virtualView = handler.VirtualView;
-			var target = handler.PlatformView;
 			var icon = target.Icon;
 			var commitOnUiThread = TizenDispatchExtensions.CaptureDispatcher(handler);
 
@@ -233,8 +245,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				(platformImage, token) => icon.ApplyAndWaitForReadyAsync(platformImage, token),
 				() =>
 					ReferenceEquals(handler.VirtualView, virtualView) &&
-					ReferenceEquals(handler.PlatformView, target) &&
-					ReferenceEquals(handler.PlatformView.Icon, icon));
+					ReferenceEquals(Platform(handler), target) &&
+					ReferenceEquals(Platform(handler)?.Icon, icon));
 		}
+
+		static TizenButton? Platform(TizenSwipeItemMenuItemHandler handler) =>
+			!handler._disconnecting.IsDisconnecting &&
+			TizenHandlerLifecycle.TryGetLivePlatformView(handler, out TizenButton? platformView)
+				? platformView
+				: null;
 	}
 }

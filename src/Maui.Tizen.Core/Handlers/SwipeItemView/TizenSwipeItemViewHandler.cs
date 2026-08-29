@@ -139,10 +139,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapVisibility(TizenSwipeItemViewHandler handler, ISwipeItemView view)
 		{
+			var platformView = Platform(handler);
+			if (platformView is null)
+				return;
+
 			TizenViewMappers.MapVisibility(handler, view);
 
-			var swipeView = handler.PlatformView.GetParentOfType<TizenSwipeViewGroup>();
+			var swipeView = platformView.GetParentOfType<TizenSwipeViewGroup>();
 			swipeView?.UpdateIsVisibleSwipeItem(view);
 		}
+
+		static TizenContentViewGroup? Platform(TizenSwipeItemViewHandler handler) =>
+			TizenHandlerLifecycle.TryGetLivePlatformView(handler, out TizenContentViewGroup? platformView)
+				? platformView
+				: null;
 	}
 }

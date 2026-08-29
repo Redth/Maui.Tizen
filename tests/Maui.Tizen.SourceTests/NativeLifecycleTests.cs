@@ -46,6 +46,16 @@ public class NativeLifecycleTests
 		Assert.Contains("ScrollEnabled = scrollOrientation != ScrollOrientation.Neither", source, StringComparison.Ordinal);
 	}
 
+	[Fact]
+	public void SwipeCloseCallsiteWaitsForAnimationBeforeQueuedReplay()
+	{
+		var source = ReadCode(
+			"src", "Maui.Tizen.Core", "Platform", "Tizen", "TizenSwipeViewGroup.cs");
+
+		Assert.Contains("if (_isResettingSwipe)", source, StringComparison.Ordinal);
+		Assert.Contains("ReplayQueuedOpen();", source, StringComparison.Ordinal);
+	}
+
 	/// <summary>Every image call site captures Core's finalized commit dispatcher.</summary>
 	[Theory]
 	[InlineData("Image/TizenImageHandler.cs")]

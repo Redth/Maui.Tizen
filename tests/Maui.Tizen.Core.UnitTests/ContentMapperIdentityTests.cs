@@ -20,6 +20,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	{
 		public static IEnumerable<object[]> ParentTypes()
 		{
+			yield return [typeof(ContentView)];
 			yield return [typeof(Border)];
 			yield return [typeof(RefreshView)];
 			yield return [typeof(ScrollView)];
@@ -112,6 +113,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Theory]
+		[InlineData(typeof(ContentView))]
 		[InlineData(typeof(Border))]
 		[InlineData(typeof(RefreshView))]
 		[InlineData(typeof(ScrollView))]
@@ -146,6 +148,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		static (IView Parent, View Child) CreateParent(Type parentType, View child) =>
 			parentType.Name switch
 			{
+				nameof(ContentView) => (new ContentView { Content = child }, child),
 				nameof(Border) => (new Border { Content = child }, child),
 				nameof(RefreshView) => (new RefreshView { Content = child }, child),
 				nameof(ScrollView) => (new ScrollView { Content = child }, child),

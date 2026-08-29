@@ -64,13 +64,13 @@
     "file": "src/Maui.Tizen.Core/Platform/TizenRefreshCoordinator.cs",
     "replacements": [
       {
-        "search": "if (await _waitForNativeIdle(CancellationToken.None).ConfigureAwait(false))\n\t\t\t\tawait _dispatch(dispose).ConfigureAwait(false);",
+        "search": "while (!await _waitForNativeIdle(CancellationToken.None).ConfigureAwait(false))\n\t\t\t{\n\t\t\t\t// A bounded interval is diagnostic, not terminal. Keeping this async method alive\n\t\t\t\t// retains the captured platform owner until native idle is actually observed.\n\t\t\t}\n\n\t\t\tawait _dispatch(dispose).ConfigureAwait(false);",
         "replace": "await _waitForNativeIdle(CancellationToken.None).ConfigureAwait(false);\n\t\t\tawait _dispatch(dispose).ConfigureAwait(false);"
       }
     ],
     "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
-    "filter": "FullyQualifiedName~NativeIdleTimeoutCompletesSafelyWithoutDisposingPlatform",
-    "expected": "NativeIdleTimeoutCompletesSafelyWithoutDisposingPlatform"
+    "filter": "FullyQualifiedName~MultipleDiagnosticIntervalsRetainOwnerUntilNativeIdle",
+    "expected": "MultipleDiagnosticIntervalsRetainOwnerUntilNativeIdle"
   },
   {
     "id": "start-image-before-readiness-subscription",
@@ -150,12 +150,142 @@
     "file": "src/Maui.Tizen.Core/Platform/TizenSwipeStructureCoordinator.cs",
     "replacements": [
       {
-        "search": "\t\t\tif (_closing)",
-        "replace": "\t\t\tif (_closing && _queued.HasValue)"
+        "search": "\t\t\tif (_closing)\n\t\t\t{\n\t\t\t\t_queued = new TizenQueuedSwipeOpen(requested, animated);",
+        "replace": "\t\t\tif (_closing && _queued.HasValue)\n\t\t\t{\n\t\t\t\t_queued = new TizenQueuedSwipeOpen(requested, animated);"
       }
     ],
     "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
     "filter": "FullyQualifiedName~SameSideOpenDuringAnimatedCloseQueuesAndReplays",
     "expected": "SameSideOpenDuringAnimatedCloseQueuesAndReplays"
+  },
+  {
+    "id": "start-deferred-disposal-before-disconnect",
+    "file": "src/Maui.Tizen.Core/Handlers/RefreshView/TizenRefreshViewHandler.cs",
+    "replacements": [
+      {
+        "search": "\t\t\t\tTizenCleanup.Run(\n\t\t\t\t\t() => ((IElementHandler)this).DisconnectHandler(),\n\t\t\t\t\t() => releasePlatform().FireAndForget(this));",
+        "replace": "\t\t\t\tTizenCleanup.Run(\n\t\t\t\t\t() => releasePlatform().FireAndForget(this),\n\t\t\t\t\t() => ((IElementHandler)this).DisconnectHandler());"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~DisposeDuringObservedCompletionRetainsPlatformUntilNativeIdle",
+    "expected": "DisposeDuringObservedCompletionRetainsPlatformUntilNativeIdle"
+  },
+  {
+    "id": "drop-below-threshold-retention",
+    "file": "src/Maui.Tizen.Core/Handlers/RefreshView/TizenRefreshViewHandler.cs",
+    "replacements": [
+      {
+        "search": "&& (coordinator.IsCompleting || platformView.HasPendingNativeActivity))",
+        "replace": "&& coordinator.IsCompleting)"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~BelowThresholdPullRetainsPlatformThroughNativeResetFrames",
+    "expected": "BelowThresholdPullRetainsPlatformThroughNativeResetFrames"
+  },
+  {
+    "id": "drop-swipe-position-restore",
+    "file": "src/Maui.Tizen.Core/Platform/TizenSwipeStructureCoordinator.cs",
+    "replacements": [
+      {
+        "search": "\t\t\tif (wasOpen)\n\t\t\t\trestorePosition();",
+        "replace": "\t\t\t// mutation: open content position is not restored"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~InvalidatingAnOpenValidSideResetsStateAndRequestsOnlyThatSide",
+    "expected": "InvalidatingAnOpenValidSideResetsStateAndRequestsOnlyThatSide"
+  },
+  {
+    "id": "drop-swipe-close-callsite-guard",
+    "file": "src/Maui.Tizen.Core/Platform/Tizen/TizenSwipeViewGroup.cs",
+    "replacements": [
+      {
+        "search": "\t\t\tif (_isResettingSwipe)\n\t\t\t\treturn;",
+        "replace": "\t\t\t// mutation: repeated close may complete queued replay early"
+      }
+    ],
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "filter": "FullyQualifiedName~SwipeCloseCallsiteWaitsForAnimationBeforeQueuedReplay",
+    "expected": "SwipeCloseCallsiteWaitsForAnimationBeforeQueuedReplay"
+  },
+  {
+    "id": "drop-content-disconnect-gate",
+    "file": "src/Maui.Tizen.Core/Handlers/TizenContentViewHandler.cs",
+    "replacements": [
+      {
+        "search": "\t\t\tif (_disconnecting.IsDisconnecting\n\t\t\t\t|| ((IElementHandler)this).PlatformView is not TizenContentViewGroup platformView)\n\t\t\t\treturn;",
+        "replace": "\t\t\tvar platformView = PlatformView;"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~ChildDisposalMapperReentryDuringDisconnectIsIgnored",
+    "expected": "ChildDisposalMapperReentryDuringDisconnectIsIgnored"
+  },
+  {
+    "id": "drop-scroll-property-gate",
+    "file": "src/Maui.Tizen.Core/Handlers/ScrollView/TizenScrollViewHandler.cs",
+    "replacements": [
+      {
+        "search": "Platform(handler)?.UpdateOrientation(scrollView.Orientation);",
+        "replace": "handler.PlatformView.UpdateOrientation(scrollView.Orientation);"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~PropertyAndCommandMappersIgnoreClearedPlatformViews",
+    "expected": "PropertyAndCommandMappersIgnoreClearedPlatformViews"
+  },
+  {
+    "id": "drop-swipe-command-gate",
+    "file": "src/Maui.Tizen.Core/Handlers/SwipeView/TizenSwipeViewHandler.cs",
+    "replacements": [
+      {
+        "search": "Platform(handler)?.OnOpenRequested(request);",
+        "replace": "handler.PlatformView.OnOpenRequested(request);"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~PropertyAndCommandMappersIgnoreClearedPlatformViews",
+    "expected": "PropertyAndCommandMappersIgnoreClearedPlatformViews"
+  },
+  {
+    "id": "drop-image-destination-readiness",
+    "file": "src/Maui.Tizen.Core/Handlers/Image/TizenImageHandler.cs",
+    "replacements": [
+      {
+        "search": "(platformImage, token) => target.ApplyAndWaitForReadyAsync(platformImage, token),",
+        "replace": "platformImage => target.ResourceUrl = platformImage?.ResourceUrl,"
+      }
+    ],
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "filter": "FullyQualifiedName~ImageHandlersUseTheSharedLoaderAndDispatcher",
+    "expected": "TizenImageHandler"
+  },
+  {
+    "id": "drop-imagebutton-destination-readiness",
+    "file": "src/Maui.Tizen.Core/Handlers/ImageButton/TizenImageButtonHandler.cs",
+    "replacements": [
+      {
+        "search": "(platformImage, token) => target.ApplyAndWaitForReadyAsync(platformImage, token),",
+        "replace": "platformImage => target.ResourceUrl = platformImage?.ResourceUrl,"
+      }
+    ],
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "filter": "FullyQualifiedName~ImageHandlersUseTheSharedLoaderAndDispatcher",
+    "expected": "TizenImageButtonHandler"
+  },
+  {
+    "id": "drop-swipeitem-destination-readiness",
+    "file": "src/Maui.Tizen.Core/Handlers/SwipeItemMenuItem/TizenSwipeItemMenuItemHandler.cs",
+    "replacements": [
+      {
+        "search": "(platformImage, token) => icon.ApplyAndWaitForReadyAsync(platformImage, token),",
+        "replace": "platformImage => icon.ResourceUrl = platformImage?.ResourceUrl,"
+      }
+    ],
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "filter": "FullyQualifiedName~ImageHandlersUseTheSharedLoaderAndDispatcher",
+    "expected": "TizenSwipeItemMenuItemHandler"
   }
 ]

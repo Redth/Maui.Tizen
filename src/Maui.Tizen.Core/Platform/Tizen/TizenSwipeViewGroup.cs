@@ -199,7 +199,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 				ref _swipeDirection,
 				ref _swipeOffset,
 				ref _swipeThreshold,
+				RestoreContentPosition,
 				direction => allowRebuild && IsValidSwipeItems(GetSwipeItemsByDirection(direction)));
+		}
+
+		void RestoreContentPosition()
+		{
+			if (_contentView is null)
+				return;
+
+			var position = _contentHandler?.VirtualView?.Frame.ToPixel() ?? new TRect();
+			_contentView.PositionX = (float)position.X;
+			_contentView.PositionY = (float)position.Y;
 		}
 
 		void RebuildActionStructure(SwipeDirection? direction)
@@ -630,6 +641,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 		void ResetSwipe(bool animated = true)
 		{
 			if (_contentView == null)
+				return;
+
+			if (_isResettingSwipe)
 				return;
 
 			_isResettingSwipe = true;

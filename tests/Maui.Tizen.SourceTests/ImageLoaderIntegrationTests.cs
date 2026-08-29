@@ -21,6 +21,7 @@ public class ImageLoaderIntegrationTests
 		Assert.Contains("TizenImageLoader<TizenImageSource>", source, StringComparison.Ordinal);
 		Assert.Contains("TizenDispatchExtensions.CaptureDispatcher(handler)", source, StringComparison.Ordinal);
 		Assert.Contains("_sourceLoader.LoadPartAsync(", source, StringComparison.Ordinal);
+		Assert.Contains("ApplyAndWaitForReadyAsync", source, StringComparison.Ordinal);
 		Assert.Contains(".FireAndForget(handler)", source, StringComparison.Ordinal);
 		Assert.Contains("_sourceLoader.Dispose", source, StringComparison.Ordinal);
 		Assert.DoesNotContain("TizenImageSourceLoader", source, StringComparison.Ordinal);

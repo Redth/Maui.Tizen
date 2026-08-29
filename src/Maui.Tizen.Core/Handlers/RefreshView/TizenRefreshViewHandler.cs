@@ -101,12 +101,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			var platformView = ((IElementHandler)this).PlatformView as TizenRefreshLayout;
 			var coordinator = _refreshCoordinator;
 
-			if (platformView is not null && coordinator?.IsCompleting == true)
+			if (platformView is not null
+				&& coordinator is not null
+				&& (coordinator.IsCompleting || platformView.HasPendingNativeActivity))
 			{
-				var deferredDisposal = coordinator.RetainPlatformUntilCompletionAsync(platformView.Dispose);
+				var releasePlatform = coordinator.PreparePlatformDisposal(
+					platformView.Dispose,
+					platformView.HasPendingNativeActivity);
 				TizenCleanup.Run(
 					() => ((IElementHandler)this).DisconnectHandler(),
-					() => deferredDisposal.FireAndForget(this));
+					() => releasePlatform().FireAndForget(this));
 				return;
 			}
 
@@ -142,6 +146,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapIsRefreshing(TizenRefreshViewHandler handler, IRefreshView refreshView)
 		{
+			if (Platform(handler) is null)
+				return;
+
 			// A refresh that was started before the view was disabled must be cancelled, not left
 			// spinning forever with no way to complete it.
 			if (refreshView.IsRefreshing && !refreshView.IsRefreshEnabled)
@@ -168,12 +175,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		public static void MapRefreshColor(TizenRefreshViewHandler handler, IRefreshView refreshView) =>
-			handler.PlatformView.UpdateRefreshColor(refreshView);
+			Platform(handler)?.UpdateRefreshColor(refreshView);
 
-		public static void MapBackground(TizenRefreshViewHandler handler, IRefreshView view) =>
+		public static void MapBackground(TizenRefreshViewHandler handler, IRefreshView view)
+		{
+			var platformView = Platform(handler);
+			if (platformView is null)
+				return;
+
 			TizenCleanup.Run(
 				() => TizenViewMappers.MapBackground(handler, view),
-				() => handler.PlatformView.UpdateBackground(view));
+				() => platformView.UpdateBackground(view));
+		}
 
 		/// <summary>
 		/// Applies <see cref="IRefreshView.IsRefreshEnabled"/>.
@@ -187,6 +200,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </remarks>
 		public static void MapIsRefreshEnabled(TizenRefreshViewHandler handler, IRefreshView refreshView)
 		{
+			if (Platform(handler) is null)
+				return;
+
 			if (!refreshView.IsRefreshEnabled)
 			{
 				if (refreshView.IsRefreshing)
@@ -198,5 +214,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 			handler.RequestRefresh(refreshView.IsRefreshing, enabled: true);
 		}
+
+		static TizenRefreshLayout? Platform(TizenRefreshViewHandler handler) =>
+			!handler._disconnecting.IsDisconnecting &&
+			TizenHandlerLifecycle.TryGetLivePlatformView(handler, out TizenRefreshLayout? platformView)
+				? platformView
+				: null;
 	}
 }

@@ -22,6 +22,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			SwipeDirection? direction = SwipeDirection.Left;
 			var offset = 42d;
 			var threshold = 20d;
+			var restored = 0;
 
 			var rebuild = TizenSwipeStructureCoordinator.Invalidate(
 				wasOpen: true,
@@ -30,6 +31,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				ref direction,
 				ref offset,
 				ref threshold,
+				() => restored++,
 				candidate => candidate == SwipeDirection.Left);
 
 			Assert.Equal(SwipeDirection.Left, rebuild);
@@ -37,6 +39,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Null(direction);
 			Assert.Equal(0, offset);
 			Assert.Equal(0, threshold);
+			Assert.Equal(1, restored);
 		}
 
 		[Fact]
@@ -54,6 +57,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				ref direction,
 				ref offset,
 				ref threshold,
+				static () => { },
 				static _ => false);
 
 			Assert.Null(rebuild);
@@ -119,7 +123,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		public void SameSideOpenDuringAnimatedCloseQueuesAndReplays()
 		{
 			var coordinator = new TizenSwipeOpenCoordinator();
-			coordinator.BeginAnimatedClose();
+			Assert.True(coordinator.BeginAnimatedClose());
+			Assert.False(coordinator.BeginAnimatedClose());
 
 			var decision = coordinator.RequestOpen(
 				isOpen: true,

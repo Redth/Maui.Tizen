@@ -62,19 +62,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapDrawable(TizenGraphicsViewHandler handler, IGraphicsView graphicsView)
 		{
-			handler.PlatformView?.UpdateDrawable(graphicsView);
+			Platform(handler)?.UpdateDrawable(graphicsView);
 		}
 
 		public static void MapFlowDirection(TizenGraphicsViewHandler handler, IGraphicsView graphicsView)
 		{
 			TizenViewMappers.MapFlowDirection(handler, graphicsView);
-			handler.PlatformView?.UpdateFlowDirection(graphicsView);
-			handler.PlatformView?.Invalidate();
+			Platform(handler)?.UpdateFlowDirection(graphicsView);
+			Platform(handler)?.Invalidate();
 		}
 
 		public static void MapInvalidate(TizenGraphicsViewHandler handler, IGraphicsView graphicsView, object? arg)
 		{
-			handler.PlatformView?.Invalidate();
+			Platform(handler)?.Invalidate();
 		}
+
+		static TizenTouchGraphicsView? Platform(TizenGraphicsViewHandler handler) =>
+			TizenHandlerLifecycle.TryGetLivePlatformView(handler, out TizenTouchGraphicsView? platformView)
+				? platformView
+				: null;
 	}
 }

@@ -19,10 +19,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			CancellationTokenSource? previous;
 			CancellationTokenSource current;
+			IImageSourcePart? previousPart;
 			long generation;
 
 			lock (_gate)
 			{
+				previousPart = _originatingPart;
 				_originatingPart = part;
 				previous = _readinessCancellation;
 				_readinessCancellation = current = new CancellationTokenSource();
@@ -31,7 +33,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			TizenCleanup.Run(
 				() => previous?.Cancel(),
-				() => previous?.Dispose());
+				() => previous?.Dispose(),
+				() =>
+				{
+					if (previousPart is not null && !ReferenceEquals(previousPart, part))
+						previousPart.UpdateIsLoading(false);
+				});
 
 			return (generation, current.Token);
 		}

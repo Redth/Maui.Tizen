@@ -69,9 +69,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ref SwipeDirection? direction,
 			ref double offset,
 			ref double threshold,
+			Action restorePosition,
 			Func<SwipeDirection, bool> isSideValid)
 		{
+			ArgumentNullException.ThrowIfNull(restorePosition);
 			ArgumentNullException.ThrowIfNull(isSideValid);
+
+			if (wasOpen)
+				restorePosition();
 
 			isOpen = false;
 			direction = null;
@@ -126,7 +131,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 		bool _closing;
 		TizenQueuedSwipeOpen? _queued;
 
-		public void BeginAnimatedClose() => _closing = true;
+		public bool BeginAnimatedClose()
+		{
+			if (_closing)
+				return false;
+
+			_closing = true;
+			return true;
+		}
 
 		public TizenSwipeOpenDecision RequestOpen(
 			bool isOpen,

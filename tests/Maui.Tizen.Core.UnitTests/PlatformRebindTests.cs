@@ -39,11 +39,14 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			handler.SetVirtualView((IElement)first.Parent);
 			var platform = Assert.IsAssignableFrom<TizenPlatformView>(handler.PlatformView);
+			var measureRequests = (platform as TizenContentViewGroup)?.NeedMeasureUpdateCount;
 			handler.SetVirtualView((IElement)second.Parent);
 
 			Assert.Same(platform, handler.PlatformView);
 			Assert.Same(handler, second.Parent.Handler);
 			AssertBinding(platform, second.Parent);
+			if (measureRequests.HasValue)
+				Assert.True(((TizenContentViewGroup)platform).NeedMeasureUpdateCount > measureRequests.Value);
 
 			handler.Invoke(nameof(IView.InvalidateMeasure), null);
 			Assert.Contains(nameof(IView.InvalidateMeasure), platform.Applied);

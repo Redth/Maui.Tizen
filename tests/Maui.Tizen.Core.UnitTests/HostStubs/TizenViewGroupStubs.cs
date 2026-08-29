@@ -20,7 +20,16 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <summary>Gets the cross-platform view this group renders.</summary>
 		public IView? VirtualView { get; private set; }
 
-		public void Rebind(IView? virtualView) => VirtualView = virtualView;
+		public int NeedMeasureUpdateCount { get; private set; }
+
+		public void Rebind(IView? virtualView)
+		{
+			if (ReferenceEquals(VirtualView, virtualView))
+				return;
+
+			VirtualView = virtualView;
+			SetNeedMeasureUpdate();
+		}
 
 		/// <summary>Gets or sets the cross-platform measure callback.</summary>
 		public Func<double, double, Size>? CrossPlatformMeasure { get; set; }
@@ -31,6 +40,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <summary>Flags the group as needing a new measure pass.</summary>
 		public void SetNeedMeasureUpdate()
 		{
+			NeedMeasureUpdateCount++;
 		}
 	}
 

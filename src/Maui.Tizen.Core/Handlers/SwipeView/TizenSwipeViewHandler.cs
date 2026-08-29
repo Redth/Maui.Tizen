@@ -107,13 +107,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapIsEnabled(TizenSwipeViewHandler handler, ISwipeView swipeView)
 		{
-			handler.PlatformView.UpdateIsSwipeEnabled(swipeView.IsEnabled);
+			var platformView = Platform(handler);
+			if (platformView is null)
+				return;
+
+			platformView.UpdateIsSwipeEnabled(swipeView.IsEnabled);
 			TizenViewMappers.MapIsEnabled(handler, swipeView);
 		}
 
 		public static void MapSwipeTransitionMode(TizenSwipeViewHandler handler, ISwipeView swipeView)
 		{
-			handler.PlatformView.UpdateSwipeTransitionMode(swipeView.SwipeTransitionMode);
+			Platform(handler)?.UpdateSwipeTransitionMode(swipeView.SwipeTransitionMode);
 		}
 
 		public static void MapRequestOpen(TizenSwipeViewHandler handler, ISwipeView swipeView, object? args)
@@ -123,7 +127,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				return;
 			}
 
-			handler.PlatformView.OnOpenRequested(request);
+			Platform(handler)?.OnOpenRequested(request);
 		}
 
 		public static void MapRequestClose(TizenSwipeViewHandler handler, ISwipeView swipeView, object? args)
@@ -133,7 +137,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				return;
 			}
 
-			handler.PlatformView.OnCloseRequested(request);
+			Platform(handler)?.OnCloseRequested(request);
 		}
 
 		public static void MapLeftItems(TizenSwipeViewHandler handler, ISwipeView view) =>
@@ -156,5 +160,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 			platformView.UpdateItems(slot, items);
 		}
+
+		static TizenSwipeViewGroup? Platform(TizenSwipeViewHandler handler) =>
+			TizenHandlerLifecycle.TryGetLivePlatformView(handler, out TizenSwipeViewGroup? platformView)
+				? platformView
+				: null;
 	}
 }

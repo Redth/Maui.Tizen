@@ -153,4 +153,16 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public void BeginDisconnect() => Interlocked.Exchange(ref _disconnecting, 1);
 	}
+
+	internal static class TizenHandlerLifecycle
+	{
+		public static bool TryGetLivePlatformView<TPlatformView>(
+			IElementHandler? handler,
+			out TPlatformView? platformView)
+			where TPlatformView : class
+		{
+			platformView = handler?.PlatformView as TPlatformView;
+			return platformView is not null;
+		}
+	}
 }

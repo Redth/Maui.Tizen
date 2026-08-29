@@ -7,6 +7,47 @@ using System.Threading.Tasks;
 
 namespace Microsoft.Maui.Platforms.Tizen
 {
+	internal sealed class TizenRefreshNativeActivity
+	{
+		bool _touchActive;
+		bool _resetting;
+		int _quietFrames;
+
+		public bool HasPendingActivity => _touchActive || _resetting;
+
+		public void BeginPull()
+		{
+			_touchActive = true;
+			_resetting = true;
+			_quietFrames = 0;
+		}
+
+		public void ReleasePull()
+		{
+			_touchActive = false;
+			_resetting = true;
+			_quietFrames = 0;
+		}
+
+		public bool IsBusy(bool isRefreshing, int requiredQuietFrames)
+		{
+			if (_touchActive || isRefreshing)
+			{
+				_quietFrames = 0;
+				return true;
+			}
+
+			if (!_resetting)
+				return false;
+
+			if (++_quietFrames < requiredQuietFrames)
+				return true;
+
+			_resetting = false;
+			return false;
+		}
+	}
+
 	internal static class TizenRefreshNativeIdlePoller
 	{
 		public static async Task<bool> WaitAsync(
