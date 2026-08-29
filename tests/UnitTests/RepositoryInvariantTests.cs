@@ -15,17 +15,7 @@ namespace Maui.Tizen.UnitTests;
 /// </summary>
 public class RepositoryInvariantTests
 {
-	static readonly string RepoRoot = FindRepositoryRoot();
-
-	static string FindRepositoryRoot()
-	{
-		var dir = new DirectoryInfo(AppContext.BaseDirectory);
-		while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Directory.Build.props")))
-			dir = dir.Parent;
-
-		Assert.NotNull(dir);
-		return dir!.FullName;
-	}
+	static readonly string RepoRoot = RepositoryPaths.Root;
 
 	static string ReadRepoFile(string relativePath)
 	{
@@ -198,6 +188,37 @@ public class RepositoryInvariantTests
 		Assert.True(File.Exists(Path.Combine(RepoRoot, relativePath)), $"Missing: {relativePath}");
 	}
 
+	[Fact]
+	public void BaselinePinRecordsWhatItExcludes()
+	{
+		// A pin is only genuinely reproducible if what it EXCLUDES is written down too.
+		//
+		// sourceBaseline (ee4d06cde6) is 4 commits after requiredAncestor, none touching
+		// Tizen. But net11.0 continued past the pin, and three later commits do - all of
+		// them touching only src/Controls/src/Core/PublicAPI/net-tizen/PublicAPI.Unshipped.txt.
+		// So the Controls net-tizen Unshipped baseline sits three API additions behind
+		// current net11.0: relevant to API baseline diffing, not to source migration.
+		//
+		// This survived several review-fix rounds by luck rather than design. Whoever
+		// regenerates API baselines needs it, and it is the kind of prose that quietly
+		// disappears in a rebase, so it is pinned here.
+		var gap = ReadRepoJson("eng/baselines.json")
+			.GetProperty("source").GetProperty("sourceBaseline").GetProperty("knownGapAfterThisPin");
+
+		var commits = gap.GetProperty("commits").EnumerateArray().ToList();
+		Assert.Equal(3, commits.Count);
+
+		var pullRequests = commits.Select(c => c.GetProperty("pullRequest").GetInt32()).ToHashSet();
+		Assert.Equal(new HashSet<int> { 37420, 37671, 37755 }, pullRequests);
+
+		// The characterisation matters as much as the list: these are API surface
+		// declarations, not imported implementation. Losing that distinction would make
+		// the gap look like missing code.
+		var provenance = ReadRepoFile("PROVENANCE.md");
+		Assert.Contains("What the pin excludes", provenance);
+		Assert.Contains("PublicAPI.Unshipped.txt", provenance);
+	}
+
 	[Theory]
 	[InlineData("2360")]
 	[InlineData("9619")]
@@ -240,14 +261,20 @@ public class RepositoryInvariantTests
 	[Fact]
 	public void WorkloadGateRunsBeforeTheSdkRejectsTheTargetFramework()
 	{
-		// Without the workload, the SDK fails at target-framework inference with
-		// NETSDK1013 ("The TargetFramework value 'net11.0-tizen11.0' was not recognized.
-		// It may be misspelled.") - which sends people hunting for a typo that does not
-		// exist. The gate only produces its explanatory MAUITIZEN0001 error if it is
-		// hooked ahead of the SDK's own _CheckForUnsupportedTargetFramework target.
+		// Without the workload the SDK fails first, and WHICH error it raises depends on
+		// how far inference got:
 		//
-		// This was a real regression: the gate was originally hooked on Build only, and
-		// never fired.
+		//   NETSDK1013  "TargetFramework value 'net11.0-tizen11.0' was not recognized.
+		//                It may be misspelled."      <- inference failed entirely
+		//   NETSDK1139  "The target platform identifier tizen was not recognized."
+		//                                            <- inference worked, no workload
+		//
+		// Both send people hunting for a typo that does not exist. The gate only produces
+		// its explanatory MAUITIZEN0001 if it is hooked ahead of BOTH SDK pre-checks.
+		//
+		// This regressed twice: first the gate was hooked on Build only and never fired;
+		// then fixing TFM inference changed the symptom from NETSDK1013 to NETSDK1139 and
+		// it silently stopped firing again.
 		var targets = ReadRepoFile("Directory.Build.targets");
 
 		var gate = Regex.Match(
@@ -256,8 +283,191 @@ public class RepositoryInvariantTests
 			RegexOptions.Singleline);
 
 		Assert.True(gate.Success, "Directory.Build.targets must define ValidateTizenWorkloadAvailable");
-		Assert.Contains("_CheckForUnsupportedTargetFramework", gate.Groups[1].Value);
-		Assert.Contains("Restore", gate.Groups[1].Value);
+
+		var attributes = gate.Groups[1].Value;
+		Assert.Contains("_CheckForUnsupportedTargetFramework", attributes);
+		Assert.Contains("_CheckForUnsupportedTargetPlatformIdentifier", attributes);
+		Assert.Contains("Restore", attributes);
+	}
+
+	[Fact]
+	public void TargetFrameworkIsAssignedDuringEvaluationNotInTargets()
+	{
+		// Directory.Build.targets is imported at the end of Microsoft.Common.targets, long
+		// after the SDK has parsed $(TargetFramework) into TargetFrameworkIdentifier and
+		// TargetFrameworkVersion. Assigning the TFM there makes inference fall back to
+		// identifier "_" and version "v0.0" while still *looking* correct, so everything
+		// keyed off the identifier - NuGet's restore graph, framework-conditional items -
+		// silently evaluates against a framework that does not exist.
+		//
+		// TizenPackage.props is imported from the project body, before Sdk.targets, so
+		// inference sees the real value.
+		var props = ReadRepoFile("eng/targets/TizenPackage.props");
+		Assert.Matches(@"<TargetFramework\s+Condition[^>]*>\$\(MauiTizenTargetFramework\)</TargetFramework>", props);
+
+		var targets = ReadRepoFile("Directory.Build.targets");
+		Assert.DoesNotMatch(new Regex(@"<TargetFramework>"), targets);
+		Assert.DoesNotMatch(new Regex(@"<TargetFrameworks>"), targets);
+	}
+
+	[Fact]
+	public void WorkloadDetectionDoesNotUseAConstructedManifestPath()
+	{
+		// The original probe built sdk-manifests/$(NETCoreSdkVersion)/samsung.net.sdk.tizen/
+		// by hand. The real layout is sdk-manifests/<feature-band>/<id>/<version>/, and the
+		// band is not the SDK version - an 11.0.100-preview.7.26381.103 SDK installs under
+		// band 11.0.100-preview.6 - so it could never match, producing a permanent false
+		// "workload missing".
+		var props = ReadRepoFile("Directory.Build.props");
+		Assert.DoesNotContain("$(NETCoreSdkVersion)/samsung", props);
+		Assert.DoesNotContain("$(BundledNETCoreAppPackageVersion)/samsung", props);
+
+		// Detection must live in a target, where item globs actually work.
+		var targets = ReadRepoFile("Directory.Build.targets");
+		Assert.Contains("_DetectTizenWorkload", targets);
+		Assert.Contains("samsung.net.sdk.tizen/*/WorkloadManifest.json", targets);
+	}
+
+	[Fact]
+	public void WorkloadReportingDoesNotSubstringMatchWorkloadNames()
+	{
+		// `dotnet workload list | grep -i tizen` matches an unrelated `maui-tizen`
+		// workload and would report the external gate as lifted while Samsung's workload
+		// was still absent. The script asks MSBuild instead, so there is exactly one
+		// detection implementation.
+		//
+		// Comment lines are stripped before matching: the script explains this very bug in
+		// prose, and the first version of this test failed on that comment.
+		var executableLines = ReadRepoFile("eng/build-workload-free.sh")
+			.Split('\n')
+			.Where(line => !line.TrimStart().StartsWith("#", StringComparison.Ordinal));
+		var script = string.Join('\n', executableLines);
+
+		Assert.DoesNotMatch(new Regex(@"workload\s+list"), script);
+		Assert.Contains("ReportTizenWorkload", script);
+	}
+
+	[Fact]
+	public void NoProjectTargetsBelowTheDotNetFloor()
+	{
+		// The repository is .NET 11+ only (eng/baselines.json > policy.minimumDotNet), and
+		// that has to hold for tooling and test projects too, not just shipping ones.
+		//
+		// A project targeting net10.0 still builds on a machine that has the pinned .NET 11
+		// SDK, but its testhost then fails at RUN time with "You must install or update
+		// .NET to run this application" - unless the machine happens to also carry a .NET 10
+		// runtime, which GitHub's hosted images do. So it goes green in CI and fails for
+		// anyone whose environment matches global.json exactly. This test closes that gap
+		// at the point the project file is written.
+		var floor = ReadRepoJson("eng/baselines.json")
+			.GetProperty("policy").GetProperty("minimumDotNet").GetString();
+		var floorVersion = Version.Parse(floor!);
+
+		var offenders = new List<string>();
+
+		foreach (var project in Directory.EnumerateFiles(RepoRoot, "*.csproj", SearchOption.AllDirectories))
+		{
+			if (project.Contains($"{Path.DirectorySeparatorChar}artifacts{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+				continue;
+
+			var text = File.ReadAllText(project);
+			var relative = Path.GetRelativePath(RepoRoot, project);
+
+			foreach (Match element in Regex.Matches(text, @"<TargetFrameworks?>([^<]+)</TargetFrameworks?>"))
+			{
+				foreach (var tfm in element.Groups[1].Value.Split(';', StringSplitOptions.RemoveEmptyEntries))
+				{
+					var parsed = Regex.Match(tfm.Trim(), @"^net(\d+)\.(\d+)");
+					if (!parsed.Success)
+						continue; // netstandard2.0 and friends are version-independent.
+
+					var version = new Version(int.Parse(parsed.Groups[1].Value), int.Parse(parsed.Groups[2].Value));
+					if (version < floorVersion)
+						offenders.Add($"{relative} targets {tfm.Trim()}");
+				}
+			}
+		}
+
+		Assert.True(
+			offenders.Count == 0,
+			$"These projects target below the .NET {floor} floor: " + string.Join(", ", offenders));
+	}
+
+	[Fact]
+	public void MauiPackageVersionsMatchTheDeclaredDevelopmentBaseline()
+	{
+		// Directory.Packages.props and eng/baselines.json both state which MAUI package set
+		// this repository builds against. They are edited at different times for different
+		// reasons, so they drift - and the symptom (API baselines generated against one
+		// version while the build consumes another) is slow and confusing to diagnose.
+		var baseline = ReadRepoJson("eng/baselines.json")
+			.GetProperty("source").GetProperty("developmentPackageBaseline")
+			.GetProperty("version").GetString();
+
+		var packages = ReadRepoFile("Directory.Packages.props");
+
+		// Microsoft.Maui.DevFlow.* is deliberately exempt. Those packages come from
+		// dotnet/maui-labs, not from the MAUI product build, and have their own independent
+		// version line (0.1.0-preview.*). Holding them to the MAUI baseline would be asserting
+		// that two unrelated release trains ship in lockstep, which they do not.
+		var mismatched = Regex.Matches(packages, @"Include=""(Microsoft\.Maui\.[^""]+)"" Version=""([^""]+)""")
+			.Where(m => !m.Groups[1].Value.StartsWith("Microsoft.Maui.DevFlow.", StringComparison.Ordinal))
+			.Where(m => m.Groups[2].Value != baseline)
+			.Select(m => $"{m.Groups[1].Value}={m.Groups[2].Value}")
+			.ToList();
+
+		Assert.True(
+			mismatched.Count == 0,
+			$"These MAUI packages do not match developmentPackageBaseline ({baseline}): "
+				+ string.Join(", ", mismatched));
+	}
+
+	[Fact]
+	public void AspNetCoreFloorMatchesTheDeclaredDependencyFloor()
+	{
+		// The ASP.NET Core floor is declared by WebView.Maui's own nuspec and does NOT
+		// track the MAUI stamp - it stayed at 26381.103 across the MAUI bump from
+		// 26418.3 to 26426.4. Recorded in baselines.json so a future bump has something
+		// to check against rather than an assumption to make.
+		var floor = ReadRepoJson("eng/baselines.json")
+			.GetProperty("source").GetProperty("developmentPackageBaseline")
+			.GetProperty("aspNetCoreDependencyFloor").GetProperty("version").GetString();
+
+		var packages = ReadRepoFile("Directory.Packages.props");
+
+		foreach (Match m in Regex.Matches(packages, @"Include=""(Microsoft\.AspNetCore\.[^""]+|Microsoft\.JSInterop)"" Version=""([^""]+)"""))
+		{
+			// The .Maui bridge package IS a MAUI package and legitimately uses the MAUI stamp.
+			if (m.Groups[1].Value.EndsWith(".Maui", StringComparison.Ordinal))
+				continue;
+
+			Assert.True(
+				m.Groups[2].Value == floor,
+				$"{m.Groups[1].Value} is pinned to {m.Groups[2].Value} but the declared "
+					+ $"ASP.NET Core floor is {floor}.");
+		}
+	}
+
+	[Fact]
+	public void ReadmePackItemIsDeclaredAfterProjectEvaluation()
+	{
+		// The README <None Pack="true"> item belongs in Directory.Build.targets, not
+		// Directory.Build.props.
+		//
+		// It is conditioned on $(IsPackable), which shipping projects opt into from their
+		// own body. From .props that still works - MSBuild evaluates all properties,
+		// including the project body, in an earlier pass than any item - and a
+		// shipping-shaped project does pack with README.md present. But two reviewers
+		// independently read the .props placement as an NU5039 bug, because it only works
+		// if you know the multi-pass rule.
+		//
+		// Correctness that depends on recalling evaluation-pass ordering is correctness
+		// nobody can review at a glance, so it lives after the project body where it is
+		// obviously right. eng/tests/PackReadmeProbe pins the behaviour itself.
+		var pack = new Regex(@"<None\s+Include=""\$\(RepositoryRoot\)README\.md""[^>]*Pack=""true""");
+
+		Assert.Matches(pack, ReadRepoFile("Directory.Build.targets"));
+		Assert.DoesNotMatch(pack, ReadRepoFile("Directory.Build.props"));
 	}
 
 	[Fact]
@@ -271,5 +481,207 @@ public class RepositoryInvariantTests
 			.ToList();
 
 		Assert.True(missing.Count == 0, "Solution references missing projects: " + string.Join(", ", missing));
+	}
+
+	[Fact]
+	public void NoOrphanProjectFilesExistOutsideTheSolution()
+	{
+		// The history import pulled in `GraphicsTester.Skia.Tizen.csproj`, which cannot
+		// load here: its TFM is `$(_MauiDotNetTfm)-tizen` (a dotnet/maui property that
+		// does not exist in this repository, so the TFM evaluates to the malformed
+		// "-tizen") and both of its ProjectReferences point at projects that were never
+		// imported. A folder-level build or an IDE project scan would load it and fail
+		// with errors that have nothing to do with this repository.
+		//
+		// It is parked as `.csproj.orphan` — file and history intact, invisible to project
+		// discovery. This test stops another orphan slipping in unnoticed.
+		var solution = ReadRepoFile("Maui.Tizen.slnx");
+		var referenced = Regex.Matches(solution, @"Path=""([^""]+\.csproj)""")
+			.Select(m => m.Groups[1].Value.Replace('/', Path.DirectorySeparatorChar))
+			.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+		// tests/fixtures/** is exempt. Those projects are INPUTS to tests - the MSBuild
+		// behaviour suite invokes `dotnet msbuild` on them directly and asserts on evaluated
+		// property values. They ship their own empty Directory.Build.props/targets specifically
+		// so they do NOT inherit this repository's conventions; adding them to the solution
+		// would build them as solution members and destroy the isolation that makes their
+		// results attributable to the targets under test.
+		var fixtures = $"{Path.DirectorySeparatorChar}fixtures{Path.DirectorySeparatorChar}";
+
+		var orphans = Directory
+			.EnumerateFiles(RepoRoot, "*.csproj", SearchOption.AllDirectories)
+			.Where(p => !p.Contains($"{Path.DirectorySeparatorChar}artifacts{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+			.Where(p => !p.Contains(fixtures, StringComparison.Ordinal))
+			.Select(p => Path.GetRelativePath(RepoRoot, p))
+			.Where(p => !referenced.Contains(p))
+			.ToList();
+
+		Assert.True(
+			orphans.Count == 0,
+			"These project files are not in Maui.Tizen.slnx. Either add them, or park them as "
+				+ "'.csproj.orphan' and document them in samples/README.md: "
+				+ string.Join(", ", orphans));
+	}
+
+	[Fact]
+	public void PublicApiAnalyzerIsReferencedSoBaselinesAreEnforced()
+	{
+		// Without the analyzer, PublicAPI files are inert text and the API surface this
+		// repository exists to preserve could drift silently.
+		var props = ReadRepoFile("eng/targets/TizenPackage.props");
+
+		Assert.Contains("Microsoft.CodeAnalysis.PublicApiAnalyzers", props);
+		Assert.Matches(
+			new Regex(@"Microsoft\.CodeAnalysis\.PublicApiAnalyzers""\s+PrivateAssets=""all"""),
+			props);
+	}
+
+	[Fact]
+	public void PublicApiBaselinesAreNotAttachedAutomatically()
+	{
+		// A `PublicAPI/**` glob in shared props is wrong here in two independent ways, both
+		// measured before this test was written:
+		//
+		// 1. It attaches upstream's MONOLITHIC per-assembly baseline to our SPLIT assembly.
+		//    src/Maui.Tizen.Core's imported baseline has 3,268 entries; only 447 are the
+		//    Microsoft.Maui.Platform types this assembly will contain. The rest become
+		//    RS0017 the moment the project compiles - thousands of errors describing a
+		//    mismatch between two different assemblies, not an API regression.
+		//
+		// 2. It silently matched NOTHING for half the projects. Rooted at the project
+		//    directory, it found 2 items each for Core/Essentials/BlazorWebView and 0 each
+		//    for Controls/Maps/Graphics, whose baselines are nested a level deeper because
+		//    those packages merge two upstream assemblies. Enforcement that is silently
+		//    absent is worse than none, because it looks present.
+		//
+		// Opt-in is per project, with a baseline describing that assembly.
+		var props = ReadRepoFile("eng/targets/TizenPackage.props");
+
+		Assert.DoesNotMatch(new Regex(@"<AdditionalFiles\s+Include=""PublicAPI/\*\*"), props);
+	}
+
+	[Fact]
+	public void NoProjectConsumesTheImportedUpstreamBaselines()
+	{
+		// The imported src/**/PublicAPI/** files are provenance fixtures recording what
+		// upstream shipped for net-tizen. They are not this repository's API contract, and
+		// pointing a compiled assembly at one reintroduces the RS0017 flood above.
+		var offenders = new List<string>();
+
+		foreach (var project in Directory.EnumerateFiles(Path.Combine(RepoRoot, "src"), "*.csproj", SearchOption.AllDirectories))
+		{
+			if (project.Contains($"{Path.DirectorySeparatorChar}artifacts{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+				continue;
+
+			var text = File.ReadAllText(project);
+			foreach (Match m in Regex.Matches(text, @"<AdditionalFiles\s+Include=""([^""]+)"""))
+			{
+				// net-tizen is upstream's directory name for the imported baselines.
+				if (m.Groups[1].Value.Contains("net-tizen", StringComparison.OrdinalIgnoreCase))
+					offenders.Add($"{Path.GetRelativePath(RepoRoot, project)} -> {m.Groups[1].Value}");
+			}
+		}
+
+		Assert.True(
+			offenders.Count == 0,
+			"These projects point the analyzer at imported upstream baselines, which describe a "
+				+ "different (unsplit) assembly and will produce RS0017: " + string.Join(", ", offenders));
+	}
+
+	[Fact]
+	public void PublicApiAnalyzerDiagnosticsAreNotGloballySuppressed()
+	{
+		// RS0016 (public API not in the baseline) and RS0017 (baseline entry not in the
+		// assembly) are the entire value of the analyzer. Silencing them repo-wide to make
+		// a mismatched baseline quiet would discard the enforcement while leaving the
+		// wiring in place to look reassuring.
+		var editorconfig = ReadRepoFile(".editorconfig");
+
+		foreach (var rule in new[] { "RS0016", "RS0017" })
+			Assert.Matches(new Regex($@"dotnet_diagnostic\.{rule}\.severity\s*=\s*error"), editorconfig);
+
+		// A blanket NoWarn in shared props would defeat it just as effectively.
+		foreach (var file in new[] { "Directory.Build.props", "eng/targets/TizenPackage.props" })
+		{
+			foreach (Match m in Regex.Matches(ReadRepoFile(file), @"<NoWarn>([^<]*)</NoWarn>"))
+			{
+				Assert.DoesNotContain("RS0016", m.Groups[1].Value);
+				Assert.DoesNotContain("RS0017", m.Groups[1].Value);
+			}
+		}
+	}
+
+	[Fact]
+	public void WorkloadDetectionIsRestrictedToTheCurrentFeatureBand()
+	{
+		// An unrestricted `sdk-manifests/*/samsung.net.sdk.tizen/` glob treats a Samsung
+		// workload installed for .NET 9 or .NET 10 as satisfying net11 - the gate lifts and
+		// the build fails much later with an unrelated-looking missing-reference-pack error.
+		//
+		// The pattern is 11.0.* rather than the exact band, because this SDK
+		// (11.0.100-preview.7.26381.103) ships manifests under BOTH 11.0.100-preview.6 and
+		// 11.0.100-preview.7: bands drift within a feature line, and pinning the preview
+		// segment would be a false negative on a correctly configured machine.
+		Assert.Contains("TizenWorkloadBandPattern", ReadRepoFile("Directory.Build.props"));
+
+		var targets = ReadRepoFile("Directory.Build.targets");
+		Assert.DoesNotMatch(new Regex(@"sdk-manifests/\)?\*/samsung\.net\.sdk\.tizen"), targets);
+		Assert.Contains("$(TizenWorkloadBandPattern)/samsung.net.sdk.tizen", targets);
+	}
+
+	[Fact]
+	public void SourceLinkIsNotPinnedBecauseTheSdkProvidesIt()
+	{
+		// The .NET SDK has bundled SourceLink since .NET 8. An explicit pin is redundant
+		// and risks holding an older version than the SDK ships.
+		//
+		// Asserts on the PackageVersion element rather than the bare package name: the
+		// file explains this decision in a comment, and a substring check fails on its own
+		// documentation.
+		Assert.DoesNotMatch(
+			new Regex(@"<PackageVersion\s+Include=""Microsoft\.SourceLink"),
+			ReadRepoFile("Directory.Packages.props"));
+	}
+
+	[Fact]
+	public void NoDeadCompileUpdateItemsRemain()
+	{
+		// `<Compile Update="**/*.Tizen.cs" />` with no metadata changes nothing, and every
+		// package project sets EnableDefaultCompileItems=false, so there were no items to
+		// update in the first place. It read as meaningful configuration while doing
+		// nothing at all. Source inclusion is explicit, per project.
+		var targets = ReadRepoFile("Directory.Build.targets");
+		Assert.DoesNotMatch(new Regex(@"<Compile\s+Update="), targets);
+	}
+
+	[Fact]
+	public void AspNetCoreDependenciesUseTheirOwnVersionLine()
+	{
+		// Microsoft.AspNetCore.* are ASP.NET Core packages and do not share MAUI's version
+		// stamp. Pinning them to MAUI's 11.0.0-preview.7.26418.3 produced NU1603 (that
+		// version does not exist for those packages) followed by NU1109 downgrade errors
+		// across the BlazorWebView graph.
+		//
+		// The correct version is what Microsoft.AspNetCore.Components.WebView.Maui declares
+		// in its own nuspec, which also matches the SDK build pinned in global.json.
+		var packages = ReadRepoFile("Directory.Packages.props");
+
+		var mauiStamp = Regex.Match(packages, @"Include=""Microsoft\.Maui\.Core"" Version=""([^""]+)""");
+		Assert.True(mauiStamp.Success, "Directory.Packages.props must pin Microsoft.Maui.Core");
+
+		foreach (Match m in Regex.Matches(packages, @"Include=""(Microsoft\.AspNetCore\.[^""]+|Microsoft\.JSInterop)"" Version=""([^""]+)"""))
+		{
+			var id = m.Groups[1].Value;
+			var version = m.Groups[2].Value;
+
+			// The .Maui bridge package IS a MAUI package and legitimately shares the stamp.
+			if (id.EndsWith(".Maui", StringComparison.Ordinal))
+				continue;
+
+			Assert.True(
+				version != mauiStamp.Groups[1].Value,
+				$"{id} is pinned to MAUI's version stamp ({version}); ASP.NET Core packages "
+					+ "are on their own version line and that version does not exist for them.");
+		}
 	}
 }

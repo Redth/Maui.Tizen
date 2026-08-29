@@ -102,7 +102,7 @@ namespace Maui.Tizen.Samples.Catalog.Navigation
 			Items.Add(new MenuItem
 			{
 				Text = "About",
-				Command = new Command(() => DisplayAlert("Maui.Tizen", "Wave C catalog", "OK")),
+				Command = new Command(() => _ = DisplayAlertAsync("Maui.Tizen", "Wave C catalog", "OK")),
 			});
 		}
 

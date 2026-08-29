@@ -21,27 +21,16 @@ namespace Maui.Tizen.SourceTests;
 /// </remarks>
 public class EmittedTypeTests
 {
-	const string RefPackAssemblyName = "Maui.Tizen.Core.RefPackCompile";
 
-	static (IReadOnlyList<string> Defined, IReadOnlyList<string> Referenced) Metadata { get; } = ReadMetadata();
+	static (IReadOnlyList<string> Defined, IReadOnlyList<string> Referenced) CoreMetadata { get; } =
+		ReadMetadata(RefPackAssembly.Path);
 
-	static string FindRefPackAssembly()
+	static (IReadOnlyList<string> Defined, IReadOnlyList<string> Referenced) ControlsMetadata { get; } =
+		ReadMetadata(ControlsRefPackAssembly.Path);
+
+	static (IReadOnlyList<string>, IReadOnlyList<string>) ReadMetadata(string path)
 	{
-		var candidates = new[] { "Release", "Debug" }
-			.Select(c => RepoPaths.Combine("artifacts", "bin", RefPackAssemblyName, c, "net11.0", RefPackAssemblyName + ".dll"))
-			.Where(File.Exists)
-			.ToList();
-
-		Assert.True(
-			candidates.Count > 0,
-			$"{RefPackAssemblyName} has not been built. Run: dotnet build tests/{RefPackAssemblyName}");
-
-		return candidates[0];
-	}
-
-	static (IReadOnlyList<string>, IReadOnlyList<string>) ReadMetadata()
-	{
-		using var stream = File.OpenRead(FindRefPackAssembly());
+		using var stream = File.OpenRead(path);
 		using var pe = new PEReader(stream);
 
 		var reader = pe.GetMetadataReader();
@@ -76,8 +65,8 @@ public class EmittedTypeTests
 	[Fact]
 	public void DoesNotEmitCollidingWrapperView()
 	{
-		Assert.DoesNotContain("Microsoft.Maui.Platform.WrapperView", Metadata.Defined);
-		Assert.Contains("Microsoft.Maui.Platforms.Tizen.TizenWrapperView", Metadata.Defined);
+		Assert.DoesNotContain("Microsoft.Maui.Platform.WrapperView", CoreMetadata.Defined);
+		Assert.Contains("Microsoft.Maui.Platforms.Tizen.TizenWrapperView", CoreMetadata.Defined);
 	}
 
 	/// <summary>
@@ -95,10 +84,12 @@ public class EmittedTypeTests
 
 		foreach (var name in banned)
 		{
-			Assert.DoesNotContain(name, Metadata.Defined);
-			Assert.DoesNotContain(name, Metadata.Referenced);
+			Assert.DoesNotContain(name, CoreMetadata.Defined.Concat(ControlsMetadata.Defined));
+			Assert.DoesNotContain(name, CoreMetadata.Referenced.Concat(ControlsMetadata.Referenced));
 		}
-		Assert.Contains("Microsoft.Maui.Platforms.Tizen.ITizenPlatformViewHandler", Metadata.Referenced.Concat(Metadata.Defined));
+		Assert.Contains(
+			"Microsoft.Maui.Platforms.Tizen.ITizenPlatformViewHandler",
+			CoreMetadata.Referenced.Concat(CoreMetadata.Defined));
 	}
 
 	/// <summary>
@@ -108,7 +99,8 @@ public class EmittedTypeTests
 	[Fact]
 	public void EmitsNothingIntoTheNeutralPlatformNamespace()
 	{
-		var offenders = Metadata.Defined
+		var offenders = CoreMetadata.Defined
+			.Concat(ControlsMetadata.Defined)
 			.Where(n => n.StartsWith("Microsoft.Maui.Platform.", StringComparison.Ordinal))
 			.ToList();
 
@@ -122,23 +114,31 @@ public class EmittedTypeTests
 	[Fact]
 	public void EmitsTheWaveBHandlers()
 	{
-		string[] expected =
+		string[] coreExpected =
 		{
 			"TizenScrollViewHandler", "TizenBorderHandler", "TizenImageHandler", "TizenImageButtonHandler",
 			"TizenGraphicsViewHandler", "TizenShapeViewHandler", "TizenRefreshViewHandler",
 			"TizenSwipeViewHandler", "TizenSwipeItemViewHandler", "TizenSwipeItemMenuItemHandler",
-			"TizenIndicatorViewHandler", "TizenBoxViewHandler", "TizenLineHandler", "TizenPathHandler",
+			"TizenIndicatorViewHandler",
+		};
+		string[] controlsExpected =
+		{
+			"TizenBoxViewHandler", "TizenLineHandler", "TizenPathHandler",
 			"TizenPolygonHandler", "TizenPolylineHandler", "TizenRectangleHandler", "TizenRoundRectangleHandler",
 		};
 
-		var emitted = Metadata.Defined
+		var coreEmitted = CoreMetadata.Defined
+			.Select(n => n.Contains('.', StringComparison.Ordinal) ? n[(n.LastIndexOf('.') + 1)..] : n)
+			.ToHashSet(StringComparer.Ordinal);
+		var controlsEmitted = ControlsMetadata.Defined
 			.Select(n => n.Contains('.', StringComparison.Ordinal) ? n[(n.LastIndexOf('.') + 1)..] : n)
 			.ToHashSet(StringComparer.Ordinal);
 
-		foreach (var name in expected)
-		{
-			Assert.Contains(name, emitted);
-		}
+		foreach (var name in coreExpected)
+			Assert.Contains(name, coreEmitted);
+
+		foreach (var name in controlsExpected)
+			Assert.Contains(name, controlsEmitted);
 	}
 
 	/// <summary>
@@ -161,7 +161,82 @@ public class EmittedTypeTests
 
 		foreach (var name in expected)
 		{
-			Assert.Contains(name, Metadata.Defined);
+			Assert.Contains(name, CoreMetadata.Defined);
 		}
+	}
+
+	static IReadOnlyList<string> ReadMethodNames(string assemblyPath, string declaringTypeFullName)
+	{
+		using var stream = File.OpenRead(assemblyPath);
+		using var pe = new PEReader(stream);
+		var reader = pe.GetMetadataReader();
+
+		foreach (var handle in reader.TypeDefinitions)
+		{
+			var type = reader.GetTypeDefinition(handle);
+			var ns = reader.GetString(type.Namespace);
+			var name = reader.GetString(type.Name);
+			var full = string.IsNullOrEmpty(ns) ? name : $"{ns}.{name}";
+
+			if (!string.Equals(full, declaringTypeFullName, StringComparison.Ordinal))
+				continue;
+
+			return type.GetMethods()
+				.Select(m => reader.GetString(reader.GetMethodDefinition(m).Name))
+				.ToList();
+		}
+
+		return Array.Empty<string>();
+	}
+
+	/// <summary>
+	/// The composition root must actually register Wave B's handlers, image sources and fonts.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <c>ConfigurePlatformContent</c> is a partial method. If its implementing half is ever dropped
+	/// from eng/Maui.Tizen.Core.Sources.props, the compiler ERASES both the method and the call -
+	/// silently, with no error anywhere - and the whole backend composes to nothing: MAUI's neutral
+	/// handlers and image sources still resolve, so the app runs and simply renders nothing Tizen.
+	/// </para>
+	/// <para>
+	/// A partial method with no implementation leaves no metadata, so its presence here is proof
+	/// that the implementing half was compiled in.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void CompositionRootImplementsThePlatformContentHook()
+	{
+		var methods = ReadMethodNames(
+			RefPackAssembly.Path,
+			"Microsoft.Maui.Platforms.Tizen.Hosting.TizenMauiAppBuilderExtensions");
+
+		Assert.Contains("ConfigurePlatformContent", methods);
+	}
+
+	/// <summary>
+	/// The registration entry points the hook calls must be emitted too.
+	/// </summary>
+	[Fact]
+	public void EmitsTheWaveBRegistrationEntryPoints()
+	{
+		string[] coreExpected =
+		{
+			"Microsoft.Maui.Platforms.Tizen.Hosting.TizenContentHandlerCollectionExtensions",
+			"Microsoft.Maui.Platforms.Tizen.Hosting.TizenFontServiceCollectionExtensions",
+			"Microsoft.Maui.Platforms.Tizen.TizenEmbeddedFontLoader",
+			"Microsoft.Maui.Platforms.Tizen.TizenPlatformFontDirectoryProvider",
+		};
+		string[] controlsExpected =
+		{
+			"Microsoft.Maui.Platforms.Tizen.Hosting.TizenShapeHandlerCollectionExtensions",
+			"Microsoft.Maui.Platforms.Tizen.Hosting.TizenControlsMauiAppBuilderExtensions",
+		};
+
+		foreach (var name in coreExpected)
+			Assert.Contains(name, CoreMetadata.Defined);
+
+		foreach (var name in controlsExpected)
+			Assert.Contains(name, ControlsMetadata.Defined);
 	}
 }

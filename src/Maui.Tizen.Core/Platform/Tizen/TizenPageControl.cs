@@ -32,9 +32,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 		ITizenPlatformViewHandler? _templatedViewHandler;
 		ILayout? _templatedView;
 		NView? _contentView;
+		long _templatedContentGeneration;
 
 		List<Indicator> _indicators = new List<Indicator>();
 		int _currentPoistion = -1;
+		int _visibleWindowStart;
 
 		public TizenPageControl(IIndicatorView view)
 		{
@@ -42,11 +44,44 @@ namespace Microsoft.Maui.Platforms.Tizen
 			LayoutUpdated += OnLayoutUpdated;
 		}
 
+		internal void Rebind(IIndicatorView view)
+		{
+			ArgumentNullException.ThrowIfNull(view);
+
+			if (ReferenceEquals(_indicatorView, view))
+				return;
+
+			_indicatorView = view;
+			ResetIndicators();
+		}
+
 		bool UseDefaultIndicator { get; set; }
 
 		double IndicatorSizeWithMargin => IndicatorSize + DefaultMargin * 2;
 
 		double IndicatorSize => _indicatorView.IndicatorSize;
+
+		/// <summary>Disposes the handler created for a templated indicator.</summary>
+		public void DisposeTemplatedViewHandler()
+		{
+			if (_templatedViewHandler is null)
+				return;
+
+			var operation = TizenContentOwnership.Reserve(ref _templatedContentGeneration);
+			_templatedView = null;
+			TizenContentOwnership.Clear(
+				operation,
+				ref _contentView,
+				ref _templatedViewHandler,
+				ref _templatedContentGeneration,
+				view =>
+				{
+					Children.Remove(view);
+					view.Unparent();
+				},
+				static () => { },
+				static () => true);
+		}
 
 		public void ResetIndicators()
 		{
@@ -59,6 +94,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 			{
 				CreateTemplatedView();
 			}
+
+			// Rebuilding only restores APPEARANCE. Count, HideSingle visibility and the windowed
+			// selection are state, and were lost every time an appearance mapper ran - so changing
+			// the indicator colour or shape silently dropped the cap and the highlight until the
+			// next unrelated position change happened to restore them. UpdateCount is a no-op for a
+			// templated view, which owns its own layout.
+			UpdateCount();
+
 			this.InvalidateMeasure(_indicatorView);
 		}
 
@@ -68,16 +111,46 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 
 			UpdateIndicatorColor(_currentPoistion, _indicatorView.IndicatorColor);
-			_currentPoistion = _indicatorView.Position;
+			var window = GetVisibleWindow();
+			_visibleWindowStart = window.Start;
+			_currentPoistion = window.SelectedIndex;
 			UpdateIndicatorColor(_currentPoistion, _indicatorView.SelectedIndicatorColor);
 		}
+
+		/// <summary>
+		/// Maps <see cref="IIndicatorView.Position"/> onto the index of the dot that represents it.
+		/// </summary>
+		/// <remarks>
+		/// The number of dots is capped at <see cref="IIndicatorView.MaximumVisible"/>, but the
+		/// position is not: with 20 items and a maximum of 5, position 10 indexed past the end of the
+		/// dot list. <c>UpdateIndicatorColor</c> bounds-checks and returns silently, so the selected
+		/// dot simply stopped being highlighted once the position exceeded the cap — the indicator
+		/// looked stuck at the last dot it managed to draw.
+		/// <para>
+		/// The window slides so the selected item stays visible, which is the point of capping the
+		/// dot count in the first place.
+		/// </para>
+		/// </remarks>
+		TizenPortableExtensions.IndicatorWindow GetVisibleWindow() =>
+			TizenPortableExtensions.GetIndicatorWindow(
+				_indicatorView.Position,
+				_indicatorView.Count,
+				_indicators.Count);
 
 		public void UpdateCount()
 		{
 			if (!UseDefaultIndicator || _contentView == null)
 				return;
 
-			var count = Math.Min(_indicatorView.Count, _indicatorView.MaximumVisible);
+			// Visibility combines the HideSingle policy with the virtual view's own Visibility.
+			// Showing on the policy alone re-reveals an indicator the app has hidden, because this
+			// runs for every Count / MaximumVisible / appearance change.
+			if (TizenPortableExtensions.IsIndicatorVisible(_indicatorView.Visibility, _indicatorView.HideSingle, _indicatorView.Count))
+				Show();
+			else
+				Hide();
+
+			var count = Math.Max(0, Math.Min(_indicatorView.Count, _indicatorView.MaximumVisible));
 			var diff = _indicators.Count - count;
 			var needIncrease = diff < 0;
 
@@ -116,16 +189,40 @@ namespace Microsoft.Maui.Platforms.Tizen
 		void CreateTemplatedView()
 		{
 			UseDefaultIndicator = false;
-			var layout = (_indicatorView as ITemplatedIndicatorView)?.IndicatorsLayoutOverride;
+			var indicatorView = _indicatorView;
+			var layout = (indicatorView as ITemplatedIndicatorView)?.IndicatorsLayoutOverride;
 			if (layout == null || _indicatorView?.Handler?.MauiContext == null)
 				return;
-			_contentView = layout.ToPlatformView(_indicatorView.Handler.MauiContext);
-			_templatedView = layout;
-			_templatedViewHandler = layout.Handler as ITizenPlatformViewHandler;
 
-			_contentView.WidthSpecification = NLayoutParamPolicies.MatchParent;
-			_contentView.HeightSpecification = NLayoutParamPolicies.MatchParent;
-			Children.Add(_contentView);
+			var operation = TizenContentOwnership.Reserve(ref _templatedContentGeneration);
+			var contentView = layout.ToPlatformView(_indicatorView.Handler.MauiContext);
+			var contentHandler = layout.Handler as ITizenPlatformViewHandler;
+			var installed = TizenContentOwnership.Replace(
+				operation,
+				ref _contentView,
+				ref _templatedViewHandler,
+				ref _templatedContentGeneration,
+				contentView,
+				contentHandler,
+				view =>
+				{
+					Children.Remove(view);
+					view.Unparent();
+				},
+				view =>
+				{
+					view.WidthSpecification = NLayoutParamPolicies.MatchParent;
+					view.HeightSpecification = NLayoutParamPolicies.MatchParent;
+					Children.Add(view);
+				},
+				static () => { },
+				() =>
+					ReferenceEquals(_indicatorView, indicatorView) &&
+					ReferenceEquals(
+						(_indicatorView as ITemplatedIndicatorView)?.IndicatorsLayoutOverride,
+						layout));
+
+			_templatedView = installed ? layout : null;
 		}
 
 		void CreateDefaultView()
@@ -142,16 +239,26 @@ namespace Microsoft.Maui.Platforms.Tizen
 			};
 			Children.Add(_contentView);
 
-			_currentPoistion = _indicatorView.Position;
+			// Visibility is deliberately NOT decided here. Upstream returned early when HideSingle
+			// applied, which duplicated - and then diverged from - the policy in UpdateCount: this
+			// built a different number of dots than UpdateCount believed existed. ResetIndicators
+			// runs UpdateCount straight after, so HideSingle and the cap are applied in exactly one
+			// place.
+			var count = Math.Max(0, Math.Min(_indicatorView.Count, _indicatorView.MaximumVisible));
 
-			if (_indicatorView.Count == 1 && _indicatorView.HideSingle)
-				return;
-
-			var count = Math.Min(_indicatorView.Count, _indicatorView.MaximumVisible);
+			// The highlight must use the WINDOWED position, not the raw one. With 20 items, a
+			// maximum of 5 and position 10, `i == Position` is never true, so a rebuild triggered by
+			// an appearance change (colour, size, shape) left no dot highlighted at all.
+			var window = TizenPortableExtensions.GetIndicatorWindow(
+				_indicatorView.Position,
+				_indicatorView.Count,
+				count);
+			_visibleWindowStart = window.Start;
+			_currentPoistion = window.SelectedIndex;
 
 			for (int i = 0; i < count; i++)
 			{
-				var indicator = CreateIndicator((i == _indicatorView.Position) ? _indicatorView.SelectedIndicatorColor : _indicatorView.IndicatorColor);
+				var indicator = CreateIndicator((i == _currentPoistion) ? _indicatorView.SelectedIndicatorColor : _indicatorView.IndicatorColor);
 				_contentView.Add(indicator);
 				_indicators.Add(indicator);
 			}
@@ -173,25 +280,31 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		void ClearIndicatorView()
 		{
-			Children.Clear();
+			var operation = TizenContentOwnership.Reserve(ref _templatedContentGeneration);
+			var indicators = _indicators;
+			_indicators = new List<Indicator>();
+			_templatedView = null;
 
-			if (_templatedViewHandler != null)
+			var cleanup = new List<Action>
 			{
-				_templatedViewHandler.Dispose();
-				_templatedViewHandler = null;
-				_templatedView = null;
-			}
-			else
-			{
-				_contentView?.Dispose();
-			}
-			_contentView = null;
+				() => TizenContentOwnership.Clear(
+					operation,
+					ref _contentView,
+					ref _templatedViewHandler,
+					ref _templatedContentGeneration,
+					view =>
+					{
+						Children.Remove(view);
+						view.Unparent();
+					},
+					static () => { },
+					static () => true),
+			};
 
-			foreach (var view in _indicators)
-			{
-				view.Dispose();
-			}
-			_indicators.Clear();
+			foreach (var indicator in indicators)
+				cleanup.Add(indicator.Dispose);
+
+			TizenCleanup.Run(cleanup.ToArray());
 		}
 
 		void DecreaseIndicator()
@@ -210,7 +323,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (_contentView == null)
 				return;
 
-			var indicator = CreateIndicator(_indicators.Count == _indicatorView.Position ? _indicatorView.SelectedIndicatorColor : _indicatorView.IndicatorColor);
+			var window = TizenPortableExtensions.GetIndicatorWindow(
+				_indicatorView.Position,
+				_indicatorView.Count,
+				Math.Min(_indicatorView.Count, _indicatorView.MaximumVisible));
+			var indicator = CreateIndicator(
+				_indicators.Count == window.SelectedIndex
+					? _indicatorView.SelectedIndicatorColor
+					: _indicatorView.IndicatorColor);
 			_contentView.Add(indicator);
 			_indicators.Add(indicator);
 		}
@@ -226,7 +346,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 					var position = _indicators.IndexOf(indicator);
 					if (position != -1)
 					{
-						_indicatorView.Position = position;
+						_indicatorView.Position = _visibleWindowStart + position;
 					}
 				}
 			}

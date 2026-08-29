@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsTestUtilsProject>true</IsTestUtilsProject>
+    <IsTizenProject>false</IsTizenProject>
+    <RootNamespace>Maui.Tizen.TestUtils</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      xunit.v3.assert only (not the full runner) so shared helpers can raise real assertion
+      failures and dynamic skips without TestUtils itself being discovered as a test project.
+    -->
+    <PackageReference Include="xunit.v3.assert" />
+  </ItemGroup>
+
+</Project>

@@ -35,10 +35,16 @@ public static class WaveBSource
 		.OrderBy(h => h.TypeName, StringComparer.Ordinal)
 		.ToList();
 
+	public static HandlerSource SharedViewMapper { get; } = Parse(
+		RepoPaths.Combine("src", "Maui.Tizen.Core", "Handlers", "TizenViewMappers.cs"))
+		.Single(handler => handler.TypeName == "TizenViewMappers");
+
 	public static SyntaxTree ParseTree(string path) =>
 		CSharpSyntaxTree.ParseText(
 			File.ReadAllText(path),
-			new CSharpParseOptions(LanguageVersion.Latest),
+			new CSharpParseOptions(
+				LanguageVersion.Latest,
+				preprocessorSymbols: ["TIZEN"]),
 			path);
 
 	static IReadOnlyList<string> Discover()
@@ -81,6 +87,17 @@ public static class WaveBSource
 
 		foreach (var type in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
 		{
+			// Constants used as mapper keys, e.g. [StrokeDashArrayKey] = MapStrokeDashArray.
+			var constants = type.Members
+				.OfType<FieldDeclarationSyntax>()
+				.Where(f => f.Modifiers.Any(m => m.IsKind(SyntaxKind.ConstKeyword)))
+				.SelectMany(f => f.Declaration.Variables)
+				.Where(v => v.Initializer?.Value is LiteralExpressionSyntax)
+				.ToDictionary(
+					v => v.Identifier.Text,
+					v => ((LiteralExpressionSyntax)v.Initializer!.Value).Token.ValueText,
+					StringComparer.Ordinal);
+
 			var methods = type.Members
 				.OfType<MethodDeclarationSyntax>()
 				.GroupBy(m => m.Identifier.Text, StringComparer.Ordinal)
@@ -113,7 +130,7 @@ public static class WaveBSource
 					foreach (var expr in creation.Initializer?.Expressions.OfType<AssignmentExpressionSyntax>()
 						?? Enumerable.Empty<AssignmentExpressionSyntax>())
 					{
-						var key = ExtractKey(expr.Left);
+						var key = ExtractKey(expr.Left, constants);
 						var method = expr.Right.ToString();
 
 						if (key is null)
@@ -141,8 +158,16 @@ public static class WaveBSource
 		}
 	}
 
-	/// <summary>Reads the property name out of <c>[nameof(IFoo.Bar)]</c>.</summary>
-	static string? ExtractKey(ExpressionSyntax left)
+	/// <summary>
+	/// Reads the mapper key out of <c>[nameof(IFoo.Bar)]</c>, <c>["Literal"]</c> or <c>[SomeConst]</c>.
+	/// </summary>
+	/// <remarks>
+	/// The constant form matters: keys contributed by Microsoft.Maui.Controls have no corresponding
+	/// property on the Core interface, so they cannot be written with <c>nameof</c> and are declared
+	/// as named constants instead. An extractor that only understood <c>nameof</c> reported those
+	/// keys as unmapped even though they were mapped.
+	/// </remarks>
+	static string? ExtractKey(ExpressionSyntax left, IReadOnlyDictionary<string, string> constants)
 	{
 		if (left is not ImplicitElementAccessSyntax access)
 		{
@@ -157,7 +182,13 @@ public static class WaveBSource
 			return operand?.Split('.').Last();
 		}
 
-		return argument is LiteralExpressionSyntax literal ? literal.Token.ValueText : null;
+		if (argument is LiteralExpressionSyntax literal)
+			return literal.Token.ValueText;
+
+		if (argument is IdentifierNameSyntax identifier && constants.TryGetValue(identifier.Identifier.Text, out var constant))
+			return constant;
+
+		return null;
 	}
 
 	/// <summary>A mapper target with an empty body is an intentional no-op.</summary>

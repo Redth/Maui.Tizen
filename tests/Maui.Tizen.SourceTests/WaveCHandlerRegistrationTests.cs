@@ -49,11 +49,12 @@ public class WaveCHandlerRegistrationTests
 	}
 
 	[Fact]
-	public void TheRegistrationExtensionExists()
+	public void TheInternalRegistrationHookExists()
 	{
 		var source = RegistrationSource();
 
-		Assert.Contains("AddMauiTizenNavigationHandlers", source, StringComparison.Ordinal);
+		Assert.Contains("internal static class TizenNavigationHandlers", source, StringComparison.Ordinal);
+		Assert.Contains("internal static void Register", source, StringComparison.Ordinal);
 		Assert.Contains("IMauiHandlersCollection", source, StringComparison.Ordinal);
 	}
 
@@ -123,12 +124,15 @@ public class WaveCHandlerRegistrationTests
 	/// Registration is reachable from a <c>MauiAppBuilder</c>, not just a handler collection.
 	/// </summary>
 	[Fact]
-	public void AnAppBuilderEntryPointExists()
+	public void TheOneControlsProductionPathCallsWaveCRegistration()
 	{
-		var source = RegistrationSource();
+		var registration = RegistrationSource();
+		var composition = File.ReadAllText(RepoPaths.Combine(
+			"src", "Maui.Tizen.Controls", "Platform", "TizenControlsHostingExtensions.cs"));
 
-		Assert.Contains("MauiAppBuilder", source, StringComparison.Ordinal);
-		Assert.Contains("ConfigureMauiHandlers", source, StringComparison.Ordinal);
+		Assert.Contains("TizenNavigationHandlers.Register(handlers)", composition, StringComparison.Ordinal);
+		Assert.DoesNotContain("MauiAppBuilder", registration, StringComparison.Ordinal);
+		Assert.DoesNotContain("public static", registration, StringComparison.Ordinal);
 	}
 
 	/// <summary>

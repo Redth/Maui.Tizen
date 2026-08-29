@@ -10,7 +10,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui;
-using Microsoft.Maui.Hosting;
 
 namespace Microsoft.Maui.Platforms.Tizen
 {
@@ -39,20 +38,29 @@ namespace Microsoft.Maui.Platforms.Tizen
 		}
 
 		/// <inheritdoc />
-		public Task<IImageSourceServiceResult<TizenImageSource>?> GetImageAsync(IImageSource imageSource, CancellationToken cancellationToken = default)
+		public async Task<IImageSourceServiceResult<TizenImageSource>?> GetImageAsync(IImageSource imageSource, CancellationToken cancellationToken = default)
 		{
 			if (imageSource is not IUriImageSource uriImageSource || uriImageSource.IsEmpty)
-				return Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(null);
+				return null;
 
 			var uri = uriImageSource.Uri;
 
 			try
 			{
-				// NUI resolves remote and file URIs itself, so the URL is handed over as-is.
-				var image = new TizenImageSource { ResourceUrl = uri.AbsoluteUri };
+				var image = new TizenImageSource();
 
-				return Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(
-					new TizenImageSourceServiceResult(image, image.Dispose));
+#if TIZEN
+				if (!await image.LoadUrlAsync(uri.AbsoluteUri, cancellationToken))
+				{
+					image.Dispose();
+					_logger?.LogWarning("Unable to load image URI '{Uri}'.", uri);
+					return null;
+				}
+#else
+				image.ResourceUrl = uri.AbsoluteUri;
+#endif
+
+				return new TizenImageSourceServiceResult(image, image.Dispose);
 			}
 			catch (Exception ex)
 			{
@@ -66,10 +74,17 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// Resolves <see cref="IFontImageSource"/> images on Tizen.
 	/// </summary>
 	/// <remarks>
-	/// UNSUPPORTED, carried over from dotnet/maui: the Tizen backend has never had a glyph
-	/// rasterisation path, so upstream returned an empty image source and the glyph rendered blank.
-	/// That behaviour is preserved deliberately - the alternative is throwing from inside a property
-	/// mapper. See docs/wave-b-mapper-parity.md.
+	/// <para>
+	/// UNSUPPORTED: Tizen has no glyph rasterisation path in this backend. Upstream returned an
+	/// empty image source, which reported <em>success</em> while rendering nothing — the worst of
+	/// both worlds, because the caller is told the image loaded and has no way to discover it did
+	/// not.
+	/// </para>
+	/// <para>
+	/// This returns <see langword="null"/> instead, which the loader treats as a failed load: the
+	/// previous image is cleared, <c>LoadingCompleted(false)</c> is raised, and a warning is logged.
+	/// The caller can then act on the failure. Nothing hangs and nothing reports false success.
+	/// </para>
 	/// </remarks>
 	public class TizenFontImageSourceService : ITizenImageSourceService, IImageSourceService<IFontImageSource>
 	{
@@ -94,32 +109,16 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (imageSource is not IFontImageSource fontImageSource || fontImageSource.IsEmpty)
 				return Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(null);
 
-			// No rasterisation path exists; see the class remarks.
-			var image = new TizenImageSource();
+			// Rasterising a glyph needs a font rasteriser this backend does not have. Returning a
+			// blank image would report success for something that renders nothing, so the load is
+			// failed explicitly instead: the loader clears the view and raises
+			// LoadingCompleted(false), which the caller can actually act on.
+			_logger?.LogWarning(
+				"Font image sources are not supported on Tizen; '{Glyph}' cannot be rendered.",
+				fontImageSource.Glyph);
 
-			return Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(
-				new TizenImageSourceServiceResult(image, image.Dispose));
+			return Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(null);
 		}
 	}
 
-	/// <summary>
-	/// Registers the URI and font image source services.
-	/// </summary>
-	public static class TizenWaveBImageSourceServiceCollectionExtensions
-	{
-		/// <summary>
-		/// Adds the URI and font image source services, completing the set the core slice starts.
-		/// </summary>
-		/// <param name="services">The image source service collection.</param>
-		/// <returns>The collection, for chaining.</returns>
-		public static IImageSourceServiceCollection AddTizenUriAndFontImageSources(this IImageSourceServiceCollection services)
-		{
-			ArgumentNullException.ThrowIfNull(services);
-
-			services.AddService<IUriImageSource>(static _ => new TizenUriImageSourceService());
-			services.AddService<IFontImageSource>(static _ => new TizenFontImageSourceService());
-
-			return services;
-		}
-	}
 }

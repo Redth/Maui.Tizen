@@ -28,14 +28,24 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public static void UpdateStrokeThickness(this Button platformButton, IButtonStroke button) =>
 			platformButton.BorderlineWidth = button.StrokeThickness.ToScaledPixel();
 
+		/// <summary>
+		/// Applies the corner radius, restoring the native default when unset.
+		/// </summary>
 		/// <remarks>
-		/// MAUI uses -1 to mean "unset". Writing that through would give NUI a negative radius,
-		/// so the default corner treatment is left untouched instead.
+		/// MAUI uses <c>-1</c> for "unset". Simply skipping the write - as this previously did -
+		/// is wrong once a radius has been applied: clearing it would leave the last value in
+		/// place, so a button could never go back to its themed corners. The default captured at
+		/// construction is restored instead.
 		/// </remarks>
-		public static void UpdateCornerRadius(this Button platformButton, IButtonStroke button)
+		public static void UpdateCornerRadius(this TizenButtonView platformButton, IButtonStroke button)
 		{
-			if (button.CornerRadius != -1)
+			if (button.CornerRadius >= 0)
+			{
 				platformButton.CornerRadius = ((double)button.CornerRadius).ToScaledPixel();
+				return;
+			}
+
+			platformButton.CornerRadius = platformButton.DefaultCornerRadius;
 		}
 
 		/// <summary>

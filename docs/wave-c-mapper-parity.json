@@ -5,7 +5,7 @@
     {
       "Handler": "TizenCarouselViewHandler",
       "BaseType": "TizenItemsViewHandler\u003CCarouselView\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Items/TizenCarouselViewHandler.cs",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Items/TizenCarouselViewHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Controls.Handlers.Items.CarouselViewHandler",
       "PropertyMappers": [
         {
@@ -54,7 +54,7 @@
     {
       "Handler": "TizenCollectionViewHandler",
       "BaseType": "TizenReorderableItemsViewHandler\u003CCollectionView\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Items/TizenCollectionViewHandler.cs",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Items/TizenCollectionViewHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Controls.Handlers.Items.CollectionViewHandler",
       "PropertyMappers": [],
       "CommandMappers": [],
@@ -62,8 +62,8 @@
     },
     {
       "Handler": "TizenFlyoutViewHandler",
-      "BaseType": "ViewHandler\u003CIFlyoutView, DrawerView\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Navigation/TizenFlyoutViewHandler.cs",
+      "BaseType": "TizenViewHandler\u003CIFlyoutView, DrawerView\u003E",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Navigation/TizenFlyoutViewHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.FlyoutViewHandler",
       "PropertyMappers": [
         {
@@ -113,7 +113,7 @@
     {
       "Handler": "TizenGroupableItemsViewHandler",
       "BaseType": "TizenSelectableItemsViewHandler\u003CTItemsView\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Items/TizenGroupableItemsViewHandler.cs",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Items/TizenGroupableItemsViewHandler.cs",
       "PropertyMappers": [
         {
           "Key": "IsGrouped",
@@ -136,8 +136,8 @@
     },
     {
       "Handler": "TizenItemsViewHandler",
-      "BaseType": "ViewHandler\u003CTItemsView, NView\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Items/TizenItemsViewHandler.cs",
+      "BaseType": "TizenViewHandler\u003CTItemsView, NView\u003E",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Items/TizenItemsViewHandler.cs",
       "PropertyMappers": [
         {
           "Key": "ItemsSource",
@@ -201,7 +201,7 @@
     {
       "Handler": "TizenMenuBarHandler",
       "BaseType": "ElementHandler\u003CIMenuBar, NView\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Menu/TizenMenuHandlers.cs",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Menu/TizenMenuHandlers.cs",
       "PropertyMappers": [
         {
           "Key": "IsEnabled",
@@ -216,7 +216,7 @@
     {
       "Handler": "TizenMenuBarItemHandler",
       "BaseType": "ElementHandler\u003CIMenuBarItem, NView\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Menu/TizenMenuHandlers.cs",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Menu/TizenMenuHandlers.cs",
       "PropertyMappers": [
         {
           "Key": "Text",
@@ -237,7 +237,7 @@
     {
       "Handler": "TizenMenuFlyoutHandler",
       "BaseType": "ElementHandler\u003CIMenuFlyout, NView\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Menu/TizenMenuHandlers.cs",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Menu/TizenMenuHandlers.cs",
       "PropertyMappers": [],
       "CommandMappers": [],
       "UncoveredNeutralKeys": []
@@ -245,7 +245,7 @@
     {
       "Handler": "TizenMenuFlyoutItemHandler",
       "BaseType": "ElementHandler\u003CIMenuFlyoutItem, NView\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Menu/TizenMenuHandlers.cs",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Menu/TizenMenuHandlers.cs",
       "PropertyMappers": [
         {
           "Key": "Text",
@@ -266,7 +266,7 @@
     {
       "Handler": "TizenMenuFlyoutSeparatorHandler",
       "BaseType": "ElementHandler\u003CIMenuFlyoutSeparator, NView\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Menu/TizenMenuHandlers.cs",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Menu/TizenMenuHandlers.cs",
       "PropertyMappers": [],
       "CommandMappers": [],
       "UncoveredNeutralKeys": []
@@ -274,7 +274,7 @@
     {
       "Handler": "TizenMenuFlyoutSubItemHandler",
       "BaseType": "ElementHandler\u003CIMenuFlyoutSubItem, NView\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Menu/TizenMenuHandlers.cs",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Menu/TizenMenuHandlers.cs",
       "PropertyMappers": [
         {
           "Key": "Text",
@@ -288,8 +288,8 @@
     },
     {
       "Handler": "TizenNavigationViewHandler",
-      "BaseType": "ViewHandler\u003CIStackNavigationView, StackNavigationManager\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Navigation/TizenNavigationViewHandler.cs",
+      "BaseType": "TizenViewHandler\u003CIStackNavigationView, TizenStackNavigationManager\u003E",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Navigation/TizenNavigationViewHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.NavigationViewHandler",
       "PropertyMappers": [],
       "CommandMappers": [
@@ -304,7 +304,7 @@
     {
       "Handler": "TizenReorderableItemsViewHandler",
       "BaseType": "TizenGroupableItemsViewHandler\u003CTItemsView\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Items/TizenReorderableItemsViewHandler.cs",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Items/TizenReorderableItemsViewHandler.cs",
       "PropertyMappers": [
         {
           "Key": "CanReorderItems",
@@ -319,7 +319,7 @@
     {
       "Handler": "TizenSelectableItemsViewHandler",
       "BaseType": "TizenStructuredItemsViewHandler\u003CTItemsView\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Items/TizenSelectableItemsViewHandler.cs",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Items/TizenSelectableItemsViewHandler.cs",
       "PropertyMappers": [
         {
           "Key": "SelectedItem",
@@ -342,8 +342,8 @@
     },
     {
       "Handler": "TizenShellHandler",
-      "BaseType": "ViewHandler\u003CShell, TizenShellView\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Shell/TizenShellHandler.cs",
+      "BaseType": "TizenViewHandler\u003CShell, TizenShellView\u003E",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Shell/TizenShellHandler.cs",
       "PropertyMappers": [
         {
           "Key": "Flyout",
@@ -442,7 +442,7 @@
     {
       "Handler": "TizenShellItemHandler",
       "BaseType": "ElementHandler\u003CShellItem, TizenShellItemView\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Shell/TizenShellItemHandler.cs",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Shell/TizenShellItemHandler.cs",
       "PropertyMappers": [
         {
           "Key": "CurrentItem",
@@ -456,7 +456,7 @@
     {
       "Handler": "TizenShellSectionHandler",
       "BaseType": "ElementHandler\u003CShellSection, TizenShellSectionStackManager\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Shell/TizenShellSectionHandler.cs",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Shell/TizenShellSectionHandler.cs",
       "PropertyMappers": [
         {
           "Key": "CurrentItem",
@@ -476,7 +476,7 @@
     {
       "Handler": "TizenStructuredItemsViewHandler",
       "BaseType": "TizenItemsViewHandler\u003CTItemsView\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Items/TizenStructuredItemsViewHandler.cs",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Items/TizenStructuredItemsViewHandler.cs",
       "PropertyMappers": [
         {
           "Key": "Header",
@@ -514,8 +514,8 @@
     },
     {
       "Handler": "TizenTabbedPageHandler",
-      "BaseType": "ViewHandler\u003CTabbedPage, NView\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Navigation/TizenTabbedPageHandler.cs",
+      "BaseType": "TizenViewHandler\u003CTabbedPage, NView\u003E",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Navigation/TizenTabbedPageHandler.cs",
       "PropertyMappers": [
         {
           "Key": "BarBackground",
@@ -594,8 +594,8 @@
     },
     {
       "Handler": "TizenToolbarHandler",
-      "BaseType": "ElementHandler\u003CToolbar, MauiToolbar\u003E",
-      "File": "src/Maui.Tizen.Controls.Navigation/Handlers/Toolbar/TizenToolbarHandler.cs",
+      "BaseType": "ElementHandler\u003CToolbar, TizenToolbarView\u003E",
+      "File": "src/Maui.Tizen.Controls/Navigation/Handlers/Toolbar/TizenToolbarHandler.cs",
       "NeutralHandler": "Microsoft.Maui.Handlers.ToolbarHandler",
       "PropertyMappers": [
         {

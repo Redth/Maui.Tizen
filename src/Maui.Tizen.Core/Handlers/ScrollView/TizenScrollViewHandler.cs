@@ -15,14 +15,15 @@ using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
 using Microsoft.Maui.Platforms.Tizen;
+using TizenScrollView = Tizen.UIExtensions.NUI.ScrollView;
 
 namespace Microsoft.Maui.Platforms.Tizen.Handlers
 {
 	/// <summary>Tizen handler for <see cref="IScrollView"/>.</summary>
-	public class TizenScrollViewHandler : TizenViewHandler<IScrollView, ScrollView>
+	public class TizenScrollViewHandler : TizenViewHandler<IScrollView, TizenScrollView>
 	{
 		public static IPropertyMapper<IScrollView, TizenScrollViewHandler> Mapper =
-			new PropertyMapper<IScrollView, TizenScrollViewHandler>(ViewMapper)
+			new PropertyMapper<IScrollView, TizenScrollViewHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(IScrollView.Content)] = MapContent,
 				[nameof(IScrollView.HorizontalScrollBarVisibility)] = MapHorizontalScrollBarVisibility,
@@ -31,12 +32,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			};
 
 		public static CommandMapper<IScrollView, TizenScrollViewHandler> CommandMapper =
-			new(ViewCommandMapper)
+			new(TizenViewMappers.ViewCommandMapper)
 			{
 				[nameof(IScrollView.RequestScrollTo)] = MapRequestScrollTo,
 			};
 
 		ITizenPlatformViewHandler? _contentHandler;
+		TizenNativeView? _contentView;
+		long _contentGeneration;
+		readonly TizenDisconnectingState _disconnecting = new();
 		double _cachedWidth;
 		double _cachedHeight;
 		Size _measureCache;
@@ -56,10 +60,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 		}
 
-		protected override ScrollView CreatePlatformView() => new TizenScrollViewGroup(VirtualView);
+		protected override TizenScrollView CreatePlatformView() => new TizenScrollViewGroup(VirtualView);
 
-		protected override void ConnectHandler(ScrollView platformView)
+		public override void SetVirtualView(IView view)
 		{
+			(((IElementHandler)this).PlatformView as TizenScrollViewGroup)?.Rebind((IScrollView)view);
+			base.SetVirtualView(view);
+			(PlatformView as TizenScrollViewGroup)?.Rebind(VirtualView);
+		}
+
+		protected override void ConnectHandler(TizenScrollView platformView)
+		{
+			_disconnecting.Connected();
 			base.ConnectHandler(platformView);
 
 			platformView.Scrolling += OnScrolled;
@@ -67,15 +79,39 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			platformView.Relayout += OnRelayout;
 		}
 
-		protected override void DisconnectHandler(ScrollView platformView)
+		protected override void DisconnectHandler(TizenScrollView platformView)
 		{
-			if (!platformView.HasBody())
-				return;
-
-			base.DisconnectHandler(platformView);
-			platformView.Scrolling -= OnScrolled;
-			platformView.ScrollAnimationEnded -= ScrollAnimationEnded;
-			platformView.Relayout -= OnRelayout;
+			var operation = TizenContentOwnership.Reserve(ref _contentGeneration);
+			// ElementHandler clears its PlatformView before this typed callback runs. Every cleanup
+			// action therefore uses the captured parameter and the child snapshot, never the
+			// PlatformView property.
+			TizenCleanup.Run(
+				_disconnecting.BeginDisconnect,
+				() => TizenContentOwnership.Clear(
+					operation,
+					ref _contentView,
+					ref _contentHandler,
+					ref _contentGeneration,
+					view =>
+					{
+						if (view is TizenLayoutViewGroup viewGroup)
+							viewGroup.LayoutUpdated -= OnContentLayoutUpdated;
+						platformView.ContentContainer.Remove(view);
+					},
+					static () => { },
+					static () => true),
+				() =>
+				{
+					_cachedWidth = 0;
+					_cachedHeight = 0;
+					_measureCache = default;
+					platformView.ContentContainer.SizeWidth = 0;
+					platformView.ContentContainer.SizeHeight = 0;
+				},
+				() => platformView.Scrolling -= OnScrolled,
+				() => platformView.ScrollAnimationEnded -= ScrollAnimationEnded,
+				() => platformView.Relayout -= OnRelayout,
+				() => base.DisconnectHandler(platformView));
 		}
 
 		void ScrollAnimationEnded(object? sender, EventArgs e)
@@ -116,30 +152,63 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			}
 		}
 
-		void UpdateContent(ITizenPlatformViewHandler? content)
+		void UpdateContent(IView? expectedContent)
 		{
-			if (_contentHandler != null)
+			if (_disconnecting.IsDisconnecting
+				|| ((IElementHandler)this).PlatformView is not TizenScrollView)
+				return;
+
+			var virtualView = VirtualView;
+			var mauiContext = MauiContext;
+			if (mauiContext is null)
+				return;
+
+			var operation = TizenContentOwnership.Reserve(ref _contentGeneration);
+			ITizenPlatformViewHandler? content = null;
+
+			if (expectedContent is not null)
 			{
-				if (_contentHandler.PlatformView is TizenLayoutViewGroup viewgroup)
-				{
-					viewgroup.LayoutUpdated -= OnContentLayoutUpdated;
-				}
-
-				PlatformView.ContentContainer.Remove(_contentHandler.PlatformView);
-				_contentHandler.Dispose();
-				_contentHandler = null;
+				expectedContent.ToPlatformView(mauiContext);
+				content = expectedContent.Handler as ITizenPlatformViewHandler;
 			}
-			_contentHandler = content;
 
-			if (_contentHandler != null)
+			var replacementView = content?.PlatformView;
+			if (!TizenContentOwnership.Replace(
+				operation,
+				ref _contentView,
+				ref _contentHandler,
+				ref _contentGeneration,
+				replacementView,
+				content,
+				view =>
+				{
+					if (view is TizenLayoutViewGroup viewGroup)
+						viewGroup.LayoutUpdated -= OnContentLayoutUpdated;
+					PlatformView.ContentContainer.Remove(view);
+				},
+				view =>
+				{
+					PlatformView.ContentContainer.Add(view);
+					if (view is TizenLayoutViewGroup viewGroup)
+						viewGroup.LayoutUpdated += OnContentLayoutUpdated;
+				},
+				static () => { },
+				() =>
+					ReferenceEquals(VirtualView, virtualView) &&
+					ReferenceEquals(VirtualView.PresentedContent, expectedContent)))
+				return;
+
+			_cachedWidth = 0;
+			_cachedHeight = 0;
+			_measureCache = default;
+
+			if (_contentHandler is null)
 			{
-				PlatformView.ContentContainer.Add(_contentHandler.PlatformView);
-
-				if (_contentHandler.PlatformView is TizenLayoutViewGroup viewgroup)
-				{
-					viewgroup.LayoutUpdated += OnContentLayoutUpdated;
-				}
+				PlatformView.ContentContainer.SizeWidth = 0;
+				PlatformView.ContentContainer.SizeHeight = 0;
+				return;
 			}
+
 			UpdateContentSize();
 		}
 
@@ -178,49 +247,78 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapContent(TizenScrollViewHandler handler, IScrollView scrollView)
 		{
-			if (handler.MauiContext == null || scrollView.PresentedContent == null)
+			if (handler.MauiContext is null)
 			{
 				return;
 			}
 
-			scrollView.PresentedContent.ToPlatformView(handler.MauiContext);
-			if (scrollView.PresentedContent.Handler is ITizenPlatformViewHandler contentHandler)
-			{
-				handler.UpdateContent(contentHandler);
-			}
+			handler.UpdateContent(scrollView.PresentedContent);
 		}
 
 		public static void MapHorizontalScrollBarVisibility(TizenScrollViewHandler handler, IScrollView scrollView)
 		{
-			handler.PlatformView?.UpdateHorizontalScrollBarVisibility(scrollView.HorizontalScrollBarVisibility);
+			Platform(handler)?.UpdateHorizontalScrollBarVisibility(scrollView.HorizontalScrollBarVisibility);
 		}
 
 		public static void MapVerticalScrollBarVisibility(TizenScrollViewHandler handler, IScrollView scrollView)
 		{
-			handler.PlatformView?.UpdateVerticalScrollBarVisibility(scrollView.VerticalScrollBarVisibility);
+			Platform(handler)?.UpdateVerticalScrollBarVisibility(scrollView.VerticalScrollBarVisibility);
 		}
 
 		public static void MapOrientation(TizenScrollViewHandler handler, IScrollView scrollView)
 		{
-			handler.PlatformView?.UpdateOrientation(scrollView.Orientation);
+			Platform(handler)?.UpdateOrientation(scrollView.Orientation);
 		}
 
+		/// <summary>
+		/// Scrolls to the requested offset.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// NUI's <c>ScrollableBase.ScrollTo</c> takes a single position along the view's own
+		/// scrolling axis; there is no two-axis overload. The imported code handled that by using the
+		/// vertical offset only for <see cref="ScrollOrientation.Vertical"/> and the HORIZONTAL
+		/// offset for everything else — so a <see cref="ScrollOrientation.Both"/> scroll view sent
+		/// the X offset as its vertical position, and scrolling to (0, 500) went nowhere.
+		/// </para>
+		/// <para>
+		/// Each orientation now uses its own axis. For <see cref="ScrollOrientation.Both"/> the
+		/// vertical offset is applied, because that is the axis <c>ScrollableBase</c> scrolls by
+		/// default; the horizontal component of a simultaneous two-axis programmatic scroll is
+		/// UNSUPPORTED and documented in docs/wave-b-mapper-parity.md rather than silently
+		/// mistranslated. <see cref="ScrollOrientation.Neither"/> does not scroll at all.
+		/// </para>
+		/// </remarks>
 		public static void MapRequestScrollTo(TizenScrollViewHandler handler, IScrollView scrollView, object? args)
 		{
-			if (args is ScrollToRequest request)
+			if (args is not ScrollToRequest request)
 			{
-				var x = request.HorizontalOffset;
-				var y = request.VerticalOffset;
+				return;
+			}
 
-				var pos = scrollView.Orientation == ScrollOrientation.Vertical ? y : x;
+			var platformView = Platform(handler);
+			if (platformView is null)
+				return;
 
-				handler.PlatformView.ScrollTo(pos.ToPixel(), !request.Instant);
+			if (scrollView.Orientation != ScrollOrientation.Neither)
+			{
+				var offset = scrollView.Orientation == ScrollOrientation.Horizontal
+					? request.HorizontalOffset
+					: request.VerticalOffset;
 
-				if (request.Instant)
-				{
-					scrollView.ScrollFinished();
-				}
+				platformView.ScrollTo(offset.ToPixel(), !request.Instant);
+			}
+
+			// A request that cannot move the view must still complete, or the caller waits forever.
+			if (request.Instant || scrollView.Orientation == ScrollOrientation.Neither)
+			{
+				scrollView.ScrollFinished();
 			}
 		}
+
+		static TizenScrollView? Platform(TizenScrollViewHandler handler) =>
+			TizenHandlerLifecycle.TryGetLivePlatformView(handler, out TizenScrollView? platformView)
+				? platformView
+				: null;
 	}
 }

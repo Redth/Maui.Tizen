@@ -46,16 +46,44 @@
 
   <PropertyGroup Label="Workload detection">
     <!--
-      Probe for the Samsung Tizen workload. `TizenWorkloadAvailable` may also be forced
-      from the command line or environment, which is how CI pins behaviour rather than
-      depending on whatever happens to be installed on the agent:
+      `TizenWorkloadAvailable` may be forced from the command line or environment, which is
+      how CI pins behaviour rather than depending on whatever happens to be installed:
 
         dotnet build -p:TizenWorkloadAvailable=true
+
+      When not forced, it is detected at TARGET time by _DetectTizenWorkload in
+      Directory.Build.targets. Detection cannot happen here, during evaluation, because
+      every available mechanism is either wrong or unavailable:
+
+        * A constructed path is wrong. The real layout is
+          sdk-manifests/<feature-band>/<manifest-id>/<manifest-version>/WorkloadManifest.json,
+          and the band is NOT $(NETCoreSdkVersion) - an 11.0.100-preview.7.26381.103 SDK
+          installs manifests under band 11.0.100-preview.6.
+        * An item glob is unavailable: during evaluation, item references expand neither in
+          property conditions (MSB4099) nor in property values (`@(x)` stays the literal
+          string "@(x)", which is silently truthy and reports "installed" everywhere).
+        * Directory.GetDirectories with SearchOption is not on MSBuild's property-function
+          allowlist (MSB4186).
+
+      Item globs DO work inside a target, so that is where detection lives.
+
+      BAND RESTRICTION. The glob is scoped to $(TizenWorkloadBandPattern) rather than
+      matching any band, because an unrestricted `sdk-manifests/*/samsung.net.sdk.tizen/`
+      treats a Samsung workload installed for .NET 9 or .NET 10 as satisfying net11 - the
+      build would then proceed past the gate and fail much later with an unrelated-looking
+      error about missing Tizen reference packs.
+
+      The pattern is `11.0.*` rather than the exact band from eng/baselines.json
+      (11.0.100-preview.7), and that looseness is deliberate: this very SDK
+      (11.0.100-preview.7.26381.103) ships manifests under BOTH 11.0.100-preview.6 and
+      11.0.100-preview.7, so band directories demonstrably drift within a feature line.
+      Pinning the exact preview segment would report "workload missing" on a machine where
+      it is correctly installed - the same false-negative class this detection has already
+      been fixed for once. Matching the .NET 11 line excludes the wrong-major case the
+      review identified while tolerating preview drift.
     -->
-    <_TizenWorkloadManifestDir>$(NetCoreRoot)sdk-manifests/</_TizenWorkloadManifestDir>
-    <TizenWorkloadAvailable Condition="'$(TizenWorkloadAvailable)' == '' AND Exists('$(_TizenWorkloadManifestDir)$(NETCoreSdkVersion)/samsung.net.sdk.tizen/WorkloadManifest.json')">true</TizenWorkloadAvailable>
-    <TizenWorkloadAvailable Condition="'$(TizenWorkloadAvailable)' == '' AND Exists('$(_TizenWorkloadManifestDir)$(BundledNETCoreAppPackageVersion)/samsung.net.sdk.tizen/WorkloadManifest.json')">true</TizenWorkloadAvailable>
-    <TizenWorkloadAvailable Condition="'$(TizenWorkloadAvailable)' == ''">false</TizenWorkloadAvailable>
+    <_TizenWorkloadManifestRoot>$(NetCoreRoot)sdk-manifests/</_TizenWorkloadManifestRoot>
+    <TizenWorkloadBandPattern Condition="'$(TizenWorkloadBandPattern)' == ''">$(DotNetVersion).*</TizenWorkloadBandPattern>
   </PropertyGroup>
 
   <PropertyGroup Label="Language and analysis">
@@ -111,8 +139,18 @@
     <VersionSuffix Condition="'$(VersionSuffix)' == ''">alpha</VersionSuffix>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(IsPackable)' == 'true'">
-    <None Include="$(RepositoryRoot)README.md" Pack="true" PackagePath="/" Visible="false" />
-  </ItemGroup>
+  <!--
+    NOTE: the README <None Pack="true"> item lives in Directory.Build.targets, not here.
+
+    It works in either location - MSBuild evaluates properties across all imports AND the
+    project body in an earlier pass than any item, so an ItemGroup condition here already
+    observes a project-body <IsPackable>true</IsPackable>, and a shipping-shaped project
+    packs with README.md present (verified; see eng/tests/PackReadmeProbe).
+
+    It lives in .targets anyway because correctness that depends on knowing MSBuild's
+    multi-pass evaluation order is correctness nobody can review at a glance. Two separate
+    readers independently expected NU5039 here. Placing it after the project body makes it
+    obviously right instead of subtly right.
+  -->
 
 </Project>

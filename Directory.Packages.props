@@ -17,13 +17,41 @@
       0b3bb76d2d (PR #36657). Bumping this without regenerating the API baselines will
       produce misleading diffs.
     -->
-    <PackageVersion Include="Microsoft.Maui.Core" Version="11.0.0-preview.7.26418.3" />
-    <PackageVersion Include="Microsoft.Maui.Controls" Version="11.0.0-preview.7.26418.3" />
-    <PackageVersion Include="Microsoft.Maui.Controls.Core" Version="11.0.0-preview.7.26418.3" />
-    <PackageVersion Include="Microsoft.Maui.Essentials" Version="11.0.0-preview.7.26418.3" />
-    <PackageVersion Include="Microsoft.Maui.Graphics" Version="11.0.0-preview.7.26418.3" />
-    <PackageVersion Include="Microsoft.Maui.Maps" Version="11.0.0-preview.7.26418.3" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView" Version="11.0.0-preview.7.26418.3" />
+    <PackageVersion Include="Microsoft.Maui.Core" Version="11.0.0-preview.7.26426.4" />
+    <PackageVersion Include="Microsoft.Maui.Controls" Version="11.0.0-preview.7.26426.4" />
+    <PackageVersion Include="Microsoft.Maui.Controls.Core" Version="11.0.0-preview.7.26426.4" />
+    <PackageVersion Include="Microsoft.Maui.Essentials" Version="11.0.0-preview.7.26426.4" />
+    <PackageVersion Include="Microsoft.Maui.Graphics" Version="11.0.0-preview.7.26426.4" />
+    <PackageVersion Include="Microsoft.Maui.Maps" Version="11.0.0-preview.7.26426.4" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="11.0.0-preview.7.26426.4" />
+  </ItemGroup>
+
+  <ItemGroup Label="ASP.NET Core (BlazorWebView dependencies)">
+    <!--
+      DIFFERENT VERSION LINE FROM MAUI, deliberately.
+
+      These are ASP.NET Core packages, not MAUI packages, and they do not share MAUI's
+      version stamp. Pinning them to it produced NU1102/NU1603 for the whole BlazorWebView
+      graph, because no ASP.NET Core package exists at a MAUI build number.
+
+      11.0.0-preview.7.26381.103 is not a guess: it is what
+      Microsoft.AspNetCore.Components.WebView.Maui declares in its own nuspec, and it
+      matches the SDK build pinned in global.json (11.0.100-preview.7.26381.103), so the
+      whole graph stays on one ASP.NET Core build.
+
+      NOTE: this floor did NOT move when the MAUI baseline was bumped from
+      11.0.0-preview.7.26418.3 to 11.0.0-preview.7.26426.4 - the newer WebView.Maui nuspec
+      declares the same 26381.103 dependencies. Verify against the nuspec before changing
+      it; do not assume it tracks the MAUI stamp.
+
+      A higher version resolves but silently upgrades past what MAUI asked for and mixes
+      version lines. Matching the declared dependency is the coherent choice.
+
+      Verified by eng/tests/PackageGraphProbe.
+    -->
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView" Version="11.0.0-preview.7.26381.103" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authorization" Version="11.0.0-preview.7.26381.103" />
+    <PackageVersion Include="Microsoft.JSInterop" Version="11.0.0-preview.7.26381.103" />
   </ItemGroup>
 
   <ItemGroup Label="Samsung / Tizen">
@@ -50,21 +78,58 @@
     <PackageVersion Include="SkiaSharp" Version="3.116.1" />
   </ItemGroup>
 
-  <ItemGroup Label="Source link and analyzers">
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
+  <ItemGroup Label="Analyzers">
+    <!--
+      SourceLink is NOT pinned here: the .NET SDK has included it since .NET 8, so an
+      explicit Microsoft.SourceLink.GitHub reference is redundant and only risks pinning
+      an older version than the SDK provides.
+    -->
     <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.4" />
+  </ItemGroup>
+
+  <ItemGroup Label="Migration tooling">
+    <!-- Used by eng/tools/PackageVerify to perform real NuGet package signature verification
+         (integrity + trust chain), not just a bare SignedCms check on the .signature.p7s blob in
+         isolation. See eng/tools/PackageVerify/Program.cs for why that distinction matters. -->
+    <PackageVersion Include="NuGet.Packaging" Version="7.9.0" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageVersion Include="xunit" Version="2.9.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
-    <!--
-      Used by tests/Maui.Tizen.SourceTests, which parses the migrated backend sources to
-      check mapper parity against the neutral MAUI assemblies. The ref-pack lane proves the
-      sources compile; this proves they map what MAUI declares.
-    -->
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <!-- Roslyn-based Wave B source and mapper parity verification. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    <!-- Used by tests/Migration.Tooling.Tests to validate eng/manifests/source-disposition.json
+         against eng/manifests/source-disposition.schema.json. -->
+    <PackageVersion Include="JsonSchema.Net" Version="7.3.4" />
+  </ItemGroup>
+
+  <ItemGroup Label="Validation lane">
+    <!--
+      The validation suites use xunit v3, which runs on Microsoft.Testing.Platform. The
+      .NET 10+ SDK removed VSTest support for that platform, so these projects are executed
+      as binaries by eng/validation/run-hosted-validation.sh rather than through
+      `dotnet test`. tests/UnitTests stays on xunit v2 + VSTest until the two are
+      consolidated. See docs/validation/hosted-lane.md.
+    -->
+    <PackageVersion Include="xunit.v3" Version="4.0.0" />
+    <PackageVersion Include="xunit.v3.assert" Version="4.0.0" />
+
+    <!--
+      DevFlow is consumed from published maui-labs packages; nothing from it is vendored.
+      The Tizen agent plugs into these abstractions, and DevFlowContractTests pins the
+      exact override surface so an upstream change fails the hosted lane immediately.
+    -->
+    <PackageVersion Include="Microsoft.Maui.DevFlow.Agent.Core" Version="0.1.0-preview.12.26421.1" />
+
+    <!--
+      Samsung's API15 reference assemblies, consumed as an ordinary package so the Tizen agent
+      sources can be COMPILED against the real platform surface without the Samsung workload.
+      Version mirrors eng/baselines.json > target.referencePack; a test asserts they match.
+    -->
+    <PackageVersion Include="Samsung.Tizen.Ref.API15" Version="15.0.0.19396" />
   </ItemGroup>
 
 </Project>

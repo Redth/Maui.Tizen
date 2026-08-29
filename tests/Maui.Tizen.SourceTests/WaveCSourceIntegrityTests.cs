@@ -237,35 +237,27 @@ public class WaveCSourceIntegrityTests
 	// ---------------------------------------------------------------------
 
 	[Fact]
-	public void ValidationLaneTargetsARealTizenFramework()
+	public void WaveCShipsInTheControlsAssembly()
 	{
-		// The lane is only defensible because it targets a REAL Tizen TFM. If it ever degrades to
-		// a neutral one it becomes exactly the false-green build Directory.Build.props forbids.
-		//
-		// It is a .template rather than a .csproj so that the repository's .NET 11 floor invariant
-		// (RepositoryInvariantTests.NoProjectTargetsBelowTheDotNetFloor) stays absolute: the lane
-		// is generated into artifacts/ at run time instead of living in the project graph.
-		var project = File.ReadAllText(
-			RepoPaths.Combine("eng", "validation", "validation-lane.csproj.template"));
+		var product = File.ReadAllText(
+			RepoPaths.Combine("src", "Maui.Tizen.Controls", "Maui.Tizen.Controls.csproj"));
 
-		var tfm = Regex.Match(project, @"<TargetFramework>([^<]+)</TargetFramework>");
-
-		Assert.True(tfm.Success, "The validation lane must declare an explicit TargetFramework.");
-		Assert.Matches(@"^net\d+\.\d+-tizen\d+\.\d+$", tfm.Groups[1].Value);
+		Assert.Contains("Maui.Tizen.WaveC.Sources.props", product, StringComparison.Ordinal);
+		Assert.False(File.Exists(
+			RepoPaths.Combine("src", "Maui.Tizen.Controls.Navigation", "Maui.Tizen.Controls.Navigation.csproj")));
 	}
 
 	[Fact]
-	public void ValidationLaneAndShippingProjectCompileTheSameSources()
+	public void Api15LaneAndShippingProjectCompileTheSameSources()
 	{
-		// If the two lanes diverge, the lane stops proving anything about what ships.
 		var shipping = File.ReadAllText(
-			RepoPaths.Combine(WaveCSource.Root.Append("Maui.Tizen.Controls.Navigation.csproj").ToArray()));
+			RepoPaths.Combine("src", "Maui.Tizen.Controls", "Maui.Tizen.Controls.csproj"));
+		var api15 = File.ReadAllText(
+			RepoPaths.Combine("tests", "Maui.Tizen.Controls.RefPackCompile", "Maui.Tizen.Controls.RefPackCompile.csproj"));
 
-		var validation = File.ReadAllText(
-			RepoPaths.Combine("eng", "validation", "validation-lane.csproj.template"));
-
-		Assert.Contains("Sources.props", shipping, StringComparison.Ordinal);
-		Assert.Contains("Sources.props", validation, StringComparison.Ordinal);
-		Assert.Contains("EnableTizenValidationLane", validation, StringComparison.Ordinal);
+		Assert.Contains("Maui.Tizen.WaveC.Sources.props", shipping, StringComparison.Ordinal);
+		Assert.Contains("Maui.Tizen.WaveC.Sources.props", api15, StringComparison.Ordinal);
+		Assert.Contains("@(MauiTizenWaveCCompile)", shipping, StringComparison.Ordinal);
+		Assert.Contains("@(MauiTizenWaveCCompile)", api15, StringComparison.Ordinal);
 	}
 }

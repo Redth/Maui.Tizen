@@ -1,0 +1,4 @@
+#nullable enable
+Maui.Tizen.PublicApiOptIn.SampleSurface
+Maui.Tizen.PublicApiOptIn.SampleSurface.SampleSurface() -> void
+Maui.Tizen.PublicApiOptIn.SampleSurface.Describe() -> string!

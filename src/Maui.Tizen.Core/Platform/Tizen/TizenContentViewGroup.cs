@@ -17,7 +17,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// </remarks>
 	public class TizenContentViewGroup : ViewGroup, IMeasurable
 	{
-		readonly IView? _virtualView;
+		IView? _virtualView;
 		Size _measureCache;
 		bool _needMeasureUpdate;
 
@@ -32,17 +32,48 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <summary>Gets the cross-platform view this group renders.</summary>
 		public IView? VirtualView => _virtualView;
 
+		internal void Rebind(IView? virtualView)
+		{
+			if (ReferenceEquals(_virtualView, virtualView))
+				return;
+
+			_virtualView = virtualView;
+			_measureCache = default;
+			SetNeedMeasureUpdate();
+		}
+
 		/// <summary>Gets or sets the cross-platform measure callback.</summary>
 		public Func<double, double, Size>? CrossPlatformMeasure { get; set; }
 
 		/// <summary>Gets or sets the cross-platform arrange callback.</summary>
 		public Func<Rect, Size>? CrossPlatformArrange { get; set; }
 
-		/// <summary>Flags the group as needing a new measure pass.</summary>
+		/// <summary>Reentrancy counter for the layout pass; see <see cref="SetNeedMeasureUpdate"/>.</summary>
+		internal int IsLayoutUpdating { get; set; }
+
+		/// <summary>Flags the group as needing a new measure pass and schedules one.</summary>
+		/// <remarks>
+		/// MarkChanged alone is not enough, and this is easy to miss: UIExtensions' ViewGroup
+		/// implements it as a bare `_markChanged = true`. The flag is only consumed inside
+		/// SendLayoutUpdated, which NUI calls from OnLayout - so with nothing requesting a layout
+		/// pass the dirty flag simply waits for some unrelated pass to come along. Content whose
+		/// intrinsic size changed then keeps its stale measurement until the window resizes.
+		///
+		/// TizenLayoutViewGroup requests the pass; this type did not, which is upstream's shape
+		/// faithfully ported and wrong in both places.
+		/// </remarks>
 		public void SetNeedMeasureUpdate()
 		{
 			_needMeasureUpdate = true;
 			MarkChanged();
+
+			// Guarded, so a measure triggered from inside the layout pass does not schedule
+			// another one on top of the pass already running. The outermost pass replays the
+			// request on the way out - see OnLayoutUpdated - or the invalidation is simply lost.
+			if (IsLayoutUpdating == 0)
+			{
+				Layout?.RequestLayout();
+			}
 		}
 
 		/// <summary>Clears the pending measure flag.</summary>
@@ -77,18 +108,48 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (CrossPlatformArrange == null || CrossPlatformMeasure == null)
 				return;
 
-			var platformGeometry = this.GetBounds().ToDP();
-			if (_needMeasureUpdate || _measureCache != platformGeometry.Size)
+			IsLayoutUpdating++;
+			try
 			{
-				InvokeCrossPlatformMeasure(platformGeometry.Width, platformGeometry.Height);
+				var platformGeometry = this.GetBounds().ToDP();
+				if (_needMeasureUpdate || _measureCache != platformGeometry.Size)
+				{
+					InvokeCrossPlatformMeasure(platformGeometry.Width, platformGeometry.Height);
+				}
+
+				if (platformGeometry.Width > 0 && platformGeometry.Height > 0)
+				{
+					platformGeometry.X = 0;
+					platformGeometry.Y = 0;
+					CrossPlatformArrange(platformGeometry);
+				}
+			}
+			finally
+			{
+				IsLayoutUpdating--;
 			}
 
-			if (platformGeometry.Width > 0 && platformGeometry.Height > 0)
-			{
-				platformGeometry.X = 0;
-				platformGeometry.Y = 0;
-				CrossPlatformArrange(platformGeometry);
-			}
+			ReschedulePendingLayout();
+		}
+
+		/// <summary>
+		/// Replays a layout request that was suppressed because it arrived during a layout pass.
+		/// </summary>
+		/// <remarks>
+		/// Arranging children very often invalidates them, and any SetNeedMeasureUpdate raised
+		/// while IsLayoutUpdating was non-zero deliberately skipped RequestLayout to avoid
+		/// re-entering the pass already running. Without replaying it here that invalidation is
+		/// simply dropped: _needMeasureUpdate stays set with nothing scheduled to consume it, and
+		/// the content keeps its stale measurement until some unrelated pass happens along.
+		///
+		/// Checked after the counter is decremented, so only the OUTERMOST pass reschedules.
+		/// </remarks>
+		void ReschedulePendingLayout()
+		{
+			if (!TizenPropertyResolvers.ShouldScheduleLayout(IsLayoutUpdating, _needMeasureUpdate))
+				return;
+
+			Layout?.RequestLayout();
 		}
 	}
 }

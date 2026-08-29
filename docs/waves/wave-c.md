@@ -16,7 +16,7 @@ Wave A and Wave B; see [Predecessor dependencies](#predecessor-dependencies).
 | Items | `TizenItemsViewHandler<T>`, `TizenStructuredItemsViewHandler<T>`, `TizenSelectableItemsViewHandler<T>`, `TizenGroupableItemsViewHandler<T>`, `TizenReorderableItemsViewHandler<T>`, `TizenCollectionViewHandler`, `TizenCarouselViewHandler` |
 | Shell | `TizenShellHandler`, `TizenShellItemHandler`, `TizenShellSectionHandler` |
 
-All code lives in `src/Maui.Tizen.Controls.Navigation/`.
+All code lives in `src/Maui.Tizen.Controls/Navigation/`.
 
 Per-key mapper coverage, including every explicit no-op classification and every neutral MAUI
 mapper key that Tizen does not implement, is in
@@ -129,132 +129,29 @@ presentation without Wave C duplicating it.
 
 ## Verification
 
-### The acceptance gate is the API15 ref-pack lane
+### Current acceptance and shipping lanes
 
-`tests/Maui.Tizen.Core.RefPackCompile` compiles the backend against the **real net11 public MAUI
-packages** and the **Samsung.Tizen.Ref.API15** reference assemblies. That lane - and only that lane -
-is the acceptance gate for Wave C. Every Wave C source and catalog page is listed for it in
-[`eng/Maui.Tizen.WaveC.Sources.props`](../../eng/Maui.Tizen.WaveC.Sources.props), and
-`WaveCAcceptanceGateTests` fails if a file is missing from that list.
+Wave C now ships in `Maui.Tizen.Controls`; there is no `Maui.Tizen.Controls.Navigation` assembly and
+no second public startup extension. `eng/Maui.Tizen.WaveC.Sources.props` is imported by both the
+shipping Controls project and `tests/Maui.Tizen.Controls.RefPackCompile`, so the API15 lane compiles
+the exact sources and assembly boundary that will ship. Catalog pages compile through
+`Maui.Tizen.Controls.ConsumerCompile`.
 
-### What the acceptance gate can and cannot prove
+The former `net9.0-tizen7.0` Wave C validation project and `MauiTizenWaveCAcceptance` switch were
+removed. MAUI 9 remains only as the repository's historical package/API provenance baseline; it is
+not a shipping or fallback lane.
 
-#### The Core dependency surface is wider than the two gated type names
+The integration surfaced and fixed the method-body errors the old disabled gate hid: legacy Core
+primitive names, object-typed neutral `PlatformView` results, neutral color/image helpers,
+`ViewHandler.MapToolbar`, and the separate empty-adaptor type. Wave C now uses
+`TizenToolbarView`, `TizenStackNavigationManager`, `TizenFlyoutView`, `ToPlatformView`,
+`ToTizen`, `ToTizenDrawerBehavior`, and the shared typed image service result.
 
-Because the gate hides everything after the declaration phase, the *number* of missing Core symbols
-was never visible - only the two type names that fail to resolve. A throwaway probe settled it: the
-real upstream `MauiToolbar`, `StackNavigationManager` and `NaviPage` sources were compiled alongside
-Wave C so the declaration phase could complete and method bodies would finally bind.
-
-The probe was deleted rather than committed - it vendors upstream source into this tree, which is not
-something to keep - but its result is worth recording. **No error landed on Wave C's own logic.**
-Every diagnostic was a Core-owned symbol that has not landed yet:
-
-| Missing symbol | Owner |
-| --- | --- |
-| `DrawerView.Update{Flyout,Detail,IsPresented,FlyoutBehavior,FlyoutWidth,IsGestureEnabled}` | Core (the six drawer extensions) |
-| `MauiFlyoutView`, `MauiTVFlyoutView` | Core (flyout primitives) |
-| `ViewHandler.MapToolbar` | absent from net11; Wave C inlines it (`inline-maptoolbar`) |
-| `IPlatformViewHandler` | core's `ITizenPlatformViewHandler` |
-| `WrapperView.{WidthSpecification,HeightSpecification,BackgroundColor,UpdateBackground}` | Core |
-| `Color.ToNUIColor`, `Color.ToPlatform`, `FlyoutBehavior.ToPlatform` | Core conversions |
-| `double.ToScaledPixel`, `double.ToScaledPoint` | Core conversions |
-| `MauiToolbar.UpdateTitle` | Core toolbar |
-| `object.{WidthSpecification,HeightSpecification,ResourceUrl}` | net11 types `PlatformView` as `object`; needs the typed handler contract |
-
-So "50 known CS0246s" understated the gap. The two type names are simply the only ones the compiler
-reaches before it stops. This does not change the plan - all of it is Core-owned or already tracked -
-but the acceptance gate should be expected to surface a second wave of diagnostics the moment those
-two types resolve, and that is not a regression.
-
-
-**With `MauiTizenWaveCAcceptance=true` the lane validates syntax and declarations only - it does not
-bind method bodies.** This was established empirically, not assumed:
-
-* injecting a call to a non-existent method into a gated file produced **no** diagnostic;
-* injecting a *syntax* error into the same file at the same time produced CS1519/CS1646 immediately.
-
-The cause is ordinary Roslyn behaviour: `csc` abandons the compilation after the declaration phase
-reports errors, and the gate exists precisely because 50 declaration errors (`MauiToolbar`,
-`StackNavigationManager`) are expected until Core lands. So while the gate is open, "the acceptance
-lane is clean apart from the known CS0246s" means *the declarations are right*, and nothing more.
-
-With the gate **off**, the Wave C sources are not compiled at all, so that state proves even less
-about them.
-
-The `net9.0-tizen7.0` comparison lane does not close the hole either: it currently fails in its own
-declaration phase on `ITizenPlatformViewHandler` and the `PlatformView` shape difference, so it too
-never reaches method bodies.
-
-**Where method bodies actually get executed is `tests/Maui.Tizen.SourceTests`.** The pure-Controls
-adapters - `ToolbarDrawerToggle`, `TizenToolbarNavigationSlot`, `ShellElementTree`,
-`ShellTemplateResolver`, `ShellFlyoutTemplateResolution`, `ToolbarOwnership`, `ItemSelectionState` -
-are compiled straight
-into that net11 test assembly and run. Any Wave C logic that must be verified before the Core rebase
-belongs in a file that project can compile; anything else is currently taken on faith, and should be
-described that way.
-
-**A previous revision of this document claimed a `net9.0-tizen7.0` compile as acceptance. That was
-wrong and is worth recording rather than quietly deleting.** MAUI 9.0.120 still ships a Tizen build,
-so that lower-band compile resolved `Microsoft.Maui.Platform.MauiToolbar`, `StackNavigationManager`
-and `IPlatformViewHandler` from the MAUI package itself and went green. None of those exist on the
-net11 surface. Pointing the real gate at Wave C immediately surfaced **60 diagnostics** the
-behaviour-baseline compile could not see:
-
-| Diagnostic | Cause |
-| --- | --- |
-| 6 × CS9333 | net11 `IToolbarHandler` / `IMenuBarHandler` / `IMenuBarItemHandler` declare `PlatformView` as `object`; the 9.0.120 Tizen build typed it concretely |
-| 4 × CS0246 `IPlatformViewHandler` | Exists only inside MAUI's own `net*-tizen` build; the out-of-tree counterpart is core's `ITizenPlatformViewHandler` |
-| 24 × CS0109 | `new` on per-handler mapper fields that hide nothing out-of-tree |
-| 6 × CS0108 / 6 × CS0114 | NUI `BaseHandle.Dispose()` / `View.Dispose(DisposeTypes)` participation |
-| 14 × CS8766 | net11 `I*Handler.PlatformView` is non-nullable `object`; the base handler's is `object?` |
-
-All 60 are fixed. `9.0.120` is retained **only** as a behaviour/API comparison baseline, never as
-acceptance.
-
-### What is still blocked, and why the gate is currently off
-
-Wave C consumes two Tizen platform primitives that the net11 MAUI surface does not publish:
-
-| Missing | References | Owner |
-| --- | --- | --- |
-| `Microsoft.Maui.Platform.MauiToolbar` | 38 | Core — `TizenToolbarView` |
-| `Microsoft.Maui.Platform.StackNavigationManager` | 10 | Core — `TizenStackNavigationManager` |
-| `MauiFlyoutView` / `MauiTVFlyoutView` | 2 | Core — `TizenFlyoutView` / `TizenTVFlyoutView` |
-| `DrawerView` update extensions (6) | 6 | Core |
-| `FlyoutBehavior` → drawer behaviour mapping | 1 | Core |
-
-Ownership was confirmed on 2026-08-26. The integration check behind it ran against Core head
-`4e256f1271`; live Core is now `2f19d872f74e` (19 commits on), so that check is **stale** and will
-be re-run against stable reviewed Core -> Wave A -> Wave B heads before the acceptance gate opens.
-The three-extension collision it found is confirmed and assigned: Core owns those members, Wave B
-deletes its duplicates during the final rebase. Wave C owns the Flyout/Shell/navigation **handlers** and two
-pieces of its own cleanup: re-pointing at existing Core/Wave B names (`ToTizenNativeColor`,
-`ToTizenCommonColor`, `TizenWrapperView`, `TizenPlatformExtensions.UpdateBackground`) and inlining
-the handler-specific toolbar attach, since `ViewHandler.MapToolbar` never existed outside MAUI's
-per-platform builds.
-
-That cleanup is deliberately **not** started yet: the names it would re-point at are the same ones
-still under review, so doing it early would mean doing it twice.
-
-These are Core-owned primitives that belong in `Maui.Tizen.Core` beside `TizenViewHandler<,>` and
-`TizenContentViewGroup`. **Wave C must not declare its own** - that would give the repository two
-authoritative toolbars, which is exactly the ambiguity
-[`eng/manifests/wave-c-superseded.json`](../../eng/manifests/wave-c-superseded.json) exists to
-prevent. `WaveCDoesNotDeclareItsOwnCopyOfABlockedPrimitive` enforces it.
-
-Their transitive blast radius is **25 of 50 files**, so excluding just the six direct consumers
-would leave the lane verifying almost nothing - the same false confidence in a different costume.
-The whole wave is therefore gated on one flag:
-
-```bash
-dotnet build tests/Maui.Tizen.Core.RefPackCompile/... -p:MauiTizenWaveCAcceptance=true
-```
-
-With the gate **off** the lane is clean. With it **on**, the only diagnostics are the 48 `CS0246`
-references to those two types - zero warnings, nothing else outstanding.
-`AcceptanceGateMustBeReopenedOnceCoreLandsThePrimitives` fails as soon as core provides either, so
-the flag cannot be left off once the blocker clears.
+The source suite executes the NUI-free selection, cache, template and toolbar ownership algorithms.
+The Core host suite builds the real `UseMauiAppTizenControls<TApp>` production path and verifies all
+15 Wave C concrete Controls types replace MAUI's neutral registrations. The RefPack lane proves the
+actual handlers and mapper bodies compile against net11 plus Samsung API15, and PublicAPI is owned by
+`Maui.Tizen.Controls`.
 
 ### Neutral mappers are mutated at runtime
 
@@ -371,25 +268,17 @@ would fire the icon handler twice per press, which on a flyout toggle cancels ou
 Runtime disposal and visual behaviour remain device-gated; what is pinned here is the bookkeeping
 that decides whether a disposed instance is ever touched.
 
-### Mapper dispatch — a known, deliberate gap
+### Mapper dispatch and handler composition
 
-Wave A hit a crash pattern worth stating plainly here: MAUI's
-`PropertyMapper<TVirtualView, TViewHandler>` **casts** the handler when it dispatches a mapping, so
-an interface-declared mapper instantiated over a concrete built-in handler makes any chained Tizen
-mapping throw at runtime. Wave C is structurally exposed — all 86 of its mapper delegates take a
-concrete `Tizen*Handler`.
+Every Wave C view handler derives from `TizenViewHandler<,>` and chains
+`TizenViewMappers.ViewMapper` / `ViewCommandMapper`; it no longer inherits the neutral platform
+no-op mapper bodies. Source tests verify mapper delegate signatures and execute every NUI-free
+adapter. The API15 compile binds every platform mapper body, while the production host test verifies
+that the one Controls startup path resolves every Wave C concrete type.
 
-`WaveCMapperDispatchTests` pins the two source-level invariants that keep that safe: delegates must
-match their mapper's declared handler type (checked **per class**, since several handlers share a
-file and reuse names like `MapText`), and no mapper may be declared over a handler interface. Both
-pass today.
-
-Those are **necessary but not sufficient**. Proving dispatch is safe needs a real Controls host that
-registers the Tizen handlers, enumerates every key including inherited and chained ones, and
-actually invokes each mapping — only that catches an inherited concrete-handler cast or a no-op body
-that never runs. That cannot be written until the predecessor stack lands, and host tests cannot
-instantiate NUI views. A placeholder test therefore **fails the moment the acceptance gate opens**,
-so the gap is closed deliberately rather than forgotten.
+NUI views still cannot be instantiated on this macOS host, so actual native mapper execution and
+visual behavior remain device-only. That limitation is reported rather than replaced by a neutral
+fallback.
 
 ### What is still unverified
 
@@ -618,29 +507,21 @@ the whole suite passes.
   (`WaveCSupersededSourceTests`)
 - every mapping delegate accepts exactly the handler type its mapper is declared over, and no
   mapper is declared over a MAUI handler *interface* (`WaveCMapperDispatchTests`)
-- the validation lane still targets a real Tizen TFM and still compiles the same sources as the
-  shipping project
+- the current Controls product and API15 RefPack lanes import the same deterministic Wave C
+  source manifest; the legacy net9 Wave C lane is absent
 
 ## Handler registration
 
-Every handler in this assembly was **unreachable** until `TizenNavigationHandlers` was added. MAUI
-resolves handlers from a registry, so a handler that is implemented, mapped and tested but never
-registered is dead code that falls back to whatever the neutral registry provides - which for these
-types is nothing. Implemented, mapped, and covered by tests is not the same as reachable, and nothing
-in the build said otherwise.
+`TizenNavigationHandlers` is an internal registration hook called by
+`TizenControlsHostingExtensions.AddTizenControlsBackend`. It registers all 15 concrete Wave C
+handlers inside the same `UseMauiAppTizenControls<TApp>` production path used by Core, Wave A and
+Wave B. There is no public `UseMauiTizenNavigation` or `AddMauiTizenNavigationHandlers` API for an
+application to forget or call in the wrong order.
 
-`AddMauiTizenNavigationHandlers()` registers all 15 concrete handlers, and `UseMauiTizenNavigation()`
-wires it from a `MauiAppBuilder`. Registration **replaces** the neutral handler rather than chaining,
-because Wave C handlers declare their own mappers instead of extending the neutral ones - chaining
-would run both and double-apply every mapping.
-
-`WaveCHandlerRegistrationTests` **derives the expected set from the source tree** rather than
-hardcoding it, so adding a handler without registering it fails the build. It also rejects duplicate
-registrations, since the later one silently wins. Negative controls: removing one registration and
-duplicating one each fail it.
-
-The only part that remains integration work is the **call site** - which host actually calls
-`UseMauiTizenNavigation()` - because that belongs to the final Core→A→B stack.
+`WaveCHandlerRegistrationTests` derives the expected handler set from source, rejects missing and
+duplicate registrations, and pins the call from the Controls composition root. The host-side
+`WaveCProductionRegistrationTests` builds that real composition path and resolves every concrete
+Controls type through `IMauiHandlersFactory`.
 
 ## Adaptor registration is shared, not duplicated
 
@@ -655,60 +536,24 @@ attached inside registration so no caller has to remember it, and removal now *u
 than merely looking up — leaving the entry behind kept the view alive and let a recycled native view
 resolve to a MAUI view whose handler was already disposed.
 
-## What the body probe found
+## Final predecessor integration
 
-Running the acceptance lane with the two missing Core types supplied — the only way to make Roslyn
-bind method bodies while the gate is open — surfaced **four real errors that the gated build reported
-as clean**:
+Finalized main supplies the Core-owned toolbar, stack navigation, flyout, wrapper, image, mapper,
+disconnect and disposal infrastructure. Wave C references those types directly and contributes only
+navigation, Shell, items/carousel, toolbar handler, menus and their platform views/adaptors.
 
-| Error | File |
-| --- | --- |
-| `disposing` does not exist (undefined identifier) | `TizenShellView.Dispose(DisposeTypes)` |
-| `ArgumentNullException` unresolved (missing `using System;`) | `TizenToolbarNavigationSlot.cs` |
-| `ArgumentNullException` unresolved (missing `using System;`) | `TizenNavigationHandlers.cs` |
-| `IDispatcher` / `Dispatch` unresolved (missing `using Microsoft.Maui.Dispatching;`) | `ItemSelectionState.cs` |
+Raw imported Tizen sources remain solely as provenance and are excluded from every compiled item
+list by `eng/manifests/wave-c-superseded.json` and `WaveCSupersededSourceTests`.
 
-Two of those were in code written in this round, and two had been sitting in the tree unnoticed. This
-is the concrete cost of the gate hiding the body phase, and the reason making the acceptance compile
-unconditional after the rebase is tracked as required work rather than a tidy-up.
+## External blockers and device gaps
 
-Everything still failing in that probe is a Core-owned symbol that has not landed: the six
-`DrawerView.Update*` extensions, `MauiFlyoutView`/`MauiTVFlyoutView`, `WrapperView` members,
-`Color.ToNUIColor`/`ToPlatform`, `FlyoutBehavior.ToPlatform`, `double.ToScaledPixel`/`ToScaledPoint`,
-`MauiToolbar.UpdateTitle`, `ViewHandler.MapToolbar`, `IPlatformViewHandler`, and the `object`-typed
-`PlatformView` sites.
+The pinned MAUI packages still do not expose modal navigation (#37853), generic handler contracts
+(#37855), Blazor APIs (#37858), or the external selection-state seam. Long-press, Shell resolver,
+toolbar capability and image-paint APIs (#37861–#37864) may be merged upstream but are retained
+behind typed adapters and expiry tests until they ship in the pinned package family. No reflection or
+internal access is used.
 
-## Deferred to the final predecessor stack
-
-Two items are deliberately not fixed here, because they only become real once Core lands and are
-recorded so they cannot be lost:
-
-1. **Toolbar transfer safety during Core toolbar inlining.** When `ITizenToolbarContainer.SetToolbar`
-   becomes the ownership-transfer point, the outgoing toolbar must be detached *before* transfer, and
-   a same-instance transfer must be a no-op rather than a detach/reattach cycle. Tracked as
-   `r3-final-toolbar`.
-2. **Unconditional acceptance compile.** After the rebase, `MauiTizenWaveCAcceptance` becomes
-   unconditional and the lane must prove every registration and real method body compiles. Today's 50
-   missing declarations are expected, but they stop Roslyn before the body phase, so they can hide
-   other errors - which is exactly how a latent `Dispose` bug and two missing `using System;` errors
-   survived until a probe forced bodies to bind. Tracked as `r3-final-gate`.
-
-## Predecessor dependencies
-
-Wave C is branched from the foundation import commit so paths and history line up. It consumes,
-but does not define, the following Core-level Tizen primitives, which belong to the foundation and
-Waves A/B:
-
-- `Microsoft.Maui.Platform.MauiToolbar`, `ToolbarExtensions.UpdateTitle`
-- `Microsoft.Maui.Platform.StackNavigationManager`, `NaviPage`
-- `Microsoft.Maui.Platform.MauiFlyoutView`, `MauiTVFlyoutView`, `FlyoutViewExtensions`
-- `Microsoft.Maui.Platform.WrapperView`, `ViewGroup`, image-source and font services
-
-In the validation lane these resolve from the MAUI 9.0.120 package, which still ships a Tizen
-implementation. Once Waves A/B land their own `Maui.Tizen.Core`, the Wave C project needs a
-`ProjectReference` to it instead — that is the one merge action Wave C leaves behind.
-
-Wave C also leaves the raw imported sources it supersedes in place under
-`src/Maui.Tizen.Controls/Core/` rather than deleting them, so that a later rebase onto finalized
-predecessor branches is a content merge rather than a delete/add conflict. Removing them is a
-follow-up once Waves A/B have settled the final assembly layout.
+A Tizen device or emulator is still required to validate NUI recycling, focus, native selection,
+Shell navigation animations, drawer interaction, toolbar rendering and disposal timing. The host and
+API15 lanes validate composition, compilation, metadata, deterministic parity and NUI-free
+lifecycles; they do not claim device behavior.

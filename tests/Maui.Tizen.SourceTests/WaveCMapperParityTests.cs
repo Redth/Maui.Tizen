@@ -15,6 +15,7 @@ namespace Maui.Tizen.SourceTests;
 public class WaveCMapperParityTests
 {
 	const string ManifestRelativePath = "docs/wave-c-mapper-parity.json";
+	const string MarkdownRelativePath = "docs/wave-c-mapper-parity.md";
 
 	static readonly JsonSerializerOptions Json = new()
 	{
@@ -66,6 +67,81 @@ public class WaveCMapperParityTests
 	static ParityMapper Convert(MapperEntry entry) =>
 		new(entry.Key, entry.Method, entry.Status, entry.IsNoOp ? entry.Reason : null);
 
+	static string BuildMarkdown(ParityDocument document)
+	{
+		var mappings = document.Handlers
+			.SelectMany(handler => handler.PropertyMappers.Concat(handler.CommandMappers))
+			.ToList();
+		var builder = new System.Text.StringBuilder();
+
+		builder.AppendLine("# Wave C mapper parity");
+		builder.AppendLine();
+		builder.AppendLine("Companion to [`wave-c-mapper-parity.json`](wave-c-mapper-parity.json), generated deterministically");
+		builder.AppendLine("from the current Wave C source by `Maui.Tizen.SourceTests`. Regenerate the JSON with:");
+		builder.AppendLine();
+		builder.AppendLine("```bash");
+		builder.AppendLine("MAUI_TIZEN_UPDATE_PARITY=1 dotnet test tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj");
+		builder.AppendLine("```");
+		builder.AppendLine();
+		builder.AppendLine("## Summary");
+		builder.AppendLine();
+		builder.AppendLine($"- {document.Handlers.Count} migrated handlers");
+		builder.AppendLine($"- {mappings.Count(mapper => mapper.Status == "Supported")} supported mappings, {mappings.Count(mapper => mapper.Status == "NoOp")} documented no-ops");
+		builder.AppendLine($"- {document.Handlers.Count(handler => handler.UncoveredNeutralKeys.Count > 0)} handlers with recorded neutral-key gaps");
+		builder.AppendLine();
+		builder.AppendLine("`UncoveredNeutralKeys` are recorded gaps, not silent omissions. The source tests fail when the");
+		builder.AppendLine("current MAUI mapper surface and this manifest differ.");
+		builder.AppendLine();
+		builder.AppendLine("## Handlers");
+		builder.AppendLine();
+
+		foreach (var handler in document.Handlers)
+		{
+			builder.AppendLine($"### `{handler.Handler}`");
+			builder.AppendLine();
+			builder.AppendLine($"- Source: `{handler.File}`");
+			builder.AppendLine($"- Base: `{handler.BaseType}`");
+			if (handler.NeutralHandler is not null)
+				builder.AppendLine($"- Neutral counterpart: `{handler.NeutralHandler}`");
+			builder.AppendLine();
+
+			AppendMappers(builder, "Property mappers", handler.PropertyMappers);
+			AppendMappers(builder, "Command mappers", handler.CommandMappers);
+
+			if (handler.UncoveredNeutralKeys.Count > 0)
+			{
+				builder.AppendLine(
+					"**Recorded gaps:** "
+					+ string.Join(", ", handler.UncoveredNeutralKeys.Select(key => $"`{key}`")));
+				builder.AppendLine();
+			}
+		}
+
+		return builder.ToString();
+	}
+
+	static void AppendMappers(
+		System.Text.StringBuilder builder,
+		string title,
+		IReadOnlyList<ParityMapper> mappings)
+	{
+		if (mappings.Count == 0)
+			return;
+
+		builder.AppendLine($"**{title}**");
+		builder.AppendLine();
+		builder.AppendLine("| Key | Method | Status | Notes |");
+		builder.AppendLine("| --- | --- | --- | --- |");
+		foreach (var mapper in mappings)
+		{
+			var reason = (mapper.Reason ?? string.Empty)
+				.Replace("|", "\\|", StringComparison.Ordinal)
+				.ReplaceLineEndings(" ");
+			builder.AppendLine($"| `{mapper.Key}` | `{mapper.Method}` | {mapper.Status} | {reason} |");
+		}
+		builder.AppendLine();
+	}
+
 	static HashSet<string> ImplementedKeys(HandlerSource handler)
 	{
 		var keys = handler.PropertyMappers.Select(m => m.Key)
@@ -108,16 +184,22 @@ public class WaveCMapperParityTests
 	public void ParityManifestMatchesSource()
 	{
 		var path = RepoPaths.Combine(ManifestRelativePath.Split('/'));
-		var expected = JsonSerializer.Serialize(Build(), Json) + Environment.NewLine;
+		var markdownPath = RepoPaths.Combine(MarkdownRelativePath.Split('/'));
+		var document = Build();
+		var expected = JsonSerializer.Serialize(document, Json) + Environment.NewLine;
+		var expectedMarkdown = BuildMarkdown(document);
 
 		if (Environment.GetEnvironmentVariable("MAUI_TIZEN_UPDATE_PARITY") == "1")
 		{
 			Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 			File.WriteAllText(path, expected);
+			File.WriteAllText(markdownPath, expectedMarkdown);
 		}
 
 		Assert.True(File.Exists(path), $"{ManifestRelativePath} is missing. Regenerate with MAUI_TIZEN_UPDATE_PARITY=1.");
 		Assert.Equal(expected.ReplaceLineEndings(), File.ReadAllText(path).ReplaceLineEndings());
+		Assert.True(File.Exists(markdownPath), $"{MarkdownRelativePath} is missing. Regenerate with MAUI_TIZEN_UPDATE_PARITY=1.");
+		Assert.Equal(expectedMarkdown.ReplaceLineEndings(), File.ReadAllText(markdownPath).ReplaceLineEndings());
 	}
 
 	/// <summary>
@@ -266,13 +348,10 @@ public class WaveCMapperParityTests
 	[Fact]
 	public void ControlsRemapsAreDeterministic()
 	{
+		ControlsHost.EnsureBuilt();
 		var flyout = NeutralMaui.FindHandler("FlyoutViewHandler");
 
 		Assert.NotNull(flyout);
-
-		Assert.True(
-			NeutralMaui.RemapFailure is null,
-			"Forcing the Controls remaps failed: " + NeutralMaui.RemapFailure);
 
 		var keys = NeutralMaui.MapperKeys(flyout!, "Mapper");
 
@@ -311,7 +390,7 @@ public class WaveCMapperParityTests
 		// guard removed - verified by removing it.
 		var snapshot = NeutralMaui.ViewMapperKeys;
 
-		NeutralMaui.EnsureRemapsBeforeReadingMappers();
+		ControlsHost.EnsureBuilt();
 
 		var viewHandler = NeutralMaui.Core.GetExportedTypes()
 			.First(t => t.FullName == "Microsoft.Maui.Handlers.ViewHandler");

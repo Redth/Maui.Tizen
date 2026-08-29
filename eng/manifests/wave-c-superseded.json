@@ -3,9 +3,8 @@
     "Raw dotnet/maui Tizen sources that Wave C supersedes.",
     "",
     "The foundation import deliberately preserved the unmodified tree. Wave C rewrote these files",
-    "against public MAUI API under src/Maui.Tizen.Controls.Navigation, but does not DELETE the",
-    "originals yet: a later rebase onto the finalized predecessor branches is a content merge",
-    "rather than a delete/add conflict, and the raw tree is still the provenance record.",
+    "against public MAUI API under src/Maui.Tizen.Controls/Navigation. The originals remain only",
+    "as the imported provenance record and are never compiled.",
     "",
     "The hazard that creates is ambiguity - two files that both look authoritative. This manifest",
     "resolves it: everything listed here is superseded and MUST NOT appear in any compiled item",
@@ -13,11 +12,11 @@
   ],
   "schemaVersion": 1,
   "wave": "C",
-  "replacementRoot": "src/Maui.Tizen.Controls.Navigation",
+  "replacementRoot": "src/Maui.Tizen.Controls/Navigation",
   "policy": {
     "compiled": false,
     "retained": true,
-    "reason": "Provenance and merge ergonomics; retired once Waves A/B settle the assembly layout."
+    "reason": "Raw imported provenance only; shipping sources are explicitly listed elsewhere."
   },
   "notCovered": [
     {

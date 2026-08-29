@@ -33,6 +33,12 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Core" />
+    <!--
+      Controls is referenced ONLY by this test project, to prove that MAUI Controls types resolve
+      to this backend's handlers and that Controls' RemapForControls composes with our mappers.
+      The product package deliberately does not depend on Controls.
+    -->
+    <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">
@@ -45,6 +51,27 @@
     <Compile Include="HostStubs/**/*.cs" />
     <Compile Include="@(MauiTizenPortableCompile)" LinkBase="Backend" />
     <Compile Include="@(MauiTizenHandlerCompile)" LinkBase="Backend" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/TizenImageLoaderExtensions.cs" LinkBase="Backend" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/TizenContentOwnership.cs" LinkBase="WaveB" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/TizenRefreshCoordinator.cs" LinkBase="WaveB" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/TizenRefreshNativeIdlePoller.cs" LinkBase="WaveB" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/TizenImageReadinessCoordinator.cs" LinkBase="WaveB" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/TizenSwipeStructureCoordinator.cs" LinkBase="WaveB" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenSwipeMetrics.cs" LinkBase="WaveB" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenTaskExtensions.cs" LinkBase="WaveB" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenRefreshStateMachine.cs" LinkBase="WaveB" />
+    <Compile Include="@(MauiTizenWaveBHandlerCompile)" LinkBase="WaveB" />
+    <Compile Include="@(MauiTizenWaveBControlsCompile)" LinkBase="WaveBControls" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/TizenNavigationHandlers.cs"
+             LinkBase="WaveC" />
+
+    <!--
+      The Controls bridge. Every NUI call in it is inside `#if TIZEN`, so it compiles against the
+      host stubs like the handler sources do - which is what lets the startup integration be
+      EXECUTED here rather than only type-checked in the ref-pack lane. Register() having no
+      production caller was invisible precisely because nothing executed that path.
+    -->
+    <Compile Include="@(MauiTizenControlsCompile)" LinkBase="Controls" />
     <Compile Include="*.cs" />
   </ItemGroup>
 

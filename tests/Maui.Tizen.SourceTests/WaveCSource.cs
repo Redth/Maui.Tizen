@@ -6,10 +6,8 @@ namespace Maui.Tizen.SourceTests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Wave C lives in its own project (<c>src/Maui.Tizen.Controls.Navigation</c>) rather than in
-/// <c>src/Maui.Tizen.Controls</c>, because that project still globs the raw imported sources which
-/// cannot compile yet. Folding Wave C back in once the earlier waves have finished reworking those
-/// files is a tracked follow-up; until then the source tests point at the wave's own root.
+/// Wave C ships in <c>Maui.Tizen.Controls</c>. Its source root remains a distinct subdirectory so
+/// ownership is explicit without creating a second assembly or startup API.
 /// </para>
 /// <para>
 /// The Roslyn parsing itself is shared with <see cref="WaveBSource"/> - see
@@ -20,7 +18,7 @@ namespace Maui.Tizen.SourceTests;
 public static class WaveCSource
 {
 	/// <summary>Repository-relative root of the Wave C sources.</summary>
-	public static readonly string[] Root = { "src", "Maui.Tizen.Controls.Navigation" };
+	public static readonly string[] Root = { "src", "Maui.Tizen.Controls", "Navigation" };
 
 	/// <summary>Every migrated Wave C source file.</summary>
 	public static IReadOnlyList<string> Files { get; } = Discover();

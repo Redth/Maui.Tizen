@@ -8,7 +8,7 @@ namespace Maui.Tizen.SourceTests;
 /// </summary>
 /// <remarks>
 /// The foundation import preserved the unmodified Tizen tree on purpose, and Wave C rewrote large
-/// parts of it under <c>src/Maui.Tizen.Controls.Navigation</c> without deleting the originals - a
+/// parts of it under <c>src/Maui.Tizen.Controls/Navigation</c> without deleting the originals - a
 /// later rebase onto finalized predecessor branches is then a content merge rather than a
 /// delete/add conflict.
 /// <para>

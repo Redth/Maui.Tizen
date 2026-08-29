@@ -31,23 +31,29 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public TizenRectangleHandler()
 			: base(Mapper, CommandMapper)
-		{{
-		}}
+		{
+			{
+			}
+		}
 
 		public TizenRectangleHandler(IPropertyMapper? mapper)
 			: base(mapper ?? Mapper, CommandMapper)
-		{{
-		}}
+		{
+			{
+			}
+		}
 
 		public TizenRectangleHandler(IPropertyMapper? mapper, CommandMapper? commandMapper)
 			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
-		{{
-		}}
+		{
+			{
+			}
+		}
 
 		public static void MapRadiusX(TizenRectangleHandler handler, Rectangle rectangle) =>
-			handler.PlatformView?.InvalidateShape(rectangle);
+			handler.LivePlatformView?.InvalidateShape(rectangle);
 
 		public static void MapRadiusY(TizenRectangleHandler handler, Rectangle rectangle) =>
-			handler.PlatformView?.InvalidateShape(rectangle);
+			handler.LivePlatformView?.InvalidateShape(rectangle);
 	}
 }

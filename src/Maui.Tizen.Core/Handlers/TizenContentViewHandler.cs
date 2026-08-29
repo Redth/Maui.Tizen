@@ -12,21 +12,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// <remarks>
 	/// Ported from <c>Microsoft.Maui.Handlers.ContentViewHandler</c> (Tizen) in dotnet/maui.
 	/// </remarks>
-	public class TizenContentViewHandler : TizenViewHandler<IContentView, TizenContentViewGroup>, ITizenContentViewHandler
+	public class TizenContentViewHandler : TizenViewHandler<IContentView, TizenContentViewGroup>, IContentViewHandler
 	{
 		ITizenPlatformViewHandler? _contentHandler;
+		TizenNativeView? _contentView;
+		long _contentGeneration;
+		readonly TizenDisconnectingState _disconnecting = new();
+
+		internal bool HasOwnedContent => _contentHandler is not null;
 
 		/// <summary>Property mapper for <see cref="IContentView"/> on Tizen.</summary>
-		public static readonly IPropertyMapper<IContentView, ITizenContentViewHandler> Mapper =
-			new PropertyMapper<IContentView, ITizenContentViewHandler>(ViewHandler.ViewMapper)
+		public static readonly IPropertyMapper<IContentView, IContentViewHandler> Mapper =
+			new PropertyMapper<IContentView, IContentViewHandler>(TizenViewMappers.ViewMapper, ContentViewHandler.Mapper)
 			{
 				[nameof(IContentView.Background)] = MapBackground,
 				[nameof(IContentView.Content)] = MapContent,
 			};
 
 		/// <summary>Command mapper for <see cref="IContentView"/> on Tizen.</summary>
-		public static readonly CommandMapper<IContentView, ITizenContentViewHandler> CommandMapper =
-			new(ViewHandler.ViewCommandMapper);
+		public static readonly CommandMapper<IContentView, IContentViewHandler> CommandMapper =
+			new(TizenViewMappers.ViewCommandMapper);
 
 		/// <summary>Initializes a new instance of the <see cref="TizenContentViewHandler"/> class.</summary>
 		public TizenContentViewHandler()
@@ -42,9 +47,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 		}
 
-		IContentView ITizenContentViewHandler.VirtualView => VirtualView;
+		IContentView IContentViewHandler.VirtualView => VirtualView;
 
-		TizenContentViewGroup ITizenContentViewHandler.PlatformView => PlatformView;
+		object IContentViewHandler.PlatformView => PlatformView;
 
 		/// <inheritdoc />
 		protected override TizenContentViewGroup CreatePlatformView()
@@ -62,26 +67,58 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <inheritdoc />
 		public override void SetVirtualView(IView view)
 		{
+			(((IElementHandler)this).PlatformView as TizenContentViewGroup)?.Rebind(view);
 			base.SetVirtualView(view);
 
+			PlatformView.Rebind(VirtualView);
 			PlatformView.CrossPlatformMeasure = VirtualView.CrossPlatformMeasure;
 			PlatformView.CrossPlatformArrange = VirtualView.CrossPlatformArrange;
+		}
+
+		protected override void ConnectHandler(TizenContentViewGroup platformView)
+		{
+			_disconnecting.Connected();
+			base.ConnectHandler(platformView);
+		}
+
+		protected override void DisconnectHandler(TizenContentViewGroup platformView)
+		{
+			TizenCleanup.Run(
+				_disconnecting.BeginDisconnect,
+				() => ClearContent(platformView),
+				() => base.DisconnectHandler(platformView));
+		}
+
+		protected override void Dispose(bool disposing)
+		{
+			if (!disposing)
+			{
+				base.Dispose(disposing);
+				return;
+			}
+
+			var platformView = ((IElementHandler)this).PlatformView as TizenContentViewGroup;
+			TizenCleanup.Run(
+				_disconnecting.BeginDisconnect,
+				() => ClearContent(platformView),
+				() => base.Dispose(disposing));
 		}
 
 		/// <summary>Maps <see cref="IView.Background"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="view">The content view.</param>
-		public static void MapBackground(ITizenContentViewHandler handler, IContentView view)
+		public static void MapBackground(IContentViewHandler handler, IContentView view)
 		{
 #if TIZEN
-			handler.PlatformView?.UpdateBackground(view);
+			if (handler is TizenContentViewHandler contentViewHandler)
+				Platform(contentViewHandler)?.UpdateBackground(view);
 #endif
 		}
 
 		/// <summary>Maps <see cref="IContentView.Content"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="view">The content view.</param>
-		public static void MapContent(ITizenContentViewHandler handler, IContentView view)
+		public static void MapContent(IContentViewHandler handler, IContentView view)
 		{
 			if (handler is TizenContentViewHandler contentViewHandler)
 				contentViewHandler.UpdateContent();
@@ -89,36 +126,60 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		void UpdateContent()
 		{
-			_ = MauiContext ?? throw new InvalidOperationException(
-				$"{nameof(MauiContext)} should have been set by base class.");
-
-#if TIZEN
-			PlatformView.Children.Clear();
-#endif
-			_contentHandler?.Dispose();
-			_contentHandler = null;
-
-			if (VirtualView.PresentedContent is not IView view)
+			if (_disconnecting.IsDisconnecting
+				|| ((IElementHandler)this).PlatformView is not TizenContentViewGroup platformView)
 				return;
 
-#if TIZEN
-			PlatformView.Children.Add(view.ToPlatformView(MauiContext));
-			PlatformView.SetNeedMeasureUpdate();
-#else
-			_ = view.ToPlatform(MauiContext);
-#endif
+			var context = MauiContext ?? throw new InvalidOperationException(
+				$"{nameof(MauiContext)} should have been set by base class.");
+			var virtualView = VirtualView;
+			var expectedContent = virtualView.PresentedContent;
+			var operation = TizenContentOwnership.Reserve(ref _contentGeneration);
+			TizenNativeView? replacementView = null;
+			ITizenPlatformViewHandler? replacementHandler = null;
 
-			if (view.Handler is ITizenPlatformViewHandler tizenHandler)
-				_contentHandler = tizenHandler;
+			if (expectedContent is IView view)
+			{
+				replacementView = view.ToPlatformView(context);
+				replacementHandler = view.Handler as ITizenPlatformViewHandler;
+			}
+
+			TizenContentOwnership.Replace(
+				operation,
+				ref _contentView,
+				ref _contentHandler,
+				ref _contentGeneration,
+				replacementView,
+				replacementHandler,
+				oldView => platformView.Children.Remove(oldView),
+				newView =>
+				{
+					platformView.Children.Add(newView);
+					platformView.SetNeedMeasureUpdate();
+				},
+				static () => { },
+				() =>
+					ReferenceEquals(VirtualView, virtualView) &&
+					ReferenceEquals(VirtualView.PresentedContent, expectedContent));
 		}
 
-		/// <inheritdoc />
-		protected override void Dispose(bool disposing)
+		void ClearContent(TizenContentViewGroup? platformView)
 		{
-			if (disposing)
-				_contentHandler?.Dispose();
-
-			base.Dispose(disposing);
+			var operation = TizenContentOwnership.Reserve(ref _contentGeneration);
+			TizenContentOwnership.Clear(
+				operation,
+				ref _contentView,
+				ref _contentHandler,
+				ref _contentGeneration,
+				view => platformView?.Children.Remove(view),
+				static () => { },
+				static () => true);
 		}
+
+		static TizenContentViewGroup? Platform(TizenContentViewHandler handler) =>
+			!handler._disconnecting.IsDisconnecting &&
+			TizenHandlerLifecycle.TryGetLivePlatformView(handler, out TizenContentViewGroup? platformView)
+				? platformView
+				: null;
 	}
 }

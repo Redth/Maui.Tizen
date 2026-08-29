@@ -18,7 +18,7 @@ import was being prepared. A branch name would have made the import unreproducib
 | `sourceBaseline` | `ee4d06cde6b49e297631b08426a33fb34f3152ef` | dotnet/maui `net11.0` @ 2026-08-18. The forward source baseline. |
 | `requiredAncestor` | `0b3bb76d2dd68d76b7c1302f43a76270d5949564` | PR [#36657](https://github.com/dotnet/maui/pull/36657), the Essentials/MainThread extensibility work. Minimum API floor. |
 | `behaviorBaseline` | `c1f4f7d879f6126029009902289efd6a4bb1bda9` | Tag `9.0.120`, the last published Tizen behaviour/API baseline. Retained here as tag `upstream/9.0.120`. |
-| `developmentPackageBaseline` | `11.0.0-preview.7.26418.3` | First coherent public-feed MAUI package set, from the [dnceng `dotnet11` feed](https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet11/nuget/v3/index.json). All key nuspec repository commits resolve to `0b3bb76d2d`. |
+| `developmentPackageBaseline` | `11.0.0-preview.7.26426.4` | Coherent public-feed MAUI package set, from the [dnceng `dotnet11` feed](https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet11/nuget/v3/index.json). All key nuspec repository commits resolve to `bedd1b18b7`. |
 
 Two details are easy to get wrong and are worth stating explicitly:
 
@@ -144,6 +144,26 @@ that redundancy belongs with the handler implementation workstream.
 
 The two steps are kept separate so a reviewer can verify that nothing was smuggled in
 during the filter by diffing the import commit on its own.
+
+### Imported PublicAPI fixtures are immutable
+
+`src/**/PublicAPI/net-tizen/` belongs to the history import. Those files are the monolithic
+dotnet/maui assembly baselines from the pinned `sourceBaseline`; they are not generated API
+contracts for this repository's standalone assemblies.
+
+Their upstream paths and normalized target paths are recorded in
+[`eng/manifests/source-disposition.json`](eng/manifests/source-disposition.json). Their trusted
+SHA-256 values are generated from a provenance-verified snapshot and pinned in
+[`eng/api-baselines/net11.0-publicapi/manifest.json`](eng/api-baselines/net11.0-publicapi/manifest.json).
+The workload-free CI lane joins those manifests and rejects content changes, deletion, extra
+files, path or case drift, unresolved reparse points, and symbolic-link escapes entirely offline.
+Every protected file is resolved component-by-component and must remain a regular file inside its
+declared imported baseline directory.
+
+Generated package baselines belong under `src/**/PublicAPI/slice/` and describe the standalone
+Maui.Tizen assembly that consumes them. Generating a slice baseline into `net-tizen` would replace
+imported evidence with a different assembly's contract, so the two locations are intentionally
+distinct.
 
 ---
 

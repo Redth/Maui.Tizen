@@ -9,8 +9,9 @@ XAML would require the MAUI build tasks and a full application project. Neither 
 Samsung publishes `samsung.net.sdk.tizen.manifest-11.0.100` (see `eng/baselines.json` and
 `docs/migration.md`), so a XAML catalog would be unverifiable text.
 
-Written as plain C#, these pages are compiled by the Wave C validation lane
-(`eng/validation/run-validation-lane.sh`) against real TizenFX and real MAUI reference assemblies.
+Written as plain C#, these pages are compiled by
+`tests/Maui.Tizen.Controls.ConsumerCompile` against the API15-compiled
+`Maui.Tizen.Controls` assembly and current MAUI references.
 That does not prove they render correctly — nothing here has been executed on a device or emulator —
 but it does prove the API they exercise exists and is public, which is the property this migration
 is actually about.

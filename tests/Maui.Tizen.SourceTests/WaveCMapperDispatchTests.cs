@@ -148,42 +148,46 @@ public class WaveCMapperDispatchTests
 	}
 
 	/// <summary>
-	/// Records the runtime half of this guard, which cannot be written yet.
+	/// The finalized API15 lane compiles every Wave C mapper into the shipping assembly boundary.
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// The two tests above are source-level. They prove the delegates and mapper declarations agree,
-	/// but they cannot prove <em>dispatch</em> is safe: that needs a real Controls host that
-	/// registers the Tizen handlers, enumerates every Wave C mapper key including inherited and
-	/// chained ones, and actually invokes each mapping. Only that catches an inherited
-	/// concrete-handler cast or a no-op body that silently never runs.
+	/// The source checks prove delegates and mapper declarations agree. The API15 lane then binds
+	/// every mapper body against the shipping assembly boundary, and the Core host suite proves the
+	/// one Controls production path resolves all concrete Wave C registrations.
 	/// </para>
 	/// <para>
-	/// It cannot be written today for two independent reasons: the predecessor stack has not landed,
-	/// so the Tizen handlers cannot be constructed against their final base types; and host tests
-	/// cannot instantiate NUI views, so a platform-free host has to stand in for the platform view.
-	/// </para>
-	/// <para>
-	/// This test therefore fails loudly once the blocker clears, so the gap is closed deliberately
-	/// rather than forgotten - the same expiry discipline used for the upstream API adapters.
+	/// The remaining limitation is native execution: NUI views cannot be instantiated on this host,
+	/// so actual native property application remains part of the device lane.
 	/// </para>
 	/// </remarks>
 	[Fact]
-	public void MapperDispatchRequiresARealControlsHostAfterTheRebase()
+	public void MapperDispatchIsInTheUnconditionalControlsLane()
 	{
-		var gateIsStillClosed = File.ReadAllText(
-				RepoPaths.Combine("eng", "Maui.Tizen.WaveC.Sources.props"))
-			.Contains("MauiTizenWaveCAcceptance) == 'true'", StringComparison.Ordinal)
-			|| File.ReadAllText(RepoPaths.Combine("eng", "Maui.Tizen.WaveC.Sources.props"))
-				.Contains("'$(MauiTizenWaveCAcceptance)' == 'true'", StringComparison.Ordinal);
+		var props = File.ReadAllText(RepoPaths.Combine("eng", "Maui.Tizen.WaveC.Sources.props"));
+		var lane = File.ReadAllText(
+			RepoPaths.Combine("tests", "Maui.Tizen.Controls.RefPackCompile", "Maui.Tizen.Controls.RefPackCompile.csproj"));
 
-		Assert.True(
-			gateIsStillClosed,
-			"The Wave C acceptance gate has been opened, so the predecessor stack has landed. Add the "
-				+ "runtime mapper-dispatch test now: build a real Controls host, register the Tizen "
-				+ "handlers, enumerate every Wave C mapper key (including inherited and chained keys) "
-				+ "and dispatch each mapping, so an inherited concrete-handler cast or a no-op body "
-				+ "cannot false-green. Then delete this placeholder.");
+		Assert.DoesNotContain("MauiTizenWaveCAcceptance", props, StringComparison.Ordinal);
+		Assert.Contains("@(MauiTizenWaveCAdapterCompile)", lane, StringComparison.Ordinal);
+		Assert.Contains("@(MauiTizenWaveCPlatformCompile)", lane, StringComparison.Ordinal);
+		Assert.Contains("@(MauiTizenWaveCCompile)", lane, StringComparison.Ordinal);
+	}
+
+	[Theory]
+	[InlineData("TizenItemsViewHandler")]
+	[InlineData("TizenShellHandler")]
+	[InlineData("TizenFlyoutViewHandler")]
+	[InlineData("TizenNavigationViewHandler")]
+	[InlineData("TizenTabbedPageHandler")]
+	public void RootViewHandlersUseTheTizenBaseMapperComposition(string handlerName)
+	{
+		var handler = WaveCSource.Handlers.Single(source => source.TypeName == handlerName);
+		var source = File.ReadAllText(RepoPaths.Combine(handler.RelativePath.Split('/')));
+
+		Assert.StartsWith("TizenViewHandler<", handler.BaseType, StringComparison.Ordinal);
+		Assert.Contains("TizenViewMappers.ViewMapper", source, StringComparison.Ordinal);
+		Assert.Contains("TizenViewMappers.ViewCommandMapper", source, StringComparison.Ordinal);
 	}
 
 	/// <summary>

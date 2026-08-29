@@ -118,14 +118,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (imageSource is not IStreamImageSource streamImageSource || streamImageSource.IsEmpty)
 				return null;
 
-			var stream = await streamImageSource.GetStreamAsync(cancellationToken).ConfigureAwait(false);
+			// These awaits deliberately do NOT use ConfigureAwait(false). TizenImageSource
+			// registers the decoded buffer with NUI, which is only legal on the main loop;
+			// resuming on the captured context keeps the continuation there. The service is
+			// invoked from a property mapper, so the captured context is the Tizen main loop.
+			var stream = await streamImageSource.GetStreamAsync(cancellationToken);
 			if (stream is null)
 				return null;
 
-			await using (stream.ConfigureAwait(false))
+			await using (stream)
 			{
 				var image = new TizenImageSource();
-				await image.LoadSource(stream).ConfigureAwait(false);
+				await image.LoadSource(stream);
 
 				if (image.ResourceUrl is null)
 				{
@@ -135,32 +139,6 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 				return new TizenImageSourceServiceResult(image, image.Dispose);
 			}
-		}
-	}
-
-	/// <summary>
-	/// Registers the Tizen image source services.
-	/// </summary>
-	public static class TizenImageSourceServiceCollectionExtensions
-	{
-		/// <summary>
-		/// Adds the file and stream image source services.
-		/// </summary>
-		/// <remarks>
-		/// Font and URI image sources belong to the image workstream and are deliberately absent.
-		/// Registering non-functional stubs for them would turn a clear "no service registered"
-		/// failure into a silently blank image.
-		/// </remarks>
-		/// <param name="services">The image source service collection.</param>
-		/// <returns>The collection, for chaining.</returns>
-		public static IImageSourceServiceCollection AddTizenImageSources(this IImageSourceServiceCollection services)
-		{
-			ArgumentNullException.ThrowIfNull(services);
-
-			services.AddService<IFileImageSource>(static _ => new TizenFileImageSourceService());
-			services.AddService<IStreamImageSource>(static _ => new TizenStreamImageSourceService());
-
-			return services;
 		}
 	}
 }

@@ -19,7 +19,7 @@ Phases 2 onward are **blocked on an external dependency** — see below.
 
 > **`net11.0-tizen11.0` cannot be restored or built by anyone today.**
 
-The workload manifest `samsung.net.sdk.tizen.manifest-11.0.100` has not been published to
+The workload manifest `Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7` has not been published to
 nuget.org. Only the `9.0.100` and `10.0.100` bands exist, and the newest
 `Samsung.Tizen.Sdk` is `10.0.128`.
 
@@ -29,7 +29,10 @@ around. It is handled as follows:
 - **Never faked.** There is no neutral `net11.0` fallback. A neutral build would be green
   and useless — assemblies that compile but cannot run on Tizen.
 - **Never silently skipped.** The `tizen-workload-gate` CI job runs on every build and
-  reports its status in the job summary. It does not disappear from the checks list.
+  reports its status in the job summary. When both expected manifest IDs return 404 it is
+  an informational success. When either exists, the same unconditional step installs the
+  workload and runs the real Tizen lane; there is no `continue-on-error` or skipped
+  follow-up step that can hide a failure.
 - **Explicit at build time.** Building a Tizen project without the workload fails with
   `MAUITIZEN0001`, which explains the situation rather than surfacing a raw
   `NETSDK1139` about an unknown target platform.
@@ -50,10 +53,48 @@ working.
 
 ### When the gate lifts
 
-1. The `tizen-workload-gate` job starts succeeding and builds `Maui.Tizen.slnx`.
-2. Promote that job to a required check.
-3. Regenerate API baselines against a real Tizen build.
-4. Begin Phase 2.
+The transition is automatic and fail-closed:
+
+1. `eng/ci/tizen-workload-gate.sh` probes the preview and stable feature-band manifest IDs,
+   both derived from `eng/baselines.json`.
+2. A 404 for both remains an informational external-gate success. Network errors,
+   malformed responses, and unexpected status codes fail because availability is unknown.
+3. When either package exists, CI runs Samsung's commit-pinned supported installer with the
+   exact published manifest version, then verifies the installed manifest through the
+   repository's `_DetectTizenWorkload` target.
+4. `eng/build-tizen.sh` restores, builds, and invokes Pack for every actual
+   `net11.0-tizen11.0` product project. Any install, restore, build, or pack failure fails
+   the workflow.
+5. After that lane is green, regenerate API baselines against the real Tizen build and
+   begin Phase 2.
+
+### Target contract provenance
+
+The `tizen11.0` / API15 contract is **verified from Samsung workload PR #310**, not
+inferred:
+
+| Item | Value |
+|---|---|
+| Target framework | `net11.0-tizen11.0` |
+| Reference pack | `Samsung.Tizen.Ref.API15` 15.0.0.19396 (TizenFX API15) |
+| `tizen-manifest.xml` | api-version 11 |
+| SDK band | 11.0.100-preview.7 |
+
+No API16 or new reference pack is required — API15 is sufficient.
+
+### Dependency advisories
+
+The repository audits NuGet dependencies at level `low` with warnings-as-errors, because
+this code ships to Tizen devices where patching is slow. The cost is that a newly
+published advisory against an existing dependency would otherwise turn an unrelated PR red
+with no warning.
+
+The scheduled [`dependency-audit`](../.github/workflows/dependency-audit.yml) workflow
+moves that discovery out of band: it runs weekly and files an issue rather than ambushing
+whoever opens the next PR. Resolution order is bump the package, bump the transitive
+dependency explicitly, then — only if no patched version exists — add a
+`NuGetAuditSuppress` entry with a written justification and a re-review date. Lowering
+`NuGetAuditLevel` is not an option; it converts one known problem into an unknown number.
 
 ## Baselines
 
@@ -66,7 +107,7 @@ the few hours the initial import was prepared.
 | `sourceBaseline` | `ee4d06cde6` — dotnet/maui `net11.0` @ 2026-08-18 |
 | `requiredAncestor` | `0b3bb76d2d` — PR #36657, Essentials/MainThread extensibility |
 | `behaviorBaseline` | `c1f4f7d879` — tag `9.0.120`, last published Tizen release |
-| `developmentPackageBaseline` | `11.0.0-preview.7.26418.3` from the dnceng `dotnet11` feed |
+| `developmentPackageBaseline` | `11.0.0-preview.7.26426.4` from the dnceng `dotnet11` feed |
 
 Two traps worth repeating:
 
@@ -99,7 +140,7 @@ enforces this.
 | Category | Count | Baseline |
 |---|---|---|
 | Tizen-named files | 314 | `net11.0` (`ee4d06cde6`) |
-| Shared files with `#if TIZEN` | 136 | `net11.0` |
+| Shared files with `#if TIZEN` | 135 | `net11.0` |
 | `PublicAPI/net-tizen` baselines | 18 | `net11.0` |
 | Tizen-named files present at `9.0.120` but **absent** at the net11.0 pin | 87 | `9.0.120` only |
 
@@ -130,7 +171,8 @@ The 87 files that exist only at `9.0.120` break down as:
 |---|---|
 | **Compatibility layer** | .NET MAUI 11 drops it. Audit each of the 70 files; `move` only what net11 Tizen handlers genuinely require, `exclude` the rest. Expected outcome: the package is deleted entirely. |
 | **Graphics** | `Microsoft.Maui.Graphics` is upstreamed from its own repository and carries one Tizen view here. Likely `keep-upstream` — contribute the view back rather than shipping a package. |
-| **Build.Tasks** | The imported Tizen tasks depend on shared Resizetizer types (`ILogger`, `ResizeImageInfo`, `ResizedImageInfo`) whose filenames contain no "tizen" and were therefore correctly excluded by the import filter. Either vendor them here, or ship these tasks inside `Microsoft.Maui.Resizetizer` upstream. |
+| **Build.Tasks** | The imported Tizen tasks depend on shared Resizetizer types (`ILogger`, `ResizeImageInfo`, `ResizedImageInfo`) whose filenames contain no "tizen" and were therefore correctly excluded by the import filter. Either vendor them here, or ship these tasks inside `Microsoft.Maui.Resizetizer` upstream. **Also unresolved:** these tasks use SkiaSharp for splash/icon generation, so enabling them raises real runtime and native-asset packaging questions (which SkiaSharp native assets ship, and how they reach a Tizen build). That is deliberately *not* papered over in the foundation — it is part of enabling the project, not of scaffolding it. |
+| **Documentation warnings** | `CS1591` is suppressed in `TizenPackage.props` while projects compile nothing. The inherited sources are not uniformly documented, so flipping a project to compile would otherwise fail on hundreds of missing-comment errors under warnings-as-errors. Remove the suppression per project as its documentation is completed. |
 | **`Tizen.UIExtensions`** | Needs republishing to drop its .NET 6-era `Microsoft.Maui.Graphics` dependencies. No API surface change expected. |
 
 ## The import

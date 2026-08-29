@@ -31,6 +31,17 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public static void UpdateOrientation(this ScrollView scrollView, ScrollOrientation scrollOrientation)
 		{
 			scrollView.ScrollOrientation = scrollOrientation.ToNative();
+
+			// Setting the orientation is not enough to stop scrolling. Tizen.UIExtensions.NUI 0.9.2
+			// converts its ScrollOrientation to NUI's two-valued ScrollingDirection with the
+			// equivalent of `value == Horizontal ? Horizontal : Vertical`, so BOTH `Both` and
+			// `Neither` arrive as Vertical - and `Neither`, which means "do not scroll at all",
+			// silently produces a vertically scrolling view.
+			//
+			// NUI has no "no direction" value, so the intent has to be expressed through
+			// ScrollEnabled instead. Restored unconditionally for every other orientation, so a view
+			// that was Neither and becomes scrollable again is not left frozen.
+			scrollView.ScrollEnabled = scrollOrientation != ScrollOrientation.Neither;
 		}
 
 		public static TScrollOrientation ToNative(this ScrollOrientation scrollOrientation)
@@ -41,6 +52,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 					return TScrollOrientation.Horizontal;
 				case ScrollOrientation.Vertical:
 					return TScrollOrientation.Vertical;
+				case ScrollOrientation.Neither:
+					// Neither means "do not scroll". The imported code fell through to Both here, so
+					// disabling scrolling actually enabled it on both axes.
+					return TScrollOrientation.Neither;
 				default:
 					return TScrollOrientation.Both;
 			}

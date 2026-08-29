@@ -19,15 +19,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	public class TizenGraphicsViewHandler : TizenViewHandler<IGraphicsView, TizenTouchGraphicsView>
 	{
 		public static IPropertyMapper<IGraphicsView, TizenGraphicsViewHandler> Mapper =
-			new PropertyMapper<IGraphicsView, TizenGraphicsViewHandler>(ViewMapper)
+			new PropertyMapper<IGraphicsView, TizenGraphicsViewHandler>(TizenViewMappers.ViewMapper)
 			{
-				[nameof(IView.Background)] = MapBackground,
 				[nameof(IGraphicsView.Drawable)] = MapDrawable,
 				[nameof(IView.FlowDirection)] = MapFlowDirection,
 			};
 
 		public static CommandMapper<IGraphicsView, TizenGraphicsViewHandler> CommandMapper =
-			new(ViewCommandMapper)
+			new(TizenViewMappers.ViewCommandMapper)
 			{
 				[nameof(IGraphicsView.Invalidate)] = MapInvalidate,
 			};
@@ -63,18 +62,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapDrawable(TizenGraphicsViewHandler handler, IGraphicsView graphicsView)
 		{
-			handler.PlatformView?.UpdateDrawable(graphicsView);
+			Platform(handler)?.UpdateDrawable(graphicsView);
 		}
 
 		public static void MapFlowDirection(TizenGraphicsViewHandler handler, IGraphicsView graphicsView)
 		{
-			handler.PlatformView?.UpdateFlowDirection(graphicsView);
-			handler.PlatformView?.Invalidate();
+			TizenViewMappers.MapFlowDirection(handler, graphicsView);
+			Platform(handler)?.UpdateFlowDirection(graphicsView);
+			Platform(handler)?.Invalidate();
 		}
 
 		public static void MapInvalidate(TizenGraphicsViewHandler handler, IGraphicsView graphicsView, object? arg)
 		{
-			handler.PlatformView?.Invalidate();
+			Platform(handler)?.Invalidate();
 		}
+
+		static TizenTouchGraphicsView? Platform(TizenGraphicsViewHandler handler) =>
+			TizenHandlerLifecycle.TryGetLivePlatformView(handler, out TizenTouchGraphicsView? platformView)
+				? platformView
+				: null;
 	}
 }

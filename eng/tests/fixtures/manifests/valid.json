@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "generatedFrom": {
+    "sourceBaseline": "ee4d06cde6b49e297631b08426a33fb34f3152ef",
+    "behaviorBaseline": "c1f4f7d879f6126029009902289efd6a4bb1bda9"
+  },
+  "entries": [
+    { "path": "src/Core/src/Platform/Tizen/ViewExtensions.cs", "sourceRef": "both", "kind": "tizen-specific", "disposition": "move", "targetPath": "src/Maui.Tizen.Core/Platform/Tizen/ViewExtensions.cs" },
+    { "path": "src/Core/src/Handlers/Button/ButtonHandler.cs", "sourceRef": "sourceBaseline", "kind": "shared-conditional", "disposition": "rebuild", "targetPath": "src/Maui.Tizen.Core/Handlers/Button/ButtonHandler.cs" },
+    { "path": "src/Compatibility/Core/src/Tizen/Forms.cs", "sourceRef": "behaviorBaseline", "kind": "tizen-specific", "disposition": "exclude", "notes": "Top-level Compatibility stack was removed upstream on net11.0." }
+  ]
+}

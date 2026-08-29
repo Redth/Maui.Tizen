@@ -34,6 +34,7 @@
           "is also written down."
         ],
         "observedAgainst": "bedd1b18b7682193e05b47267509cec8c49c6853",
+        "$note": "bedd1b18b7 is also developmentPackageBaseline.nuspecRepositoryCommit, so the Microsoft.Maui.* packages this repository compiles against DO contain these three API additions while the imported source baseline does not. The gap therefore applies to imported source only.",
         "commits": [
           { "commit": "62418a4ec4", "pullRequest": 37420, "title": "Expose gesture recognizer dispatch APIs" },
           { "commit": "78502a5325", "pullRequest": 37671, "title": "Harden gesture recognizer dispatch API contracts" },
@@ -57,10 +58,29 @@
       "note": "This is the ONLY ref that still carries src/Compatibility Tizen sources (70 files). They were deleted upstream on net11.0, so a net11.0-only baseline loses them silently."
     },
     "developmentPackageBaseline": {
-      "version": "11.0.0-preview.7.26418.3",
+      "version": "11.0.0-preview.7.26426.4",
       "feed": "https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet11/nuget/v3/index.json",
-      "nuspecRepositoryCommit": "0b3bb76d2dd68d76b7c1302f43a76270d5949564",
-      "role": "First coherent public-feed MAUI package set for net11. Used when building against published MAUI packages rather than source."
+      "nuspecRepositoryCommit": "bedd1b18b7682193e05b47267509cec8c49c6853",
+      "role": "Coherent public-feed MAUI package set for net11. Used when building against published MAUI packages rather than source.",
+      "$comment": [
+        "IMPORTANT: this is a DIFFERENT commit from sourceBaseline, and deliberately so.",
+        "",
+        "  sourceBaseline               ee4d06cde6   what the history import is pinned to",
+        "  nuspecRepositoryCommit       bedd1b18b7   what these packages were built from",
+        "",
+        "bedd1b18b7 is 46 commits ahead of ee4d06cde6 and INCLUDES the three Tizen-touching",
+        "commits recorded in sourceBaseline.knownGapAfterThisPin (#37420, #37671, #37755).",
+        "",
+        "So the gap is one-directional and applies only to imported SOURCE, not to the",
+        "packages we compile against: the referenced Microsoft.Maui.* assemblies already",
+        "carry those three API additions, while the imported PublicAPI.Unshipped.txt",
+        "baseline does not. Anyone diffing our API baselines against these packages should",
+        "expect exactly that delta and should not read it as drift."
+      ],
+      "aspNetCoreDependencyFloor": {
+        "version": "11.0.0-preview.7.26381.103",
+        "note": "Declared by Microsoft.AspNetCore.Components.WebView.Maui's own nuspec at this package version, and unchanged by the MAUI bump. ASP.NET Core packages are on their own version line and must NOT be moved to the MAUI stamp - that version does not exist for them."
+      }
     },
     "provenancePullRequests": [
       { "number": 2360, "title": "Adds Tizen backend", "upstreamCommit": "438aef2e5d" },
@@ -80,9 +100,38 @@
       "version": "15.0.0.19396"
     },
     "workloadManifest": {
-      "id": "samsung.net.sdk.tizen.manifest-11.0.100",
+      "$comment": [
+        "Naming matters here and is easy to get wrong. NuGet package IDs are",
+        "case-insensitive, so this appears in both spellings in the wild:",
+        "  Samsung.NET.Sdk.Tizen.Manifest-<band>   (Samsung's own casing)",
+        "  samsung.net.sdk.tizen.manifest-<band>   (nuget.org flat-container form)",
+        "The <band> suffix is the SDK feature band, and for previews it carries the",
+        "preview segment too - so what to watch for is the -preview.7 form, not a bare",
+        "11.0.100. Both were probed; neither exists."
+      ],
+      "id": "Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7",
+      "lowercaseId": "samsung.net.sdk.tizen.manifest-11.0.100-preview.7",
       "status": "unavailable",
-      "note": "Not published to nuget.org as of 2026-08-26. Only the -9.0.100 and -10.0.100 bands exist; the newest Samsung.Tizen.Sdk is 10.0.128. This is an explicit external gate: the net11.0-tizen11.0 TFM cannot be restored or built anywhere until Samsung publishes this manifest. See docs/migration.md."
+      "probedUtc": "2026-08-26",
+      "publishedBands": [
+        { "id": "samsung.net.sdk.tizen.manifest-9.0.100", "latest": "10.0.104" },
+        { "id": "samsung.net.sdk.tizen.manifest-10.0.100", "latest": "10.0.123" }
+      ],
+      "note": "Neither the '-11.0.100' nor the '-11.0.100-preview.7' form exists on nuget.org (both 404). Only the 9.0.100 and 10.0.100 bands publish, and the newest Samsung.Tizen.Sdk is 10.0.128. Explicit external gate: net11.0-tizen11.0 cannot be restored or built anywhere until Samsung publishes an 11.0.100-band manifest. See docs/migration.md."
+    },
+    "provenance": {
+      "$comment": [
+        "The tizen11.0 / API15 contract is verified from Samsung's own workload PR, not",
+        "inferred. This is what makes API15 sufficient and rules out needing a new",
+        "reference pack."
+      ],
+      "source": "Samsung workload PR #310",
+      "establishes": [
+        "net11.0-tizen11.0 as the target framework",
+        "TizenFX API15 / Samsung.Tizen.Ref.API15 15.0.0.19396 as the reference pack",
+        "tizen-manifest.xml api-version 11",
+        "SDK band 11.0.100-preview.7"
+      ]
     },
     "notes": [
       "No API16 or new reference pack is required; API15 is sufficient.",

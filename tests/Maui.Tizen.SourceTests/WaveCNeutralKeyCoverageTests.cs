@@ -81,7 +81,7 @@ public class WaveCNeutralKeyCoverageTests
 	public void TheFlyoutLayoutBehaviorMappingReDispatchesFlyoutBehavior()
 	{
 		var source = File.ReadAllText(RepoPaths.Combine(
-			"src", "Maui.Tizen.Controls.Navigation", "Handlers", "Navigation", "TizenFlyoutViewHandler.cs"));
+			"src", "Maui.Tizen.Controls", "Navigation", "Handlers", "Navigation", "TizenFlyoutViewHandler.cs"));
 
 		Assert.Contains("MapFlyoutLayoutBehavior", source, StringComparison.Ordinal);
 		Assert.Contains("UpdateValue(nameof(IFlyoutView.FlyoutBehavior))", source, StringComparison.Ordinal);
@@ -115,7 +115,7 @@ public class WaveCNeutralKeyCoverageTests
 	public void TheIsVisibleMappingShowsOrHidesThePlatformView()
 	{
 		var source = File.ReadAllText(RepoPaths.Combine(
-			"src", "Maui.Tizen.Controls.Navigation", "Handlers", "Items", "TizenItemsViewHandler.cs"));
+			"src", "Maui.Tizen.Controls", "Navigation", "Handlers", "Items", "TizenItemsViewHandler.cs"));
 
 		Assert.Contains("MapIsVisible", source, StringComparison.Ordinal);
 		Assert.Contains("PlatformView.Show()", source, StringComparison.Ordinal);

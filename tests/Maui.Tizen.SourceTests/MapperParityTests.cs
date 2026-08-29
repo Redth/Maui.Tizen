@@ -29,9 +29,13 @@ public class MapperParityTests
 	/// <summary>Builds the parity view from source plus reflection over the real MAUI assemblies.</summary>
 	static ParityDocument Build()
 	{
+		// Mapper state is process-global and Controls mutates it; read it in its realistic,
+		// fully-remapped form so the manifest cannot depend on test execution order.
+		ControlsHost.EnsureBuilt();
+
 		var handlers = new List<ParityHandler>();
 
-		foreach (var handler in WaveBSource.Handlers)
+		foreach (var handler in WaveBSource.Handlers.Where(IsMapperHandler))
 		{
 			var neutralName = handler.TypeName["Tizen".Length..];
 			var neutral = NeutralMaui.FindHandler(neutralName);
@@ -39,12 +43,11 @@ public class MapperParityTests
 				? Array.Empty<string>()
 				: NeutralMaui.MapperKeys(neutral, "Mapper").ToArray();
 
-			var implemented = ImplementedKeys(handler);
+			var effectiveProperty = EffectiveEntries(handler, property: true);
+			var effectiveCommand = EffectiveEntries(handler, property: false);
 
-			// Keys the shared view/element mapper already supplies are inherited by chaining.
 			var uncovered = neutralKeys
-				.Where(k => !implemented.Contains(k))
-				.Where(k => !NeutralMaui.ViewMapperKeys.Contains(k))
+				.Where(k => !effectiveProperty.ContainsKey(k))
 				.Distinct(StringComparer.Ordinal)
 				.OrderBy(k => k, StringComparer.Ordinal)
 				.ToList();
@@ -54,8 +57,8 @@ public class MapperParityTests
 				handler.BaseType,
 				handler.RelativePath,
 				neutralKeys.Length > 0 ? neutral!.FullName : null,
-				handler.PropertyMappers.Select(Convert).ToList(),
-				handler.CommandMappers.Select(Convert).ToList(),
+				effectiveProperty.Values.ToList(),
+				effectiveCommand.Values.ToList(),
 				uncovered));
 		}
 
@@ -66,29 +69,78 @@ public class MapperParityTests
 			handlers);
 	}
 
-	static ParityMapper Convert(MapperEntry entry) =>
-		new(entry.Key, entry.Method, entry.Status, entry.IsNoOp ? entry.Reason : null);
+	static bool IsMapperHandler(HandlerSource handler) =>
+		handler.TypeName.EndsWith("Handler", StringComparison.Ordinal);
+
+	static IReadOnlyDictionary<string, ParityMapper> EffectiveEntries(
+		HandlerSource handler,
+		bool property)
+	{
+		var effective = new Dictionary<string, ParityMapper>(StringComparer.Ordinal);
+
+		void Add(HandlerSource owner, string status)
+		{
+			var entries = property ? owner.PropertyMappers : owner.CommandMappers;
+			foreach (var entry in entries)
+			{
+				if (effective.ContainsKey(entry.Key))
+					continue;
+
+				effective[entry.Key] = new ParityMapper(
+					entry.Key,
+					$"{owner.TypeName}.{entry.Method}",
+					entry.IsNoOp ? "Unsupported" : status,
+					entry.IsNoOp ? entry.Reason : null);
+			}
+		}
+
+		HandlerSource? current = handler;
+		var chainsTizenView = false;
+		while (current is not null)
+		{
+			Add(current, ReferenceEquals(current, handler) ? "Supported" : "InheritedTizen");
+			chainsTizenView |= current.BaseType.StartsWith("TizenViewHandler", StringComparison.Ordinal);
+
+			var next = WaveBSource.Handlers.FirstOrDefault(candidate => candidate.TypeName == current.BaseType);
+			if (next is null || ReferenceEquals(next, current))
+				break;
+
+			current = next;
+		}
+
+		if (chainsTizenView)
+		{
+			Add(WaveBSource.SharedViewMapper, "InheritedTizen");
+
+			foreach (var key in NeutralMaui.ViewMapperKeys.Order(StringComparer.Ordinal))
+			{
+				if (effective.ContainsKey(key))
+					continue;
+
+				var reason = key switch
+				{
+					"Border" => "The obsolete IBorder.Border mapper is intentionally unsupported.",
+					"ContainerView" => "MAUI exposes no settable container hook to an out-of-repo backend.",
+					_ => null,
+				};
+
+				effective[key] = new ParityMapper(
+					key,
+					"ViewHandler.ViewMapper",
+					reason is null ? "InheritedControls" : "Unsupported",
+					reason);
+			}
+		}
+
+		return effective
+			.OrderBy(pair => pair.Key, StringComparer.Ordinal)
+			.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+	}
 
 	/// <summary>
 	/// Keys a handler covers, including those inherited by chaining onto a migrated base handler's
 	/// mapper (for example the shape handlers chaining <c>TizenShapeViewHandler.Mapper</c>).
 	/// </summary>
-	static HashSet<string> ImplementedKeys(HandlerSource handler)
-	{
-		var keys = handler.PropertyMappers.Select(m => m.Key)
-			.Concat(handler.CommandMappers.Select(m => m.Key))
-			.ToHashSet(StringComparer.Ordinal);
-
-		var baseHandler = WaveBSource.Handlers.FirstOrDefault(h => h.TypeName == handler.BaseType);
-
-		if (baseHandler is not null && baseHandler.TypeName != handler.TypeName)
-		{
-			keys.UnionWith(ImplementedKeys(baseHandler));
-		}
-
-		return keys;
-	}
-
 	/// <summary>
 	/// The manifest is generated, not hand-maintained, so it cannot drift from the source it
 	/// describes. Set MAUI_TIZEN_UPDATE_PARITY=1 to rewrite it after intentional changes.
@@ -130,6 +182,19 @@ public class MapperParityTests
 				}
 			}
 		}
+
+		Assert.Empty(failures);
+	}
+
+	[Fact]
+	public void EveryEffectiveUnsupportedMappingDocumentsWhy()
+	{
+		var failures = Build().Handlers
+			.SelectMany(handler => handler.PropertyMappers.Concat(handler.CommandMappers)
+				.Where(mapping => mapping.Status == "Unsupported")
+				.Where(mapping => string.IsNullOrWhiteSpace(mapping.Reason))
+				.Select(mapping => $"{handler.Handler}.{mapping.Key}"))
+			.ToList();
 
 		Assert.Empty(failures);
 	}

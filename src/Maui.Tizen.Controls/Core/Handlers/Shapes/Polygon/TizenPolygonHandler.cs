@@ -21,6 +21,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		public static new IPropertyMapper<Polygon, TizenPolygonHandler> Mapper =
 			new PropertyMapper<Polygon, TizenPolygonHandler>(TizenShapeViewHandler.Mapper)
 			{
+				// Shape is remapped here as well as inherited: the base mapper replaces the whole
+				// ShapeDrawable, which discards the winding mode applied to the old one.
+				[nameof(IShapeView.Shape)] = MapShape,
 				[nameof(Polygon.Points)] = MapPoints,
 				[nameof(Polygon.FillRule)] = MapFillRule,
 			};
@@ -32,29 +35,35 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public TizenPolygonHandler()
 			: base(Mapper, CommandMapper)
-		{{
-		}}
+		{
+			{
+			}
+		}
 
 		public TizenPolygonHandler(IPropertyMapper? mapper)
 			: base(mapper ?? Mapper, CommandMapper)
-		{{
-		}}
+		{
+			{
+			}
+		}
 
 		public TizenPolygonHandler(IPropertyMapper? mapper, CommandMapper? commandMapper)
 			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
-		{{
-		}}
+		{
+			{
+			}
+		}
 
 		Microsoft.Maui.Controls.PointCollection? _points;
 
 		protected override void ConnectHandler(TizenShapeView platformView)
 		{
-			if (VirtualView is Polygon polygon)
+			base.ConnectHandler(platformView);
+
+			if (LivePlatformView is not null && VirtualView is Polygon polygon)
 			{
 				UpdatePointsSubscription(polygon.Points);
 			}
-
-			base.ConnectHandler(platformView);
 		}
 
 		protected override void DisconnectHandler(TizenShapeView platformView)
@@ -89,31 +98,45 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		void OnPointsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
 		{
-			if (VirtualView is IShapeView shapeView)
+			if (LivePlatformView is { } platformView && VirtualView is IShapeView shapeView)
 			{
-				PlatformView?.InvalidateShape(shapeView);
+				platformView.InvalidateShape(shapeView);
 			}
 		}
 
 		public static void MapPoints(TizenPolygonHandler handler, Polygon polygon)
 		{
-			handler.UpdatePointsSubscription(polygon.Points);
-			handler.PlatformView?.InvalidateShape(polygon);
-		}
-
-		public static void MapFillRule(TizenPolygonHandler handler, Polygon polygon)
-		{
-			IDrawable? drawable = handler.PlatformView?.Drawable;
-
-			if (drawable is null)
+			if (handler.LivePlatformView is null)
 				return;
 
-			if (drawable is ShapeDrawable shapeDrawable)
-			{
-				shapeDrawable.UpdateWindingMode(polygon.FillRule == FillRule.EvenOdd ? WindingMode.EvenOdd : WindingMode.NonZero);
-			}
+			handler.UpdatePointsSubscription(polygon.Points);
+			ApplyFillRule(handler, polygon);
+		}
 
-			handler.PlatformView?.InvalidateShape(polygon);
+		/// <summary>Rebuilds the drawable for a new shape, preserving the winding mode.</summary>
+		/// <remarks>
+		/// <c>UpdateShape</c> assigns a brand new <c>ShapeDrawable</c>, so the fill rule pushed into
+		/// the old one is lost. Without reapplying it, an EvenOdd polygon silently reverts to
+		/// NonZero the next time its shape changes.
+		/// </remarks>
+		public static void MapShape(TizenPolygonHandler handler, Polygon polygon)
+		{
+			handler.LivePlatformView?.UpdateShape(polygon);
+			ApplyFillRule(handler, polygon);
+		}
+
+		public static void MapFillRule(TizenPolygonHandler handler, Polygon polygon) =>
+			ApplyFillRule(handler, polygon);
+
+		static void ApplyFillRule(TizenPolygonHandler handler, Polygon polygon)
+		{
+			if (handler.LivePlatformView?.Drawable is not ShapeDrawable shapeDrawable)
+				return;
+
+			shapeDrawable.UpdateWindingMode(
+				polygon.FillRule == FillRule.EvenOdd ? WindingMode.EvenOdd : WindingMode.NonZero);
+
+			handler.LivePlatformView?.InvalidateShape(polygon);
 		}
 	}
 }

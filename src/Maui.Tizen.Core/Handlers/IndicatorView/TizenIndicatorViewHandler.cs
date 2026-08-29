@@ -19,8 +19,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// </remarks>
 	public class TizenIndicatorViewHandler : TizenViewHandler<IIndicatorView, TizenPageControl>
 	{
+		const string IndicatorTemplateKey = "IndicatorTemplate";
+		readonly TizenDisconnectingState _disconnecting = new();
+
 		public static IPropertyMapper<IIndicatorView, TizenIndicatorViewHandler> Mapper =
-			new PropertyMapper<IIndicatorView, TizenIndicatorViewHandler>(ViewMapper)
+			new PropertyMapper<IIndicatorView, TizenIndicatorViewHandler>(TizenViewMappers.ViewMapper)
 			{
 				[nameof(IIndicatorView.Count)] = MapCount,
 				[nameof(IIndicatorView.Position)] = MapPosition,
@@ -30,10 +33,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				[nameof(IIndicatorView.IndicatorColor)] = MapIndicatorColor,
 				[nameof(IIndicatorView.SelectedIndicatorColor)] = MapSelectedIndicatorColor,
 				[nameof(IIndicatorView.IndicatorsShape)] = MapIndicatorShape,
+				[nameof(IView.Visibility)] = MapVisibility,
+				[IndicatorTemplateKey] = MapIndicatorTemplate,
 			};
 
 		public static CommandMapper<IIndicatorView, TizenIndicatorViewHandler> CommandMapper =
-			new(ViewCommandMapper)
+			new(TizenViewMappers.ViewCommandMapper)
 			{
 			};
 
@@ -54,20 +59,67 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override TizenPageControl CreatePlatformView() => new TizenPageControl(VirtualView);
 
-		public static void MapCount(TizenIndicatorViewHandler handler, IIndicatorView indicator) => handler.PlatformView.UpdateCount();
+		protected override void ConnectHandler(TizenPageControl platformView)
+		{
+			_disconnecting.Connected();
+			base.ConnectHandler(platformView);
+		}
 
-		public static void MapPosition(TizenIndicatorViewHandler handler, IIndicatorView indicator) => handler.PlatformView.UpdatePosition();
+		public override void SetVirtualView(IView view)
+		{
+			(((IElementHandler)this).PlatformView as TizenPageControl)?.Rebind((IIndicatorView)view);
+			base.SetVirtualView(view);
+			PlatformView.Rebind(VirtualView);
+		}
 
-		public static void MapHideSingle(TizenIndicatorViewHandler handler, IIndicatorView indicator) => handler.PlatformView.UpdateCount();
+		/// <inheritdoc />
+		/// <remarks>
+		/// A templated indicator creates a handler for its template, which this handler owns.
+		/// </remarks>
+		protected override void DisconnectHandler(TizenPageControl platformView)
+		{
+			TizenCleanup.Run(
+				_disconnecting.BeginDisconnect,
+				platformView.DisposeTemplatedViewHandler,
+				() => base.DisconnectHandler(platformView));
+		}
 
-		public static void MapMaximumVisible(TizenIndicatorViewHandler handler, IIndicatorView indicator) => handler.PlatformView.UpdateCount();
+		public static void MapCount(TizenIndicatorViewHandler handler, IIndicatorView indicator) => Platform(handler)?.UpdateCount();
 
-		public static void MapIndicatorSize(TizenIndicatorViewHandler handler, IIndicatorView indicator) => handler.PlatformView.ResetIndicators();
+		public static void MapPosition(TizenIndicatorViewHandler handler, IIndicatorView indicator) => Platform(handler)?.UpdatePosition();
 
-		public static void MapIndicatorColor(TizenIndicatorViewHandler handler, IIndicatorView indicator) => handler.PlatformView.ResetIndicators();
+		public static void MapHideSingle(TizenIndicatorViewHandler handler, IIndicatorView indicator) => Platform(handler)?.UpdateCount();
 
-		public static void MapSelectedIndicatorColor(TizenIndicatorViewHandler handler, IIndicatorView indicator) => handler.PlatformView.ResetIndicators();
+		public static void MapMaximumVisible(TizenIndicatorViewHandler handler, IIndicatorView indicator) => Platform(handler)?.UpdateCount();
 
-		public static void MapIndicatorShape(TizenIndicatorViewHandler handler, IIndicatorView indicator) => handler.PlatformView.ResetIndicators();
+		public static void MapIndicatorSize(TizenIndicatorViewHandler handler, IIndicatorView indicator) => Platform(handler)?.ResetIndicators();
+
+		public static void MapIndicatorColor(TizenIndicatorViewHandler handler, IIndicatorView indicator) => Platform(handler)?.ResetIndicators();
+
+		public static void MapSelectedIndicatorColor(TizenIndicatorViewHandler handler, IIndicatorView indicator) => Platform(handler)?.ResetIndicators();
+
+		public static void MapIndicatorShape(TizenIndicatorViewHandler handler, IIndicatorView indicator) => Platform(handler)?.ResetIndicators();
+
+		public static void MapVisibility(TizenIndicatorViewHandler handler, IIndicatorView indicator)
+		{
+			var platformView = Platform(handler);
+			if (platformView is null)
+				return;
+
+			TizenViewMappers.MapVisibility(handler, indicator);
+			platformView.UpdateCount();
+		}
+
+		public static void MapIndicatorTemplate(TizenIndicatorViewHandler handler, IIndicatorView indicator)
+		{
+			if (Platform(handler) is { } platformView)
+				platformView.ResetIndicators();
+		}
+
+		static TizenPageControl? Platform(TizenIndicatorViewHandler handler) =>
+			!handler._disconnecting.IsDisconnecting &&
+			TizenHandlerLifecycle.TryGetLivePlatformView(handler, out TizenPageControl? platformView)
+				? platformView
+				: null;
 	}
 }

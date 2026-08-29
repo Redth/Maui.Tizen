@@ -38,16 +38,25 @@ info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 note() { printf '\033[1;33m  GATE\033[0m %s\n' "$*"; }
 
 FAILURES=0
+CHECK_LOG_DIR="$REPO_ROOT/artifacts/logs/build-workload-free"
+CHECK_LOG="$CHECK_LOG_DIR/check.$$.log"
+mkdir -p "$CHECK_LOG_DIR"
+trap 'rm -f "$CHECK_LOG"' EXIT
+
+# check <label> <command...> — runs the command, reports, and returns its status so
+# callers can branch (e.g. to skip tests after a failed build).
 check() {
   local label="$1"; shift
-  if "$@" >/tmp/mt-check.$$ 2>&1; then
+  if "$@" >"$CHECK_LOG" 2>&1; then
     pass "$label"
-  else
-    fail "$label"
-    sed 's/^/        /' /tmp/mt-check.$$ | tail -30
-    FAILURES=$((FAILURES + 1))
+    rm -f "$CHECK_LOG"
+    return 0
   fi
-  rm -f /tmp/mt-check.$$
+  fail "$label"
+  sed 's/^/        /' "$CHECK_LOG" | tail -30
+  FAILURES=$((FAILURES + 1))
+  rm -f "$CHECK_LOG"
+  return 1
 }
 
 info "SDK"
@@ -66,39 +75,25 @@ for f in eng/baselines.json eng/manifests/*.json; do
 done
 
 # ---------------------------------------------------------------------------
+# 1b. Solution XML validation.
+# ---------------------------------------------------------------------------
+info "Solution validation"
+check "Maui.Tizen.slnx is valid" "$DOTNET" sln Maui.Tizen.slnx list
+
+# ---------------------------------------------------------------------------
 # 2. Baseline consistency.
 #
-# Directory.Build.props and eng/baselines.json both declare the target framework.
-# They drift silently and the symptom (API baselines generated for a different
-# platform version) is expensive to diagnose, so check it cheaply here.
+# Directory.Build.props, eng/Validation.Versions-equivalent properties and
+# eng/baselines.json all restate parts of the target contract, and they drift silently.
+#
+# This check used to live here as an inline python snippet. It now lives in
+# Maui.Tizen.Validation.Tests.RepositoryContractTests, which asserts the same invariants
+# plus TizenManifestApiVersion and SDK band membership, and reports failures with the
+# specific property that drifted. Keeping a second copy here meant two things to update
+# and two places to disagree.
+#
+# Run it with ./eng/validation/run-hosted-validation.sh (the hosted-validation CI job).
 # ---------------------------------------------------------------------------
-info "Baseline consistency"
-check "Directory.Build.props TFM matches eng/baselines.json" python3 - <<'PY'
-import json, re, sys
-
-baselines = json.load(open("eng/baselines.json"))
-expected = baselines["target"]["targetFramework"]
-
-props = open("Directory.Build.props").read()
-version = re.search(r"<TizenPlatformVersion>([^<]+)</TizenPlatformVersion>", props)
-dotnet  = re.search(r"<DotNetVersion>([^<]+)</DotNetVersion>", props)
-if not version or not dotnet:
-    sys.exit("could not read TFM properties from Directory.Build.props")
-
-actual = f"net{dotnet.group(1)}-tizen{version.group(1)}"
-if actual != expected:
-    sys.exit(f"Directory.Build.props builds '{actual}' but eng/baselines.json declares '{expected}'")
-
-band = baselines["target"]["sdkBand"]
-gj = json.load(open("global.json"))
-sdk = gj["sdk"]["version"]
-if not sdk.startswith(band):
-    sys.exit(f"global.json SDK '{sdk}' is not in the declared band '{band}'")
-if sdk == band:
-    sys.exit(
-        f"global.json SDK '{sdk}' is a bare band, not a resolvable SDK version. "
-        "actions/setup-dotnet cannot install it. Pin a concrete version within the band.")
-PY
 
 # ---------------------------------------------------------------------------
 # 3. Import reproducibility contract.
@@ -111,6 +106,9 @@ for f in eng/import/filter-maui-tizen.sh eng/import/normalize-layout.sh eng/impo
 done
 check "filter script is syntactically valid" bash -n eng/import/filter-maui-tizen.sh
 check "normalize script is syntactically valid" bash -n eng/import/normalize-layout.sh
+check "Tizen workload gate script is syntactically valid" bash -n eng/ci/tizen-workload-gate.sh
+check "real Tizen lane script is syntactically valid" bash -n eng/build-tizen.sh
+check "Tizen workload transition tests are syntactically valid" bash -n eng/tests/test-ci-tizen-workload-gate.sh
 
 # ---------------------------------------------------------------------------
 # 4. Restore and build the workload-independent projects.
@@ -129,18 +127,89 @@ WORKLOAD_FREE_PROJECTS=(
   #                               (mapper and DI registration, hosting, dispatching, density,
   #                               layout z-index ordering).
   #
-  #   Maui.Tizen.Core.RefPackCompile  type-checks every `#if TIZEN` source, and the sample
-  #                               head, against the REAL TizenFX reference assemblies from
-  #                               Samsung.Tizen.Ref.API15. It is compile-only and unpackable,
-  #                               so it cannot become a neutral fallback for the product.
+  #   Maui.Tizen.Core.RefPackCompile  type-checks every `#if TIZEN` backend source against the
+  #                               REAL TizenFX reference assemblies from Samsung.Tizen.Ref.API15,
+  #                               and enforces the backend's PublicAPI baseline. Compile-only and
+  #                               unpackable, so it cannot become a neutral fallback.
+  #
+  #   Maui.Tizen.Sample.RefPackCompile  compiles the sample head as its OWN assembly with a
+  #                               ProjectReference to the backend, so the sample crosses a real
+  #                               package boundary. It used to be folded into the backend lane,
+  #                               which merged both into one assembly and meant the boundary was
+  #                               never actually exercised - and left PublicAPI ownership
+  #                               unverifiable, since either baseline satisfied either assembly.
   "tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj"
+  #
+  #   Maui.Tizen.Controls.RefPackCompile  compiles the Controls-to-Tizen mapper bridge as its own
+  #                               assembly. Separate from the Core lane on purpose: the bridge
+  #                               references Microsoft.Maui.Controls and Core must not, so merging
+  #                               them would hide the dependency-direction mistake this layer
+  #                               exists to avoid.
+  "tests/Maui.Tizen.Sample.RefPackCompile/Maui.Tizen.Sample.RefPackCompile.csproj"
+  "tests/Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj"
+  "tests/Maui.Tizen.Controls.ConsumerCompile/Maui.Tizen.Controls.ConsumerCompile.csproj"
   "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj"
   "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj"
+
+  # Foundation-owned probes.
+  "eng/tests/PublicApiOptIn/PublicApiOptIn.csproj"
+  "eng/tests/PackReadmeProbe/PackReadmeProbe.csproj"
+  "eng/tools/ApiDump/ApiDump.csproj"
+  "eng/tools/SourceInventory/SourceInventory.csproj"
+  "eng/tools/PackageVerify/PackageVerify.csproj"
+  "tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj"
 )
+BUILD_OK=1
 for proj in "${WORKLOAD_FREE_PROJECTS[@]}"; do
   check "restore $(basename "$proj")" "$DOTNET" restore "$proj"
-  check "build   $(basename "$proj")" "$DOTNET" build "$proj" --no-restore -c Release
+  if check "build   $(basename "$proj")" "$DOTNET" build "$proj" --no-restore -c Release; then
+    :
+  else
+    BUILD_OK=0
+  fi
 done
+
+# ---------------------------------------------------------------------------
+# 4b. Package graph probe.
+#
+# The real consumers of these packages are the net11.0-tizen11.0 projects, and they
+# cannot restore at all - the workload gate fires before Restore. Without this probe a
+# broken version pin stays invisible until the Samsung workload ships.
+#
+# It already earned its place: Microsoft.AspNetCore.Components.WebView was pinned to
+# MAUI's version stamp, which does not exist for that package.
+# ---------------------------------------------------------------------------
+info "Package graph"
+check "restore package graph probe" "$DOTNET" restore eng/tests/PackageGraphProbe/PackageGraphProbe.csproj
+
+# ---------------------------------------------------------------------------
+# 4c. Packing regression.
+#
+# Proves that a project opting into IsPackable from its own body still receives the
+# README <None Pack="true"> item declared in Directory.Build.props, and therefore does
+# not fail with NU5039. See eng/tests/PackReadmeProbe for why this is pinned rather than
+# assumed - it is the kind of MSBuild evaluation-order question that is easy to reason
+# about incorrectly in either direction.
+# ---------------------------------------------------------------------------
+info "Packing"
+if check "pack README probe" "$DOTNET" pack eng/tests/PackReadmeProbe/PackReadmeProbe.csproj --no-restore -c Release; then
+  README_NUPKG="$(ls -t "$REPO_ROOT"/artifacts/packages/Maui.Tizen.Internal.PackReadmeProbe.*.nupkg 2>/dev/null | head -1 || true)"
+  # NOTE: `unzip -l ... | grep -q` is deliberately avoided. Under `set -o pipefail`,
+  # grep -q exits on first match and closes the pipe, so unzip can die with SIGPIPE and
+  # poison the pipeline's status - reporting a missing README for a package that contains
+  # one. That is the same failure that once made the CI provenance check report a present
+  # commit as missing; `grep -c` consumes all input, so there is no early close.
+  README_COUNT=0
+  if [[ -n "$README_NUPKG" ]]; then
+    README_COUNT="$(unzip -l "$README_NUPKG" 2>/dev/null | grep -c 'README\.md' || true)"
+  fi
+  if [[ "$README_COUNT" -gt 0 ]]; then
+    pass "packed nupkg contains README.md"
+  else
+    fail "packed nupkg is missing README.md (NU5039 risk: the README Pack item did not apply)"
+    FAILURES=$((FAILURES + 1))
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 # 5. Repository invariant tests.
@@ -148,21 +217,67 @@ done
 # These are the only tests that can meaningfully run before the workload ships: they
 # check that the migration scaffolding is internally consistent rather than testing
 # Tizen behaviour that nobody can execute yet.
+#
+# Skipped when the build failed. `dotnet test --no-build` against missing or stale
+# output produces pages of cascading errors that bury the actual first failure.
 # ---------------------------------------------------------------------------
 info "Repository invariant tests"
-check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
-check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
+if [[ $BUILD_OK -eq 1 ]]; then
+  check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
+  check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
+  check "Wave B source tests" "$DOTNET" test tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj --no-build -c Release
+  check "migration tooling tests" "$DOTNET" test tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj --no-build -c Release
+  check "Wave B negative controls" env DOTNET="$DOTNET" "$REPO_ROOT/eng/tests/run-wave-b-negative-controls.sh"
+  check "Wave B mutation runner behavior" "$REPO_ROOT/eng/tests/test-wave-b-mutation-runner.sh"
+else
+  fail "tests skipped - a preceding build failed (running --no-build now would only add cascading noise)"
+  FAILURES=$((FAILURES + 1))
+fi
 
 # ---------------------------------------------------------------------------
-# 5b. Wave B source and emitted-type tests.
+# 5. Workload detection regressions.
 #
-# Two things the compile lane alone cannot check: that every mapper key the neutral MAUI
-# handler declares is implemented or recorded, and that the EMITTED metadata contains no
-# type whose full name collides with the neutral assembly - notably
-# Microsoft.Maui.Platform.WrapperView and Microsoft.Maui.IPlatformViewHandler.
+# Detection decides whether anything in this repository can build, and it has been wrong
+# in both directions during development. These fixtures pin the behaviour.
 # ---------------------------------------------------------------------------
-info "Backend source tests"
-check "source tests" "$DOTNET" test tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj --no-build -c Release
+info "Workload detection regressions"
+if DOTNET="$DOTNET" "$REPO_ROOT/eng/tests/test-workload-detection.sh"; then
+  :
+else
+  fail "workload detection regressions failed"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# ---------------------------------------------------------------------------
+# 5a. CI workload transition regressions.
+#
+# The external gate must stay informational while both baseline-derived manifest IDs are
+# definitively unavailable, then become a mandatory real restore/build/pack lane as soon
+# as either ID exists. These tests simulate both states without network or a workload.
+# ---------------------------------------------------------------------------
+info "Tizen workload CI transition regressions"
+if "$REPO_ROOT/eng/tests/test-ci-tizen-workload-gate.sh"; then
+  :
+else
+  fail "Tizen workload CI transition regressions failed"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# ---------------------------------------------------------------------------
+# 5b. Snapshot verification regressions.
+#
+# eng/scripts/lib/Snapshot.ps1's Test-SnapshotIntegrity is what stands between "we downloaded
+# the right dotnet/maui commit" and "we scanned whatever happened to be on disk". These
+# fixtures exercise tamper/add/delete scenarios a marker-only (no-recompute) check would
+# silently accept, entirely offline (synthetic directories, no network).
+# ---------------------------------------------------------------------------
+info "Snapshot verification regressions"
+if pwsh -NoProfile -File "$REPO_ROOT/eng/tests/test-snapshot-verification.ps1"; then
+  :
+else
+  fail "snapshot verification regressions failed"
+  FAILURES=$((FAILURES + 1))
+fi
 
 # 7. Parity determinism.
 #
@@ -176,16 +291,30 @@ check "parity isolation" ./eng/run-parity-isolation-checks.sh
 # ---------------------------------------------------------------------------
 # 6. Report the Tizen gate explicitly.
 #
-# Reported, never silently skipped. If this ever starts saying "available", the Tizen
-# lane should be promoted to required.
+# Reported, never silently skipped. CI uses the same detector after Samsung's supported
+# installer and refuses to run the real Tizen lane unless it returns exactly "true".
+#
+# This asks MSBuild rather than parsing `dotnet workload list`. There is one detection
+# implementation (the _DetectTizenWorkload target) so there is one thing to get right -
+# and the previous shell probe, `dotnet workload list | grep -qi tizen`, matched an
+# unrelated `maui-tizen` workload by substring and would have reported the gate as lifted
+# while Samsung's workload was still absent.
 # ---------------------------------------------------------------------------
 info "Tizen workload gate"
-if "$DOTNET" workload list 2>/dev/null | grep -qi tizen; then
-  pass "Samsung Tizen workload is installed - the Tizen lane can now be made required"
-else
+WORKLOAD_STATE="$("$DOTNET" msbuild src/Maui.Tizen.Core/Maui.Tizen.Core.csproj \
+  -t:ReportTizenWorkload -nologo -v:m 2>/dev/null \
+  | grep -oE 'TizenWorkloadAvailable=[a-z]+' | tail -1 | cut -d= -f2 || true)"
+
+if [[ "$WORKLOAD_STATE" == "true" ]]; then
+  pass "Samsung Tizen workload is installed - CI will require the real Tizen lane"
+elif [[ "$WORKLOAD_STATE" == "false" ]]; then
   note "Samsung Tizen workload is NOT installed."
   note "  net11.0-tizen11.0 cannot be restored or built until Samsung publishes"
-  note "  'samsung.net.sdk.tizen.manifest-11.0.100'. This is expected; see docs/migration.md."
+  note "  an 11.0.100-band 'Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7' manifest."
+  note "  This is expected; see docs/migration.md."
+else
+  fail "could not determine workload state (ReportTizenWorkload returned '${WORKLOAD_STATE:-<empty>}')"
+  FAILURES=$((FAILURES + 1))
 fi
 
 echo

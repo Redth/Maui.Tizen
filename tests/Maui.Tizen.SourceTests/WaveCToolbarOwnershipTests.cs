@@ -211,4 +211,44 @@ public class WaveCToolbarOwnershipTests
 
 		Assert.All(toolbars, t => Assert.Equal(0, t.Subscriptions));
 	}
+
+	[Fact]
+	public void ShellUnsubscribesBeforeTheContainerDisposesAndSubscribesAfterTransfer()
+	{
+		var source = File.ReadAllText(RepoPaths.Combine(
+			"src", "Maui.Tizen.Controls", "Navigation", "Platform", "Shell", "TizenShellView.cs"));
+		var methodStart = source.IndexOf("public void UpdateToolbar()", StringComparison.Ordinal);
+		var methodEnd = source.IndexOf("void OnToolbarIconPressed", methodStart, StringComparison.Ordinal);
+		var body = source[methodStart..methodEnd];
+
+		var release = body.IndexOf("_toolbarOwnership.Release();", StringComparison.Ordinal);
+		var transferOwnership = body.IndexOf("_mainContentView.SetToolbar(platformToolbar);", StringComparison.Ordinal);
+		var subscribe = body.IndexOf("_toolbarOwnership.Transfer(platformToolbar);", StringComparison.Ordinal);
+
+		Assert.True(release >= 0 && transferOwnership > release && subscribe > transferOwnership);
+	}
+
+	[Fact]
+	public void ShellToolbarContainerDisposesTheToolbarItReplaces()
+	{
+		var source = File.ReadAllText(RepoPaths.Combine(
+			"src", "Maui.Tizen.Controls", "Navigation", "Platform", "Shell", "TizenNavigationContentView.cs"));
+
+		Assert.Contains("ITizenToolbarContainer", source, StringComparison.Ordinal);
+		Assert.Contains("outgoing.Dispose();", source, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void ToolbarImagesUseTheSharedTypedLoaderAndDisposeOnReplacement()
+	{
+		var handler = File.ReadAllText(RepoPaths.Combine(
+			"src", "Maui.Tizen.Controls", "Navigation", "Handlers", "Toolbar", "TizenToolbarHandler.cs"));
+		var extensions = File.ReadAllText(RepoPaths.Combine(
+			"src", "Maui.Tizen.Controls", "Navigation", "Platform", "Toolbar", "TizenToolbarExtensions.cs"));
+
+		Assert.Contains("TizenImageLoader<TizenImageSource>", handler, StringComparison.Ordinal);
+		Assert.Contains("GetTizenImageAsync", handler, StringComparison.Ordinal);
+		Assert.Contains("DisposeActionIconLoaders();", handler, StringComparison.Ordinal);
+		Assert.DoesNotContain(".LoadImage(", extensions, StringComparison.Ordinal);
+	}
 }

@@ -273,7 +273,7 @@ public class WaveCShellContentSourceTests
 		var body = BodyOf(ReadWaveCSource("TizenShellItemView.cs"), "public void UpdateCurrentItem(ShellSection");
 
 		Assert.Contains("_shellSectionStackCache.SetCurrent", body, StringComparison.Ordinal);
-		Assert.Contains("ToPlatform(MauiContext)", body, StringComparison.Ordinal);
+		Assert.Contains("ToPlatformView(MauiContext)", body, StringComparison.Ordinal);
 	}
 
 	/// <summary>
@@ -384,6 +384,43 @@ public class WaveCShellContentSourceTests
 
 		Assert.Contains("ShellSectionViewCache<ShellContent", source, StringComparison.Ordinal);
 		Assert.Contains("_contentCache.SetCurrent", source, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void RemovedShellSectionsReleaseTheirHandlerAndCachedView()
+	{
+		var body = BodyOf(
+			ReadWaveCSource("TizenShellItemView.cs"),
+			"void OnShellSectionsChanged");
+
+		Assert.Contains("handler.Dispose()", body, StringComparison.Ordinal);
+		Assert.Contains("_shellSectionStackCache.Remove", body, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void RemovedShellContentsReleaseTheirHandlerAndCachedView()
+	{
+		var body = BodyOf(
+			ReadWaveCSource("TizenShellSectionView.cs"),
+			"void OnShellContentsChanged");
+
+		Assert.Contains("_contentCache.Remove", body, StringComparison.Ordinal);
+		Assert.Contains("ReleasePage", body, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void ReplacingFlyoutItemsDisposesThePreviousAdaptorBeforeAssignment()
+	{
+		var body = BodyOf(
+			ReadWaveCSource("TizenShellView.cs"),
+			"public void UpdateFlyoutItems");
+
+		var dispose = body.IndexOf("_flyoutAdaptor.Dispose();", StringComparison.Ordinal);
+		var replacement = body.IndexOf(
+			"_flyoutAdaptor = new TizenShellFlyoutItemAdaptor",
+			StringComparison.Ordinal);
+		Assert.True(dispose >= 0 && replacement > dispose);
+		Assert.True(dispose >= 0 && replacement > dispose);
 	}
 
 	// -----------------------------------------------------------------
