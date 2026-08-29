@@ -130,10 +130,10 @@ checks remain only for Tizen-only wiring that cannot load on the host:
 - every empty mapper body has a documented justification;
 - the committed parity manifest matches what the sources actually declare.
 
-`eng/tests/run-wave-b-negative-controls.sh` is the reproducible regression runner for the causal
-startup, concrete reachability, mapper, ownership, refresh, image, swipe and indicator cases. The
-canonical workload-free build invokes it; mutation results are not claimed from an uncommitted
-manual edit.
+`eng/tests/run-wave-b-negative-controls.sh` applies the mutations declared in
+`eng/tests/wave-b-mutations.json` one at a time, requires nonzero test discovery and the expected
+failure, restores exact original bytes in a trap, and verifies the working-tree status is unchanged.
+The canonical workload-free build invokes it.
 
 These tests found three real defects during development: two missing command mappers
 (`new(...)` initialisers were not being read), and `ISwipeItemMenuItem.IconColor` having no mapper
@@ -521,9 +521,12 @@ double-dispose of the same native object. `TizenContentOwnership` now snapshots 
 fields before any callback, cancels animation callbacks, detaches the native view, and then disposes
 either the owning handler or the unowned placeholder exactly once. `TizenCallbackGeneration`
 rejects any animation step or completion that was already queued when replacement or teardown
-invalidated the content. Identical view/handler pairs are a central no-op, and a generation prevents
-an outer A→B replacement from overwriting a reentrant A→C update; the superseded prepared B is
-disposed instead.
+invalidated the content. Callers reserve an ownership operation before materializing a handler,
+then recheck the expected virtual content before commit. Identical view/handler pairs are a central
+no-op, and a generation prevents an outer A→B replacement from overwriting a reentrant A→C update;
+the superseded prepared B is disposed instead. Disconnecting is marked before child cleanup so
+mapper reentry cannot touch a cleared platform view. Retained content/scroll/swipe platforms rebind
+their cached virtual view before the next mapper pass.
 
 ### Animations outlive the views they animate
 
@@ -531,6 +534,11 @@ The swipe animation is committed under a fixed handle, so it survives a content 
 disconnect unless aborted. Both its stepper and its finished callback touch the content view, so it
 is now aborted before either, and the stepper captures the view rather than reading the mutable
 field — otherwise a replacement mid-animation silently redirects the animation onto the new view.
+Content or item-collection changes now drain the action registry, reject late touch callbacks,
+reset open/direction/offset state, and rebuild only a still-valid side. Layout pairs filtered visible
+virtual items with visible native children, so a hidden leading item cannot shift every action.
+A same-side open requested during animated close is queued and replayed after close instead of being
+misclassified as already open.
 
 ### A refresh restart during the completion window
 
@@ -540,10 +548,11 @@ Stopping and immediately restarting therefore left the virtual view believing it
 while the spinner never returned.
 
 Private reflection is not an option (see `docs/architecture.md`), so the transition is serialised on
-this side: `TizenRefreshCoordinator` schedules one completion expiry when a stop begins, holds a
-restart requested during the window, and rechecks enabled/desired/connected state on the dispatcher
-before replay. Repeated stop and disable clear pending restart intent without scheduling another
-expiry. The coordinator and state machine are NUI-free and are executed with a manual clock.
+this side: `TizenRefreshCoordinator` holds a restart requested during completion and rechecks
+enabled/desired/connected state on the dispatcher before replay. `TizenRefreshNativeIdlePoller`
+reads the actual native `IsRefreshing` state once per frame through the dispatcher. Polling is
+bounded; timeout completes safely without authorizing replay or disposal. Repeated stop and disable
+clear pending restart intent without starting another observer.
 
 ### Teardown must not start an animation
 
@@ -551,8 +560,8 @@ Handler teardown used to write `IsRefreshing = false` and then dispose the layou
 the base class's completion animation — an `async void` with no cancellation — whose continuation
 then touches the refresh icon the same teardown is disposing. Teardown now cancels replay, marks the
 layout disconnected, detaches content before child disposal, and retains a completing native layout
-until its observed native relayout/idle completion before dispatching final disposal. No fixed delay
-is used for replay or lifetime.
+until bounded native-state polling observes it idle. A timeout retains the platform instead of
+disposing beneath UIExtensions' private continuation.
 
 ### Image cleanup belongs on the main loop
 
@@ -561,7 +570,9 @@ before the asynchronous load starts and performs the commit, superseded-result d
 dispatch recovery through that captured route. Wave B dispatches freshness checks,
 `LoadingCompleted`/`LoadingFailed` and `UpdateIsLoading(false)` as a second awaited lifecycle commit.
 Disconnect invalidates the originating part and clears its loading state before disposing the
-loader. URI loads report success only after NUI raises `ResourceReady` with a ready status.
+loader. URI preloads use API15's `Immediate` policy. More importantly, each real destination
+`ImageView` subscribes to its own `ResourceReady` before URL assignment; loading completion waits
+for that captured target's status with source/target generation and cancellation checks.
 
 ### Visibility is not the indicator's to decide alone
 
@@ -570,4 +581,5 @@ view's own `Visibility`. Because that method runs for every `Count`, `MaximumVis
 change, an indicator the app had hidden reappeared on an unrelated property change. The decision now
 combines both. The same production helper tracks the visible window start, keeps position 10 visible
 inside a 5-dot window for 20 items, and translates a tapped visible dot back to its absolute item
-position.
+position. Runtime template changes rebuild indicators, and templated child ownership is
+snapshot/cleared before disposal.

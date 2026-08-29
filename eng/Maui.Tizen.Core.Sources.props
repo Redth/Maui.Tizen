@@ -203,6 +203,7 @@
     <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenImageLoaderExtensions.cs" />
     <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenContentOwnership.cs" />
     <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenRefreshCoordinator.cs" />
+    <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenRefreshNativeIdlePoller.cs" />
     <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenImageReadinessCoordinator.cs" />
     <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenSwipeStructureCoordinator.cs" />
     <MauiTizenWaveBPortableCompile Include="$(MauiTizenCoreDir)Fonts/TizenEmbeddedFontLoader.cs" />

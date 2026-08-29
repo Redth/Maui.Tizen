@@ -6,6 +6,7 @@
 // exists in Microsoft.Maui.Core.
 
 using System;
+using System.Threading.Tasks;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 
@@ -16,6 +17,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	/// <summary>Tizen handler for <see cref="IRefreshView"/>.</summary>
 	public class TizenRefreshViewHandler : TizenViewHandler<IRefreshView, TizenRefreshLayout>
 	{
+		readonly TizenDisconnectingState _disconnecting = new();
+
 		public static IPropertyMapper<IRefreshView, TizenRefreshViewHandler> Mapper =
 			new PropertyMapper<IRefreshView, TizenRefreshViewHandler>(TizenViewMappers.ViewMapper)
 			{
@@ -50,10 +53,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override void ConnectHandler(TizenRefreshLayout platformView)
 		{
+			_disconnecting.Connected();
 			var dispatcher = TizenDispatchExtensions.CaptureDispatcher(this);
 			var replacement = new TizenRefreshCoordinator(
 				platformView.RefreshState,
-				platformView.WaitForNativeIdleAsync,
+				token => platformView.WaitForNativeIdleAsync(
+					dispatcher,
+					frameToken => Task.Delay(TizenTicker.FrameIntervalMilliseconds, frameToken),
+					token),
 				dispatcher,
 				platformView.ApplyRefreshState,
 				() =>
@@ -75,6 +82,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			_refreshCoordinator = null;
 
 			TizenCleanup.Run(
+				_disconnecting.BeginDisconnect,
 				platformView.MarkDisconnected,
 				() => platformView.Refreshing -= OnRefreshing,
 				() => coordinator?.Dispose(),
@@ -107,6 +115,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		void RequestRefresh(bool desired, bool enabled)
 		{
+			if (_disconnecting.IsDisconnecting
+				|| ((IElementHandler)this).PlatformView is not TizenRefreshLayout)
+				return;
+
 			var replay = _refreshCoordinator?.Request(desired, enabled);
 			replay?.FireAndForget(this);
 		}
@@ -140,8 +152,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			handler.RequestRefresh(refreshView.IsRefreshing, refreshView.IsRefreshEnabled);
 		}
 
-		public static void MapContent(TizenRefreshViewHandler handler, IRefreshView refreshView) =>
-			handler.PlatformView.UpdateContent(handler.VirtualView.Content, handler.MauiContext);
+		public static void MapContent(TizenRefreshViewHandler handler, IRefreshView refreshView)
+		{
+			if (handler._disconnecting.IsDisconnecting
+				|| ((IElementHandler)handler).PlatformView is not TizenRefreshLayout platformView)
+				return;
+
+			var content = refreshView.Content;
+			platformView.UpdateContent(
+				content,
+				handler.MauiContext,
+				() =>
+					ReferenceEquals(handler.VirtualView, refreshView) &&
+					ReferenceEquals(handler.VirtualView.Content, content));
+		}
 
 		public static void MapRefreshColor(TizenRefreshViewHandler handler, IRefreshView refreshView) =>
 			handler.PlatformView.UpdateRefreshColor(refreshView);

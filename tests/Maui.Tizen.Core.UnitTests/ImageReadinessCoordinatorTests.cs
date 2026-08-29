@@ -32,10 +32,10 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				}
 			}
 
-			public void StartImmediate(string url)
+			public void Start(string url, bool immediate)
 			{
 				Assert.NotNull(_ready);
-				Operations.Add($"start-immediate:{url}");
+				Operations.Add($"start:{(immediate ? "immediate" : "target")}:{url}");
 			}
 
 			public void RaiseReady() => _ready?.Invoke(this, EventArgs.Empty);
@@ -47,7 +47,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var target = new FakeTarget { IsReady = true };
 
 			var wait = TizenImageReadinessCoordinator.WaitAsync(
-				target, "https://example.test/image.png", CancellationToken.None);
+				target, "https://example.test/image.png", immediate: true, CancellationToken.None);
 			target.RaiseReady();
 
 			Assert.True(await wait);
@@ -55,7 +55,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				new[]
 				{
 					"subscribe",
-					"start-immediate:https://example.test/image.png",
+					"start:immediate:https://example.test/image.png",
 					"unsubscribe",
 				},
 				target.Operations);
@@ -67,7 +67,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var target = new FakeTarget { IsReady = false };
 
 			var wait = TizenImageReadinessCoordinator.WaitAsync(
-				target, "https://example.test/broken.png", CancellationToken.None);
+				target, "https://example.test/broken.png", immediate: false, CancellationToken.None);
 			target.RaiseReady();
 
 			Assert.False(await wait);
@@ -81,7 +81,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			using var cancellation = new CancellationTokenSource();
 
 			var wait = TizenImageReadinessCoordinator.WaitAsync(
-				target, "https://example.test/slow.png", cancellation.Token);
+				target, "https://example.test/slow.png", immediate: false, cancellation.Token);
 			cancellation.Cancel();
 
 			await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wait);

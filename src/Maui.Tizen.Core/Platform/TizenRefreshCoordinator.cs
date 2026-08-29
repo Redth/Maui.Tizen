@@ -11,7 +11,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 	{
 		readonly object _gate = new();
 		readonly TizenRefreshStateMachine _state;
-		readonly Func<CancellationToken, Task> _waitForNativeIdle;
+		readonly Func<CancellationToken, Task<bool>> _waitForNativeIdle;
 		readonly Func<Action, Task> _dispatch;
 		readonly Action<bool> _applyNative;
 		readonly Func<bool> _canApply;
@@ -23,7 +23,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public TizenRefreshCoordinator(
 			TizenRefreshStateMachine state,
-			Func<CancellationToken, Task> waitForNativeIdle,
+			Func<CancellationToken, Task<bool>> waitForNativeIdle,
 			Func<Action, Task> dispatch,
 			Action<bool> applyNative,
 			Func<bool> canApply)
@@ -113,7 +113,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			try
 			{
-				await _waitForNativeIdle(token).ConfigureAwait(false);
+				if (!await _waitForNativeIdle(token).ConfigureAwait(false))
+					return;
 			}
 			catch (OperationCanceledException) when (token.IsCancellationRequested)
 			{
@@ -142,8 +143,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		async Task DisposeWhenNativeIdleAsync(Action dispose)
 		{
-			await _waitForNativeIdle(CancellationToken.None).ConfigureAwait(false);
-			await _dispatch(dispose).ConfigureAwait(false);
+			if (await _waitForNativeIdle(CancellationToken.None).ConfigureAwait(false))
+				await _dispatch(dispose).ConfigureAwait(false);
 		}
 
 		public void Dispose()

@@ -117,6 +117,11 @@ namespace Tizen.NUI.Components
 
 namespace Microsoft.Maui.Platforms.Tizen
 {
+	public interface IWaveBHostMaterializationCallback
+	{
+		void OnMaterializing();
+	}
+
 	public sealed class TizenImageSource
 		: IDisposable
 	{
@@ -149,19 +154,20 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 	public sealed class TizenScrollViewGroup : global::Tizen.UIExtensions.NUI.ScrollView
 	{
-		public TizenScrollViewGroup(IScrollView view)
-		{
-		}
+		public TizenScrollViewGroup(IScrollView view) => BoundView = view;
+
+		public IScrollView BoundView { get; private set; }
+
+		public void Rebind(IScrollView view) => BoundView = view;
 	}
 
-	public sealed class TizenImageButtonView : TizenPlatformView
+	public sealed class TizenImageButtonView : global::Tizen.UIExtensions.NUI.Image
 	{
 		EventHandler? _clicked;
 		EventHandler? _pressed;
 		EventHandler? _released;
 
 		public bool Focusable { get; set; }
-		public string? ResourceUrl { get; set; }
 		public event EventHandler? Clicked
 		{
 			add => _clicked += value;
@@ -219,7 +225,6 @@ namespace Microsoft.Maui.Platforms.Tizen
 	public sealed class TizenRefreshLayout : TizenPlatformView
 	{
 		EventHandler? _refreshing;
-		TaskCompletionSource? _nativeIdle;
 		TizenPlatformView? _contentView;
 		ITizenPlatformViewHandler? _contentHandler;
 		long _contentGeneration;
@@ -232,6 +237,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 		}
 
 		public bool IsRefreshing { get; set; }
+		public bool DelayNativeCompletion { get; set; }
+		public bool NativeIsRefreshing { get; private set; }
 		public TizenRefreshStateMachine RefreshState { get; } = new();
 		public TizenPlatformView? Content { get; set; }
 
@@ -243,15 +250,16 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (_disconnected)
 				return;
 
-			if (!refreshing)
-				_nativeIdle = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
 			IsRefreshing = refreshing;
+			if (refreshing || !DelayNativeCompletion)
+				NativeIsRefreshing = refreshing;
 		}
 
 		public void DisposeContentHandler()
 		{
+			var operation = TizenContentOwnership.Reserve(ref _contentGeneration);
 			TizenContentOwnership.Clear(
+				operation,
 				ref _contentView,
 				ref _contentHandler,
 				ref _contentGeneration,
@@ -260,7 +268,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 					if (ReferenceEquals(Content, view))
 						Content = null;
 				},
-				static () => { });
+				static () => { },
+				static () => true);
 		}
 
 		public void MarkDisconnected()
@@ -268,19 +277,32 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_disconnected = true;
 		}
 
-		public Task WaitForNativeIdleAsync(CancellationToken token) =>
-			_nativeIdle?.Task.WaitAsync(token) ?? Task.CompletedTask;
+		public Task<bool> WaitForNativeIdleAsync(
+			Func<Action, Task> dispatch,
+			Func<CancellationToken, Task> nextFrame,
+			CancellationToken token) =>
+			TizenRefreshNativeIdlePoller.WaitAsync(
+				() => NativeIsRefreshing,
+				dispatch,
+				nextFrame,
+				maximumFrames: 8,
+				token);
 
 		public void RaiseRefreshing()
 		{
 			IsRefreshing = true;
+			NativeIsRefreshing = true;
 			_refreshing?.Invoke(this, EventArgs.Empty);
 		}
 
-		public void NotifyNativeIdle() => _nativeIdle?.TrySetResult();
+		public void NotifyNativeIdle() => NativeIsRefreshing = false;
 
-		public void UpdateContent(IView? content, IMauiContext? context)
+		public void UpdateContent(IView? content, IMauiContext? context) =>
+			UpdateContent(content, context, static () => true);
+
+		public void UpdateContent(IView? content, IMauiContext? context, Func<bool> isExpected)
 		{
+			var operation = TizenContentOwnership.Reserve(ref _contentGeneration);
 			TizenPlatformView? replacementView = null;
 			ITizenPlatformViewHandler? replacementHandler = null;
 
@@ -291,6 +313,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 
 			TizenContentOwnership.Replace(
+				operation,
 				ref _contentView,
 				ref _contentHandler,
 				ref _contentGeneration,
@@ -302,26 +325,68 @@ namespace Microsoft.Maui.Platforms.Tizen
 						Content = null;
 				},
 				view => Content = view,
-				static () => { });
+				static () => { },
+				isExpected);
 		}
 	}
 
 	public sealed class TizenSwipeViewGroup : TizenContentViewGroup
 	{
 		readonly TizenSwipeItemsSnapshot?[] _items = new TizenSwipeItemsSnapshot?[4];
+		TizenPlatformView? _contentView;
+		ITizenPlatformViewHandler? _contentHandler;
+		long _contentGeneration;
 		public TizenSwipeViewGroup(ISwipeView view)
 			: base(view)
 		{
 		}
 
+		public ISwipeView BoundView => (ISwipeView)VirtualView!;
+
+		public void Rebind(ISwipeView view) => base.Rebind(view);
+
 		public int StructuralInvalidationCount { get; private set; }
 
 		public void DisposeChildHandlers()
 		{
+			var operation = TizenContentOwnership.Reserve(ref _contentGeneration);
+			TizenContentOwnership.Clear(
+				operation,
+				ref _contentView,
+				ref _contentHandler,
+				ref _contentGeneration,
+				view => Children.Remove(view),
+				static () => { },
+				static () => true);
 		}
 
 		public void UpdateContent()
 		{
+			var expected = BoundView.PresentedContent;
+			var context = BoundView.Handler?.MauiContext;
+			if (context is null)
+				return;
+
+			var operation = TizenContentOwnership.Reserve(ref _contentGeneration);
+			TizenPlatformView? replacementView = null;
+			ITizenPlatformViewHandler? replacementHandler = null;
+			if (expected is not null)
+			{
+				replacementView = expected.ToPlatformView(context);
+				replacementHandler = expected.Handler as ITizenPlatformViewHandler;
+			}
+
+			TizenContentOwnership.Replace(
+				operation,
+				ref _contentView,
+				ref _contentHandler,
+				ref _contentGeneration,
+				replacementView,
+				replacementHandler,
+				view => Children.Remove(view),
+				view => Children.Add(view),
+				static () => { },
+				() => ReferenceEquals(BoundView.PresentedContent, expected));
 		}
 
 		internal void UpdateItems(TizenSwipeItemsSlot slot, ISwipeItems? items)
@@ -361,6 +426,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public IIndicatorView BoundView { get; private set; }
 		public bool IsShown { get; private set; }
+		public int ResetCount { get; private set; }
 
 		public void Rebind(IIndicatorView view)
 		{
@@ -384,6 +450,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public void ResetIndicators()
 		{
+			ResetCount++;
 		}
 	}
 
@@ -411,6 +478,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public static TizenPlatformView ToPlatformView(this IView view, IMauiContext context)
 		{
+			(view as IWaveBHostMaterializationCallback)?.OnMaterializing();
+
 			if (view.Handler?.PlatformView is TizenPlatformView existing)
 				return existing;
 
@@ -526,5 +595,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 			IImageSource source,
 			CancellationToken token) =>
 			Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(null);
+
+		public static Task<bool> ApplyAndWaitForReadyAsync(
+			this global::Tizen.UIExtensions.NUI.Image target,
+			TizenImageSource? image,
+			CancellationToken token)
+		{
+			target.ResourceUrl = image?.ResourceUrl;
+			return Task.FromResult(true);
+		}
 	}
 }

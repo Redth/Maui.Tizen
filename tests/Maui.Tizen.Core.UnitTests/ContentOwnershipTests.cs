@@ -83,6 +83,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var detached = new List<string>();
 
 			TizenContentOwnership.Replace(
+				TizenContentOwnership.Reserve(ref generation),
 				ref currentView,
 				ref currentHandler,
 				ref generation,
@@ -90,7 +91,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				bHandler,
 				view => detached.Add(view.Name),
 				static _ => { },
-				static () => { });
+				static () => { },
+				static () => true);
 
 			Assert.Same(b, currentView);
 			Assert.Same(bHandler, currentHandler);
@@ -99,11 +101,13 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(0, a.DisposeCount);
 
 			TizenContentOwnership.Clear(
+				TizenContentOwnership.Reserve(ref generation),
 				ref currentView,
 				ref currentHandler,
 				ref generation,
 				view => detached.Add(view.Name),
-				static () => { });
+				static () => { },
+				static () => true);
 
 			Assert.Null(currentView);
 			Assert.Null(currentHandler);
@@ -123,6 +127,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var callbacks = 0;
 
 			var changed = TizenContentOwnership.Replace(
+				TizenContentOwnership.Reserve(ref generation),
 				ref currentView,
 				ref currentHandler,
 				ref generation,
@@ -130,14 +135,63 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				handler,
 				_ => callbacks++,
 				_ => callbacks++,
-				() => callbacks++);
+				() => callbacks++,
+				static () => true);
 
 			Assert.False(changed);
-			Assert.Equal(0, generation);
+			Assert.Equal(1, generation);
 			Assert.Equal(0, callbacks);
 			Assert.Equal(0, handler.DisposeCount);
 			Assert.Same(view, currentView);
 			Assert.Same(handler, currentHandler);
+		}
+
+		[Fact]
+		public void ReservedOperationRejectsStalePreparedReplacement()
+		{
+			var a = new FakeView("A");
+			var b = new FakeView("B");
+			var c = new FakeView("C");
+			var aHandler = new FakeHandler();
+			var bHandler = new FakeHandler();
+			var cHandler = new FakeHandler();
+			FakeView? currentView = a;
+			FakeHandler? currentHandler = aHandler;
+			long generation = 0;
+
+			var outer = TizenContentOwnership.Reserve(ref generation);
+
+			// Materializing B reenters and commits C before the outer operation can commit.
+			var inner = TizenContentOwnership.Reserve(ref generation);
+			Assert.True(TizenContentOwnership.Replace(
+				inner,
+				ref currentView,
+				ref currentHandler,
+				ref generation,
+				c,
+				cHandler,
+				static _ => { },
+				static _ => { },
+				static () => { },
+				static () => true));
+
+			Assert.False(TizenContentOwnership.Replace(
+				outer,
+				ref currentView,
+				ref currentHandler,
+				ref generation,
+				b,
+				bHandler,
+				static _ => { },
+				static _ => { },
+				static () => { },
+				static () => false));
+
+			Assert.Same(c, currentView);
+			Assert.Same(cHandler, currentHandler);
+			Assert.Equal(1, aHandler.DisposeCount);
+			Assert.Equal(1, bHandler.DisposeCount);
+			Assert.Equal(0, cHandler.DisposeCount);
 		}
 
 		[Fact]
@@ -149,17 +203,21 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			long generation = 0;
 
 			TizenContentOwnership.Clear(
+				TizenContentOwnership.Reserve(ref generation),
 				ref currentView,
 				ref currentHandler,
 				ref generation,
 				static _ => { },
-				static () => { });
+				static () => { },
+				static () => true);
 			TizenContentOwnership.Clear(
+				TizenContentOwnership.Reserve(ref generation),
 				ref currentView,
 				ref currentHandler,
 				ref generation,
 				static _ => { },
-				static () => { });
+				static () => { },
+				static () => true);
 
 			Assert.Equal(1, placeholder.DisposeCount);
 		}
@@ -179,6 +237,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			Assert.ThrowsAny<Exception>(() =>
 				TizenContentOwnership.Replace(
+					TizenContentOwnership.Reserve(ref generation),
 					ref currentView,
 					ref currentHandler,
 					ref generation,
@@ -186,7 +245,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 					replacementHandler,
 					_ => detached++,
 					static _ => { },
-					() => cancelled++));
+					() => cancelled++,
+					static () => true));
 
 			Assert.Same(replacement, currentView);
 			Assert.Same(replacementHandler, currentHandler);
@@ -195,11 +255,13 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(1, oldHandler.DisposeCount);
 
 			TizenContentOwnership.Clear(
+				TizenContentOwnership.Reserve(ref generation),
 				ref currentView,
 				ref currentHandler,
 				ref generation,
 				static _ => { },
-				static () => { });
+				static () => { },
+				static () => true);
 
 			Assert.Equal(1, oldHandler.DisposeCount);
 			Assert.Equal(1, replacementHandler.DisposeCount);
@@ -230,6 +292,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var reentered = false;
 
 			TizenContentOwnership.Clear(
+				TizenContentOwnership.Reserve(ref generation),
 				ref currentView,
 				ref currentHandler,
 				ref generation,
@@ -240,13 +303,16 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 					reentered = true;
 					TizenContentOwnership.Clear(
+						TizenContentOwnership.Reserve(ref generation),
 						ref currentView,
 						ref currentHandler,
 						ref generation,
 						static _ => { },
-						static () => { });
+						static () => { },
+						static () => true);
 				},
-				static () => { });
+				static () => { },
+				static () => true);
 
 			Assert.True(reentered);
 			Assert.Equal(1, handler.DisposeCount);

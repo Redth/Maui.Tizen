@@ -40,6 +40,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		ITizenPlatformViewHandler? _contentHandler;
 		TizenNativeView? _contentView;
 		long _contentGeneration;
+		readonly TizenDisconnectingState _disconnecting = new();
 		double _cachedWidth;
 		double _cachedHeight;
 		Size _measureCache;
@@ -61,8 +62,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override TizenScrollView CreatePlatformView() => new TizenScrollViewGroup(VirtualView);
 
+		public override void SetVirtualView(IView view)
+		{
+			(((IElementHandler)this).PlatformView as TizenScrollViewGroup)?.Rebind((IScrollView)view);
+			base.SetVirtualView(view);
+			(PlatformView as TizenScrollViewGroup)?.Rebind(VirtualView);
+		}
+
 		protected override void ConnectHandler(TizenScrollView platformView)
 		{
+			_disconnecting.Connected();
 			base.ConnectHandler(platformView);
 
 			platformView.Scrolling += OnScrolled;
@@ -72,11 +81,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override void DisconnectHandler(TizenScrollView platformView)
 		{
+			var operation = TizenContentOwnership.Reserve(ref _contentGeneration);
 			// ElementHandler clears its PlatformView before this typed callback runs. Every cleanup
 			// action therefore uses the captured parameter and the child snapshot, never the
 			// PlatformView property.
 			TizenCleanup.Run(
+				_disconnecting.BeginDisconnect,
 				() => TizenContentOwnership.Clear(
+					operation,
 					ref _contentView,
 					ref _contentHandler,
 					ref _contentGeneration,
@@ -86,7 +98,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 							viewGroup.LayoutUpdated -= OnContentLayoutUpdated;
 						platformView.ContentContainer.Remove(view);
 					},
-					static () => { }),
+					static () => { },
+					static () => true),
 				() =>
 				{
 					_cachedWidth = 0;
@@ -139,10 +152,29 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			}
 		}
 
-		void UpdateContent(ITizenPlatformViewHandler? content)
+		void UpdateContent(IView? expectedContent)
 		{
+			if (_disconnecting.IsDisconnecting
+				|| ((IElementHandler)this).PlatformView is not TizenScrollView)
+				return;
+
+			var virtualView = VirtualView;
+			var mauiContext = MauiContext;
+			if (mauiContext is null)
+				return;
+
+			var operation = TizenContentOwnership.Reserve(ref _contentGeneration);
+			ITizenPlatformViewHandler? content = null;
+
+			if (expectedContent is not null)
+			{
+				expectedContent.ToPlatformView(mauiContext);
+				content = expectedContent.Handler as ITizenPlatformViewHandler;
+			}
+
 			var replacementView = content?.PlatformView;
 			if (!TizenContentOwnership.Replace(
+				operation,
 				ref _contentView,
 				ref _contentHandler,
 				ref _contentGeneration,
@@ -160,7 +192,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 					if (view is TizenLayoutViewGroup viewGroup)
 						viewGroup.LayoutUpdated += OnContentLayoutUpdated;
 				},
-				static () => { }))
+				static () => { },
+				() =>
+					ReferenceEquals(VirtualView, virtualView) &&
+					ReferenceEquals(VirtualView.PresentedContent, expectedContent)))
 				return;
 
 			_cachedWidth = 0;
@@ -217,20 +252,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				return;
 			}
 
-			// A null content is a real state change. The imported code returned early here, so the
-			// old child stayed parented and the content container kept its previous size - the
-			// scroll view carried on showing content that had been removed.
-			if (scrollView.PresentedContent is null)
-			{
-				handler.UpdateContent(null);
-				return;
-			}
-
-			scrollView.PresentedContent.ToPlatformView(handler.MauiContext);
-			if (scrollView.PresentedContent.Handler is ITizenPlatformViewHandler contentHandler)
-			{
-				handler.UpdateContent(contentHandler);
-			}
+			handler.UpdateContent(scrollView.PresentedContent);
 		}
 
 		public static void MapHorizontalScrollBarVisibility(TizenScrollViewHandler handler, IScrollView scrollView)

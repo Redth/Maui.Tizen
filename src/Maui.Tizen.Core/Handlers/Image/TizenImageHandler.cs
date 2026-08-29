@@ -108,7 +108,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				handler._sourceEvents,
 				(imageSource, token) => provider.GetTizenImageAsync(imageSource, token),
 				commitOnUiThread,
-				platformImage => target.ResourceUrl = platformImage?.ResourceUrl,
+				(platformImage, token) => target.ApplyAndWaitForReadyAsync(platformImage, token),
 				() =>
 					ReferenceEquals(handler.VirtualView, virtualView) &&
 					ReferenceEquals(handler.PlatformView, target));

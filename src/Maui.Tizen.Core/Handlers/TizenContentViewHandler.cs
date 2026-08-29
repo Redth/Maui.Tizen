@@ -64,8 +64,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <inheritdoc />
 		public override void SetVirtualView(IView view)
 		{
+			(((IElementHandler)this).PlatformView as TizenContentViewGroup)?.Rebind(view);
 			base.SetVirtualView(view);
 
+			PlatformView.Rebind(VirtualView);
 			PlatformView.CrossPlatformMeasure = VirtualView.CrossPlatformMeasure;
 			PlatformView.CrossPlatformArrange = VirtualView.CrossPlatformArrange;
 		}

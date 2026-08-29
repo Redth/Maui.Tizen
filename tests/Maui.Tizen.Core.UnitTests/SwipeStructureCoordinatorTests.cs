@@ -115,6 +115,70 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.False(registry.TryGetValue(itemC, out _));
 		}
 
+		[Fact]
+		public void SameSideOpenDuringAnimatedCloseQueuesAndReplays()
+		{
+			var coordinator = new TizenSwipeOpenCoordinator();
+			coordinator.BeginAnimatedClose();
+
+			var decision = coordinator.RequestOpen(
+				isOpen: true,
+				previous: OpenSwipeItem.LeftItems,
+				requested: OpenSwipeItem.LeftItems,
+				animated: true);
+
+			Assert.Equal(TizenSwipeOpenDecision.Queued, decision);
+
+			var queued = coordinator.CompleteClose();
+			Assert.NotNull(queued);
+			Assert.Equal(OpenSwipeItem.LeftItems, queued.Value.Item);
+			Assert.True(queued.Value.Animated);
+
+			Assert.Equal(
+				TizenSwipeOpenDecision.Open,
+				coordinator.RequestOpen(
+					isOpen: false,
+					previous: OpenSwipeItem.LeftItems,
+					requested: queued.Value.Item,
+					animated: queued.Value.Animated));
+		}
+
+		[Fact]
+		public void VisibleNativeChildrenPairWithFilteredVisibleVirtualItems()
+		{
+			var items = new[]
+			{
+				(Name: "hidden", Visible: false),
+				(Name: "first-visible", Visible: true),
+				(Name: "second-visible", Visible: true),
+			};
+			var views = new[]
+			{
+				(Name: "native-hidden", Visible: false),
+				(Name: "native-first", Visible: true),
+				(Name: "native-second", Visible: true),
+			};
+
+			var pairs = TizenSwipeStructureCoordinator.PairVisible(
+				items,
+				item => item.Visible,
+				views,
+				view => view.Visible);
+
+			Assert.Collection(
+				pairs,
+				pair =>
+				{
+					Assert.Equal("first-visible", pair.Item.Name);
+					Assert.Equal("native-first", pair.View.Name);
+				},
+				pair =>
+				{
+					Assert.Equal("second-visible", pair.Item.Name);
+					Assert.Equal("native-second", pair.View.Name);
+				});
+		}
+
 		sealed class ControlsApp : Application
 		{
 		}

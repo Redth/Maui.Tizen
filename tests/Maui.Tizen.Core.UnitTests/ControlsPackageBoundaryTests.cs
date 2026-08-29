@@ -179,6 +179,17 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal("15.0.0.19396", MSBuildEvaluation.GetProperty(ControlsProduct, "TizenReferencePackVersion"));
 		}
 
+		[Fact]
+		public void SampleDoesNotDuplicateSharedPolicyImport()
+		{
+			var result = RunMSBuildPropertyEvaluation("samples/Maui.Tizen.Sample/Maui.Tizen.Sample.csproj");
+
+			Assert.Equal(0, result.ExitCode);
+			Assert.DoesNotContain("MSB4011", result.Output, StringComparison.Ordinal);
+			Assert.Contains("0.9.2", result.Output, StringComparison.Ordinal);
+			Assert.Contains("false", result.Output, StringComparison.Ordinal);
+		}
+
 		[Theory]
 		[InlineData("src/Maui.Tizen.Core/Maui.Tizen.Core.csproj")]
 		[InlineData(ControlsProduct)]
@@ -270,6 +281,32 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			var error = process.StandardError.ReadToEnd();
 			process.WaitForExit();
 
+			return (process.ExitCode, output + error);
+		}
+
+		static (int ExitCode, string Output) RunMSBuildPropertyEvaluation(string project)
+		{
+			var dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") is { Length: > 0 } host
+				? host
+				: "dotnet";
+			var startInfo = new ProcessStartInfo(dotnet)
+			{
+				WorkingDirectory = RepositoryRoot,
+				RedirectStandardOutput = true,
+				RedirectStandardError = true,
+			};
+
+			startInfo.ArgumentList.Add("msbuild");
+			startInfo.ArgumentList.Add(Path.Combine(RepositoryRoot, project));
+			startInfo.ArgumentList.Add("-nologo");
+			startInfo.ArgumentList.Add("-getProperty:TizenUIExtensionsPackageVersion");
+			startInfo.ArgumentList.Add("-getProperty:TizenUIExtensionsIsShippable");
+
+			using var process = Process.Start(startInfo)
+				?? throw new InvalidOperationException("Failed to start dotnet msbuild.");
+			var output = process.StandardOutput.ReadToEnd();
+			var error = process.StandardError.ReadToEnd();
+			process.WaitForExit();
 			return (process.ExitCode, output + error);
 		}
 	}

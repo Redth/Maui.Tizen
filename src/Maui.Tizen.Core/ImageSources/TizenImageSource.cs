@@ -69,7 +69,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			using var target = new NuiImageReadinessTarget();
 			var ready = await TizenImageReadinessCoordinator
-				.WaitAsync(target, url, cancellationToken);
+				.WaitAsync(target, url, immediate: true, cancellationToken);
 
 			if (ready)
 				ResourceUrl = url;
@@ -90,9 +90,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 			public NuiImageReadinessTarget() =>
 				_imageView.ResourceReady += OnResourceReady;
 
-			public void StartImmediate(string url)
+			public void Start(string url, bool immediate)
 			{
-				_imageView.LoadPolicy = global::Tizen.NUI.LoadPolicyType.Immediate;
+				if (immediate)
+					_imageView.LoadPolicy = global::Tizen.NUI.LoadPolicyType.Immediate;
 				_imageView.ResourceUrl = url;
 			}
 

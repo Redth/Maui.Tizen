@@ -295,5 +295,64 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(new[] { false }, partA.Completions);
 			Assert.Equal(new[] { true }, partB.Completions);
 		}
+
+		[Fact]
+		public async Task DestinationReadinessCompletesBeforeLoadingCompleted()
+		{
+			using var loader = new TizenImageLoader<FakeImage>();
+			var events = new TizenImageLoadEvents();
+			var part = new FakePart { Source = new FakeSource() };
+			var ready = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+			FakeImage? staged = null;
+
+			var load = loader.LoadPartAsync(
+				part,
+				events,
+				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(new FakeResult("target")),
+				CommitInline,
+				(image, _) =>
+				{
+					staged = image;
+					return ready.Task;
+				},
+				static () => true);
+
+			Assert.Equal("target", staged?.Name);
+			Assert.True(part.IsLoading);
+			Assert.Empty(part.Completions);
+
+			ready.SetResult(true);
+			await load;
+
+			Assert.Equal(new[] { true }, part.Completions);
+			Assert.False(part.IsLoading);
+		}
+
+		[Fact]
+		public async Task DestinationReadinessFailureClearsStagedImageAndReportsFailure()
+		{
+			using var loader = new TizenImageLoader<FakeImage>();
+			var events = new TizenImageLoadEvents();
+			var part = new FakePart { Source = new FakeSource() };
+			var applied = new List<FakeImage?>();
+
+			await loader.LoadPartAsync(
+				part,
+				events,
+				(_, _) => Task.FromResult<IImageSourceServiceResult<FakeImage>?>(new FakeResult("broken")),
+				CommitInline,
+				(image, _) =>
+				{
+					applied.Add(image);
+					return Task.FromResult(image is null);
+				},
+				static () => true);
+
+			Assert.Equal(2, applied.Count);
+			Assert.Equal("broken", applied[0]?.Name);
+			Assert.Null(applied[1]);
+			Assert.Equal(new[] { false }, part.Completions);
+			Assert.False(part.IsLoading);
+		}
 	}
 }

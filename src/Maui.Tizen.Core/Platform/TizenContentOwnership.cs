@@ -9,7 +9,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 {
 	internal static class TizenContentOwnership
 	{
+		public static long Reserve(ref long generation) => Interlocked.Increment(ref generation);
+
 		public static bool Replace<TView, THandler>(
+			long operation,
 			ref TView? currentView,
 			ref THandler? currentHandler,
 			ref long generation,
@@ -17,15 +20,23 @@ namespace Microsoft.Maui.Platforms.Tizen
 			THandler? replacementHandler,
 			Action<TView> detach,
 			Action<TView> attach,
-			Action cancelCallbacks)
+			Action cancelCallbacks,
+			Func<bool> isExpected)
 			where TView : class
 			where THandler : class, IDisposable
 		{
+			ArgumentNullException.ThrowIfNull(isExpected);
+
+			if (Volatile.Read(ref generation) != operation || !isExpected())
+			{
+				DisposePreparedReplacement(currentView, currentHandler, replacementView, replacementHandler);
+				return false;
+			}
+
 			if (ReferenceEquals(currentView, replacementView)
 				&& ReferenceEquals(currentHandler, replacementHandler))
 				return false;
 
-			var operation = Interlocked.Increment(ref generation);
 			var previousView = currentView;
 			var previousHandler = currentHandler;
 			var errors = new List<Exception>();
@@ -56,7 +67,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			else if (previousView is IDisposable disposableView)
 				Try(disposableView.Dispose);
 
-			var installed = Volatile.Read(ref generation) == operation;
+			var installed = Volatile.Read(ref generation) == operation && isExpected();
 			if (installed)
 			{
 				currentView = replacementView;
@@ -78,15 +89,36 @@ namespace Microsoft.Maui.Platforms.Tizen
 			return installed;
 		}
 
+		static void DisposePreparedReplacement<TView, THandler>(
+			TView? currentView,
+			THandler? currentHandler,
+			TView? replacementView,
+			THandler? replacementHandler)
+			where TView : class
+			where THandler : class, IDisposable
+		{
+			if (ReferenceEquals(currentView, replacementView)
+				&& ReferenceEquals(currentHandler, replacementHandler))
+				return;
+
+			if (replacementHandler is not null)
+				replacementHandler.Dispose();
+			else
+				(replacementView as IDisposable)?.Dispose();
+		}
+
 		public static bool Clear<TView, THandler>(
+			long operation,
 			ref TView? currentView,
 			ref THandler? currentHandler,
 			ref long generation,
 			Action<TView> detach,
-			Action cancelCallbacks)
+			Action cancelCallbacks,
+			Func<bool> isExpected)
 			where TView : class
 			where THandler : class, IDisposable =>
 			Replace(
+				operation,
 				ref currentView,
 				ref currentHandler,
 				ref generation,
@@ -94,7 +126,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 				replacementHandler: null,
 				detach,
 				static _ => { },
-				cancelCallbacks);
+				cancelCallbacks,
+				isExpected);
 	}
 
 	internal sealed class TizenCallbackGeneration
@@ -108,5 +141,16 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public bool IsCurrent<T>(long generation, T? expected, T? current)
 			where T : class =>
 			Current == generation && ReferenceEquals(expected, current);
+	}
+
+	internal sealed class TizenDisconnectingState
+	{
+		int _disconnecting;
+
+		public bool IsDisconnecting => Volatile.Read(ref _disconnecting) != 0;
+
+		public void Connected() => Volatile.Write(ref _disconnecting, 0);
+
+		public void BeginDisconnect() => Interlocked.Exchange(ref _disconnecting, 1);
 	}
 }

@@ -45,6 +45,23 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 	internal static class TizenSwipeStructureCoordinator
 	{
+		public static IReadOnlyList<(TItem Item, TView View)> PairVisible<TItem, TView>(
+			IEnumerable<TItem> items,
+			Func<TItem, bool> isItemVisible,
+			IEnumerable<TView> views,
+			Func<TView, bool> isViewVisible)
+		{
+			ArgumentNullException.ThrowIfNull(items);
+			ArgumentNullException.ThrowIfNull(isItemVisible);
+			ArgumentNullException.ThrowIfNull(views);
+			ArgumentNullException.ThrowIfNull(isViewVisible);
+
+			return items
+				.Where(isItemVisible)
+				.Zip(views.Where(isViewVisible), static (item, view) => (item, view))
+				.ToArray();
+		}
+
 		public static SwipeDirection? Invalidate(
 			bool wasOpen,
 			SwipeDirection? previousDirection,
@@ -91,6 +108,58 @@ namespace Microsoft.Maui.Platforms.Tizen
 			var snapshot = _items.ToArray();
 			_items.Clear();
 			return snapshot;
+		}
+	}
+
+	internal enum TizenSwipeOpenDecision
+	{
+		Open,
+		AlreadyOpen,
+		ResetThenOpen,
+		Queued,
+	}
+
+	internal readonly record struct TizenQueuedSwipeOpen(OpenSwipeItem Item, bool Animated);
+
+	internal sealed class TizenSwipeOpenCoordinator
+	{
+		bool _closing;
+		TizenQueuedSwipeOpen? _queued;
+
+		public void BeginAnimatedClose() => _closing = true;
+
+		public TizenSwipeOpenDecision RequestOpen(
+			bool isOpen,
+			OpenSwipeItem previous,
+			OpenSwipeItem requested,
+			bool animated)
+		{
+			if (_closing)
+			{
+				_queued = new TizenQueuedSwipeOpen(requested, animated);
+				return TizenSwipeOpenDecision.Queued;
+			}
+
+			return TizenSwipeMetrics.GetProgrammaticOpenAction(isOpen, previous, requested) switch
+			{
+				TizenSwipeOpenAction.AlreadyOpen => TizenSwipeOpenDecision.AlreadyOpen,
+				TizenSwipeOpenAction.ResetThenOpen => TizenSwipeOpenDecision.ResetThenOpen,
+				_ => TizenSwipeOpenDecision.Open,
+			};
+		}
+
+		public TizenQueuedSwipeOpen? CompleteClose()
+		{
+			_closing = false;
+			var queued = _queued;
+			_queued = null;
+			return queued;
+		}
+
+		public void Reset()
+		{
+			_closing = false;
+			_queued = null;
 		}
 	}
 }

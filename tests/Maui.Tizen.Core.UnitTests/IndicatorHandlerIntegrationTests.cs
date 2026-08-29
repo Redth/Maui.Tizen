@@ -49,6 +49,11 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			elementHandler.UpdateValue(nameof(IIndicatorView.Count));
 			Assert.True(platform.IsShown);
 
+			second.IndicatorTemplate = new DataTemplate(() => new Label());
+			var resetCount = platform.ResetCount;
+			elementHandler.UpdateValue("IndicatorTemplate");
+			Assert.Equal(resetCount + 1, platform.ResetCount);
+
 			elementHandler.DisconnectHandler();
 		}
 

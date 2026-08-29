@@ -13,18 +13,18 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	{
 		sealed class ManualNativeIdle
 		{
-			readonly TaskCompletionSource _completion =
+			readonly TaskCompletionSource<bool> _completion =
 				new(TaskCreationOptions.RunContinuationsAsynchronously);
 
 			public int WaiterCount { get; private set; }
 
-			public Task Wait(CancellationToken token)
+			public Task<bool> Wait(CancellationToken token)
 			{
 				WaiterCount++;
 				return _completion.Task.WaitAsync(token);
 			}
 
-			public void Complete() => _completion.TrySetResult();
+			public void Complete(bool observed = true) => _completion.TrySetResult(observed);
 		}
 
 		static Task DispatchInline(Action action)
@@ -169,6 +169,29 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			Assert.False(state.IsRefreshing);
 			Assert.False(state.IsCompleting);
+		}
+
+		[Fact]
+		public async Task NativeIdleTimeoutCompletesSafelyWithoutDisposingPlatform()
+		{
+			var nativeIdle = new ManualNativeIdle();
+			var state = new TizenRefreshStateMachine();
+			var disposed = 0;
+			var coordinator = new TizenRefreshCoordinator(
+				state, nativeIdle.Wait, DispatchInline, static _ => { }, static () => true);
+
+			coordinator.ObserveNativeStart();
+			var completion = coordinator.Request(desired: false, enabled: true);
+			var retainedDisposal = coordinator.RetainPlatformUntilCompletionAsync(() => disposed++);
+
+			nativeIdle.Complete(observed: false);
+			await completion!;
+			await retainedDisposal;
+
+			Assert.Equal(0, disposed);
+			Assert.True(state.IsCompleting);
+
+			coordinator.Dispose();
 		}
 	}
 }

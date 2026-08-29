@@ -32,6 +32,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		ITizenPlatformViewHandler? _templatedViewHandler;
 		ILayout? _templatedView;
 		NView? _contentView;
+		long _templatedContentGeneration;
 
 		List<Indicator> _indicators = new List<Indicator>();
 		int _currentPoistion = -1;
@@ -63,8 +64,23 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <summary>Disposes the handler created for a templated indicator.</summary>
 		public void DisposeTemplatedViewHandler()
 		{
-			_templatedViewHandler?.Dispose();
-			_templatedViewHandler = null;
+			if (_templatedViewHandler is null)
+				return;
+
+			var operation = TizenContentOwnership.Reserve(ref _templatedContentGeneration);
+			_templatedView = null;
+			TizenContentOwnership.Clear(
+				operation,
+				ref _contentView,
+				ref _templatedViewHandler,
+				ref _templatedContentGeneration,
+				view =>
+				{
+					Children.Remove(view);
+					view.Unparent();
+				},
+				static () => { },
+				static () => true);
 		}
 
 		public void ResetIndicators()
@@ -240,25 +256,31 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		void ClearIndicatorView()
 		{
-			Children.Clear();
+			var operation = TizenContentOwnership.Reserve(ref _templatedContentGeneration);
+			var indicators = _indicators;
+			_indicators = new List<Indicator>();
+			_templatedView = null;
 
-			if (_templatedViewHandler != null)
+			var cleanup = new List<Action>
 			{
-				_templatedViewHandler.Dispose();
-				_templatedViewHandler = null;
-				_templatedView = null;
-			}
-			else
-			{
-				_contentView?.Dispose();
-			}
-			_contentView = null;
+				() => TizenContentOwnership.Clear(
+					operation,
+					ref _contentView,
+					ref _templatedViewHandler,
+					ref _templatedContentGeneration,
+					view =>
+					{
+						Children.Remove(view);
+						view.Unparent();
+					},
+					static () => { },
+					static () => true),
+			};
 
-			foreach (var view in _indicators)
-			{
-				view.Dispose();
-			}
-			_indicators.Clear();
+			foreach (var indicator in indicators)
+				cleanup.Add(indicator.Dispose);
+
+			TizenCleanup.Run(cleanup.ToArray());
 		}
 
 		void DecreaseIndicator()

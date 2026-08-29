@@ -52,6 +52,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		TizenSwipeItemsSnapshot? _rightItems;
 		TizenSwipeItemsSnapshot? _bottomItems;
 		readonly TizenSwipeItemRegistry<ISwipeItem, NView> _swipeItems = new();
+		readonly TizenSwipeOpenCoordinator _openCoordinator = new();
 		readonly TizenCallbackGeneration _contentGeneration = new();
 		long _contentOwnershipGeneration;
 
@@ -89,7 +90,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 		}
 
-		ISwipeView Element { get; }
+		ISwipeView Element { get; set; }
+
+		internal void Rebind(ISwipeView view)
+		{
+			Element = view;
+			base.Rebind(view);
+		}
 
 		IMauiContext MauiContext => Element?.Handler?.MauiContext ?? throw new InvalidOperationException("MauiContext cannot be null here");
 
@@ -105,7 +112,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </remarks>
 		public void DisposeChildHandlers()
 		{
+			var operation = TizenContentOwnership.Reserve(ref _contentOwnershipGeneration);
 			TizenContentOwnership.Clear(
+				operation,
 				ref _contentView,
 				ref _contentHandler,
 				ref _contentOwnershipGeneration,
@@ -121,15 +130,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 					_rightItems = null;
 					_bottomItems = null;
 					InvalidateActionStructure(allowRebuild: false);
-				});
+				},
+				static () => true);
 		}
 
 		public void UpdateContent()
 		{
+			var expectedContent = Element.PresentedContent;
+			var operation = TizenContentOwnership.Reserve(ref _contentOwnershipGeneration);
 			NView? replacementView;
 			ITizenPlatformViewHandler? replacementHandler = null;
 
-			if (Element?.PresentedContent is IView view)
+			if (expectedContent is IView view)
 			{
 				replacementView = view.ToPlatformView(MauiContext);
 				if (view.Handler is ITizenPlatformViewHandler thandler)
@@ -142,6 +154,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			SwipeDirection? rebuildDirection = null;
 			var changed = TizenContentOwnership.Replace(
+				operation,
 				ref _contentView,
 				ref _contentHandler,
 				ref _contentOwnershipGeneration,
@@ -157,7 +170,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 					Children.Add(newView);
 					newView.RaiseToTop();
 				},
-				() => rebuildDirection = InvalidateActionStructure(allowRebuild: true));
+				() => rebuildDirection = InvalidateActionStructure(allowRebuild: true),
+				() => ReferenceEquals(Element.PresentedContent, expectedContent));
 
 			if (changed)
 				RebuildActionStructure(rebuildDirection);
@@ -176,6 +190,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			CancelContentCallbacks();
 			DisposeSwipeItems();
+			_openCoordinator.Reset();
 
 			return TizenSwipeStructureCoordinator.Invalidate(
 				wasOpen,
@@ -499,53 +514,51 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (items == null || items.Count == 0)
 				return;
 
-			int i = 0;
 			int previousWidth = 0;
 
-			foreach (var child in children)
+			foreach (var (item, child) in TizenSwipeStructureCoordinator.PairVisible(
+				items,
+				GetIsVisible,
+				children,
+				child => child.Visibility))
 			{
-				if (child.Visibility)
+				var swipeItemSize = GetSwipeItemSize(item);
+
+				var swipeItemHeight = swipeItemSize.Height.ToScaledPixel();
+				var swipeItemWidth = swipeItemSize.Width.ToScaledPixel();
+				TRect bound = new TRect();
+
+				switch (_swipeDirection)
 				{
-					var item = items[i];
-					var swipeItemSize = GetSwipeItemSize(item);
-
-					var swipeItemHeight = swipeItemSize.Height.ToScaledPixel();
-					var swipeItemWidth = swipeItemSize.Width.ToScaledPixel();
-					TRect bound = new TRect();
-
-					switch (_swipeDirection)
-					{
-						case SwipeDirection.Left:
-							bound.X = _contentView.PositionX + _contentView.SizeWidth - (swipeItemWidth + previousWidth);
-							bound.Y = _contentView.PositionY;
-							bound.Width = swipeItemWidth;
-							bound.Height = swipeItemHeight;
-							break;
-						case SwipeDirection.Right:
-							bound.X = _contentView.PositionX + previousWidth;
-							bound.Y = _contentView.PositionY;
-							bound.Width = swipeItemWidth;
-							bound.Height = swipeItemHeight;
-							break;
-						case SwipeDirection.Down:
-							bound.X = _contentView.PositionX + previousWidth;
-							bound.Y = _contentView.PositionY;
-							bound.Width = swipeItemWidth;
-							bound.Height = swipeItemHeight;
-							break;
-						case SwipeDirection.Up:
-							bound.X = _contentView.PositionX + previousWidth;
-							bound.Y = _contentView.PositionY + _contentView.SizeHeight - swipeItemHeight;
-							bound.Width = swipeItemWidth;
-							bound.Height = swipeItemHeight;
-							break;
-					}
-					child.UpdateBounds(bound);
-
-					i++;
-					previousWidth += swipeItemWidth;
-					_itemsHeight = Math.Max(_itemsHeight, swipeItemHeight);
+					case SwipeDirection.Left:
+						bound.X = _contentView.PositionX + _contentView.SizeWidth - (swipeItemWidth + previousWidth);
+						bound.Y = _contentView.PositionY;
+						bound.Width = swipeItemWidth;
+						bound.Height = swipeItemHeight;
+						break;
+					case SwipeDirection.Right:
+						bound.X = _contentView.PositionX + previousWidth;
+						bound.Y = _contentView.PositionY;
+						bound.Width = swipeItemWidth;
+						bound.Height = swipeItemHeight;
+						break;
+					case SwipeDirection.Down:
+						bound.X = _contentView.PositionX + previousWidth;
+						bound.Y = _contentView.PositionY;
+						bound.Width = swipeItemWidth;
+						bound.Height = swipeItemHeight;
+						break;
+					case SwipeDirection.Up:
+						bound.X = _contentView.PositionX + previousWidth;
+						bound.Y = _contentView.PositionY + _contentView.SizeHeight - swipeItemHeight;
+						bound.Width = swipeItemWidth;
+						bound.Height = swipeItemHeight;
+						break;
 				}
+				child.UpdateBounds(bound);
+
+				previousWidth += swipeItemWidth;
+				_itemsHeight = Math.Max(_itemsHeight, swipeItemHeight);
 			}
 			_itemsWidth = previousWidth;
 		}
@@ -627,6 +640,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			if (animated)
 			{
+				if (_swipeDirection is not null)
+					_openCoordinator.BeginAnimatedClose();
+
 				switch (_swipeDirection)
 				{
 					case SwipeDirection.Left:
@@ -656,6 +672,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 									DisposeSwipeItems();
 
 								_isResettingSwipe = false;
+								ReplayQueuedOpen();
 							});
 
 							break;
@@ -685,11 +702,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 									DisposeSwipeItems();
 
 								_isResettingSwipe = false;
+								ReplayQueuedOpen();
 							});
 							break;
 						}
 					default:
 						_isResettingSwipe = false;
+						ReplayQueuedOpen();
 						break;
 				}
 			}
@@ -700,16 +719,22 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 				DisposeSwipeItems();
 				_isResettingSwipe = false;
+				_openCoordinator.Reset();
 			}
 		}
 
 		void ProgrammaticallyOpenSwipeItem(OpenSwipeItem openSwipeItem, bool animated)
 		{
-			switch (TizenSwipeMetrics.GetProgrammaticOpenAction(_isOpen, _previousOpenSwipeItem, openSwipeItem))
+			switch (_openCoordinator.RequestOpen(
+				_isOpen,
+				_previousOpenSwipeItem,
+				openSwipeItem,
+				animated))
 			{
-				case TizenSwipeOpenAction.AlreadyOpen:
+				case TizenSwipeOpenDecision.AlreadyOpen:
+				case TizenSwipeOpenDecision.Queued:
 					return;
-				case TizenSwipeOpenAction.ResetThenOpen:
+				case TizenSwipeOpenDecision.ResetThenOpen:
 					ResetSwipe(false);
 					break;
 			}
@@ -731,6 +756,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			UpdateSwipeItems();
 			SwipeToThreshold(animated);
+		}
+
+		void ReplayQueuedOpen()
+		{
+			if (_openCoordinator.CompleteClose() is { } queued)
+				ProgrammaticallyOpenSwipeItem(queued.Item, queued.Animated);
 		}
 
 		void SwipeToThreshold(bool animated = true)

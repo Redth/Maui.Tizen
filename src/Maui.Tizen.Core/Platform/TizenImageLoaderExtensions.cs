@@ -13,28 +13,47 @@ namespace Microsoft.Maui.Platforms.Tizen
 		readonly object _gate = new();
 		long _generation;
 		IImageSourcePart? _originatingPart;
+		CancellationTokenSource? _readinessCancellation;
 
-		public long Begin(IImageSourcePart part)
+		public (long Generation, CancellationToken Token) Begin(IImageSourcePart part)
 		{
+			CancellationTokenSource? previous;
+			CancellationTokenSource current;
+			long generation;
+
 			lock (_gate)
 			{
 				_originatingPart = part;
-				return ++_generation;
+				previous = _readinessCancellation;
+				_readinessCancellation = current = new CancellationTokenSource();
+				generation = ++_generation;
 			}
+
+			TizenCleanup.Run(
+				() => previous?.Cancel(),
+				() => previous?.Dispose());
+
+			return (generation, current.Token);
 		}
 
 		public void Invalidate()
 		{
 			IImageSourcePart? part;
+			CancellationTokenSource? readiness;
 
 			lock (_gate)
 			{
 				_generation++;
 				part = _originatingPart;
 				_originatingPart = null;
+				readiness = _readinessCancellation;
+				_readinessCancellation = null;
 			}
 
-			part?.UpdateIsLoading(false);
+			TizenCleanup.Run(
+				() => readiness?.Cancel(),
+				() => readiness?.Dispose(),
+				() => part?.UpdateIsLoading(false));
 		}
 
 		public bool IsCurrent(long generation) => Volatile.Read(ref _generation) == generation;
@@ -42,7 +61,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 	internal static class TizenImageLoaderExtensions
 	{
-		public static async Task LoadPartAsync<TImage>(
+		public static Task LoadPartAsync<TImage>(
 			this TizenImageLoader<TImage> loader,
 			IImageSourcePart part,
 			TizenImageLoadEvents loadEvents,
@@ -51,16 +70,39 @@ namespace Microsoft.Maui.Platforms.Tizen
 			Action<TImage?> apply,
 			Func<bool> isTargetCurrent)
 			where TImage : class
+			=> LoadPartAsync(
+				loader,
+				part,
+				loadEvents,
+				load,
+				commitOnUiThread,
+				(image, _) =>
+				{
+					apply(image);
+					return Task.FromResult(true);
+				},
+				isTargetCurrent);
+
+		public static async Task LoadPartAsync<TImage>(
+			this TizenImageLoader<TImage> loader,
+			IImageSourcePart part,
+			TizenImageLoadEvents loadEvents,
+			Func<IImageSource, CancellationToken, Task<IImageSourceServiceResult<TImage>?>> load,
+			Func<Action, Task> commitOnUiThread,
+			Func<TImage?, CancellationToken, Task<bool>> applyAndWaitForReady,
+			Func<bool> isTargetCurrent)
+			where TImage : class
 		{
 			ArgumentNullException.ThrowIfNull(loader);
 			ArgumentNullException.ThrowIfNull(part);
 			ArgumentNullException.ThrowIfNull(loadEvents);
 			ArgumentNullException.ThrowIfNull(load);
 			ArgumentNullException.ThrowIfNull(commitOnUiThread);
-			ArgumentNullException.ThrowIfNull(apply);
+			ArgumentNullException.ThrowIfNull(applyAndWaitForReady);
 			ArgumentNullException.ThrowIfNull(isTargetCurrent);
 
-			var generation = loadEvents.Begin(part);
+			var request = loadEvents.Begin(part);
+			var generation = request.Generation;
 			var source = part.Source;
 			var events = part as IImageSourcePartEvents;
 			Exception? loadFailure = null;
@@ -70,13 +112,16 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			if (source is null)
 			{
+				Task<bool>? clearReady = null;
 				await loader.LoadAsync(
 					source,
 					load,
 					commitOnUiThread,
-					apply,
+					image => clearReady = applyAndWaitForReady(image, request.Token),
 					() => part.Source is null,
 					isTargetCurrent).ConfigureAwait(false);
+				if (clearReady is not null)
+					await clearReady.ConfigureAwait(false);
 				return;
 			}
 
@@ -85,6 +130,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			try
 			{
+				Task<bool>? targetReady = null;
 				await loader.LoadAsync(
 					source,
 					async (imageSource, token) =>
@@ -104,9 +150,27 @@ namespace Microsoft.Maui.Platforms.Tizen
 						}
 					},
 					commitOnUiThread,
-					apply,
+					image => targetReady = applyAndWaitForReady(image, request.Token),
 					() => ReferenceEquals(part.Source, source),
 					isTargetCurrent).ConfigureAwait(false);
+
+				var readinessSucceeded = targetReady is null || await targetReady.ConfigureAwait(false);
+				if (!readinessSucceeded
+					&& loadEvents.IsCurrent(generation)
+					&& ReferenceEquals(part.Source, source)
+					&& isTargetCurrent())
+				{
+					Task<bool>? clearReady = null;
+					await loader.LoadAsync(
+						null,
+						load,
+						commitOnUiThread,
+						image => clearReady = applyAndWaitForReady(image, request.Token),
+						() => ReferenceEquals(part.Source, source),
+						isTargetCurrent).ConfigureAwait(false);
+					if (clearReady is not null)
+						await clearReady.ConfigureAwait(false);
+				}
 
 				await commitOnUiThread(() =>
 				{
@@ -127,7 +191,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 								events?.LoadingFailed(loadFailure);
 							else
 								events?.LoadingCompleted(
-									ReferenceEquals(loader.CurrentSource, source) && loader.Current is not null);
+									readinessSucceeded &&
+									ReferenceEquals(loader.CurrentSource, source) &&
+									loader.Current is not null);
 						},
 						() => part.UpdateIsLoading(false));
 				}).ConfigureAwait(false);

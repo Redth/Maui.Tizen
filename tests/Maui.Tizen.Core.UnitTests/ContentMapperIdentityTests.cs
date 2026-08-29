@@ -40,7 +40,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				?? throw new InvalidOperationException($"No handler registered for {parentType.Name}.");
 
 			parentHandler.SetMauiContext(context);
-			parentHandler.SetVirtualView((IElement)parent);
+			parentHandler.SetVirtualView((IElement)parent.Parent);
 
 			var firstChildHandler = child.Handler;
 			var firstChildPlatform = Assert.IsType<TizenContentViewGroup>(firstChildHandler?.PlatformView);
@@ -55,7 +55,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			Assert.True(firstChildPlatform.IsDisposed);
 
-			parentHandler.SetVirtualView((IElement)parent);
+			parentHandler.SetVirtualView((IElement)parent.Parent);
 
 			var secondChildHandler = child.Handler;
 			var secondChildPlatform = Assert.IsType<TizenContentViewGroup>(secondChildHandler?.PlatformView);
@@ -80,15 +80,16 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			elementHandler.SetMauiContext(context);
 
 			var a = new ContentView();
-			var b = new ContentView();
+			var b = new ReentrantContentView();
 			var c = new ContentView();
 			var bHandler = new CallbackHandler();
 			var cHandler = new CallbackHandler();
-			var aHandler = new CallbackHandler(() =>
+			var aHandler = new CallbackHandler();
+			b.Callback = () =>
 			{
 				border.Content = c;
 				elementHandler.UpdateValue(nameof(IContentView.Content));
-			});
+			};
 			a.Handler = aHandler;
 			b.Handler = bHandler;
 			c.Handler = cHandler;
@@ -110,18 +111,63 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(1, cHandler.DisposeCount);
 		}
 
-		static IView CreateParent(Type parentType, View child) =>
+		[Theory]
+		[InlineData(typeof(Border))]
+		[InlineData(typeof(RefreshView))]
+		[InlineData(typeof(ScrollView))]
+		[InlineData(typeof(SwipeView))]
+		[InlineData(typeof(SwipeItemView))]
+		public void ChildDisposalMapperReentryDuringDisconnectIsIgnored(Type parentType)
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<ControlsApp>()
+				.Build();
+			var context = new MauiContext(app.Services);
+			var created = CreateParent(parentType, new ContentView());
+			var parentHandler = app.Services.GetRequiredService<IMauiHandlersFactory>().GetHandler(parentType)
+				?? throw new InvalidOperationException($"No handler registered for {parentType.Name}.");
+			var reentries = 0;
+			var childHandler = new CallbackHandler(() =>
+			{
+				reentries++;
+				parentHandler.UpdateValue(nameof(IContentView.Content));
+			});
+			created.Child.Handler = childHandler;
+			parentHandler.SetMauiContext(context);
+			parentHandler.SetVirtualView((IElement)created.Parent);
+
+			parentHandler.DisconnectHandler();
+
+			Assert.Equal(1, reentries);
+			Assert.Equal(1, childHandler.DisposeCount);
+			Assert.Null(parentHandler.PlatformView);
+		}
+
+		static (IView Parent, View Child) CreateParent(Type parentType, View child) =>
 			parentType.Name switch
 			{
-				nameof(Border) => new Border { Content = child },
-				nameof(RefreshView) => new RefreshView { Content = child },
-				nameof(ScrollView) => new ScrollView { Content = child },
-				nameof(SwipeItemView) => new SwipeItemView { Content = child },
+				nameof(Border) => (new Border { Content = child }, child),
+				nameof(RefreshView) => (new RefreshView { Content = child }, child),
+				nameof(ScrollView) => (new ScrollView { Content = child }, child),
+				nameof(SwipeView) => (new SwipeView { Content = child }, child),
+				nameof(SwipeItemView) => (new SwipeItemView { Content = child }, child),
 				_ => throw new ArgumentOutOfRangeException(nameof(parentType)),
 			};
 
 		sealed class ControlsApp : Application
 		{
+		}
+
+		sealed class ReentrantContentView : ContentView, IWaveBHostMaterializationCallback
+		{
+			public Action? Callback { get; set; }
+
+			public void OnMaterializing()
+			{
+				var callback = Callback;
+				Callback = null;
+				callback?.Invoke();
+			}
 		}
 
 		sealed class CallbackHandler : ITizenPlatformViewHandler

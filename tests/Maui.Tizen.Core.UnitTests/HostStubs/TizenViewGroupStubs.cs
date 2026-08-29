@@ -18,7 +18,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public TizenContentViewGroup(IView? virtualView) => VirtualView = virtualView;
 
 		/// <summary>Gets the cross-platform view this group renders.</summary>
-		public IView? VirtualView { get; }
+		public IView? VirtualView { get; private set; }
+
+		public void Rebind(IView? virtualView) => VirtualView = virtualView;
 
 		/// <summary>Gets or sets the cross-platform measure callback.</summary>
 		public Func<double, double, Size>? CrossPlatformMeasure { get; set; }

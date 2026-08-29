@@ -21,7 +21,6 @@
     tests/UnitTests pins both.
   -->
   <Import Project="$(MSBuildThisFileDirectory)../../eng/targets/TizenPackage.props" />
-  <Import Project="$(RepositoryRoot)eng/Maui.props" />
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>

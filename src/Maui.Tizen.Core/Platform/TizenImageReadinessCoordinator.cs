@@ -13,7 +13,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		bool IsReady { get; }
 
-		void StartImmediate(string url);
+		void Start(string url, bool immediate);
 	}
 
 	internal static class TizenImageReadinessCoordinator
@@ -21,6 +21,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public static async Task<bool> WaitAsync(
 			ITizenImageReadinessTarget target,
 			string url,
+			bool immediate,
 			CancellationToken cancellationToken)
 		{
 			ArgumentNullException.ThrowIfNull(target);
@@ -37,7 +38,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			try
 			{
-				target.StartImmediate(url);
+				target.Start(url, immediate);
 				await completion.Task;
 				cancellationToken.ThrowIfCancellationRequested();
 				return target.IsReady;

@@ -18,6 +18,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		TizenViewHandler<ISwipeView, TizenSwipeViewGroup>,
 		ISwipeViewHandler
 	{
+		readonly TizenDisconnectingState _disconnecting = new();
+
 		public static IPropertyMapper<ISwipeView, TizenSwipeViewHandler> Mapper =
 			new PropertyMapper<ISwipeView, TizenSwipeViewHandler>(
 				TizenHandlerMappers.Chain(SwipeViewHandler.Mapper))
@@ -59,6 +61,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override TizenSwipeViewGroup CreatePlatformView() => new TizenSwipeViewGroup(VirtualView);
 
+		protected override void ConnectHandler(TizenSwipeViewGroup platformView)
+		{
+			_disconnecting.Connected();
+			base.ConnectHandler(platformView);
+		}
+
 		/// <inheritdoc />
 		/// <remarks>
 		/// The swipe view creates handlers for its content and for every swipe item, so tearing this
@@ -67,16 +75,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void DisconnectHandler(TizenSwipeViewGroup platformView)
 		{
 			TizenCleanup.Run(
+				_disconnecting.BeginDisconnect,
 				platformView.DisposeChildHandlers,
 				() => base.DisconnectHandler(platformView));
 		}
 
 		public override void SetVirtualView(IView view)
 		{
+			(((IElementHandler)this).PlatformView as TizenSwipeViewGroup)?.Rebind((ISwipeView)view);
 			base.SetVirtualView(view);
 			_ = VirtualView ?? throw new InvalidOperationException($"{nameof(VirtualView)} should have been set by base class.");
 			_ = PlatformView ?? throw new InvalidOperationException($"{nameof(PlatformView)} should have been set by base class.");
 
+			PlatformView.Rebind(VirtualView);
 			// Layout stays with the MAUI cross-platform implementation.
 			PlatformView.CrossPlatformMeasure = VirtualView.CrossPlatformMeasure;
 			PlatformView.CrossPlatformArrange = VirtualView.CrossPlatformArrange;
@@ -84,11 +95,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public static void MapContent(TizenSwipeViewHandler handler, ISwipeView view)
 		{
-			_ = handler.PlatformView ?? throw new InvalidOperationException($"{nameof(PlatformView)} should have been set by base class.");
+			if (handler._disconnecting.IsDisconnecting
+				|| ((IElementHandler)handler).PlatformView is not TizenSwipeViewGroup platformView)
+				return;
+
 			_ = handler.MauiContext ?? throw new InvalidOperationException($"{nameof(MauiContext)} should have been set by base class.");
 			_ = handler.VirtualView ?? throw new InvalidOperationException($"{nameof(VirtualView)} should have been set by base class.");
 
-			handler.PlatformView.UpdateContent();
+			platformView.UpdateContent();
 		}
 
 		public static void MapIsEnabled(TizenSwipeViewHandler handler, ISwipeView swipeView)
@@ -123,15 +137,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		public static void MapLeftItems(TizenSwipeViewHandler handler, ISwipeView view) =>
-			handler.PlatformView.UpdateItems(TizenSwipeItemsSlot.Left, view.LeftItems);
+			handler.UpdateItems(TizenSwipeItemsSlot.Left, view.LeftItems);
 
 		public static void MapTopItems(TizenSwipeViewHandler handler, ISwipeView view) =>
-			handler.PlatformView.UpdateItems(TizenSwipeItemsSlot.Top, view.TopItems);
+			handler.UpdateItems(TizenSwipeItemsSlot.Top, view.TopItems);
 
 		public static void MapRightItems(TizenSwipeViewHandler handler, ISwipeView view) =>
-			handler.PlatformView.UpdateItems(TizenSwipeItemsSlot.Right, view.RightItems);
+			handler.UpdateItems(TizenSwipeItemsSlot.Right, view.RightItems);
 
 		public static void MapBottomItems(TizenSwipeViewHandler handler, ISwipeView view) =>
-			handler.PlatformView.UpdateItems(TizenSwipeItemsSlot.Bottom, view.BottomItems);
+			handler.UpdateItems(TizenSwipeItemsSlot.Bottom, view.BottomItems);
+
+		void UpdateItems(TizenSwipeItemsSlot slot, ISwipeItems? items)
+		{
+			if (_disconnecting.IsDisconnecting
+				|| ((IElementHandler)this).PlatformView is not TizenSwipeViewGroup platformView)
+				return;
+
+			platformView.UpdateItems(slot, items);
+		}
 	}
 }

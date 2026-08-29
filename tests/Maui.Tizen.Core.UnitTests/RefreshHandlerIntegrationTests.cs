@@ -29,6 +29,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			elementHandler.SetMauiContext(new MauiContext(app.Services));
 			elementHandler.SetVirtualView(view);
 			var platform = Assert.IsType<TizenRefreshLayout>(elementHandler.PlatformView);
+			platform.DelayNativeCompletion = true;
 
 			platform.RaiseRefreshing();
 
@@ -55,6 +56,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			elementHandler.SetMauiContext(new MauiContext(app.Services));
 			elementHandler.SetVirtualView(view);
 			var platform = Assert.IsType<TizenRefreshLayout>(elementHandler.PlatformView);
+			platform.DelayNativeCompletion = true;
 
 			view.IsRefreshing = true;
 			elementHandler.UpdateValue(nameof(IRefreshView.IsRefreshing));

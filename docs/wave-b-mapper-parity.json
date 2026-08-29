@@ -2319,6 +2319,11 @@
           "Status": "Supported"
         },
         {
+          "Key": "IndicatorTemplate",
+          "Method": "TizenIndicatorViewHandler.MapIndicatorTemplate",
+          "Status": "Supported"
+        },
+        {
           "Key": "IndicatorsShape",
           "Method": "TizenIndicatorViewHandler.MapIndicatorShape",
           "Status": "Supported"

@@ -5,6 +5,7 @@
 // Renamed and renamespaced: the raw import declares public types in Microsoft.Maui.Platform,
 // which collides by full name with the neutral Microsoft.Maui.Core assembly. The raw file is
 // retained beside this one for provenance but is never compiled.
+using System;
 using Microsoft.Maui.Graphics;
 using Tizen.UIExtensions.NUI;
 using TColor = Tizen.UIExtensions.Common.Color;
@@ -24,18 +25,17 @@ namespace Microsoft.Maui.Platforms.Tizen
 		TizenNativeView? _contentView;
 		long _contentGeneration;
 		bool _disconnected;
-		TaskCompletionSource? _nativeIdle;
+		const int MaximumNativeCompletionFrames = 120;
 
-		public TizenRefreshLayout()
-		{
-			Relayout += OnNativeRelayout;
-		}
+		public void UpdateContent(IView? content, IMauiContext? mauiContext) =>
+			UpdateContent(content, mauiContext, static () => true);
 
-		public void UpdateContent(IView? content, IMauiContext? mauiContext)
+		internal void UpdateContent(IView? content, IMauiContext? mauiContext, Func<bool> isExpected)
 		{
 			if (_disconnected)
 				return;
 
+			var operation = TizenContentOwnership.Reserve(ref _contentGeneration);
 			TizenNativeView? replacementView = null;
 			ITizenPlatformViewHandler? replacementHandler = null;
 
@@ -47,6 +47,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 
 			TizenContentOwnership.Replace(
+				operation,
 				ref _contentView,
 				ref _contentHandler,
 				ref _contentGeneration,
@@ -59,7 +60,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 					view.Unparent();
 				},
 				newView => Content = newView,
-				static () => { });
+				static () => { },
+				isExpected);
 		}
 
 		/// <summary>Disposes the content handler this layout created.</summary>
@@ -69,7 +71,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </remarks>
 		public void DisposeContentHandler()
 		{
+			var operation = TizenContentOwnership.Reserve(ref _contentGeneration);
 			TizenContentOwnership.Clear(
+				operation,
 				ref _contentView,
 				ref _contentHandler,
 				ref _contentGeneration,
@@ -79,7 +83,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 						Content = null;
 					view.Unparent();
 				},
-				static () => { });
+				static () => { },
+				static () => true);
 		}
 
 		/// <summary>Serialises IsRefreshing around the base class's private completion animation.</summary>
@@ -91,28 +96,22 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (_disconnected)
 				return;
 
-			if (!isRefreshing)
-				_nativeIdle = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
 			IsRefreshing = isRefreshing;
 		}
 
 		/// <summary>Prevents any late coordinator callback from touching this layout.</summary>
 		internal void MarkDisconnected() => _disconnected = true;
 
-		internal Task WaitForNativeIdleAsync(CancellationToken cancellationToken)
-		{
-			var completion = _nativeIdle;
-			return completion is null
-				? Task.CompletedTask
-				: completion.Task.WaitAsync(cancellationToken);
-		}
-
-		void OnNativeRelayout(object? sender, EventArgs e)
-		{
-			if (!IsRefreshing)
-				_nativeIdle?.TrySetResult();
-		}
+		internal Task<bool> WaitForNativeIdleAsync(
+			Func<Action, Task> dispatch,
+			Func<CancellationToken, Task> nextFrame,
+			CancellationToken cancellationToken) =>
+			TizenRefreshNativeIdlePoller.WaitAsync(
+				() => IsRefreshing,
+				dispatch,
+				nextFrame,
+				MaximumNativeCompletionFrames,
+				cancellationToken);
 
 		public void UpdateRefreshColor(IRefreshView view)
 		{

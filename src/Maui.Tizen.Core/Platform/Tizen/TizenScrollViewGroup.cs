@@ -24,6 +24,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_virtualView = virtualView;
 		}
 
+		internal void Rebind(IScrollView virtualView) => _virtualView = virtualView;
+
 		public TSize Measure(double availableWidth, double availableHeight)
 		{
 			return _virtualView.CrossPlatformMeasure(availableWidth.ToScaledDP(), availableHeight.ToScaledDP()).ToPixel();
