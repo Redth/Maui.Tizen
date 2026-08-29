@@ -15,10 +15,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 	/// <remarks>
 	/// <para>
 	/// This exists because the dependency runs one way: <c>Maui.Tizen.Controls</c> references
-	/// <c>Maui.Tizen.Core</c>, so Core's <c>ConfigureTizen</c> cannot reach back and register the
-	/// Controls-level shape handlers. Something on this side has to close the loop, and this is it —
-	/// the same layering MAUI itself uses, where <c>UseMauiApp</c> lives in Controls and wraps the
-	/// core configuration.
+	/// <c>Maui.Tizen.Core</c> and <c>Maui.Tizen.Essentials</c>, so Core's
+	/// <c>ConfigureTizen</c> cannot reach back and register either the Controls-level handlers or
+	/// the Essentials implementations. Something on this side has to close the loop, and this is
+	/// it — the same layering MAUI itself uses, where <c>UseMauiApp</c> lives in Controls and wraps
+	/// the core configuration.
 	/// </para>
 	/// <para>
 	/// Registering the shape handlers without calling this would be worse than useless: MAUI
@@ -32,7 +33,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 		/// <summary>
 		/// Configures the Tizen backend for a MAUI Controls app: everything
 		/// <see cref="TizenMauiAppBuilderExtensions.ConfigureTizen"/> registers, plus the
-		/// Controls-level shape handlers.
+		/// Essentials services and Controls-level handlers.
 		/// </summary>
 		/// <remarks>
 		/// Controls apps should call this rather than <c>ConfigureTizen</c>. Calling
@@ -46,6 +47,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 			ArgumentNullException.ThrowIfNull(builder);
 
 			builder.ConfigureTizen();
+			builder.AddTizenEssentials();
 			builder.AddTizenControlsBackend();
 			builder.ConfigureMauiHandlers(handlers => handlers.AddTizenShapeHandlers());
 

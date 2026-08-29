@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Maui.Tizen.Core/Maui.Tizen.Core.csproj" />
+    <ProjectReference Include="../Maui.Tizen.Essentials/Maui.Tizen.Essentials.csproj" />
   </ItemGroup>
 
   <!--

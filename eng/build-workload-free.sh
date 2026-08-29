@@ -69,7 +69,7 @@ info "SDK"
 # malformed file there breaks both in confusing ways.
 # ---------------------------------------------------------------------------
 info "JSON validation"
-for f in eng/baselines.json eng/manifests/*.json; do
+for f in eng/baselines.json eng/manifests/*.json eng/validation/*.json; do
   [[ -e "$f" ]] || continue
   check "$f is well-formed JSON" python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$f"
 done
@@ -109,6 +109,8 @@ check "normalize script is syntactically valid" bash -n eng/import/normalize-lay
 check "Tizen workload gate script is syntactically valid" bash -n eng/ci/tizen-workload-gate.sh
 check "real Tizen lane script is syntactically valid" bash -n eng/build-tizen.sh
 check "Tizen workload transition tests are syntactically valid" bash -n eng/tests/test-ci-tizen-workload-gate.sh
+check "Essentials mutation runner is syntactically valid" bash -n eng/tests/run-essentials-negative-controls.sh
+check "Essentials mutation lock tests are syntactically valid" bash -n eng/tests/test-essentials-mutation-lock.sh
 check "Wave C mutation runner is syntactically valid" bash -n eng/tests/run-wave-c-negative-controls.sh
 
 # ---------------------------------------------------------------------------
@@ -119,6 +121,7 @@ check "Wave C mutation runner is syntactically valid" bash -n eng/tests/run-wave
 info "Workload-independent projects"
 WORKLOAD_FREE_PROJECTS=(
   "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj"
+  "src/Maui.Tizen.Essentials.HostVerification/Maui.Tizen.Essentials.HostVerification.csproj"
   "tests/UnitTests/Maui.Tizen.UnitTests.csproj"
 
   # Verification lanes for the ported backend slice. Neither is a Tizen artifact:
@@ -152,6 +155,18 @@ WORKLOAD_FREE_PROJECTS=(
   "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj"
   "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj"
 
+  # Essentials verification lanes, mirroring the pair above:
+  #
+  #   Maui.Tizen.Essentials.RefPackCompile  type-checks the ported Essentials sources against the
+  #                                         REAL API15 reference assemblies the product will bind
+  #                                         to. Compile-only and unpackable. This is the lane that
+  #                                         caught Tizen.Maps being removed from API15.
+  #
+  #   Maui.Tizen.Essentials.Tests           executes DI/facade/permission/translation tests against
+  #                                         the loadable Tizen.NET assemblies via
+  #                                         src/Maui.Tizen.Essentials.HostVerification.
+  "tests/Maui.Tizen.Essentials.RefPackCompile/Maui.Tizen.Essentials.RefPackCompile.csproj"
+  "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj"
   # Foundation-owned probes.
   "eng/tests/PublicApiOptIn/PublicApiOptIn.csproj"
   "eng/tests/PackReadmeProbe/PackReadmeProbe.csproj"
@@ -226,8 +241,43 @@ info "Repository invariant tests"
 if [[ $BUILD_OK -eq 1 ]]; then
   check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
   check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
+  # Essentials behaviour tests, run against the workload-free host verification harness
+  # (src/Maui.Tizen.Essentials.HostVerification), which compiles the same sources the Tizen
+  # package will. Anything that P/Invokes into Tizen is out of their reach and is classified
+  # in docs/tizen-essentials-service-coverage.md rather than faked into a green test.
+  #
+  # The self-executing Microsoft.Testing.Platform binary is run directly. `dotnet test` would
+  # need the repository-wide dotnet.config MTP opt-in, which would break tests/UnitTests
+  # (xunit v2 on VSTest). See that project's csproj for the full reasoning.
+  ESSENTIALS_TESTS="artifacts/bin/Maui.Tizen.Essentials.Tests/Release/net11.0/Maui.Tizen.Essentials.Tests"
+  ESSENTIALS_RESULTS="$REPO_ROOT/artifacts/test-results/essentials"
+
+  # Assert the test COUNT, not just the exit code.
+  #
+  # This is not belt-and-braces. Discovery over this assembly walks assembly-level attributes
+  # across the loaded closure, and Tizen.NUI's [XmlnsDefinition] constructor P/Invokes and
+  # throws off-device. On the xunit v2 runner that aborted discovery part way through a class
+  # and SILENTLY DROPPED the remaining tests while still reporting success - it hid 4 tests
+  # before it was noticed. v3 handles it, but "the runner exited 0" is demonstrably not
+  # sufficient evidence here, so the floor is pinned.
+  #
+  # The count comes from the runner's JUnit report rather than from scraping its console
+  # summary: the first attempt at this parsed stdout and passed locally but failed on the CI
+  # runner, because console rendering is not a stable contract. A report file is.
+  #
+  # Raise this when adding tests; never lower it to make a run go green.
+  ESSENTIALS_TESTS_MINIMUM=449
+
+  check "essentials tests" "$ESSENTIALS_TESTS" \
+    --report-xunit-junit --report-xunit-junit-filename results.xml \
+    --results-directory "$ESSENTIALS_RESULTS"
+
+  check "essentials tests ran at least $ESSENTIALS_TESTS_MINIMUM tests" \
+    python3 "$REPO_ROOT/eng/assert-test-count.py" "$ESSENTIALS_RESULTS/results.xml" "$ESSENTIALS_TESTS_MINIMUM"
   check "Wave B source tests" "$DOTNET" test tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj --no-build -c Release
   check "migration tooling tests" "$DOTNET" test tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj --no-build -c Release
+  check "Essentials negative controls" "$REPO_ROOT/eng/tests/run-essentials-negative-controls.sh"
+  check "Essentials mutation lock behavior" "$REPO_ROOT/eng/tests/test-essentials-mutation-lock.sh"
   check "Wave B negative controls" env DOTNET="$DOTNET" "$REPO_ROOT/eng/tests/run-wave-b-negative-controls.sh"
   check "Wave B mutation runner behavior" "$REPO_ROOT/eng/tests/test-wave-b-mutation-runner.sh"
   check "Wave C negative controls" "$REPO_ROOT/eng/tests/run-wave-c-negative-controls.sh"

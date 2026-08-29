@@ -1,7 +1,6 @@
 # .NET 11 status: blockers and required MAUI API gaps
 
-Status of the **core standalone backend vertical slice** (application, window, page, content view,
-layout, label) in `src/Maui.Tizen.Core`.
+Status of the merged standalone Core/Waves backend plus the implemented Essentials package.
 
 Baselines are frozen in [`eng/baselines.json`](../eng/baselines.json); package versions are
 centrally configurable in [`eng/Maui.props`](../eng/Maui.props).
@@ -20,6 +19,10 @@ not compile identical sets - that would be impossible, since the platform source
 | `Maui.Tizen.Core.UnitTests` | portable + handler | test host | no |
 | `Maui.Tizen.Core.RefPackCompile` | portable + handler + platform | `Maui.Tizen.Core` | yes |
 | `Maui.Tizen.Sample.RefPackCompile` | sample only, references the above | `Maui.Tizen.Sample` | yes |
+| `Maui.Tizen.Controls.RefPackCompile` | Controls, Waves A/B/C and navigation | `Maui.Tizen.Controls` | yes |
+| `Maui.Tizen.Controls.ConsumerCompile` | consumer/catalog crossing the package boundary | consumer | yes |
+| `Maui.Tizen.Essentials.RefPackCompile` | exact Essentials shipping closure against API15 | `Maui.Tizen.Essentials` | yes |
+| `Maui.Tizen.Essentials.Tests` | host-executable storage/callback/lifecycle/DI behavior | test host | yes |
 | `Maui.Tizen.Core` (product) | portable + handler + platform | `Maui.Tizen.Core` | yes |
 
 Between them every owned source is compiled by at least one lane, and everything the product
@@ -44,8 +47,10 @@ identical, so neither can drift from the other.
 
 | Lane | Command | What it proves |
 | --- | --- | --- |
-| Unit tests | `dotnet test tests/Maui.Tizen.Core.UnitTests` | Mapper + command-mapper registration, DI/handler registration, hosting, dispatcher/timer/provider semantics, density conversion, layout z-index ordering, `IMauiContext` scoping. **417 tests at this head, all passing.** |
-| Compile validation | `dotnet build tests/Maui.Tizen.Core.RefPackCompile` | Every Core `#if TIZEN` source - including `TizenMauiApplication`, the NUI view groups and all the ported platform extensions - type-checks against the **real** TizenFX reference assemblies from `Samsung.Tizen.Ref.API15` (`ref/net8.0`). The sample is compiled separately by `Maui.Tizen.Sample.RefPackCompile`. **Both build cleanly.** |
+| Core/Waves tests | `dotnet test tests/Maui.Tizen.Core.UnitTests` | Mapper + command-mapper registration, concrete Controls startup, DI/handler registration, hosting, dispatcher/timer/provider semantics, density/layout, Wave A/B/C lifetimes and navigation. **1,248 tests at this head, all passing.** |
+| Source/closure tests | `dotnet test tests/Maui.Tizen.SourceTests` | Source ownership, mapper parity, startup and package closures, compile-backed MAUI API blockers. **579 tests at this head, all passing.** |
+| Essentials tests | execute `artifacts/bin/Maui.Tizen.Essentials.Tests/<Configuration>/net11.0/Maui.Tizen.Essentials.Tests` | DI facade bridge, native-faithful Preferences/SecureStorage, Clipboard/TTS/sensor/screenshot/AppControl lifecycle coordinators, permissions and translation behavior. **449 tests pass in Debug and Release.** |
+| Compile validation | build the four `*.RefPackCompile`/consumer projects | Core, Controls, Sample and Essentials shipping sources type-check against the **real** TizenFX reference assemblies from `Samsung.Tizen.Ref.API15` (`ref/net8.0`), with package-specific PublicAPI analyzers. **All build cleanly.** |
 | Product | `dotnet build src/Maui.Tizen.Core` | Fails with actionable `MAUITIZEN0001` from `Directory.Build.targets`. This is the intended behaviour. |
 
 Both lanes are wired into `eng/build-workload-free.sh`, so they run in the workload-free CI lane
@@ -57,6 +62,25 @@ exists so `#if TIZEN` code is checked by a compiler rather than by inspection.
 
 > Note: a device build has **not** been performed and must not be claimed. Nothing here validates
 > runtime behaviour on Tizen.
+
+### First-real `net11.0-tizen11.0` surface gate
+
+The first build after Samsung's workload becomes available is a migration gate, not a routine green
+CI run. The conditional `tizen-workload-gate` job must build the shipping projects against the
+genuine `net11.0-tizen11.0` asset graph and remain non-required until the following review is
+recorded:
+
+1. Verify `IPlatformScreenshot` resolves from the real Tizen-flavoured MAUI framework surface and
+   that `TizenScreenshot` still implements the selected contract without a neutral-host assumption.
+2. Verify `IPlatformGeocoding` the same way for `TizenGeocoding`.
+3. Reinspect `Microsoft.Maui.Media.Locale` in the selected `Microsoft.Maui.Essentials` asset. If its
+   constructor is public, replace the temporary Tizen voice-language API with the public
+   `ITextToSpeech.GetLocalesAsync` implementation before promoting the lane.
+4. Regenerate and review the package's API baseline from that real build.
+
+The API15 reference-pack lane proves TizenFX compatibility, and the host lane proves the neutral
+MAUI facade bridge. Neither lane proves which MAUI compile assets the Tizen TFM will select, so they
+cannot satisfy or waive this gate.
 
 ---
 

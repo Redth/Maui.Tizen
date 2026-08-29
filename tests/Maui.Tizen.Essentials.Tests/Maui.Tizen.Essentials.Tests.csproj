@@ -1,0 +1,67 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Behaviour tests for the Tizen Essentials backend.
+
+    These reference src/Maui.Tizen.Essentials.HostVerification rather than the Tizen
+    package project, because the Samsung .NET 11 workload has not shipped and the Tizen
+    TFM cannot be restored anywhere. The harness compiles the same sources, so everything
+    asserted here is asserted about the code that will ship.
+
+    Scope is deliberately limited to what can be verified without a device: dependency
+    injection wiring, facade and MainThread ownership, permission privilege mapping,
+    unsupported-capability classification, and the pure translation logic ported from
+    dotnet/maui. Native behaviour needs a device or emulator and is classified in
+    docs/tizen-essentials-service-coverage.md rather than being mocked into a green test.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>$(DotNetTfm)</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <SkipBaselineValidation>true</SkipBaselineValidation>
+    <NoWarn>$(NoWarn);NETSDK1057</NoWarn>
+
+    <!--
+      xunit v3 runs on Microsoft.Testing.Platform, which produces a self-executing test
+      binary. eng/build-workload-free.sh runs that binary directly rather than through
+      `dotnet test`: the MTP opt-in for `dotnet test` is a repository-wide dotnet.config
+      switch, and flipping it would break tests/UnitTests, which is xunit v2 on VSTest.
+      See Directory.Packages.props for why this project is not on xunit v2.
+    -->
+    <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Maui.Tizen.Essentials.HostVerification/Maui.Tizen.Essentials.HostVerification.csproj" />
+    <PackageReference Include="Microsoft.Maui.Controls" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The coverage matrix is asserted against the real DI registrations. -->
+    <None Include="../../docs/tizen-essentials-service-coverage.md" Link="tizen-essentials-service-coverage.md" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!--
+    Tizen.NET ships its assemblies as NuGet `ref/` assets, so NuGet never copies them to
+    the output folder and they never reach the generated .deps.json. They are real
+    implementation assemblies rather than reference assemblies, so copying them here (plus
+    the resolver in TizenHostAssemblyResolver.cs) lets these tests load Tizen metadata and
+    execute managed-only code paths. Anything that actually P/Invokes still needs a device.
+  -->
+  <Target Name="CopyTizenAssembliesForHostTests" AfterTargets="Build" DependsOnTargets="ResolveReferences">
+    <ItemGroup>
+      <_TizenHostAssembly Include="@(ReferencePath)" Condition="'%(ReferencePath.NuGetPackageId)' != '' AND $([System.String]::Copy('%(ReferencePath.NuGetPackageId)').StartsWith('Tizen.NET'))" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_TizenHostAssembly)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

@@ -8,11 +8,10 @@
     "against that pack on the hosted lane, so a wrong entry here fails CI rather than",
     "quietly misdirecting a migration.",
     "",
-    "SCOPE. The source guards apply ONLY to files a project actually compiles. The",
-    "src/Maui.Tizen.* projects were imported verbatim from dotnet/maui and currently set",
-    "EnableDefaultCompileItems=false, so their sources are <None> and are deliberately NOT",
-    "scanned: they are raw historical imports, not code this repository has adopted. A",
-    "project comes into scope automatically the moment it opts into compiling."
+    "SCOPE. The source guards apply ONLY to files a project actually compiles. Core,",
+    "Controls and Essentials use explicit shared source manifests because the raw import",
+    "still shares their directories; those explicit closures are scanned. Projects that",
+    "still compile nothing remain out of scope until they adopt a source closure."
   ],
 
   "schemaVersion": 1,
@@ -45,8 +44,8 @@
       "contract": "IGeocoding",
       "status": "unsupported",
       "reason": "Geocoding on Tizen was implemented over Tizen.Maps, which no longer exists in API15. There is no replacement platform API, so the Tizen implementation cannot be provided at all rather than being merely degraded.",
-      "behaviour": "Throw PlatformNotSupportedException from every member.",
-      "doNotRegisterInDi": true
+      "behaviour": "Register one TizenGeocoding singleton as IGeocoding and IPlatformGeocoding. Every geocoding operation throws FeatureNotSupportedException; MapServiceToken remains an accepted no-op.",
+      "doNotRegisterInDi": false
     }
   ],
 

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Xunit;
 
 namespace Microsoft.Maui.Platforms.Tizen.UnitTests
@@ -96,6 +97,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[Theory]
 		[InlineData(Core)]
 		[InlineData(Controls)]
+		[InlineData("src/Maui.Tizen.Essentials/Maui.Tizen.Essentials.csproj")]
 		public void ShippingAssembliesGenerateDocumentation(string project)
 		{
 			// The heuristic keyed off EnableDefaultCompileItems, which these two turn OFF - not
@@ -107,13 +109,13 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Fact]
-		public void ProjectsThatCompileNothingDoNotGenerateDocumentation()
+		public void AnUnportedProjectThatCompilesNothingDoesNotGenerateDocumentation()
 		{
 			// The other half: the default must still hold for the un-ported projects, or the build
 			// fills with CS1591 for assemblies that have no API at all.
 			Assert.Equal(
 				"false",
-				MSBuildEvaluation.GetProperty("src/Maui.Tizen.Essentials/Maui.Tizen.Essentials.csproj", "GenerateDocumentationFile"));
+				MSBuildEvaluation.GetProperty("src/Maui.Tizen.BlazorWebView/Maui.Tizen.BlazorWebView.csproj", "GenerateDocumentationFile"));
 		}
 
 		[Fact]
@@ -159,17 +161,41 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			Assert.True(productAssets.Success, "The shared analyzer reference was not found.");
 			Assert.Contains("buildtransitive", productAssets.Groups[1].Value, StringComparison.Ordinal);
+			var expectedAssets = productAssets.Groups[1].Value;
 
 			foreach (var lane in new[]
 			{
 				"tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj",
 				"tests/Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj",
+				"tests/Maui.Tizen.Essentials.RefPackCompile/Maui.Tizen.Essentials.RefPackCompile.csproj",
 			})
 			{
-				var text = File.ReadAllText(Path.Combine(RepositoryRoot, lane));
+				var document = XDocument.Load(Path.Combine(RepositoryRoot, lane));
+				var reference = Assert.Single(
+					document.Descendants("PackageReference"),
+					element => element.Attribute("Include")?.Value ==
+						"Microsoft.CodeAnalysis.PublicApiAnalyzers");
+				var actualAssets =
+					reference.Attribute("IncludeAssets")?.Value ??
+					reference.Element("IncludeAssets")?.Value;
 
-				Assert.Contains("buildtransitive", text, StringComparison.Ordinal);
+				Assert.Equal(expectedAssets, actualAssets);
 			}
+		}
+
+		[Theory]
+		[InlineData("tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj")]
+		[InlineData("tests/Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj")]
+		[InlineData("tests/Maui.Tizen.Sample.RefPackCompile/Maui.Tizen.Sample.RefPackCompile.csproj")]
+		[InlineData("tests/Maui.Tizen.Essentials.RefPackCompile/Maui.Tizen.Essentials.RefPackCompile.csproj")]
+		public void RefPackLanesRebuildWhenSharedShippingPropertiesChange(string project)
+		{
+			var text = File.ReadAllText(Path.Combine(RepositoryRoot, project));
+
+			Assert.Contains(
+				"$(RepositoryRoot)eng/targets/TizenPackage.props</MSBuildAllProjects>",
+				text,
+				StringComparison.Ordinal);
 		}
 	}
 }

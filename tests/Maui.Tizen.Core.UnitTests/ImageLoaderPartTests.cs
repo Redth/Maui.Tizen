@@ -60,24 +60,66 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 		sealed class QueuedCommit
 		{
-			readonly List<(Action Action, TaskCompletionSource Completion)> _pending = new();
+			readonly object _gate = new();
+			readonly Queue<(Action Action, TaskCompletionSource Completion)> _pending = new();
+			TaskCompletionSource _enqueued = CreateSignal();
 
-			public int Count => _pending.Count;
+			public int Count
+			{
+				get
+				{
+					lock (_gate)
+						return _pending.Count;
+				}
+			}
 
 			public Task Enqueue(Action action)
 			{
 				var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-				_pending.Add((action, completion));
+				TaskCompletionSource enqueued;
+
+				lock (_gate)
+				{
+					_pending.Enqueue((action, completion));
+					enqueued = _enqueued;
+					_enqueued = CreateSignal();
+				}
+
+				enqueued.TrySetResult();
 				return completion.Task;
 			}
 
 			public void RunNext()
 			{
-				var pending = _pending[0];
-				_pending.RemoveAt(0);
+				(Action Action, TaskCompletionSource Completion) pending;
+
+				lock (_gate)
+					pending = _pending.Dequeue();
+
 				pending.Action();
 				pending.Completion.SetResult();
 			}
+
+			public async Task WaitForCountAsync(int expectedCount)
+			{
+				while (true)
+				{
+					Task enqueued;
+
+					lock (_gate)
+					{
+						if (_pending.Count >= expectedCount)
+							return;
+
+						enqueued = _enqueued.Task;
+					}
+
+					await enqueued.WaitAsync(TimeSpan.FromSeconds(5));
+				}
+			}
+
+			static TaskCompletionSource CreateSignal() =>
+				new(TaskCreationOptions.RunContinuationsAsynchronously);
 		}
 
 		static Task CommitInline(Action action)
@@ -190,8 +232,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(1, commits.Count);
 
 			commits.RunNext();
-			for (var i = 0; i < 20 && commits.Count == 0; i++)
-				await Task.Yield();
+			await commits.WaitForCountAsync(1);
 
 			Assert.Equal(1, commits.Count);
 			Assert.Empty(part.Completions);

@@ -19,6 +19,7 @@
     <Project Path="src/Maui.Tizen.Core/Maui.Tizen.Core.csproj" />
     <Project Path="src/Maui.Tizen.Controls/Maui.Tizen.Controls.csproj" />
     <Project Path="src/Maui.Tizen.Essentials/Maui.Tizen.Essentials.csproj" />
+    <Project Path="src/Maui.Tizen.Essentials.HostVerification/Maui.Tizen.Essentials.HostVerification.csproj" />
     <Project Path="src/Maui.Tizen.BlazorWebView/Maui.Tizen.BlazorWebView.csproj" />
     <Project Path="src/Maui.Tizen.Maps/Maui.Tizen.Maps.csproj" />
     <Project Path="src/Maui.Tizen.Graphics/Maui.Tizen.Graphics.csproj" />
@@ -34,6 +35,8 @@
     <Project Path="tests/UnitTests/Maui.Tizen.UnitTests.csproj" />
     <Project Path="tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj" />
     <Project Path="tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj" />
+    <Project Path="tests/Maui.Tizen.Essentials.RefPackCompile/Maui.Tizen.Essentials.RefPackCompile.csproj" />
+    <Project Path="tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj" />
     <Project Path="tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj" />
     <Project Path="tests/Maui.Tizen.Sample.RefPackCompile/Maui.Tizen.Sample.RefPackCompile.csproj" />
     <Project Path="tests/Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj" />

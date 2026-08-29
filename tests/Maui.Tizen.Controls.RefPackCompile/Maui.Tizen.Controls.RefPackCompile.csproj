@@ -17,6 +17,7 @@
   <Import Project="$(RepositoryRoot)eng/Maui.Tizen.WaveC.Sources.props" />
 
   <PropertyGroup>
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(RepositoryRoot)eng/targets/TizenPackage.props</MSBuildAllProjects>
     <TargetFramework>$(DotNetTfm)</TargetFramework>
     <IsTizenProject>false</IsTizenProject>
 
@@ -37,6 +38,7 @@
   <ItemGroup>
     <!-- Across the assembly boundary, exactly as the shipped package references Core. -->
     <ProjectReference Include="$(RepositoryRoot)tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj" />
+    <ProjectReference Include="$(RepositoryRoot)tests/Maui.Tizen.Essentials.RefPackCompile/Maui.Tizen.Essentials.RefPackCompile.csproj" />
 
     <!--
       EXACTLY the product's package references, no more.

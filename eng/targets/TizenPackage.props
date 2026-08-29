@@ -7,7 +7,7 @@
   <!--
     Shared configuration for the Tizen package projects.
 
-    IMPORTANT - why these projects do not compile the imported sources yet.
+    IMPORTANT - why default source globbing is disabled.
 
     The sources under src/Maui.Tizen.* were imported verbatim from dotnet/maui, where
     they were compiled *into* the MAUI assemblies. Many of them are `partial` halves of
@@ -15,21 +15,21 @@
     of those assemblies. C# cannot complete a partial type across an assembly boundary, so
     those files genuinely cannot compile from here without being reworked.
 
-    Reworking them is the handler/Essentials implementation workstream, not this
-    foundation. Until then, every package project below declares its shape - identity,
-    packing metadata, dependencies - but compiles nothing.
+    Reworked packages opt into an explicit shared source manifest: Core, Controls and
+    Essentials now compile and ship their owned closures while the remaining raw imported
+    files stay out. Packages that have not been reworked yet still compile nothing.
 
     This is deliberate honesty rather than an oversight. The alternatives were worse:
 
-      * Globbing the sources anyway would give a red build with hundreds of errors that
+      * Globbing every imported source would give a red build with hundreds of errors that
         say nothing useful about the migration's actual state.
       * Deleting the sources until they are needed would throw away the imported history
         we just went to some trouble to preserve.
 
     Sources are still listed as <None> so they remain visible and navigable in the IDE.
 
-    To enable a project, a later PR sets <EnableDefaultCompileItems>true</...> in that
-    project and works through its compile errors. Do not flip this globally.
+    To enable a project, add an explicit source closure or deliberately opt into default
+    items after every imported file has been adopted. Do not flip this globally.
   -->
 
   <PropertyGroup>
@@ -80,7 +80,7 @@
     <AssemblyName Condition="'$(AssemblyName)' == ''">$(MSBuildProjectName)</AssemblyName>
     <PackageId Condition="'$(PackageId)' == ''">$(MSBuildProjectName)</PackageId>
 
-    <!-- Not yet compiled; see the comment above. -->
+    <!-- Default globbing stays off; adopted projects include explicit shipping sources. -->
     <EnableDefaultCompileItems Condition="'$(EnableDefaultCompileItems)' == ''">false</EnableDefaultCompileItems>
 
     <!--

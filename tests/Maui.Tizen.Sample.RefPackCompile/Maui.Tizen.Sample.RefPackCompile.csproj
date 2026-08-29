@@ -25,6 +25,7 @@
   <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
 
   <PropertyGroup>
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(RepositoryRoot)eng/targets/TizenPackage.props</MSBuildAllProjects>
     <TargetFramework>$(DotNetTfm)</TargetFramework>
     <IsTizenProject>false</IsTizenProject>
     <OutputType>Library</OutputType>
