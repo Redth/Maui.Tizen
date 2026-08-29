@@ -90,6 +90,8 @@ public class WaveCItemsLifecycleSourceTests
 		Assert.Contains("Element.SetIsDragging", control, StringComparison.Ordinal);
 		Assert.Contains("ScrollAnimationEnded", control, StringComparison.Ordinal);
 		Assert.Contains("PrepareForAdaptorReplacement", control, StringComparison.Ordinal);
+		Assert.Contains("RefreshVisibleViews(index)", control, StringComparison.Ordinal);
+		Assert.Contains("Scrolled?.Invoke(this, currentIndex)", control, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -189,5 +191,61 @@ public class WaveCItemsLifecycleSourceTests
 		Assert.Contains("PropertyChanged += OnItemsLayoutPropertyChanged", carousel, StringComparison.Ordinal);
 		Assert.Contains("SnapPointsAlignment", carousel, StringComparison.Ordinal);
 		Assert.Contains("Relayout += OnRelayout", carousel, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void ItemsControlUsesTheProductionMeasurementCoordinator()
+	{
+		var source = Read("TizenCollectionViewControl.cs");
+
+		Assert.Contains(": NView, IMeasurable", source, StringComparison.Ordinal);
+		Assert.Contains("ItemsViewMeasure.Resolve", source, StringComparison.Ordinal);
+		Assert.Contains("GetScrollCanvasSize()", source, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void CarouselEmptyAdaptorKeepsItsPlaceholderInternal()
+	{
+		var empty = Read("TizenEmptyItemAdaptor.cs");
+		var carousel = Read("TizenCarouselViewHandler.cs");
+
+		Assert.Contains("ITizenLogicalItemAdaptor", empty, StringComparison.Ordinal);
+		Assert.Contains("isInternalPlaceholder: true", empty, StringComparison.Ordinal);
+		Assert.Contains("SetLogicalItemCount(LogicalItemCount)", carousel, StringComparison.Ordinal);
+		Assert.Contains("LogicalItemCount", carousel, StringComparison.Ordinal);
+	}
+
+	[Theory]
+	[InlineData("TizenItemTemplateAdaptor.cs")]
+	[InlineData("TizenGroupItemTemplateAdaptor.cs")]
+	public void RealizedRowsAreIndexedByHolderAndAbsolutePosition(string fileName)
+	{
+		var source = Read(fileName);
+
+		Assert.Contains("RealizedRowIndexMap<NView, View>", source, StringComparison.Ordinal);
+		Assert.DoesNotContain("Dictionary<object, View?>", source, StringComparison.Ordinal);
+		Assert.Contains("_realizedRows.Unbind(native)", source, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void UngroupedAdaptorUsesTheObservableNormalizationBoundary()
+	{
+		var source = Read("TizenItemTemplateAdaptor.cs");
+
+		Assert.Contains("new TizenObservableItemSource(itemsView.ItemsSource)", source, StringComparison.Ordinal);
+		Assert.Contains("_ownedItemsSource?.Dispose()", source, StringComparison.Ordinal);
+	}
+
+	[Theory]
+	[InlineData("TizenItemTemplateAdaptor.cs")]
+	[InlineData("TizenGroupItemTemplateAdaptor.cs")]
+	public void RowMeasurementReturnsTheRealMeasuredViewSize(string fileName)
+	{
+		var source = Read(fileName);
+
+		Assert.Contains(
+			"return ((IView)view).Measure(widthConstraint, heightConstraint).ToPixel();",
+			source,
+			StringComparison.Ordinal);
 	}
 }

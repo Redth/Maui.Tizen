@@ -226,6 +226,39 @@ public class WaveCGroupedItemsSourceTests
 		Assert.Equal(0, laterNotifications);
 	}
 
+	[Fact]
+	public void UngroupedMoveAndMultiReplaceAreNormalizedForPinnedItemAdaptor()
+	{
+		var items = new RangeObservableCollection<object> { "a", "b", "c" };
+		using var source = new TizenObservableItemSource(items);
+		var actions = new List<NotifyCollectionChangedAction>();
+		source.CollectionChanged += (_, args) => actions.Add(args.Action);
+
+		items.Move(0, 2);
+		items.ReplaceRange(0, 2, "x", "y");
+
+		Assert.Equal(
+			[NotifyCollectionChangedAction.Reset, NotifyCollectionChangedAction.Reset],
+			actions);
+		Assert.Equal(["x", "y", "a"], source.Cast<string>());
+	}
+
+	[Fact]
+	public void UngroupedSingleAddAndReplaceRemainIncremental()
+	{
+		var items = new ObservableCollection<object> { "a" };
+		using var source = new TizenObservableItemSource(items);
+		var actions = new List<NotifyCollectionChangedAction>();
+		source.CollectionChanged += (_, args) => actions.Add(args.Action);
+
+		items.Add("b");
+		items[0] = "x";
+
+		Assert.Equal(
+			[NotifyCollectionChangedAction.Add, NotifyCollectionChangedAction.Replace],
+			actions);
+	}
+
 	static TizenGroupItemSource Create(
 		ObservableCollection<object> groups,
 		bool header = true,

@@ -69,10 +69,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 				return false;
 
 			var index = currentItem is null ? -1 : getIndex(currentItem);
+			if (index < 0 || index >= count)
+			{
+				_pendingManagedPosition = null;
+				return false;
+			}
 			ApplyManaged(index, () =>
 			{
-				if (index >= 0 && index < count)
-					setPosition(index);
+				setPosition(index);
 				updateNative();
 			});
 			return true;
@@ -91,10 +95,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 			if (IsApplyingNative || IsApplyingManaged)
 				return false;
 
+			if (position < 0 || position >= count)
+			{
+				_pendingManagedPosition = null;
+				return false;
+			}
 			ApplyManaged(position, () =>
 			{
-				if (position >= 0 && position < count)
-					setCurrentItem(getItem(position));
+				setCurrentItem(getItem(position));
 				updateNative();
 			});
 			return true;
@@ -147,6 +155,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 			_animateCurrentItem = animate;
 			if (_hasCurrentItem)
 				_position = null;
+		}
+
+		public void Clear()
+		{
+			_position = null;
+			_currentItem = null;
+			_hasCurrentItem = false;
+			_animateCurrentItem = false;
 		}
 
 		public bool TryApply(
@@ -282,6 +298,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 				_ => new(false, 1, 0, 0, 0, SnapPointsType.None, SnapPointsAlignment.Start),
 			};
 		}
+
+		public int EffectiveSpan(bool forceSingleSpan) => forceSingleSpan ? 1 : Math.Max(1, Span);
 	}
 
 	internal static class SearchResultsLayout
@@ -308,5 +326,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 
 		public static double ConstrainHeight(double measuredHeight, double screenHeight) =>
 			Math.Min(Math.Max(0, measuredHeight), Math.Max(0, screenHeight) / 2);
+	}
+
+	internal static class LogicalItemsProjection
+	{
+		public static int Count(int physicalCount, bool isInternalPlaceholder) =>
+			isInternalPlaceholder ? 0 : Math.Max(0, physicalCount);
+
+		public static bool CanProject(int index, int logicalCount) =>
+			index >= 0 && index < logicalCount;
 	}
 }

@@ -26,6 +26,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	public class TizenCarouselViewHandler : TizenItemsViewHandler<CarouselView>
 	{
 		readonly CarouselFeedbackCoordinator _feedback = new();
+		bool _listeningForLayoutChanges;
 		/// <summary>
 		/// Property mapper for <see cref="CarouselView"/>.
 		/// </summary>
@@ -96,6 +97,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 					carousel.ConnectEvents();
 					carousel.Scrolled += OnCarouselScrolled;
 					carousel.ItemsLayoutChanged += OnItemsLayoutChanged;
+					_listeningForLayoutChanges = true;
 				}
 				UpdateItemsLayout();
 				UpdateIsSwipeEnabled();
@@ -103,7 +105,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			catch
 			{
 				if (carousel is not null)
+				{
 					carousel.Scrolled -= OnCarouselScrolled;
+					carousel.ItemsLayoutChanged -= OnItemsLayoutChanged;
+				}
+				_listeningForLayoutChanges = false;
 				base.DisconnectHandler(platformView);
 				throw;
 			}
@@ -115,6 +121,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			{
 				carousel.Scrolled -= OnCarouselScrolled;
 				carousel.ItemsLayoutChanged -= OnItemsLayoutChanged;
+				_listeningForLayoutChanges = false;
 				carousel.DisconnectEvents();
 			}
 		}
@@ -122,7 +129,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void OnAdaptorInstalled()
 		{
 			base.OnAdaptorInstalled();
-			UpdateInitialPositionFromManaged();
+			PlatformView?.SetLogicalItemCount(LogicalItemCount);
+			UpdateItemsLayout();
+			if (!_listeningForLayoutChanges)
+				UpdateInitialPositionFromManaged();
 		}
 
 		private protected override void OnAdaptorReplacing() => PlatformView?.PrepareForAdaptorReplacement();
@@ -130,6 +140,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void OnItemsChanged()
 		{
 			base.OnItemsChanged();
+			PlatformView?.SetLogicalItemCount(LogicalItemCount);
 			UpdateInitialPositionFromManaged();
 		}
 
@@ -218,7 +229,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 			_feedback.ApplyManagedCurrentItem(
 				VirtualView.CurrentItem,
-				Adaptor?.Count ?? 0,
+				LogicalItemCount,
 				item => Adaptor?.GetItemIndex(item) ?? -1,
 				position => VirtualView.Position = position,
 				() => PlatformView.UpdateCurrentItem(
@@ -241,7 +252,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 			_feedback.ApplyManagedPosition(
 				VirtualView.Position,
-				Adaptor?.Count ?? 0,
+				LogicalItemCount,
 				index => Adaptor?[index],
 				item => VirtualView.CurrentItem = item,
 				() => PlatformView.UpdatePosition(
@@ -262,7 +273,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 			_feedback.ApplyNative(
 				position,
-				Adaptor.Count,
+				LogicalItemCount,
 				index => Adaptor[index],
 				value => VirtualView.Position = value,
 				value => VirtualView.CurrentItem = value);

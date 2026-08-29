@@ -289,5 +289,9 @@ public class WaveCToolbarOwnershipTests
 			"CreateNavigationIconButton(platformToolbar",
 			extensions,
 			StringComparison.Ordinal);
+		Assert.Contains(
+			"MenuItemActivation.Activate(secondaryActions[selected])",
+			extensions,
+			StringComparison.Ordinal);
 	}
 }

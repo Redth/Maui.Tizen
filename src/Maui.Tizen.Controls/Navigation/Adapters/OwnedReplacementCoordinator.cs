@@ -121,4 +121,51 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 				throw new AggregateException(errors);
 		}
 	}
+
+	internal sealed class RealizedRowIndexMap<THolder, TView>
+		where THolder : class
+		where TView : class
+	{
+		readonly Dictionary<THolder, (int Index, TView View)> _holderRows =
+			new(ReferenceEqualityComparer.Instance);
+		readonly Dictionary<int, TView> _indexViews = new();
+		readonly Dictionary<TView, int> _viewIndexes =
+			new(ReferenceEqualityComparer.Instance);
+
+		public void Bind(THolder holder, int index, TView view)
+		{
+			Unbind(holder);
+			if (_indexViews.Remove(index, out var previousView))
+				_viewIndexes.Remove(previousView);
+
+			_holderRows[holder] = (index, view);
+			_indexViews[index] = view;
+			_viewIndexes[view] = index;
+		}
+
+		public void Unbind(THolder holder)
+		{
+			if (!_holderRows.Remove(holder, out var row))
+				return;
+
+			if (_indexViews.TryGetValue(row.Index, out var indexedView)
+				&& ReferenceEquals(indexedView, row.View))
+			{
+				_indexViews.Remove(row.Index);
+			}
+			_viewIndexes.Remove(row.View);
+		}
+
+		public TView? GetView(int index) =>
+			_indexViews.TryGetValue(index, out var view) ? view : null;
+
+		public bool TryGetIndex(TView view, out int index) => _viewIndexes.TryGetValue(view, out index);
+
+		public void Clear()
+		{
+			_holderRows.Clear();
+			_indexViews.Clear();
+			_viewIndexes.Clear();
+		}
+	}
 }

@@ -358,8 +358,8 @@
     "expected": "DisposalFromAnInFlightResetStopsAllLaterCallbacks",
     "replacements": [
       {
-        "search": "if (_disposed)\n\t\t\t\t\tbreak;",
-        "replace": "if (false && _disposed)\n\t\t\t\t\tbreak;"
+        "search": "void Raise(NotifyCollectionChangedEventArgs args)\n\t\t{\n\t\t\tvar handlers = CollectionChanged;\n\t\t\tif (_disposed || handlers is null)\n\t\t\t\treturn;\n\n\t\t\tforeach (NotifyCollectionChangedEventHandler handler in handlers.GetInvocationList())\n\t\t\t{\n\t\t\t\tif (_disposed)\n\t\t\t\t\tbreak;",
+        "replace": "void Raise(NotifyCollectionChangedEventArgs args)\n\t\t{\n\t\t\tvar handlers = CollectionChanged;\n\t\t\tif (_disposed || handlers is null)\n\t\t\t\treturn;\n\n\t\t\tforeach (NotifyCollectionChangedEventHandler handler in handlers.GetInvocationList())\n\t\t\t{\n\t\t\t\tif (false && _disposed)\n\t\t\t\t\tbreak;"
       }
     ]
   },
@@ -423,8 +423,8 @@
     "expected": "PlatformViewRebindOnlyChangesItsElementBeforeMappersRun",
     "replacements": [
       {
-        "search": "public override void Rebind(CarouselView element)\n\t\t{\n\t\t\tvar previous = Element;\n\t\t\tbase.Rebind(element);\n\t\t\tClearVisibleViews(previous);\n\t\t\t_lastPosition = -1;\n\t\t\t_viewport.Reset();\n\t\t}",
-        "replace": "public override void Rebind(CarouselView element)\n\t\t{\n\t\t\tvar previous = Element;\n\t\t\tClearVisibleViews(previous);\n\t\t\tbase.Rebind(element);\n\t\t\t_lastPosition = -1;\n\t\t\t_viewport.Reset();\n\t\t}"
+        "search": "public override void Rebind(CarouselView element)\n\t\t{\n\t\t\tvar previous = Element;\n\t\t\tbase.Rebind(element);\n\t\t\tClearVisibleViews(previous);\n\t\t\t_lastPosition = -1;\n\t\t\t_firstVisibleIndex = -1;\n\t\t\t_lastVisibleIndex = -1;\n\t\t\t_viewport.Reset();\n\t\t}",
+        "replace": "public override void Rebind(CarouselView element)\n\t\t{\n\t\t\tvar previous = Element;\n\t\t\tClearVisibleViews(previous);\n\t\t\tbase.Rebind(element);\n\t\t\t_lastPosition = -1;\n\t\t\t_firstVisibleIndex = -1;\n\t\t\t_lastVisibleIndex = -1;\n\t\t\t_viewport.Reset();\n\t\t}"
       }
     ]
   },
@@ -659,6 +659,214 @@
       {
         "search": "&& newAdaptor is not null\n\t\t\t\t&& ReferenceEquals",
         "replace": "&& ReferenceEquals"
+      }
+    ]
+  },
+  {
+    "id": "items-measure-preallocation",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ViewportConstraint.cs",
+    "filter": "FullyQualifiedName~WaveCViewportConstraintTests.ItemsMeasurementIsFiniteBeforeNativeAllocation",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "ItemsMeasurementIsFiniteBeforeNativeAllocation",
+    "replacements": [
+      {
+        "search": "return Math.Max(0, double.IsFinite(fallback) ? fallback : 0);",
+        "replace": "return available;"
+      }
+    ]
+  },
+  {
+    "id": "items-measure-orientation",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ViewportConstraint.cs",
+    "filter": "FullyQualifiedName~WaveCViewportConstraintTests.AllocatedItemsMeasurementUsesViewportConstrainedScrollCanvas",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "AllocatedItemsMeasurementUsesViewportConstrainedScrollCanvas",
+    "replacements": [
+      {
+        "search": "return isHorizontal\n\t\t\t\t? (ConstrainCanvas(canvasWidth, widthLimit), heightLimit)",
+        "replace": "return !isHorizontal\n\t\t\t\t? (ConstrainCanvas(canvasWidth, widthLimit), heightLimit)"
+      }
+    ]
+  },
+  {
+    "id": "carousel-empty-logical-count",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCItemsScrollCoordinatorTests.EmptyCarouselPlaceholderIsNeverProjectedAsCurrentItem",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "EmptyCarouselPlaceholderIsNeverProjectedAsCurrentItem",
+    "replacements": [
+      {
+        "search": "isInternalPlaceholder ? 0 : Math.Max(0, physicalCount);",
+        "replace": "Math.Max(0, physicalCount);"
+      }
+    ]
+  },
+  {
+    "id": "carousel-noop-visual-refresh",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenCarouselViewControl.cs",
+    "filter": "FullyQualifiedName~WaveCItemsLifecycleSourceTests.CarouselUsesNativeFeedbackAndSwipeCapability",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "CarouselUsesNativeFeedbackAndSwipeCapability",
+    "replacements": [
+      {
+        "search": "RefreshVisibleViews(index);",
+        "replace": "// mutation: no-op positioning does not refresh visible state"
+      }
+    ]
+  },
+  {
+    "id": "realized-row-index-identity",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/OwnedReplacementCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCOwnedReplacementCoordinatorTests.RealizedRowsUseHolderAndAbsoluteIndexInsteadOfItemEquality",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "RealizedRowsUseHolderAndAbsoluteIndexInsteadOfItemEquality",
+    "replacements": [
+      {
+        "search": "_indexViews[index] = view;",
+        "replace": "_indexViews[0] = view;"
+      }
+    ]
+  },
+  {
+    "id": "template-selector-content",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ShellTemplateResolver.cs",
+    "filter": "FullyQualifiedName~WaveCDataTemplateResolverTests.EmptyHeaderAndFooterSelectorsCreateFromTheSelectedConcreteTemplate",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "EmptyHeaderAndFooterSelectorsCreateFromTheSelectedConcreteTemplate",
+    "replacements": [
+      {
+        "search": "var selected = template.SelectDataTemplate(item, container);",
+        "replace": "var selected = template;"
+      }
+    ]
+  },
+  {
+    "id": "custom-to-generated-header-release",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Shell/TizenShellView.cs",
+    "filter": "FullyQualifiedName~WaveCShellWiringTests.ClearingCustomFlyoutContentRestoresTheDefaultCollection",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "ClearingCustomFlyoutContentRestoresTheDefaultCollection",
+    "replacements": [
+      {
+        "search": "// Re-enter through header ownership so a fixed fallback used while custom content was\n\t\t\t// active is detached before the same view becomes the generated adaptor's scrolling\n\t\t\t// header.\n\t\t\tUpdateFlyoutHeader(Shell);",
+        "replace": "// mutation: bypass header ownership during generated-content restoration\n\t\t\tUpdateFlyoutItems(Shell);"
+      }
+    ]
+  },
+  {
+    "id": "search-result-height-refresh",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Shell/TizenShellSearchView.cs",
+    "filter": "FullyQualifiedName~WaveCShellWiringTests.SearchOwnsOnlyItsToolbarSlotAndCleansInheritedEvents",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "SearchOwnsOnlyItsToolbarSlotAndCleansInheritedEvents",
+    "replacements": [
+      {
+        "search": "SizeHeight = desiredHeight;",
+        "replace": "// mutation: result host retains stale height"
+      }
+    ]
+  },
+  {
+    "id": "ungrouped-move-normalization",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenGroupItemSource.cs",
+    "filter": "FullyQualifiedName~WaveCGroupedItemsSourceTests.UngroupedMoveAndMultiReplaceAreNormalizedForPinnedItemAdaptor",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "UngroupedMoveAndMultiReplaceAreNormalizedForPinnedItemAdaptor",
+    "replacements": [
+      {
+        "search": "NotifyCollectionChangedAction.Move =>\n\t\t\t\t\tnew NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset),",
+        "replace": "NotifyCollectionChangedAction.Move => e,"
+      }
+    ]
+  },
+  {
+    "id": "tabbed-release-callsite",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Navigation/TizenTabbedPageView.cs",
+    "filter": "FullyQualifiedName~WaveCShellWiringTests.TabbedPageTracksRemovedHandlersAndRebuildsAfterMoves",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "TabbedPageTracksRemovedHandlersAndRebuildsAfterMoves",
+    "replacements": [
+      {
+        "search": "_realizedPageHandlers.ReleaseRemoved(_tabbedPage.Children, ReleasePageHandler);",
+        "replace": "_realizedPageHandlers.ReleaseAll(ReleasePageHandler);"
+      }
+    ]
+  },
+  {
+    "id": "toolbar-handler-reset",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Shell/TizenShellView.cs",
+    "filter": "FullyQualifiedName~WaveCShellWiringTests.ShellDetachesToolbarBeforeItsHandlerOwnsDisposal",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "ShellDetachesToolbarBeforeItsHandlerOwnsDisposal",
+    "replacements": [
+      {
+        "search": "toolbarElement.Handler = null;",
+        "replace": "{ }"
+      }
+    ]
+  },
+  {
+    "id": "secondary-toolbar-activation",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Toolbar/TizenToolbarExtensions.cs",
+    "filter": "FullyQualifiedName~WaveCToolbarOwnershipTests.ToolbarButtonsUseControllerActivationAndReflectCanExecute",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "ToolbarButtonsUseControllerActivationAndReflectCanExecute",
+    "replacements": [
+      {
+        "search": "MenuItemActivation.Activate(secondaryActions[selected]);",
+        "replace": "// mutation: secondary action is not activated"
+      }
+    ]
+  },
+  {
+    "id": "item-row-measure-return",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenItemTemplateAdaptor.cs",
+    "filter": "FullyQualifiedName~WaveCItemsLifecycleSourceTests.RowMeasurementReturnsTheRealMeasuredViewSize",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "RowMeasurementReturnsTheRealMeasuredViewSize",
+    "replacements": [
+      {
+        "search": "try\n\t\t\t{\n\t\t\t\treturn ((IView)view).Measure(widthConstraint, heightConstraint).ToPixel();",
+        "replace": "try\n\t\t\t{\n\t\t\t\treturn new TSize(10, 10);"
+      }
+    ]
+  },
+  {
+    "id": "group-row-measure-return",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenGroupItemTemplateAdaptor.cs",
+    "filter": "FullyQualifiedName~WaveCItemsLifecycleSourceTests.RowMeasurementReturnsTheRealMeasuredViewSize",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "RowMeasurementReturnsTheRealMeasuredViewSize",
+    "replacements": [
+      {
+        "search": "try\n\t\t\t{\n\t\t\t\treturn ((IView)view).Measure(widthConstraint, heightConstraint).ToPixel();",
+        "replace": "try\n\t\t\t{\n\t\t\t\treturn new TSize(10, 10);"
+      }
+    ]
+  },
+  {
+    "id": "empty-grid-single-span-layout",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCItemsScrollCoordinatorTests.ItemsLayoutSnapshotReflectsRuntimeSpanSpacingAndSnapChanges",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "ItemsLayoutSnapshotReflectsRuntimeSpanSpacingAndSnapChanges",
+    "replacements": [
+      {
+        "search": "public int EffectiveSpan(bool forceSingleSpan) => forceSingleSpan ? 1 : Math.Max(1, Span);",
+        "replace": "public int EffectiveSpan(bool forceSingleSpan) => Math.Max(1, Span);"
+      }
+    ]
+  },
+  {
+    "id": "carousel-native-callback",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenCarouselViewControl.cs",
+    "filter": "FullyQualifiedName~WaveCItemsLifecycleSourceTests.CarouselUsesNativeFeedbackAndSwipeCapability",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "CarouselUsesNativeFeedbackAndSwipeCapability",
+    "replacements": [
+      {
+        "search": "Scrolled?.Invoke(this, currentIndex);",
+        "replace": "Scrolled?.Invoke(this, -1);"
       }
     ]
   }

@@ -310,7 +310,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				return;
 
 			if (Shell != null)
-				UpdateFlyoutItems(Shell);
+				// Re-enter through header ownership so a fixed fallback used while custom content was
+				// active is detached before the same view becomes the generated adaptor's scrolling
+				// header.
+				UpdateFlyoutHeader(Shell);
 		}
 
 		/// <summary>
@@ -681,7 +684,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				return;
 			}
 
-			UpdateFlyoutItems(Shell);
+			// Re-enter through header ownership so a fixed fallback used while custom content was
+			// active is detached before the same view becomes the generated adaptor's scrolling
+			// header.
+			UpdateFlyoutHeader(Shell);
 		}
 
 		void ReleaseFlyoutAdaptor()

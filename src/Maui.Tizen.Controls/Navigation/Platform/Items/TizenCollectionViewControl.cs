@@ -3,13 +3,16 @@ using System.ComponentModel;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
 using Tizen.NUI;
+using Tizen.UIExtensions.Common;
 using Tizen.UIExtensions.NUI;
+using IMeasurable = Tizen.UIExtensions.Common.IMeasurable;
 using NCollectionView = Tizen.UIExtensions.NUI.CollectionView;
 using NLayoutParamPolicies = Tizen.NUI.BaseComponents.LayoutParamPolicies;
 using NView = Tizen.NUI.BaseComponents.View;
 using TCollectionViewSelectionMode = Tizen.UIExtensions.NUI.CollectionViewSelectionMode;
 using TSnapPointsAlignment = Tizen.UIExtensions.NUI.SnapPointsAlignment;
 using TSnapPointsType = Tizen.UIExtensions.NUI.SnapPointsType;
+using TSize = Tizen.UIExtensions.Common.Size;
 using MauiCollectionView = Microsoft.Maui.Controls.CollectionView;
 
 namespace Microsoft.Maui.Platforms.Tizen.Platform
@@ -17,7 +20,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 	/// <summary>
 	/// Platform view for <see cref="ItemsView"/> in the Tizen backend.
 	/// </summary>
-	public class TizenItemsViewControl<TItemsView> : NView where TItemsView : ItemsView
+	public class TizenItemsViewControl<TItemsView> : NView, IMeasurable where TItemsView : ItemsView
 	{
 		bool _disposed;
 
@@ -53,6 +56,33 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 			ArgumentNullException.ThrowIfNull(element);
 			Element = element;
+		}
+
+		/// <summary>Measures the items surface using finite viewport and scroll-canvas bounds.</summary>
+		public TSize Measure(double availableWidth, double availableHeight)
+		{
+			var allocated = ((NView)CollectionView).Size.ToCommon();
+			var hasNativeLayout = CollectionView.Adaptor is not null
+				&& CollectionView.LayoutManager is not null
+				&& allocated.Width > 0
+				&& allocated.Height > 0;
+			var canvas = hasNativeLayout
+				? CollectionView.LayoutManager!.GetScrollCanvasSize()
+				: TSize.Zero;
+			var display = Devices.DeviceDisplay.MainDisplayInfo;
+			var measured = ItemsViewMeasure.Resolve(
+				availableWidth,
+				availableHeight,
+				allocated.Width,
+				allocated.Height,
+				canvas.Width,
+				canvas.Height,
+				display.Width,
+				display.Height,
+				hasNativeLayout,
+				CollectionView.LayoutManager?.IsHorizontal == true);
+
+			return new TSize((float)measured.Width, (float)measured.Height);
 		}
 
 		protected override void Dispose(bool disposing)
@@ -95,7 +125,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				_observedItemsLayout.PropertyChanged += OnItemsLayoutPropertyChanged;
 			}
 
-			CollectionView.LayoutManager = itemsLayout.ToLayoutManager(Element.ItemSizingStrategy);
+			CollectionView.LayoutManager = itemsLayout.ToLayoutManager(
+				Element.ItemSizingStrategy,
+				forceSingleSpan: CollectionView.Adaptor is ITizenLogicalItemAdaptor { LogicalCount: 0 });
 			var state = ItemsLayoutSnapshot.Capture(itemsLayout);
 			CollectionView.SnapPointsType = (TSnapPointsType)state.SnapPointsType;
 			CollectionView.SnapPointsAlignment = (TSnapPointsAlignment)state.SnapPointsAlignment;

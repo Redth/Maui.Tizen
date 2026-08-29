@@ -85,7 +85,7 @@ public class WaveCShellWiringTests
 		var body = source[start..end];
 
 		Assert.Contains("_customFlyoutContent.Handler", body, StringComparison.Ordinal);
-		Assert.Contains("UpdateFlyoutItems(Shell)", body, StringComparison.Ordinal);
+		Assert.Equal(2, body.Split("UpdateFlyoutHeader(Shell)").Length - 1);
 	}
 
 	[Fact]
@@ -141,6 +141,9 @@ public class WaveCShellWiringTests
 		Assert.Contains("DisconnectEvents,", search, StringComparison.Ordinal);
 		Assert.Contains("LayoutUpdated += OnShellLayoutUpdated", search, StringComparison.Ordinal);
 		Assert.Contains("protected override void LayoutContent", search, StringComparison.Ordinal);
+		Assert.Contains("ItemMeasureInvalidated += OnResultMeasureInvalidated", search, StringComparison.Ordinal);
+		Assert.Contains("SizeHeight = desiredHeight", search, StringComparison.Ordinal);
+		Assert.Contains("RequestLayout();", search, StringComparison.Ordinal);
 	}
 
 	[Fact]

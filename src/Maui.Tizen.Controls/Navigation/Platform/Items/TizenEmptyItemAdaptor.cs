@@ -15,7 +15,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 	/// <summary>
 	/// Adaptor for displaying an empty view when <see cref="ItemsView.ItemsSource"/> is empty.
 	/// </summary>
-	internal class TizenEmptyItemAdaptor : ItemAdaptor
+	internal class TizenEmptyItemAdaptor : ItemAdaptor, ITizenLogicalItemAdaptor
 	{
 		static readonly object[] s_emptyItems = new object[] { new object() };
 		readonly Dictionary<NView, View> _nativeTable = new();
@@ -36,6 +36,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		}
 
 		protected IMauiContext MauiContext => _itemsView.Handler!.MauiContext!;
+
+		public int LogicalCount => LogicalItemsProjection.Count(Count, isInternalPlaceholder: true);
 
 		static bool HasEmptyContent(ItemsView itemsView) =>
 			ViewportConstraint.NeedsEmptyPlaceholder(
@@ -151,7 +153,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			}
 			else if (_itemsView.EmptyViewTemplate != null)
 			{
-				var view = (View)_itemsView.EmptyViewTemplate.CreateContent();
+				var view = _itemsView.EmptyViewTemplate.CreateViewFromTemplate(
+					_itemsView.EmptyView,
+					_itemsView,
+					"empty view");
 				if (_itemsView.EmptyView != null)
 				{
 					view.BindingContext = _itemsView.EmptyView;

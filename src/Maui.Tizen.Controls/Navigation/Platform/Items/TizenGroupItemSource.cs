@@ -447,4 +447,85 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			public object Data { get; }
 		}
 	}
+
+	internal sealed class TizenObservableItemSource : IList, INotifyCollectionChanged, IDisposable
+	{
+		readonly IEnumerable _source;
+		IList _items;
+		INotifyCollectionChanged? _observable;
+		bool _disposed;
+
+		public TizenObservableItemSource(IEnumerable? source)
+		{
+			_source = source ?? Array.Empty<object>();
+			_items = _source as IList ?? _source.Cast<object>().ToList();
+			_observable = _source as INotifyCollectionChanged;
+			if (_observable is not null)
+				_observable.CollectionChanged += OnCollectionChanged;
+		}
+
+		public event NotifyCollectionChangedEventHandler? CollectionChanged;
+
+		public int Count => _items.Count;
+		public object? this[int index]
+		{
+			get => _items[index];
+			set => throw new NotSupportedException();
+		}
+		public bool IsFixedSize => true;
+		public bool IsReadOnly => true;
+		public bool IsSynchronized => false;
+		public object SyncRoot => _items.SyncRoot;
+		public int Add(object? value) => throw new NotSupportedException();
+		public void Clear() => throw new NotSupportedException();
+		public bool Contains(object? value) => _items.Contains(value);
+		public int IndexOf(object? value) => _items.IndexOf(value);
+		public void Insert(int index, object? value) => throw new NotSupportedException();
+		public void Remove(object? value) => throw new NotSupportedException();
+		public void RemoveAt(int index) => throw new NotSupportedException();
+		public void CopyTo(Array array, int index) => _items.CopyTo(array, index);
+		public IEnumerator GetEnumerator() => _items.GetEnumerator();
+
+		void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+		{
+			if (_disposed)
+				return;
+
+			if (_source is not IList)
+				_items = _source.Cast<object>().ToList();
+
+			var normalized = e.Action switch
+			{
+				NotifyCollectionChangedAction.Move =>
+					new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset),
+				NotifyCollectionChangedAction.Replace
+					when e.NewItems?.Count != 1 || e.OldItems?.Count != 1 =>
+					new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset),
+				_ => e,
+			};
+
+			var handlers = CollectionChanged;
+			if (_disposed || handlers is null)
+				return;
+
+			foreach (NotifyCollectionChangedEventHandler handler in handlers.GetInvocationList())
+			{
+				if (_disposed)
+					break;
+				handler(this, normalized);
+			}
+		}
+
+		public void Dispose()
+		{
+			if (_disposed)
+				return;
+
+			_disposed = true;
+			if (_observable is not null)
+				_observable.CollectionChanged -= OnCollectionChanged;
+			_observable = null;
+			CollectionChanged = null;
+		}
+	}
 }

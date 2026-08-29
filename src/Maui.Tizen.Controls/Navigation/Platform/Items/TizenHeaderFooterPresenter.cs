@@ -1,5 +1,6 @@
 using System;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Platforms.Tizen.Adapters;
 using Tizen.NUI.BaseComponents;
 using TSize = Tizen.UIExtensions.Common.Size;
 using XView = Microsoft.Maui.Controls.View;
@@ -59,7 +60,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				return null;
 
 			cache = value as XView
-				?? template?.CreateContent() as XView
+				?? template?.CreateViewFromTemplate(value, _itemsView, "header/footer")
 				?? new Label { Text = value.ToString() ?? string.Empty };
 
 			if (value is not XView)

@@ -101,6 +101,39 @@ public class WaveCItemsScrollCoordinatorTests
 	}
 
 	[Fact]
+	public void EmptyCarouselPlaceholderIsNeverProjectedAsCurrentItem()
+	{
+		var coordinator = new CarouselFeedbackCoordinator();
+		var current = new object();
+		var nativeUpdates = 0;
+
+		Assert.Equal(0, LogicalItemsProjection.Count(physicalCount: 1, isInternalPlaceholder: true));
+		Assert.False(coordinator.ApplyManagedPosition(
+			0,
+			count: 0,
+			_ => throw new InvalidOperationException("The placeholder must not be projected."),
+			value => current = value,
+			() => nativeUpdates++));
+		Assert.False(coordinator.ApplyNative(
+			0,
+			count: 0,
+			_ => throw new InvalidOperationException("The placeholder must not be projected."),
+			_ => { },
+			value => current = value));
+		Assert.NotNull(current);
+		Assert.Equal(0, nativeUpdates);
+
+		current = null;
+		Assert.False(coordinator.ApplyManagedPosition(
+			0,
+			count: 0,
+			_ => throw new InvalidOperationException("The placeholder must not be projected."),
+			value => current = value,
+			() => nativeUpdates++));
+		Assert.Null(current);
+	}
+
+	[Fact]
 	public void CarouselPositionWaitsForLayoutAndRetries()
 	{
 		var coordinator = new DeferredCarouselPosition();
@@ -209,6 +242,8 @@ public class WaveCItemsScrollCoordinatorTests
 		Assert.Equal(8, updated.VerticalItemSpacing);
 		Assert.Equal(SnapPointsType.MandatorySingle, updated.SnapPointsType);
 		Assert.Equal(SnapPointsAlignment.End, updated.SnapPointsAlignment);
+		Assert.Equal(1, updated.EffectiveSpan(forceSingleSpan: true));
+		Assert.Equal(4, updated.EffectiveSpan(forceSingleSpan: false));
 	}
 
 	[Theory]

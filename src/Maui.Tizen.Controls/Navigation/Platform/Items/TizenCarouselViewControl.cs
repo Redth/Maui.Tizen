@@ -25,10 +25,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 	{
 		List<View> _visibleViews = new();
 		int _lastPosition = -1;
+		int _firstVisibleIndex = -1;
+		int _lastVisibleIndex = -1;
 		readonly DeferredCarouselPosition _deferredPosition = new();
 		readonly CarouselInteractionState _interaction = new();
 		readonly CarouselViewportTracker _viewport = new();
 		IItemsLayout? _observedItemsLayout;
+		int _logicalItemCount;
 		bool _disposed;
 		bool _eventsConnected;
 
@@ -42,6 +45,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			base.Rebind(element);
 			ClearVisibleViews(previous);
 			_lastPosition = -1;
+			_firstVisibleIndex = -1;
+			_lastVisibleIndex = -1;
 			_viewport.Reset();
 		}
 
@@ -82,7 +87,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				_observedItemsLayout.PropertyChanged += OnItemsLayoutPropertyChanged;
 			}
 
-			CollectionView.LayoutManager = itemsLayout.ToLayoutManager(Microsoft.Maui.Controls.ItemSizingStrategy.MeasureAllItems);
+			CollectionView.LayoutManager = itemsLayout.ToLayoutManager(
+				Microsoft.Maui.Controls.ItemSizingStrategy.MeasureAllItems,
+				forceSingleSpan: _logicalItemCount == 0);
 			var state = ItemsLayoutSnapshot.Capture(itemsLayout);
 			CollectionView.SnapPointsType = (TSnapPointsType)state.SnapPointsType;
 			CollectionView.SnapPointsAlignment = (TSnapPointsAlignment)state.SnapPointsAlignment;
@@ -121,8 +128,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		void OnCollectionViewScrolled(object? sender, CollectionViewScrolledEventArgs e)
 		{
 			int currentIndex = e.CenterItemIndex;
+			_firstVisibleIndex = e.FirstVisibleItemIndex;
+			_lastVisibleIndex = e.LastVisibleItemIndex;
 
-			if (currentIndex >= 0)
+			if (LogicalItemsProjection.CanProject(currentIndex, _logicalItemCount))
 			{
 				UpdateVisualStates(currentIndex, e.FirstVisibleItemIndex, e.LastVisibleItemIndex);
 				if (currentIndex != _lastPosition)
@@ -158,7 +167,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					&& CollectionView.LayoutManager is not null
 					&& Size.Width > 0
 					&& Size.Height > 0,
-				adaptor?.Count ?? 0,
+				_logicalItemCount,
 				item => item is null ? -1 : adaptor?.GetItemIndex(item) ?? -1,
 				(index, animate) =>
 				{
@@ -168,10 +177,37 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 						ApplyInteractionState();
 					}
 					CollectionView.ScrollTo(index, animate: animate);
+					RefreshVisibleViews(index);
 				});
 		}
 
-		internal void PrepareForAdaptorReplacement() => ClearVisibleViews(Element);
+		void RefreshVisibleViews(int currentIndex)
+		{
+			var first = _firstVisibleIndex >= 0
+				? _firstVisibleIndex
+				: Math.Max(0, currentIndex - 1);
+			var last = _lastVisibleIndex >= first
+				? _lastVisibleIndex
+				: Math.Min(_logicalItemCount - 1, currentIndex + 1);
+			UpdateVisualStates(currentIndex, first, last);
+		}
+
+		internal void PrepareForAdaptorReplacement() => SetLogicalItemCount(0);
+
+		internal void SetLogicalItemCount(int count)
+		{
+			_logicalItemCount = Math.Max(0, count);
+			if (_logicalItemCount == 0)
+			{
+				_deferredPosition.Clear();
+				_firstVisibleIndex = -1;
+				_lastVisibleIndex = -1;
+				ClearVisibleViews(Element);
+				_interaction.Reset();
+				ApplyInteractionState();
+			}
+			TryApplyPendingPosition();
+		}
 
 		internal void ConnectEvents()
 		{
@@ -252,12 +288,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		void UpdateVisualStates(int currentIndex, int firstVisibleIndex, int lastVisibleIndex)
 		{
 			var adaptor = CollectionView.Adaptor as TizenItemTemplateAdaptor;
-			if (adaptor == null)
+			if (adaptor == null || _logicalItemCount == 0)
+			{
+				ClearVisibleViews(Element);
 				return;
+			}
 
 			var newViews = new List<View>();
 			var first = Math.Max(0, firstVisibleIndex);
-			var last = Math.Min(adaptor.Count - 1, lastVisibleIndex);
+			var last = Math.Min(_logicalItemCount - 1, lastVisibleIndex);
 			for (int i = first; i <= last; i++)
 			{
 				var view = adaptor.GetTemplatedView(i);

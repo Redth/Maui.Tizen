@@ -41,9 +41,10 @@ no-op bodies.
   state, `ShowsResults`, visibility, focus requests, query confirmation, and item selection.
   `Collapsible` presents a search affordance until focus or a query expands the editor. Results are
   disabled and hidden with search, measured and arranged below the entry only for an active query,
-  and hidden after selection. Teardown detaches Shell, native-focus, and inherited search-control
-  events. The toolbar preserves and restores custom `TitleView` content while search temporarily
-  owns the content slot.
+  and hidden after selection. Result replacement, visibility, and row-measure invalidation
+  recompute `SizeHeight` and request layout, avoiding a stale zero-height host. Teardown detaches
+  Shell, native-focus, and inherited search-control events. The toolbar preserves and restores
+  custom `TitleView` content while search temporarily owns the content slot.
 
 ## Flyout ownership and appearance
 
@@ -92,6 +93,8 @@ after an invalid native row was actually rejected. Selection is reapplied after 
 replacement and queued after observable source mutations, guarded by adaptor generation so stale
 work cannot target a replacement. Native selection callbacks are suppressed while selection mode
 and adaptor ownership are configured, and stale out-of-range native indexes are explicitly cleared.
+Ungrouped observable sources are also retained behind an `IList` notification proxy; moves and
+multi-row replacements are normalized to reset before they reach the pinned native adaptor.
 
 Adaptor replacement follows one ownership order:
 
@@ -109,7 +112,14 @@ install-time selection synchronization during teardown. The sequence is exceptio
 explicit `TizenHeaderFooterPresenter` ownership. Empty content measures against the allocated
 viewport remaining after global header/footer decorations rather than propagating infinite scroll
 constraints. A header/footer-only empty source retains a placeholder extent, and empty content uses
-the full grid cross-axis instead of one grid cell.
+the full grid cross-axis instead of one grid cell. Empty/header/footer selectors are resolved to a
+concrete template before `CreateContent`. Realized rows are keyed by native holder and absolute
+index, not item equality, so duplicate items and a group's distinct header/footer remain separate.
+
+The items platform control implements the native `IMeasurable` contract. Before allocation it
+returns finite available/display bounds; after allocation it constrains the scroll canvas along the
+scroll axis while retaining the viewport on the cross axis. CollectionView and CarouselView
+therefore neither collapse nor leak an infinite natural size.
 
 Native `Scrolled` events publish MAUI `ItemsViewScrolledEventArgs` and remaining-item threshold
 notifications. `ItemsLayout` changes are observed through disposal/rebind; span, item spacing,
@@ -127,6 +137,9 @@ changes. Visible rows receive `CurrentItem`, `PreviousItem`, `NextItem`, and `De
 states and maintain `VisibleViews`. Drag and animation events jointly keep `IsDragging` and
 `IsScrolling` truthful. `IsSwipeEnabled` controls the native scroll input switch. Event
 subscriptions are symmetrical across connect, rebind, disconnect, and disposal.
+Empty-view rows remain internal presentation: Carousel's logical count is zero, so placeholder
+objects never become public `Position`/`CurrentItem` values, while preserved managed targets can be
+reapplied when real items return.
 
 Animated navigation pops rely on `TizenNaviPage.Dispose` to detach handler-owned content before the
 native wrapper destroys its children; no wrapper is accessed after `NavigationStack.Pop(true)`
@@ -163,7 +176,7 @@ Shell, ShellItem, ShellSection, and NavigationPage production handlers/mappers. 
 inspect the actual pinned `Tizen.UIExtensions.NUI.ItemAdaptor` implementation to prove its
 non-generic `IList` retention and `INotifyCollectionChanged` subscription behavior.
 
-`eng/tests/wave-c-mutations.json` contains 51 mutations executed by a lock-protected runner. It
+`eng/tests/wave-c-mutations.json` contains 67 mutations executed by a lock-protected runner. It
 proves tests fail for omissions in:
 
 - Shell root mounting;
@@ -177,9 +190,13 @@ proves tests fail for omissions in:
 - member-access mapper parsing;
 - command mapper coverage;
 - non-generic grouped-source retention;
-- grouped disposal and reset normalization;
+- grouped/ungrouped disposal and reset normalization;
 - captured-platform disconnect;
 - adaptor setup feedback suppression and stale-index cleanup;
+- items control pre/post-allocation measurement and orientation;
+- holder/index-based realized-row identity and row measurement results;
+- selector-safe empty/header/footer realization;
+- internal-only Carousel empty placeholders;
 - Shell row category/measurement;
 - custom flyout ownership and `FlyoutItems` dispatch;
 - asynchronous flyout resynchronization;

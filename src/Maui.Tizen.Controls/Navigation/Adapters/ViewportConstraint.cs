@@ -23,4 +23,43 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 			bool hasFooter) =>
 			hasEmptyView || hasEmptyViewTemplate || hasHeader || hasFooter;
 	}
+
+	internal static class ItemsViewMeasure
+	{
+		public static (double Width, double Height) Resolve(
+			double availableWidth,
+			double availableHeight,
+			double allocatedWidth,
+			double allocatedHeight,
+			double canvasWidth,
+			double canvasHeight,
+			double fallbackWidth,
+			double fallbackHeight,
+			bool hasNativeLayout,
+			bool isHorizontal)
+		{
+			var widthLimit = FiniteLimit(availableWidth, allocatedWidth, fallbackWidth);
+			var heightLimit = FiniteLimit(availableHeight, allocatedHeight, fallbackHeight);
+			if (!hasNativeLayout || allocatedWidth <= 0 || allocatedHeight <= 0)
+				return (widthLimit, heightLimit);
+
+			return isHorizontal
+				? (ConstrainCanvas(canvasWidth, widthLimit), heightLimit)
+				: (widthLimit, ConstrainCanvas(canvasHeight, heightLimit));
+		}
+
+		static double FiniteLimit(double available, double allocated, double fallback)
+		{
+			if (double.IsFinite(available))
+				return Math.Max(0, available);
+			if (allocated > 0 && double.IsFinite(allocated))
+				return allocated;
+			return Math.Max(0, double.IsFinite(fallback) ? fallback : 0);
+		}
+
+		static double ConstrainCanvas(double canvas, double viewport) =>
+			canvas > 0 && double.IsFinite(canvas)
+				? Math.Min(canvas, viewport)
+				: viewport;
+	}
 }

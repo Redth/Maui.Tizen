@@ -83,6 +83,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </summary>
 		protected ItemAdaptor? Adaptor => _adaptorOwnership.Current;
 
+		private protected int LogicalItemCount => Adaptor is ITizenLogicalItemAdaptor logical
+			? logical.LogicalCount
+			: Adaptor?.Count ?? 0;
+
 		protected override void ConnectHandler(NView platformView)
 		{
 			base.ConnectHandler(platformView);
@@ -263,7 +267,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (notifyInstalled
 				&& newAdaptor is not null
 				&& ReferenceEquals(_adaptorOwnership.Current, newAdaptor))
+			{
+				OnAdaptorAttachedToNative();
 				OnAdaptorInstalled();
+			}
 		}
 
 		protected virtual void OnAdaptorInstalled()
@@ -273,6 +280,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		private protected virtual void ConfigureNativeAdaptor(Action configure) => configure();
 
 		private protected virtual void OnAdaptorReplacing()
+		{
+		}
+
+		private protected virtual void OnAdaptorAttachedToNative()
 		{
 		}
 
@@ -289,7 +300,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		void OnCollectionViewScrolled(object? sender, CollectionViewScrolledEventArgs e)
 		{
 			ItemsScrollCoordinator.Publish(
-				Adaptor?.Count ?? 0,
+				LogicalItemCount,
 				_remainingItemsThreshold,
 				e.HorizontalDelta.ToScaledDP(),
 				e.HorizontalOffset.ToScaledDP(),
@@ -511,7 +522,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				var index = handler.Adaptor is TizenGroupItemTemplateAdaptor grouped
 					? grouped.GetAbsoluteIndex(scrollArgs.GroupIndex, scrollArgs.Index)
 					: scrollArgs.Index;
-				if (index >= 0)
+				if (LogicalItemsProjection.CanProject(index, handler.LogicalItemCount))
 					collectionView.ScrollTo(index, (TScrollToPosition)scrollArgs.ScrollToPosition, scrollArgs.IsAnimated);
 			}
 			else if (scrollArgs.Item != null && collectionView.Adaptor != null)
@@ -519,7 +530,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				int index = handler.Adaptor is TizenGroupItemTemplateAdaptor grouped
 					? grouped.GetAbsoluteIndex(scrollArgs.Group, scrollArgs.Item)
 					: collectionView.Adaptor.GetItemIndex(scrollArgs.Item);
-				if (index >= 0)
+				if (LogicalItemsProjection.CanProject(index, handler.LogicalItemCount))
 				{
 					collectionView.ScrollTo(index, (TScrollToPosition)scrollArgs.ScrollToPosition, scrollArgs.IsAnimated);
 				}

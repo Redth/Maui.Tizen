@@ -79,5 +79,22 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 
 			return resolved;
 		}
+
+		public static View CreateViewFromTemplate(
+			this DataTemplate template,
+			object? item,
+			BindableObject container,
+			string description)
+		{
+			ArgumentNullException.ThrowIfNull(template);
+			ArgumentNullException.ThrowIfNull(container);
+
+			var selected = template.SelectDataTemplate(item, container);
+			if (selected is null || selected is DataTemplateSelector)
+				throw new InvalidOperationException($"The {description} template selector did not return a concrete template.");
+
+			return selected.CreateContent() as View
+				?? throw new InvalidOperationException($"The {description} template must create a View.");
+		}
 	}
 }

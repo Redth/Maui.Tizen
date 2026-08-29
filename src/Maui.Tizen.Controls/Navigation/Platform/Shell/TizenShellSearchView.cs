@@ -110,9 +110,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					_updatingQuery = false;
 				}
 			}
-
 			ReplaceResults(((ISearchHandlerController)_searchHandler).ListProxy);
-			UpdateResultsVisibility();
+			ReplaceResults(((ISearchHandlerController)_searchHandler).ListProxy);
 		}
 
 		void ReplaceResults(IEnumerable? items)
@@ -126,6 +125,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (_adaptor is not null)
 			{
 				_adaptor.SelectionChanged -= OnSelectionChanged;
+				_adaptor.ItemMeasureInvalidated -= OnResultMeasureInvalidated;
 				_adaptor.Dispose();
 				_adaptor = null;
 			}
@@ -148,6 +148,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			_adaptor = new TizenShellSearchItemAdaptor(_parentElement, _searchHandler, items, template);
 			_adaptor.SelectionChanged += OnSelectionChanged;
+			_adaptor.ItemMeasureInvalidated += OnResultMeasureInvalidated;
 
 			_collectionView = new NCollectionView
 			{
@@ -363,6 +364,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		void OnShellLayoutUpdated(object? sender, global::Tizen.UIExtensions.Common.LayoutEventArgs e) =>
 			LayoutContent(SizeWidth, SizeHeight);
 
+		void OnResultMeasureInvalidated(object? sender, EventArgs e) => RefreshResultsLayout();
+
 		void UpdateResultsVisibility()
 		{
 			var visible = SearchResultsLayout.IsVisible(
@@ -371,14 +374,28 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				_searchHandler?.IsSearchEnabled == true,
 				_searchHandler?.ShowsResults == true,
 				_searchHandler?.SearchBoxVisibility == SearchBoxVisibility.Hidden);
-			if (_resultsVisible == visible)
-				return;
+			if (_resultsVisible != visible)
+			{
+				_resultsVisible = visible;
+				if (visible)
+					_resultsHost.Show();
+				else
+					_resultsHost.Hide();
+			}
+			RefreshResultsLayout();
+		}
 
-			_resultsVisible = visible;
-			if (visible)
-				_resultsHost.Show();
-			else
-				_resultsHost.Hide();
+		void RefreshResultsLayout()
+		{
+			var displayWidth = Devices.DeviceDisplay.MainDisplayInfo.Width;
+			var width = SizeWidth > 0 ? SizeWidth : (float)displayWidth;
+			var searchHeight = base.Measure(width, double.PositiveInfinity).Height;
+			var resultsHeight = MeasureResults(width, double.PositiveInfinity);
+			var desiredHeight = (float)(searchHeight + resultsHeight);
+			if (SizeHeight != desiredHeight)
+				SizeHeight = desiredHeight;
+			LayoutContent(width, desiredHeight);
+			Layout?.RequestLayout();
 		}
 
 		protected override void Dispose(bool disposing)

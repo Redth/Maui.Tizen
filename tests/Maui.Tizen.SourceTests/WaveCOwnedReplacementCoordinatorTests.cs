@@ -56,6 +56,36 @@ public class WaveCOwnedReplacementCoordinatorTests
 		Assert.Equal(2, released.Count);
 	}
 
+	sealed class EqualReference(string name)
+	{
+		public string Name { get; } = name;
+		public override bool Equals(object? obj) => obj is EqualReference;
+		public override int GetHashCode() => 1;
+	}
+
+	[Fact]
+	public void RealizedRowsUseHolderAndAbsoluteIndexInsteadOfItemEquality()
+	{
+		var rows = new RealizedRowIndexMap<EqualReference, EqualReference>();
+		var firstHolder = new EqualReference("first-holder");
+		var secondHolder = new EqualReference("second-holder");
+		var firstView = new EqualReference("first-view");
+		var secondView = new EqualReference("second-view");
+
+		rows.Bind(firstHolder, 2, firstView);
+		rows.Bind(secondHolder, 3, secondView);
+
+		Assert.Same(firstView, rows.GetView(2));
+		Assert.Same(secondView, rows.GetView(3));
+		Assert.True(rows.TryGetIndex(firstView, out var firstIndex));
+		Assert.Equal(2, firstIndex);
+
+		rows.Unbind(firstHolder);
+
+		Assert.Null(rows.GetView(2));
+		Assert.Same(secondView, rows.GetView(3));
+	}
+
 	sealed class Resource(string name)
 	{
 		public string Name { get; } = name;

@@ -174,6 +174,7 @@ public class EmittedTypeTests
 		using var pe = new PEReader(stream);
 		var reader = pe.GetMetadataReader();
 		var source = FindType(reader, "Microsoft.Maui.Platforms.Tizen.Platform.TizenGroupItemSource");
+		var observableSource = FindType(reader, "Microsoft.Maui.Platforms.Tizen.Platform.TizenObservableItemSource");
 		var adaptor = FindType(reader, "Microsoft.Maui.Platforms.Tizen.Platform.TizenGroupItemTemplateAdaptor");
 
 		var interfaces = source.GetInterfaceImplementations()
@@ -183,6 +184,12 @@ public class EmittedTypeTests
 
 		Assert.Contains("System.Collections.IList", interfaces);
 		Assert.Contains("System.Collections.Specialized.INotifyCollectionChanged", interfaces);
+		var observableInterfaces = observableSource.GetInterfaceImplementations()
+			.Select(handle => reader.GetInterfaceImplementation(handle).Interface)
+			.Select(handle => TypeName(reader, handle))
+			.ToHashSet(StringComparer.Ordinal);
+		Assert.Contains("System.Collections.IList", observableInterfaces);
+		Assert.Contains("System.Collections.Specialized.INotifyCollectionChanged", observableInterfaces);
 		Assert.Equal("Tizen.UIExtensions.NUI.ItemAdaptor", TypeName(reader, adaptor.BaseType));
 	}
 

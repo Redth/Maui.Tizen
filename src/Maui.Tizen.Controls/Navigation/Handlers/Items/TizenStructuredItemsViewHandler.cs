@@ -58,6 +58,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			UpdateScrollBarVisibility();
 		}
 
+		private protected override void OnAdaptorAttachedToNative() => UpdateItemsLayout();
+
 		protected virtual void UpdateHeader()
 		{
 			// Header is handled via the adaptor's GetHeaderView

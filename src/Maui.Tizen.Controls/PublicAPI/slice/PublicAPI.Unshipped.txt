@@ -153,6 +153,7 @@ Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl<TItemsView>.Collec
 Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl<TItemsView>.CollectionView.set -> void
 Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl<TItemsView>.Element.get -> TItemsView!
 Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl<TItemsView>.Element.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl<TItemsView>.Measure(double availableWidth, double availableHeight) -> Tizen.UIExtensions.Common.Size
 Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl<TItemsView>.TizenItemsViewControl(TItemsView! element) -> void
 Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationContentView
 Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationContentView.Content.get -> Tizen.NUI.BaseComponents.View?

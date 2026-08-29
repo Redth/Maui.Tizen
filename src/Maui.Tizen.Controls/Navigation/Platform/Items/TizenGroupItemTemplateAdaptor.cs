@@ -20,8 +20,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		static readonly object HeaderCategory = new();
 		static readonly object FooterCategory = new();
 
-		readonly Dictionary<NView, View> _nativeMauiTable = new();
-		readonly Dictionary<object, View?> _dataBindedViewTable = new();
+		readonly Dictionary<NView, View> _nativeMauiTable =
+			new(ReferenceEqualityComparer.Instance);
+		readonly RealizedRowIndexMap<NView, View> _realizedRows = new();
 		readonly GroupableItemsView _itemsView;
 		readonly TizenGroupItemSource _groupItemSource;
 		readonly TizenHeaderFooterPresenter _headerFooter;
@@ -49,6 +50,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		public event EventHandler<TizenCollectionViewSelectionChangedEventArgs>? SelectionChanged;
 
 		public event EventHandler? ItemsChanged;
+
+		public event EventHandler? ItemMeasureInvalidated;
 
 		protected IMauiContext MauiContext => _itemsView.Handler!.MauiContext!;
 
@@ -136,12 +139,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		public View? GetTemplatedView(int index)
 		{
-			var item = this[index];
-			if (item != null && Count > index && _dataBindedViewTable.TryGetValue(item, out View? view))
-			{
-				return view;
-			}
-			return null;
+			return index >= 0 && index < Count ? _realizedRows.GetView(index) : null;
 		}
 
 		public override object GetViewCategory(int index)
@@ -236,7 +234,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 			if (_nativeMauiTable.TryGetValue(native, out View? view))
 			{
-				ResetBindedView(view);
+				ResetBindedView(native, view);
 
 				object? bindingContext;
 				if (_groupItemSource.IsGroupHeader(index) && this[index] is TizenGroupItemSource.GroupHeaderItem headerItem)
@@ -253,10 +251,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				}
 
 				if (bindingContext != null)
-				{
 					view.BindingContext = bindingContext;
-					_dataBindedViewTable[bindingContext] = view;
-				}
+				_realizedRows.Bind(native, index, view);
 				view.MeasureInvalidated += OnItemMeasureInvalidated;
 				view.Parent = _itemsView;
 				_itemsView.AddLogicalChild(view);
@@ -268,7 +264,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (_nativeMauiTable.TryGetValue(native, out View? view))
 			{
 				view.MeasureInvalidated -= OnItemMeasureInvalidated;
-				ResetBindedView(view);
+				ResetBindedView(native, view);
 			}
 		}
 
@@ -304,7 +300,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				data = this[index];
 			}
 
-			if (data != null && _dataBindedViewTable.TryGetValue(data, out View? createdView) && createdView != null)
+			if (_realizedRows.GetView(index) is { } createdView)
 			{
 				return (createdView as IView).Measure(widthConstraint, heightConstraint).ToPixel();
 			}
@@ -408,11 +404,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			return template;
 		}
 
-		void ResetBindedView(View view)
+		void ResetBindedView(NView native, View view)
 		{
-			if (view.BindingContext != null && _dataBindedViewTable.ContainsKey(view.BindingContext))
+			if (_realizedRows.TryGetIndex(view, out _))
 			{
-				_dataBindedViewTable[view.BindingContext] = null;
+				_realizedRows.Unbind(native);
 				_itemsView.RemoveLogicalChild(view);
 				view.BindingContext = null;
 			}
@@ -420,31 +416,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		void OnItemMeasureInvalidated(object? sender, EventArgs e)
 		{
-			// Find the item index and notify the CollectionView
-			if (sender is View view && view.BindingContext != null)
+			if (sender is View view && _realizedRows.TryGetIndex(view, out var index))
 			{
-				for (int i = 0; i < Count; i++)
-				{
-					object? data;
-					if (_groupItemSource.IsGroupHeader(i) && this[i] is TizenGroupItemSource.GroupHeaderItem headerItem)
-					{
-						data = headerItem.Data;
-					}
-					else if (_groupItemSource.IsGroupFooter(i) && this[i] is TizenGroupItemSource.GroupFooterItem footerItem)
-					{
-						data = footerItem.Data;
-					}
-					else
-					{
-						data = this[i];
-					}
-
-					if (data == view.BindingContext)
-					{
-						CollectionView?.ItemMeasureInvalidated(i);
-						return;
-					}
-				}
+				CollectionView?.ItemMeasureInvalidated(index);
+				ItemMeasureInvalidated?.Invoke(this, EventArgs.Empty);
 			}
 		}
 
@@ -452,9 +427,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 			if (disposing)
 			{
+				foreach (var native in _nativeMauiTable.Keys.ToList())
+					RemoveNativeView(native);
 				_groupItemSource.CollectionChanged -= OnGroupItemsChanged;
 				_headerFooter.Dispose();
 				_groupItemSource.Dispose();
+				_realizedRows.Clear();
 			}
 
 			base.Dispose(disposing);

@@ -29,7 +29,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// <summary>
 		/// Converts a MAUI <see cref="IItemsLayout"/> to a Tizen <see cref="ICollectionViewLayoutManager"/>.
 		/// </summary>
-		public static ICollectionViewLayoutManager ToLayoutManager(this IItemsLayout layout, MauiItemSizingStrategy sizing = MauiItemSizingStrategy.MeasureFirstItem)
+		public static ICollectionViewLayoutManager ToLayoutManager(
+			this IItemsLayout layout,
+			MauiItemSizingStrategy sizing = MauiItemSizingStrategy.MeasureFirstItem,
+			bool forceSingleSpan = false)
 		{
 			var state = ItemsLayoutSnapshot.Capture(layout);
 			return layout switch
@@ -41,7 +44,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 				GridItemsLayout => new GridLayoutManager(
 					state.IsHorizontal,
-					state.Span,
+					state.EffectiveSpan(forceSingleSpan),
 					(TItemSizingStrategy)sizing,
 					(int)state.VerticalItemSpacing.ToScaledPixel(),
 					(int)state.HorizontalItemSpacing.ToScaledPixel()),

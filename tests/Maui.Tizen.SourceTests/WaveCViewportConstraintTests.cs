@@ -55,4 +55,58 @@ public class WaveCViewportConstraintTests
 		Assert.Equal(
 			expected,
 			ViewportConstraint.NeedsEmptyPlaceholder(emptyView, emptyTemplate, header, footer));
+
+	[Theory]
+	[InlineData(320, 480, 320, 480)]
+	[InlineData(double.PositiveInfinity, 480, 1080, 480)]
+	[InlineData(320, double.PositiveInfinity, 320, 1920)]
+	public void ItemsMeasurementIsFiniteBeforeNativeAllocation(
+		double availableWidth,
+		double availableHeight,
+		double expectedWidth,
+		double expectedHeight)
+	{
+		var measured = ItemsViewMeasure.Resolve(
+			availableWidth,
+			availableHeight,
+			0,
+			0,
+			0,
+			0,
+			1080,
+			1920,
+			hasNativeLayout: false,
+			isHorizontal: false);
+
+		Assert.Equal((expectedWidth, expectedHeight), measured);
+	}
+
+	[Theory]
+	[InlineData(false, 300, 400, 300, 1000, 300, 400)]
+	[InlineData(false, 300, 400, 300, 180, 300, 180)]
+	[InlineData(true, 300, 400, 1000, 400, 300, 400)]
+	[InlineData(true, 300, 400, 120, 400, 120, 400)]
+	public void AllocatedItemsMeasurementUsesViewportConstrainedScrollCanvas(
+		bool horizontal,
+		double allocatedWidth,
+		double allocatedHeight,
+		double canvasWidth,
+		double canvasHeight,
+		double expectedWidth,
+		double expectedHeight)
+	{
+		var measured = ItemsViewMeasure.Resolve(
+			double.PositiveInfinity,
+			double.PositiveInfinity,
+			allocatedWidth,
+			allocatedHeight,
+			canvasWidth,
+			canvasHeight,
+			1080,
+			1920,
+			hasNativeLayout: true,
+			isHorizontal: horizontal);
+
+		Assert.Equal((expectedWidth, expectedHeight), measured);
+	}
 }
