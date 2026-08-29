@@ -462,6 +462,19 @@
     "expected": "StartRequestedDuringResetReplaysExactlyOnceAfterResetCompletes"
   },
   {
+    "id": "drop-queued-refresh-opacity-restore",
+    "file": "src/Maui.Tizen.Core/Platform/Tizen/TizenRefreshLayout.cs",
+    "replacements": [
+      {
+        "search": "\t\t\t\t\tTrackTransition(Task.WhenAll(\n\t\t\t\t\t\t_refreshIcon.AnimationTo(nameof(_refreshIcon.Opacity), 1, AnimationDuration),\n\t\t\t\t\t\t_refreshIcon.AnimationTo(nameof(_refreshIcon.PositionY), ThresholdDistance, AnimationDuration)));",
+        "replace": "\t\t\t\t\tTrackTransition(_refreshIcon.AnimationTo(\n\t\t\t\t\t\tnameof(_refreshIcon.PositionY), ThresholdDistance, AnimationDuration));"
+      }
+    ],
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "filter": "FullyQualifiedName~RefreshLayoutWiresQueuedResetStartAndActiveTeardownCompletion",
+    "expected": "RefreshLayoutWiresQueuedResetStartAndActiveTeardownCompletion"
+  },
+  {
     "id": "skip-active-refresh-completion-at-teardown",
     "file": "src/Maui.Tizen.Core/Platform/TizenRefreshNativeIdlePoller.cs",
     "replacements": [

@@ -121,7 +121,17 @@ public class NativeLifecycleTests
 		Assert.Contains("case NativeRefreshState.Resetting:", source, StringComparison.Ordinal);
 		Assert.Contains("_queuedStart.Queue();", source, StringComparison.Ordinal);
 		Assert.Contains("if (completeRefresh)\n\t\t\t\tCompleteRefresh();", source, StringComparison.Ordinal);
-		Assert.Contains("_queuedStart.TryConsume(() =>", source, StringComparison.Ordinal);
+		var consume = source.LastIndexOf("_queuedStart.TryConsume(() =>", StringComparison.Ordinal);
+		var replay = source.IndexOf("RequestRefresh();", consume, StringComparison.Ordinal);
+		var nextMethod = source.IndexOf("void TrackTransition", consume, StringComparison.Ordinal);
+		Assert.True(consume >= 0 && replay > consume && replay < nextMethod);
+		var request = source.IndexOf("void RequestRefresh()", StringComparison.Ordinal);
+		var start = source.IndexOf("void StartRefresh", request, StringComparison.Ordinal);
+		var opacity = source.IndexOf(
+			"_refreshIcon.AnimationTo(nameof(_refreshIcon.Opacity), 1, AnimationDuration)",
+			request,
+			StringComparison.Ordinal);
+		Assert.True(request >= 0 && opacity > request && opacity < start);
 	}
 
 	/// <summary>Every image call site captures Core's finalized commit dispatcher.</summary>

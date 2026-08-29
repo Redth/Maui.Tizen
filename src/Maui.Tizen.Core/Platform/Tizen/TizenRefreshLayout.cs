@@ -499,7 +499,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 				!_teardownObserver.IsActive &&
 				(_canReplayQueuedStart?.Invoke() ?? true)))
 			{
-				StartRefresh();
+				// ResetPullAsync leaves the icon hidden. Re-enter through the complete Idle start
+				// transition so opacity and position are restored before the queued refresh runs.
+				RequestRefresh();
 			}
 		}
 

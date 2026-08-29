@@ -369,8 +369,10 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.True(platform.IsRefreshing);
 			Assert.False(platform.HasQueuedStart);
 			Assert.Equal(1, platform.NativeRefreshStartCount);
+			Assert.Equal(1, platform.NativeIndicatorOpacity);
 			Thread.Sleep(50);
 			Assert.Equal(1, platform.NativeRefreshStartCount);
+			Assert.Equal(1, platform.NativeIndicatorOpacity);
 
 			view.IsRefreshing = false;
 			Assert.True(SpinWait.SpinUntil(

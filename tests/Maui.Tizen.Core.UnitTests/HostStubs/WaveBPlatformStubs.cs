@@ -288,6 +288,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public int TeardownForcedCompletionCount { get; private set; }
 		public int TeardownActiveRefreshCompletionCount { get; private set; }
 		public int NativeRefreshStartCount { get; private set; }
+		public float NativeIndicatorOpacity { get; private set; }
 		public int ExplicitCancellationResetCount { get; private set; }
 		public int UiExtensionsCancelledWithoutResetCount { get; private set; }
 		public int RejectedStartedGestureCount { get; private set; }
@@ -330,7 +331,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 
 			if (refreshing)
-				StartRefresh();
+				RequestRefresh();
 			else
 			{
 				NativeStopApplyCount++;
@@ -403,6 +404,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public void RaiseRefreshing()
 		{
+			NativeIndicatorOpacity = 1;
 			StartRefresh();
 		}
 
@@ -418,6 +420,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			_nativeState = NativeRefreshState.Pulling;
 			_nativeActivity.BeginPull();
+			NativeIndicatorOpacity = 1;
 		}
 
 		public void ReleaseBelowThresholdPull() => FinishPull(crossedThreshold: false);
@@ -481,6 +484,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 		}
 
+		void RequestRefresh()
+		{
+			if (_nativeState == NativeRefreshState.Resetting)
+			{
+				_queuedStart.Queue();
+				return;
+			}
+
+			NativeIndicatorOpacity = 1;
+			StartRefresh();
+		}
+
 		void BeginRefreshCompletion()
 		{
 			if (_nativeState != NativeRefreshState.Refresh)
@@ -518,6 +533,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			_nativeState = NativeRefreshState.Idle;
 			NativeIsRefreshing = false;
+			NativeIndicatorOpacity = 0;
 			_nativeActivity.CompleteReset();
 			_nativeTransition = Task.CompletedTask;
 
@@ -526,7 +542,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				!_teardownObserver.IsActive &&
 				(_canReplayQueuedStart?.Invoke() ?? true)))
 			{
-				StartRefresh();
+				RequestRefresh();
 			}
 		}
 
