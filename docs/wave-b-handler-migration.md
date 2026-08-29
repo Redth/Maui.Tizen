@@ -578,13 +578,18 @@ then touches the refresh icon the same teardown is disposing. Teardown now cance
 layout disconnected, detaches content before child disposal, and retains a completing native layout
 until bounded native-state polling observes it idle. A timeout retains the platform instead of
 disposing beneath UIExtensions' private continuation. The layout also tracks the full native touch
-pull/reset lifecycle; a below-threshold release requires a conservative quiet-frame interval before
-the retained platform is released. A successful pull clears that reset state immediately.
+pull/reset lifecycle; a below-threshold release remains busy until the owned position/opacity reset
+animations complete. A successful pull clears that reset state immediately.
 UIExtensions ignores `IsRefreshing = false` while its private state is `Pulling`, so disabling during
 an active below-threshold pull does not synthesize release or native idle. The handler leaves the
-native gesture attached, records a deferred disable, and waits for the actual `Up`/`Interrupted`
-event before applying the stop and observing the reset window. Teardown retains the platform for as
-long as that terminal event is absent rather than disposing beneath a still-active gesture.
+native gesture attached, records a deferred disable, and waits for the actual terminal pan event.
+`TizenRefreshLayout` owns its pan detector and refresh-icon state rather than inheriting
+UIExtensions 0.9.2's private state machine: `Finished` drives threshold refresh/reset, and
+`Cancelled` explicitly runs and awaits the position/opacity reset that UIExtensions omits. A
+layout-owned teardown observer survives handler callback detachment; if a retained pull later
+crosses threshold and starts refreshing, that observer forces completion and remains attached until
+the real animation reaches idle and the layout is disposed. With no terminal event, ownership is
+retained indefinitely rather than disposing beneath a still-active gesture.
 Disabling an active swipe gesture likewise synthesizes terminal cancellation, restores position and
 clears gesture/animation state before re-enable.
 

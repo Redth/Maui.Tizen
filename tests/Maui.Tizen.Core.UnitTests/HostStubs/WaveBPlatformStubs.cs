@@ -245,14 +245,25 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 	public sealed class TizenRefreshLayout : TizenPlatformView
 	{
+		enum NativeRefreshState
+		{
+			Idle,
+			Pulling,
+			Refresh,
+			Resetting,
+		}
+
 		EventHandler? _refreshing;
 		TizenPlatformView? _contentView;
 		ITizenPlatformViewHandler? _contentHandler;
+		Task _nativeTransition = Task.CompletedTask;
+		NativeRefreshState _nativeState;
 		long _contentGeneration;
+		int _transitionGeneration;
+		int _disposeStarted;
 		bool _disconnected;
-		bool _isRefreshing;
-		bool _nativePulling;
 		readonly TizenRefreshNativeActivity _nativeActivity = new();
+		readonly TizenRefreshTeardownObserver _teardownObserver = new();
 
 		public event EventHandler? Refreshing
 		{
@@ -262,27 +273,26 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public event EventHandler? NativePullTerminated;
 
-		public bool IsRefreshing
-		{
-			get => _isRefreshing;
-			set
-			{
-				if (!value && _nativePulling)
-					NativeStopIgnoredWhilePullingCount++;
-				else
-					_isRefreshing = value;
-			}
-		}
+		public bool IsRefreshing => _nativeState == NativeRefreshState.Refresh;
 
 		public bool DelayNativeCompletion { get; set; }
+		public bool DelayPullResetCompletion { get; set; }
 		public bool NativeIsRefreshing { get; private set; }
 		public int NativeStateReadAfterDisposeCount { get; private set; }
 		public int NativeStopApplyCount { get; private set; }
 		public int NativeStopIgnoredWhilePullingCount { get; private set; }
 		public int DeferredDisableCount { get; private set; }
 		public int DisposeCount { get; private set; }
-		public bool HasPendingNativeActivity => _nativeActivity.HasPendingActivity;
-		public bool IsNativePulling => _nativePulling;
+		public int TeardownForcedCompletionCount { get; private set; }
+		public int ExplicitCancellationResetCount { get; private set; }
+		public int UiExtensionsCancelledWithoutResetCount { get; private set; }
+		public bool HasPendingNativeActivity =>
+			_nativeActivity.HasPendingActivity ||
+			_nativeState != NativeRefreshState.Idle ||
+			!_nativeTransition.IsCompleted;
+		public bool HasPendingPullReset => _nativeActivity.IsResetPending;
+		public bool IsNativePulling => _nativeState == NativeRefreshState.Pulling;
+		public bool IsTeardownObserverActive => _teardownObserver.IsActive;
 		public bool IsDisconnected => _disconnected;
 		public bool PollingStartedAfterDisconnect { get; private set; }
 		public TizenRefreshStateMachine RefreshState { get; } = new();
@@ -296,16 +306,19 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (_disconnected)
 				return;
 
-			IsRefreshing = refreshing;
-			if (!refreshing && _nativePulling)
+			if (!refreshing && _nativeState == NativeRefreshState.Pulling)
+			{
+				NativeStopIgnoredWhilePullingCount++;
 				return;
+			}
 
 			if (refreshing)
-				_nativeActivity.ObserveRefreshStarted();
+				StartRefresh();
 			else
+			{
 				NativeStopApplyCount++;
-			if (refreshing || !DelayNativeCompletion)
-				NativeIsRefreshing = refreshing;
+				BeginRefreshCompletion();
+			}
 		}
 
 		public void DisposeContentHandler()
@@ -330,6 +343,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_disconnected = true;
 		}
 
+		public void BeginTeardownObservation() => _teardownObserver.Begin();
+
 		public Task<bool> WaitForNativeIdleAsync(
 			Func<Action, Task> dispatch,
 			Func<CancellationToken, Task> nextFrame,
@@ -341,7 +356,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				{
 					if (IsDisposed)
 						NativeStateReadAfterDisposeCount++;
-					return _nativeActivity.IsBusy(NativeIsRefreshing, requiredQuietFrames: 3);
+					return HasPendingNativeActivity;
 				},
 				dispatch,
 				nextFrame,
@@ -351,29 +366,106 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public void RaiseRefreshing()
 		{
-			_nativePulling = false;
-			IsRefreshing = true;
-			NativeIsRefreshing = true;
-			_refreshing?.Invoke(this, EventArgs.Empty);
+			StartRefresh();
 		}
 
-		public void NotifyNativeIdle() => NativeIsRefreshing = false;
+		public void NotifyNativeIdle() => CompleteNativeReset();
 
 		public void BeginBelowThresholdPull()
 		{
-			_nativePulling = true;
+			_nativeState = NativeRefreshState.Pulling;
 			_nativeActivity.BeginPull();
 		}
 
-		public void ReleaseBelowThresholdPull() => TerminateNativePull();
+		public void ReleaseBelowThresholdPull() => FinishPull(crossedThreshold: false);
 
-		public void InterruptBelowThresholdPull() => TerminateNativePull();
+		public void ReleaseAboveThresholdPull() => FinishPull(crossedThreshold: true);
 
-		void TerminateNativePull()
+		public void InterruptBelowThresholdPull()
 		{
-			_nativePulling = false;
-			if (_nativeActivity.ReleasePull())
+			RaiseUiExtensionsCancelled();
+			ApplyWrapperCancellationReset();
+		}
+
+		public void RaiseUiExtensionsCancelled() => UiExtensionsCancelledWithoutResetCount++;
+
+		public void ApplyWrapperCancellationReset()
+		{
+			var applyDisable = _nativeActivity.ReleasePull();
+			ExplicitCancellationResetCount++;
+			BeginPullReset();
+			if (applyDisable)
 				NativePullTerminated?.Invoke(this, EventArgs.Empty);
+		}
+
+		void FinishPull(bool crossedThreshold)
+		{
+			var applyDisable = _nativeActivity.ReleasePull();
+			if (crossedThreshold)
+			{
+				StartRefresh();
+				return;
+			}
+
+			BeginPullReset();
+			if (applyDisable)
+				NativePullTerminated?.Invoke(this, EventArgs.Empty);
+		}
+
+		void StartRefresh()
+		{
+			_transitionGeneration++;
+			_nativeTransition = Task.CompletedTask;
+			_nativeState = NativeRefreshState.Refresh;
+			NativeIsRefreshing = true;
+			_nativeActivity.ObserveRefreshStarted();
+			_refreshing?.Invoke(this, EventArgs.Empty);
+			if (_teardownObserver.ShouldForceCompletion())
+			{
+				TeardownForcedCompletionCount++;
+				BeginRefreshCompletion();
+			}
+		}
+
+		void BeginRefreshCompletion()
+		{
+			if (_nativeState != NativeRefreshState.Refresh)
+				return;
+
+			_nativeState = NativeRefreshState.Resetting;
+			_nativeActivity.BeginReset();
+			if (!DelayNativeCompletion)
+				ScheduleNativeResetCompletion(++_transitionGeneration);
+		}
+
+		void BeginPullReset()
+		{
+			_nativeState = NativeRefreshState.Resetting;
+			_nativeActivity.BeginReset();
+			if (!DelayPullResetCompletion)
+				ScheduleNativeResetCompletion(++_transitionGeneration);
+		}
+
+		void ScheduleNativeResetCompletion(int generation)
+		{
+			_nativeTransition = CompleteAfterAnimationAsync();
+
+			async Task CompleteAfterAnimationAsync()
+			{
+				await Task.Delay(25);
+				if (generation == _transitionGeneration)
+					CompleteNativeReset();
+			}
+		}
+
+		public void CompletePullReset() => CompleteNativeReset();
+
+		void CompleteNativeReset()
+		{
+			_nativeState = NativeRefreshState.Idle;
+			NativeIsRefreshing = false;
+			_nativeActivity.CompleteReset();
+			_nativeTransition = Task.CompletedTask;
 		}
 
 		public void ObserveNativeRefreshStarted() => _nativeActivity.ObserveRefreshStarted();
@@ -388,10 +480,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public void CancelDeferredNativeDisable() => _nativeActivity.CancelDeferredDisable();
 
-		protected override void Dispose(bool disposing)
+		public void DisposeNativeResources()
 		{
+			if (Interlocked.Exchange(ref _disposeStarted, 1) != 0)
+				return;
+
+			_teardownObserver.Complete();
 			DisposeCount++;
-			base.Dispose(disposing);
+			Dispose();
 		}
 
 		public void UpdateContent(IView? content, IMauiContext? context) =>

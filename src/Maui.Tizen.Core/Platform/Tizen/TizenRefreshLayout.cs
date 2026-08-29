@@ -1,40 +1,154 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
-//
-// Ported from dotnet/maui src/Core/src/Platform/Tizen/MauiRefreshLayout.cs.
-// Renamed and renamespaced: the raw import declares public types in Microsoft.Maui.Platform,
-// which collides by full name with the neutral Microsoft.Maui.Core assembly. The raw file is
-// retained beside this one for provenance but is never compiled.
+
 using System;
-using Microsoft.Maui.Graphics;
-using Tizen.UIExtensions.NUI;
-using TColor = Tizen.UIExtensions.Common.Color;
-using Microsoft.Maui;
-using Microsoft.Maui.Platform;
-using Microsoft.Maui.Platforms.Tizen.Handlers;
-using Tizen.UIExtensions.Common;
-using Color = Microsoft.Maui.Graphics.Color;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Maui;
+using Microsoft.Maui.Graphics;
+using Microsoft.Maui.Platform;
+using Microsoft.Maui.Platforms.Tizen.Handlers;
+using Tizen.NUI;
+using Tizen.NUI.BaseComponents;
+using Tizen.NUI.Binding;
+using Tizen.NUI.Components;
+using Tizen.UIExtensions.Common;
+using Tizen.UIExtensions.NUI;
+using Tizen.UIExtensions.NUI.GraphicsView;
+using NRect = Tizen.UIExtensions.Common.Rect;
+using NView = Tizen.NUI.BaseComponents.View;
+using TColor = Tizen.UIExtensions.Common.Color;
 
 namespace Microsoft.Maui.Platforms.Tizen
 {
-	public class TizenRefreshLayout : RefreshLayout
+	/// <summary>
+	/// NUI refresh container with an observable, cancellable pull/reset lifecycle.
+	/// </summary>
+	/// <remarks>
+	/// UIExtensions 0.9.2 keeps its gesture state private and does not reset a cancelled pull.
+	/// This wrapper owns the pan detector and animation state so teardown can wait for a causal
+	/// terminal transition instead of inferring safety from elapsed frames.
+	/// </remarks>
+	public class TizenRefreshLayout : ViewGroup
 	{
+		enum NativeRefreshState
+		{
+			Idle,
+			Pulling,
+			Refresh,
+			Resetting,
+		}
+
+		const float ThresholdDistanceInDp = 70;
+		const int MaximumNativeCompletionFrames = 120;
+		const int AnimationDuration = 100;
+
+		readonly NView _overlayArea;
+		readonly RefreshIcon _refreshIcon;
+		readonly PanGestureDetector _panGestureDetector;
+		readonly TizenRefreshNativeActivity _nativeActivity = new();
+		readonly TizenRefreshTeardownObserver _teardownObserver = new();
 		ITizenPlatformViewHandler? _contentHandler;
 		TizenNativeView? _contentView;
+		TizenNativeView? _nativeContent;
+		ScrollableBase? _scrollContent;
+		Task _nativeTransition = Task.CompletedTask;
+		NativeRefreshState _nativeState;
 		long _contentGeneration;
+		int _transitionGeneration;
+		int _nativeResourcesDisposed;
+		float _iconDistance;
 		bool _disconnected;
-		const int MaximumNativeCompletionFrames = 120;
-		const int RequiredNativeQuietFrames = 120;
-		readonly TizenRefreshNativeActivity _nativeActivity = new();
 
 		public TizenRefreshLayout()
 		{
-			TouchEvent += OnNativeTouch;
+			_overlayArea = new NView
+			{
+				WidthSpecification = LayoutParamPolicies.MatchParent,
+				HeightSpecification = LayoutParamPolicies.MatchParent,
+			};
+			Add(_overlayArea);
+
+			_refreshIcon = new RefreshIcon { Opacity = 0 };
+			_overlayArea.Add(_refreshIcon);
+
+			_panGestureDetector = new PanGestureDetector();
+			_panGestureDetector.Attach(this);
+			_panGestureDetector.Detected += OnPanDetected;
+			LayoutUpdated += OnLayout;
 		}
 
 		internal event EventHandler? NativePullTerminated;
+
+		/// <summary>Occurs when a pull crosses the refresh threshold.</summary>
+		public event EventHandler? Refreshing;
+
+		/// <summary>Gets or sets whether the native refresh indicator is active.</summary>
+		public bool IsRefreshing
+		{
+			get => _nativeState == NativeRefreshState.Refresh;
+			set
+			{
+				if (value)
+					RequestRefresh();
+				else
+					CompleteRefresh();
+			}
+		}
+
+		/// <summary>Gets or sets the refresh icon foreground color.</summary>
+		public TColor IconColor
+		{
+			get => _refreshIcon.Color;
+			set => _refreshIcon.Color = value;
+		}
+
+		/// <summary>Gets or sets the refresh icon background color.</summary>
+		public TColor IconBackgroundColor
+		{
+			get => _refreshIcon.BackgroundColor;
+			set => _refreshIcon.BackgroundColor = value;
+		}
+
+		/// <summary>Gets or sets the native content hosted by the refresh container.</summary>
+		public TizenNativeView? Content
+		{
+			get => _nativeContent;
+			set
+			{
+				if (ReferenceEquals(_nativeContent, value))
+					return;
+
+				if (_nativeContent is { } previous)
+					Children.Remove(previous);
+
+				_nativeContent = value;
+				_scrollContent = null;
+
+				if (value is null)
+					return;
+
+				if (!Children.Contains(value))
+					Children.Add(value);
+
+				value.LowerBelow(_overlayArea);
+				_scrollContent = FindScrollContent(value);
+			}
+		}
+
+		float ThresholdDistance => ThresholdDistanceInDp * (float)DeviceInfo.ScalingFactor;
+
+		float IconDistance
+		{
+			get => _iconDistance;
+			set
+			{
+				_iconDistance = value;
+				_refreshIcon.PositionY = value;
+				_refreshIcon.PullDistance = Math.Min(value / ThresholdDistance, 1);
+			}
+		}
 
 		public void UpdateContent(IView? content, IMauiContext? mauiContext) =>
 			UpdateContent(content, mauiContext, static () => true);
@@ -74,10 +188,6 @@ namespace Microsoft.Maui.Platforms.Tizen
 		}
 
 		/// <summary>Disposes the content handler this layout created.</summary>
-		/// <remarks>
-		/// The layout creates the child handler in <c>UpdateContent</c>, so it owns it. Without this
-		/// the child handler outlives its parent and keeps the native content view alive.
-		/// </remarks>
 		public void DisposeContentHandler()
 		{
 			var operation = TizenContentOwnership.Reserve(ref _contentGeneration);
@@ -96,10 +206,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 				static () => true);
 		}
 
-		/// <summary>Serialises IsRefreshing around the base class's private completion animation.</summary>
+		/// <summary>Serialises IsRefreshing around the native completion animation.</summary>
 		public TizenRefreshStateMachine RefreshState { get; } = new();
 
-		/// <summary>Applies a coordinator-approved state to the native layout.</summary>
 		internal void ApplyRefreshState(bool isRefreshing)
 		{
 			if (_disconnected)
@@ -111,10 +220,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 			IsRefreshing = isRefreshing;
 		}
 
-		/// <summary>Prevents any late coordinator callback from touching this layout.</summary>
 		internal void MarkDisconnected() => _disconnected = true;
 
-		internal bool HasPendingNativeActivity => _nativeActivity.HasPendingActivity;
+		internal void BeginTeardownObservation() => _teardownObserver.Begin();
+
+		internal bool HasPendingNativeActivity =>
+			_nativeActivity.HasPendingActivity ||
+			_nativeState != NativeRefreshState.Idle ||
+			!_nativeTransition.IsCompleted;
 
 		internal void ObserveNativeRefreshStarted() => _nativeActivity.ObserveRefreshStarted();
 
@@ -127,44 +240,273 @@ namespace Microsoft.Maui.Platforms.Tizen
 			Func<CancellationToken, Task> nextFrame,
 			CancellationToken cancellationToken) =>
 			TizenRefreshNativeIdlePoller.WaitAsync(
-				() => _nativeActivity.IsBusy(IsRefreshing, RequiredNativeQuietFrames),
+				() => HasPendingNativeActivity,
 				dispatch,
 				nextFrame,
 				MaximumNativeCompletionFrames,
 				cancellationToken);
 
-		bool OnNativeTouch(object source, TouchEventArgs e)
+		internal void DisposeNativeResources()
 		{
-			switch (e.Touch.GetState(0))
+			if (Interlocked.Exchange(ref _nativeResourcesDisposed, 1) != 0)
+				return;
+
+			_teardownObserver.Complete();
+			TizenCleanup.Run(
+				() => LayoutUpdated -= OnLayout,
+				() => _panGestureDetector.Detected -= OnPanDetected,
+				() => _panGestureDetector.Detach(this),
+				_panGestureDetector.Dispose,
+				base.Dispose);
+		}
+
+		protected override void OnEnabled(bool enabled)
+		{
+			base.OnEnabled(enabled);
+			if (enabled)
+				return;
+
+			if (_nativeState == NativeRefreshState.Pulling)
+				CancelPull();
+			else
+				CompleteRefresh();
+		}
+
+		protected override void OnChildAdded(Element child)
+		{
+			base.OnChildAdded(child);
+			if (child is NView view && view != _overlayArea && Content is null)
+				Content = view;
+		}
+
+		protected override void OnChildRemoved(Element child)
+		{
+			base.OnChildRemoved(child);
+			if (ReferenceEquals(child, Content))
 			{
-				case global::Tizen.NUI.PointStateType.Down:
-				case global::Tizen.NUI.PointStateType.Motion:
-					_nativeActivity.BeginPull();
-					break;
-				case global::Tizen.NUI.PointStateType.Up:
-				case global::Tizen.NUI.PointStateType.Interrupted:
-					if (_nativeActivity.ReleasePull())
-						NativePullTerminated?.Invoke(this, EventArgs.Empty);
-					break;
+				_nativeContent = null;
+				_scrollContent = null;
+			}
+		}
+
+		void OnPanDetected(object source, PanGestureDetector.DetectedEventArgs e)
+		{
+			e.Handled = false;
+
+			if (_nativeState == NativeRefreshState.Pulling)
+			{
+				if (e.PanGesture.State == Gesture.StateType.Finished)
+				{
+					FinishPull();
+					return;
+				}
+
+				if (e.PanGesture.State == Gesture.StateType.Cancelled)
+				{
+					CancelPull();
+					return;
+				}
 			}
 
-			return false;
+			if (!IsEnabled)
+				return;
+
+			switch (e.PanGesture.State)
+			{
+				case Gesture.StateType.Started when _nativeState == NativeRefreshState.Idle && IsTopEdge():
+					BeginPull();
+					break;
+				case Gesture.StateType.Continuing when _nativeState == NativeRefreshState.Pulling:
+					MovePull((float)e.PanGesture.Displacement.Y);
+					break;
+			}
+		}
+
+		void BeginPull()
+		{
+			_nativeState = NativeRefreshState.Pulling;
+			_nativeActivity.BeginPull();
+			_refreshIcon.IsPulling = true;
+			IconDistance = 0;
+			TrackTransition(_refreshIcon.AnimationTo(nameof(_refreshIcon.Opacity), 1, AnimationDuration));
+		}
+
+		void MovePull(float displacementY)
+		{
+			var maximumDistance = ThresholdDistance * 1.5f;
+			IconDistance = Math.Max(0, Math.Min(maximumDistance, IconDistance + displacementY));
+		}
+
+		void FinishPull()
+		{
+			var applyDisable = _nativeActivity.ReleasePull();
+			if (IconDistance >= ThresholdDistance)
+			{
+				StartRefresh();
+				return;
+			}
+
+			BeginPullReset();
+			if (applyDisable)
+				NativePullTerminated?.Invoke(this, EventArgs.Empty);
+		}
+
+		void CancelPull()
+		{
+			var applyDisable = _nativeActivity.ReleasePull();
+			BeginPullReset();
+			if (applyDisable)
+				NativePullTerminated?.Invoke(this, EventArgs.Empty);
+		}
+
+		void RequestRefresh()
+		{
+			switch (_nativeState)
+			{
+				case NativeRefreshState.Idle:
+					IconDistance = ThresholdDistance;
+					TrackTransition(Task.WhenAll(
+						_refreshIcon.AnimationTo(nameof(_refreshIcon.Opacity), 1, AnimationDuration),
+						_refreshIcon.AnimationTo(nameof(_refreshIcon.PositionY), ThresholdDistance, AnimationDuration)));
+					StartRefresh(trackPosition: false);
+					break;
+				case NativeRefreshState.Pulling:
+					StartRefresh();
+					break;
+			}
+		}
+
+		void StartRefresh(bool trackPosition = true)
+		{
+			_transitionGeneration++;
+			_nativeState = NativeRefreshState.Refresh;
+			_nativeActivity.ObserveRefreshStarted();
+			_refreshIcon.IsRunning = true;
+			_refreshIcon.IsPulling = false;
+			if (trackPosition)
+				TrackTransition(_refreshIcon.AnimationTo(
+					nameof(_refreshIcon.PositionY),
+					ThresholdDistance,
+					AnimationDuration));
+
+			Refreshing?.Invoke(this, EventArgs.Empty);
+			if (_teardownObserver.ShouldForceCompletion())
+				CompleteRefresh();
+		}
+
+		void CompleteRefresh()
+		{
+			if (_nativeState != NativeRefreshState.Refresh)
+				return;
+
+			_nativeState = NativeRefreshState.Resetting;
+			_nativeActivity.BeginReset();
+			_refreshIcon.PullDistance = 0;
+			_refreshIcon.IsRunning = false;
+			var preceding = _nativeTransition;
+			TrackTransition(CompleteRefreshAsync(preceding, ++_transitionGeneration));
+		}
+
+		void BeginPullReset()
+		{
+			_nativeState = NativeRefreshState.Resetting;
+			_nativeActivity.BeginReset();
+			_refreshIcon.IsPulling = false;
+			var preceding = _nativeTransition;
+			TrackTransition(ResetPullAsync(preceding, ++_transitionGeneration));
+		}
+
+		async Task CompleteRefreshAsync(Task preceding, int generation)
+		{
+			try
+			{
+				await preceding;
+				await _refreshIcon.AnimationTo(nameof(_refreshIcon.Opacity), 0, AnimationDuration);
+				await _refreshIcon.AnimationTo(nameof(_refreshIcon.PositionY), 0, AnimationDuration);
+			}
+			finally
+			{
+				CompleteNativeReset(generation);
+			}
+		}
+
+		async Task ResetPullAsync(Task preceding, int generation)
+		{
+			try
+			{
+				await preceding;
+				await _refreshIcon.AnimationTo(nameof(_refreshIcon.PositionY), 0, AnimationDuration);
+				await _refreshIcon.AnimationTo(nameof(_refreshIcon.Opacity), 0, AnimationDuration);
+			}
+			finally
+			{
+				CompleteNativeReset(generation);
+			}
+		}
+
+		void CompleteNativeReset(int generation)
+		{
+			if (generation != _transitionGeneration)
+				return;
+
+			_nativeState = NativeRefreshState.Idle;
+			_nativeActivity.CompleteReset();
+			IconDistance = 0;
+		}
+
+		void TrackTransition(Task transition)
+		{
+			_nativeTransition = _nativeTransition.IsCompletedSuccessfully
+				? transition
+				: Task.WhenAll(_nativeTransition, transition);
+			_nativeTransition.FireAndForget();
+		}
+
+		bool IsTopEdge() =>
+			_scrollContent is not null &&
+			_scrollContent.ContentContainer.PositionY == 0;
+
+		static ScrollableBase? FindScrollContent(NView view)
+		{
+			if (view is ScrollableBase scrollable)
+				return scrollable;
+
+			var queue = new Queue<NView>(view.Children);
+			while (queue.TryDequeue(out var child))
+			{
+				if (child is ScrollableBase nested)
+					return nested;
+
+				foreach (var descendant in child.Children)
+					queue.Enqueue(descendant);
+			}
+
+			return null;
+		}
+
+		void OnLayout(object? sender, LayoutEventArgs e)
+		{
+			var bounds = new NRect(0, 0, SizeWidth, SizeHeight);
+			_overlayArea.UpdateBounds(bounds);
+			_nativeContent?.UpdateBounds(bounds);
+			var measured = _refreshIcon.Measure(bounds.Width, bounds.Height);
+			_refreshIcon.UpdateBounds(new NRect(
+				bounds.Width / 2f - measured.Width / 2f,
+				_iconDistance,
+				measured.Width,
+				measured.Height));
 		}
 
 		public void UpdateRefreshColor(IRefreshView view)
 		{
-			if (_disconnected)
-				return;
-
-			IconColor = view.RefreshColor.ToColor()?.ToTizenCommonColor() ?? TColor.Default;
+			if (!_disconnected)
+				IconColor = view.RefreshColor.ToColor()?.ToTizenCommonColor() ?? TColor.Default;
 		}
 
 		public void UpdateBackground(IRefreshView view)
 		{
-			if (_disconnected)
-				return;
-
-			IconBackgroundColor = view.Background.ToColor()?.ToTizenCommonColor() ?? TColor.Default;
+			if (!_disconnected)
+				IconBackgroundColor = view.Background.ToColor()?.ToTizenCommonColor() ?? TColor.Default;
 		}
 	}
 }

@@ -107,12 +107,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				&& coordinator is not null
 				&& (coordinator.IsCompleting || platformView.HasPendingNativeActivity))
 			{
+				platformView.BeginTeardownObservation();
 				var releasePlatform = coordinator.PreparePlatformDisposal(
-					platformView.Dispose,
+					platformView.DisposeNativeResources,
 					platformView.HasPendingNativeActivity);
 				TizenCleanup.Run(
 					() => ((IElementHandler)this).DisconnectHandler(),
 					() => releasePlatform().FireAndForget(this));
+				return;
+			}
+
+			if (platformView is not null)
+			{
+				TizenCleanup.Run(
+					() => ((IElementHandler)this).DisconnectHandler(),
+					platformView.DisposeNativeResources);
 				return;
 			}
 

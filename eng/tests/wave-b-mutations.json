@@ -346,16 +346,16 @@
   },
   {
     "id": "keep-below-threshold-reset-on-success",
-    "file": "src/Maui.Tizen.Core/Handlers/RefreshView/TizenRefreshViewHandler.cs",
+    "file": "src/Maui.Tizen.Core/Platform/Tizen/TizenRefreshLayout.cs",
     "replacements": [
       {
-        "search": "\t\t\tPlatform(this)?.ObserveNativeRefreshStarted();",
-        "replace": "\t\t\t// mutation: successful refresh leaves below-threshold reset active"
+        "search": "\t\t\t_nativeActivity.ObserveRefreshStarted();\n\t\t\t_refreshIcon.IsRunning = true;",
+        "replace": "\t\t\t_refreshIcon.IsRunning = true;"
       }
     ],
-    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
-    "filter": "FullyQualifiedName~SuccessfulPullClearsBelowThresholdResetActivity",
-    "expected": "SuccessfulPullClearsBelowThresholdResetActivity"
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "filter": "FullyQualifiedName~RefreshLayoutClearsPullResetBeforeRaisingNativeRefresh",
+    "expected": "RefreshLayoutClearsPullResetBeforeRaisingNativeRefresh"
   },
   {
     "id": "keep-reset-on-programmatic-refresh-start",
@@ -406,8 +406,47 @@
       }
     ],
     "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
-    "filter": "FullyQualifiedName~DisabledMidPullWaitsForNativeTerminalBeforeDisposal",
-    "expected": "DisabledMidPullWaitsForNativeTerminalBeforeDisposal"
+    "filter": "FullyQualifiedName~DisableDuringBelowThresholdPullDefersUntilNativeTerminal",
+    "expected": "DisableDuringBelowThresholdPullDefersUntilNativeTerminal"
+  },
+  {
+    "id": "drop-layout-owned-refresh-completion-observer",
+    "file": "src/Maui.Tizen.Core/Platform/TizenRefreshNativeIdlePoller.cs",
+    "replacements": [
+      {
+        "search": "\t\tpublic bool ShouldForceCompletion() => _active;",
+        "replace": "\t\tpublic bool ShouldForceCompletion() => false;"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~DisposeDuringPullThenAboveThresholdRefreshForcesOwnedCompletion",
+    "expected": "DisposeDuringPullThenAboveThresholdRefreshForcesOwnedCompletion"
+  },
+  {
+    "id": "drop-cancelled-pull-reset-ownership",
+    "file": "src/Maui.Tizen.Core/Platform/TizenRefreshNativeIdlePoller.cs",
+    "replacements": [
+      {
+        "search": "\t\tpublic void BeginReset()\n\t\t{\n\t\t\t_touchActive = false;\n\t\t\t_resetting = true;",
+        "replace": "\t\tpublic void BeginReset()\n\t\t{\n\t\t\t_touchActive = false;\n\t\t\t_resetting = false;"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~CancelledPullRemainsOwnedUntilExplicitResetCompletes",
+    "expected": "CancelledPullRemainsOwnedUntilExplicitResetCompletes"
+  },
+  {
+    "id": "drop-cancelled-pull-reset-callsite",
+    "file": "src/Maui.Tizen.Core/Platform/Tizen/TizenRefreshLayout.cs",
+    "replacements": [
+      {
+        "search": "\t\t\t\tif (e.PanGesture.State == Gesture.StateType.Cancelled)\n\t\t\t\t{\n\t\t\t\t\tCancelPull();",
+        "replace": "\t\t\t\tif (e.PanGesture.State == Gesture.StateType.Cancelled)\n\t\t\t\t{\n\t\t\t\t\tif (DateTime.UtcNow.Ticks == long.MinValue)\n\t\t\t\t\t\tCancelPull();"
+      }
+    ],
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "filter": "FullyQualifiedName~RefreshLayoutOwnsCancelledResetAndTeardownCompletion",
+    "expected": "RefreshLayoutOwnsCancelledResetAndTeardownCompletion"
   },
   {
     "id": "leave-active-swipe-gesture-on-disable",

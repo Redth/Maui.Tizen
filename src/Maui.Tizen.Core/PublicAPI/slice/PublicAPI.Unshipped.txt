@@ -370,7 +370,16 @@ Microsoft.Maui.Platforms.Tizen.TizenRefreshAction.Apply = 1 -> Microsoft.Maui.Pl
 Microsoft.Maui.Platforms.Tizen.TizenRefreshAction.Defer = 2 -> Microsoft.Maui.Platforms.Tizen.TizenRefreshAction
 Microsoft.Maui.Platforms.Tizen.TizenRefreshAction.None = 0 -> Microsoft.Maui.Platforms.Tizen.TizenRefreshAction
 Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout
+Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.Content.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.Content.set -> void
 Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.DisposeContentHandler() -> void
+Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.IconBackgroundColor.get -> Tizen.UIExtensions.Common.Color
+Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.IconBackgroundColor.set -> void
+Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.IconColor.get -> Tizen.UIExtensions.Common.Color
+Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.IconColor.set -> void
+Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.IsRefreshing.get -> bool
+Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.IsRefreshing.set -> void
+Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.Refreshing -> System.EventHandler?
 Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.RefreshState.get -> Microsoft.Maui.Platforms.Tizen.TizenRefreshStateMachine!
 Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.TizenRefreshLayout() -> void
 Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.UpdateBackground(Microsoft.Maui.IRefreshView! view) -> void
@@ -635,6 +644,9 @@ override Microsoft.Maui.Platforms.Tizen.TizenMauiApplication.OnRegionFormatChang
 override Microsoft.Maui.Platforms.Tizen.TizenMauiApplication.OnResume() -> void
 override Microsoft.Maui.Platforms.Tizen.TizenMauiApplication.OnTerminate() -> void
 override Microsoft.Maui.Platforms.Tizen.TizenPickerView.OnEnabled(bool enabled) -> void
+override Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.OnChildAdded(Tizen.NUI.Binding.Element! child) -> void
+override Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.OnChildRemoved(Tizen.NUI.Binding.Element! child) -> void
+override Microsoft.Maui.Platforms.Tizen.TizenRefreshLayout.OnEnabled(bool enabled) -> void
 override Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.OnEnabled(bool enabled) -> void
 override Microsoft.Maui.Platforms.Tizen.TizenStepperView.OnEnabled(bool enabled) -> void
 override Microsoft.Maui.Platforms.Tizen.TizenTicker.IsRunning.get -> bool

@@ -76,5 +76,23 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 					maximumFrames: 8,
 					cancellation.Token));
 		}
+
+		[Fact]
+		public void CancelledPullRemainsOwnedUntilExplicitResetCompletes()
+		{
+			var activity = new TizenRefreshNativeActivity();
+
+			activity.BeginPull();
+			activity.ReleasePull();
+			activity.BeginReset();
+
+			Assert.True(activity.HasPendingActivity);
+			Assert.True(activity.IsResetPending);
+
+			activity.CompleteReset();
+
+			Assert.False(activity.HasPendingActivity);
+			Assert.False(activity.IsResetPending);
+		}
 	}
 }

@@ -285,11 +285,11 @@ fi
 # SIGKILL can therefore leave only disposable scratch outputs, never a mutated canonical assembly.
 # Rebuild the exact restored sources before leaving, then prove --no-build execution uses them.
 "$DOTNET" build tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj \
-  -c Release --no-restore -v:minimal >"$SCRATCH/final-core-build.log" 2>&1
+  -c Release --no-restore --no-incremental -v:minimal >"$SCRATCH/final-core-build.log" 2>&1
 "$DOTNET" build tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj \
-  -c Release --no-restore -v:minimal >"$SCRATCH/final-source-build.log" 2>&1
+  -c Release --no-restore --no-incremental -v:minimal >"$SCRATCH/final-source-build.log" 2>&1
 "$DOTNET" build tests/Maui.Tizen.Controls.ConsumerCompile/Maui.Tizen.Controls.ConsumerCompile.csproj \
-  -c Release --no-restore -v:minimal >"$SCRATCH/final-consumer-build.log" 2>&1
+  -c Release --no-restore --no-incremental -v:minimal >"$SCRATCH/final-consumer-build.log" 2>&1
 
 "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj \
   -c Release --no-build --filter 'FullyQualifiedName~ReservedOperationRejectsStalePreparedReplacement' \

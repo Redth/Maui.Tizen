@@ -17,6 +17,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public bool HasPendingActivity => _touchActive || _resetting;
 
+		public bool IsResetPending => _resetting;
+
 		public void BeginPull()
 		{
 			_touchActive = true;
@@ -38,12 +40,27 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public bool ReleasePull()
 		{
 			_touchActive = false;
-			_resetting = !_refreshActive;
+			_resetting = false;
 			_quietFrames = 0;
 
 			var applyDisable = _disablePending;
 			_disablePending = false;
 			return applyDisable;
+		}
+
+		public void BeginReset()
+		{
+			_touchActive = false;
+			_resetting = true;
+			_refreshActive = false;
+			_quietFrames = 0;
+		}
+
+		public void CompleteReset()
+		{
+			_resetting = false;
+			_refreshActive = false;
+			_quietFrames = 0;
 		}
 
 		public void ObserveRefreshStarted()
@@ -90,6 +107,19 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_resetting = false;
 			return false;
 		}
+	}
+
+	internal sealed class TizenRefreshTeardownObserver
+	{
+		bool _active;
+
+		public bool IsActive => _active;
+
+		public void Begin() => _active = true;
+
+		public bool ShouldForceCompletion() => _active;
+
+		public void Complete() => _active = false;
 	}
 
 	internal static class TizenRefreshNativeIdlePoller

@@ -80,6 +80,36 @@ public class NativeLifecycleTests
 		Assert.True(observe >= 0 && observe < apply);
 	}
 
+	[Fact]
+	public void RefreshLayoutOwnsCancelledResetAndTeardownCompletion()
+	{
+		var source = ReadCode(
+			"src", "Maui.Tizen.Core", "Platform", "Tizen", "TizenRefreshLayout.cs");
+
+		Assert.Contains("TizenRefreshLayout : ViewGroup", source, StringComparison.Ordinal);
+		Assert.Contains("new PanGestureDetector()", source, StringComparison.Ordinal);
+		Assert.Contains(
+			"if (e.PanGesture.State == Gesture.StateType.Cancelled)\n\t\t\t\t{\n\t\t\t\t\tCancelPull();",
+			source,
+			StringComparison.Ordinal);
+		Assert.Contains("void CancelPull()", source, StringComparison.Ordinal);
+		Assert.Contains("BeginPullReset();", source, StringComparison.Ordinal);
+		Assert.Contains("_teardownObserver.ShouldForceCompletion()", source, StringComparison.Ordinal);
+		Assert.DoesNotContain("TizenRefreshLayout : RefreshLayout", source, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void RefreshLayoutClearsPullResetBeforeRaisingNativeRefresh()
+	{
+		var source = ReadCode(
+			"src", "Maui.Tizen.Core", "Platform", "Tizen", "TizenRefreshLayout.cs");
+		var start = source.IndexOf("void StartRefresh(bool trackPosition = true)", StringComparison.Ordinal);
+		var observe = source.IndexOf("_nativeActivity.ObserveRefreshStarted();", start, StringComparison.Ordinal);
+		var refreshing = source.IndexOf("Refreshing?.Invoke(this, EventArgs.Empty);", start, StringComparison.Ordinal);
+
+		Assert.True(start >= 0 && observe > start && observe < refreshing);
+	}
+
 	/// <summary>Every image call site captures Core's finalized commit dispatcher.</summary>
 	[Theory]
 	[InlineData("Image/TizenImageHandler.cs")]
