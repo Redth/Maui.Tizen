@@ -433,8 +433,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-			void OnResponseFetched(object? sender, global::Tizen.Security.RequestResponseEventArgs e) =>
-				tcs.TrySetResult(e.result == global::Tizen.Security.RequestResult.AllowForever);
+			void OnResponseFetched(object? sender, global::Tizen.Security.RequestResponseEventArgs e)
+			{
+				try
+				{
+					tcs.TrySetResult(InterpretRequestResponse(
+						privilege,
+						e.cause,
+						e.result,
+						e.privilege));
+				}
+				catch (Exception exception)
+				{
+					tcs.TrySetException(exception);
+				}
+			}
 
 			context.ResponseFetched += OnResponseFetched;
 
@@ -447,6 +460,28 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			{
 				context.ResponseFetched -= OnResponseFetched;
 			}
+		}
+
+		internal static bool InterpretRequestResponse(
+			string requestedPrivilege,
+			global::Tizen.Security.CallCause cause,
+			global::Tizen.Security.RequestResult result,
+			string responsePrivilege)
+		{
+			if (cause != global::Tizen.Security.CallCause.Answer)
+			{
+				throw new InvalidOperationException(
+					$"Tizen reported an error while requesting '{requestedPrivilege}'.");
+			}
+
+			if (!string.Equals(requestedPrivilege, responsePrivilege, StringComparison.Ordinal))
+			{
+				throw new InvalidOperationException(
+					$"Tizen returned a permission answer for '{responsePrivilege}' while " +
+					$"'{requestedPrivilege}' was pending.");
+			}
+
+			return result == global::Tizen.Security.RequestResult.AllowForever;
 		}
 	}
 }

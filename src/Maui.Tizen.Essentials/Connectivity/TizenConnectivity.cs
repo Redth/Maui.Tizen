@@ -16,6 +16,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	public sealed class TizenConnectivity : IConnectivity
 	{
 		readonly object _locker = new();
+		readonly TizenNativeCallbackCoordinator _callbacks = new();
 
 		EventHandler<ConnectivityChangedEventArgs>? _connectivityChanged;
 		bool _listening;
@@ -131,7 +132,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					var start = _connectivityChanged is null;
 					_connectivityChanged += value;
 					if (start && _connectivityChanged is not null)
-						StartListeners();
+					{
+						try
+						{
+							StartListeners();
+						}
+						catch
+						{
+							_connectivityChanged -= value;
+							throw;
+						}
+					}
 				}
 			}
 			remove
@@ -152,8 +163,31 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			TizenPermissions.EnsureDeclared<Permissions.NetworkState>();
 
-			TizenConnectionManager.ConnectionTypeChanged += OnConnectionTypeChanged;
+			StartTransactional(
+				() => TizenConnectionManager.ConnectionTypeChanged += OnConnectionTypeChanged,
+				() => TizenConnectionManager.ConnectionTypeChanged -= OnConnectionTypeChanged);
 			_listening = true;
+		}
+
+		internal static void StartTransactional(Action subscribe, Action unsubscribe)
+		{
+			try
+			{
+				subscribe();
+			}
+			catch
+			{
+				try
+				{
+					unsubscribe();
+				}
+				catch (Exception)
+				{
+					// Preserve the subscription failure.
+				}
+
+				throw;
+			}
 		}
 
 		void StopListeners()
@@ -172,14 +206,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				GetNetworkAccess(static () => TizenConnectionManager.CurrentConnection.Type),
 				GetConnectionProfiles());
 
-			MainThread.BeginInvokeOnMainThread(() =>
-			{
-				EventHandler<ConnectivityChangedEventArgs>? handler;
-				lock (_locker)
-					handler = _connectivityChanged;
-
-				handler?.Invoke(this, args);
-			});
+			_callbacks.Post(
+				() =>
+				{
+					lock (_locker)
+						return _connectivityChanged is not null;
+				},
+				() =>
+				{
+					EventHandler<ConnectivityChangedEventArgs>? handler;
+					lock (_locker)
+						handler = _connectivityChanged;
+					handler?.Invoke(this, args);
+				});
 		}
 	}
 }

@@ -23,12 +23,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			(TizenGyroscopeSensor)TizenSensors.GetDefaultSensor(TizenSensorType.Gyroscope);
 
 		/// <inheritdoc/>
-		protected override void Subscribe(TizenGyroscopeSensor sensor) => sensor.DataUpdated += OnDataUpdated;
-
-		/// <inheritdoc/>
-		protected override void Unsubscribe(TizenGyroscopeSensor sensor) => sensor.DataUpdated -= OnDataUpdated;
-
-		void OnDataUpdated(object? sender, global::Tizen.Sensor.GyroscopeDataUpdatedEventArgs e) =>
-			Raise(ReadingChanged, new GyroscopeChangedEventArgs(new GyroscopeData(e.X, e.Y, e.Z)));
+		protected override Action Subscribe(TizenGyroscopeSensor sensor, long generation)
+		{
+			EventHandler<global::Tizen.Sensor.GyroscopeDataUpdatedEventArgs> handler =
+				(sender, e) => Raise(
+					generation,
+					ReadingChanged,
+					new GyroscopeChangedEventArgs(new GyroscopeData(e.X, e.Y, e.Z)));
+			sensor.DataUpdated += handler;
+			return () => sensor.DataUpdated -= handler;
+		}
 	}
 }

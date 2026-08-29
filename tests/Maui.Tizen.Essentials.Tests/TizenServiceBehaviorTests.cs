@@ -254,6 +254,110 @@ public class TizenServiceBehaviorTests
 		Assert.Equal("legacy-value", store["token"]);
 	}
 
+	[Fact]
+	public void PreferencesEncodeLongAndDateTimeThroughNativeSupportedStrings()
+	{
+		var store = new FakePreferencesStore { RejectUnsupportedNativeTypes = true };
+		var preferences = new TizenPreferences(store);
+		var dateTime = new DateTime(638901234567890123, DateTimeKind.Utc);
+		var offset = new DateTimeOffset(2026, 8, 29, 13, 46, 0, TimeSpan.FromHours(-4));
+
+		preferences.Set("long", long.MinValue);
+		preferences.Set("date", dateTime);
+		preferences.Set("offset", offset);
+
+		Assert.IsType<string>(store[TizenPreferences.GetFullKey("long", null)]);
+		Assert.IsType<string>(store[TizenPreferences.GetFullKey("date", null)]);
+		Assert.IsType<string>(store[TizenPreferences.GetFullKey("offset", null)]);
+		Assert.Equal(long.MinValue, preferences.Get("long", 0L));
+		Assert.Equal(dateTime, preferences.Get("date", default(DateTime)));
+		Assert.Equal(offset, preferences.Get("offset", default(DateTimeOffset)));
+	}
+
+	[Theory]
+	[InlineData(0.1f)]
+	[InlineData(float.MinValue)]
+	[InlineData(float.MaxValue)]
+	[InlineData(float.PositiveInfinity)]
+	[InlineData(float.NegativeInfinity)]
+	public void PreferencesRoundTripFloatThroughNativeDoubleExactly(float value)
+	{
+		var store = new FakePreferencesStore { RejectUnsupportedNativeTypes = true };
+		var preferences = new TizenPreferences(store);
+
+		preferences.Set("float", value);
+
+		Assert.IsType<double>(store[TizenPreferences.GetFullKey("float", null)]);
+		Assert.Equal(value, preferences.Get("float", 0f));
+	}
+
+	[Fact]
+	public void PreferencesRoundTripNaNThroughNativeDouble()
+	{
+		var store = new FakePreferencesStore { RejectUnsupportedNativeTypes = true };
+		var preferences = new TizenPreferences(store);
+
+		preferences.Set("float", float.NaN);
+
+		Assert.True(float.IsNaN(preferences.Get("float", 0f)));
+	}
+
+	[Fact]
+	public void PreferencesRejectCorruptLossyFloatRepresentation()
+	{
+		var store = new FakePreferencesStore
+		{
+			[TizenPreferences.GetFullKey("float", null)] = 0.1d,
+		};
+		var preferences = new TizenPreferences(store);
+
+		Assert.Throws<InvalidOperationException>(() => preferences.Get("float", 0f));
+	}
+
+	[Fact]
+	public void PreferencesReadLegacyUnsupportedRepresentationsAndMigrateThem()
+	{
+		var date = new DateTime(638901234567890123, DateTimeKind.Local);
+		var store = new FakePreferencesStore
+		{
+			["legacy-long"] = long.MaxValue,
+			["legacy-date"] = date.ToBinary(),
+			["legacy-float"] = 1.25f,
+		};
+		var preferences = new TizenPreferences(store);
+
+		Assert.Equal(long.MaxValue, preferences.Get("legacy-long", 0L));
+		Assert.Equal(date, preferences.Get("legacy-date", default(DateTime)));
+		Assert.Equal(1.25f, preferences.Get("legacy-float", 0f));
+
+		Assert.IsType<string>(store[TizenPreferences.GetFullKey("legacy-long", null)]);
+		Assert.IsType<string>(store[TizenPreferences.GetFullKey("legacy-date", null)]);
+		Assert.IsType<double>(store[TizenPreferences.GetFullKey("legacy-float", null)]);
+	}
+
+	[Fact]
+	public void PreferencesUpgradeUnsupportedValuesAlreadyStoredUnderVersionedKeys()
+	{
+		var longKey = TizenPreferences.GetFullKey("long", null);
+		var dateKey = TizenPreferences.GetFullKey("date", null);
+		var floatKey = TizenPreferences.GetFullKey("float", null);
+		var date = new DateTime(638901234567890123, DateTimeKind.Utc);
+		var store = new FakePreferencesStore
+		{
+			[longKey] = 42L,
+			[dateKey] = date.ToBinary(),
+			[floatKey] = 1.5f,
+		};
+		var preferences = new TizenPreferences(store);
+
+		Assert.Equal(42L, preferences.Get("long", 0L));
+		Assert.Equal(date, preferences.Get("date", default(DateTime)));
+		Assert.Equal(1.5f, preferences.Get("float", 0f));
+		Assert.IsType<string>(store[longKey]);
+		Assert.IsType<string>(store[dateKey]);
+		Assert.IsType<double>(store[floatKey]);
+	}
+
 	// -------------------------------------------------------------------------------------------
 	// SecureStorage alias namespacing.
 	// -------------------------------------------------------------------------------------------
@@ -370,13 +474,18 @@ public class TizenServiceBehaviorTests
 	}
 
 	[Theory]
-	[InlineData("maui.tizen.securestorage:token", true)]
-	[InlineData("org.example.app maui.tizen.securestorage:token", true)]
-	[InlineData("some.other.component:token", false)]
-	[InlineData("maui.tizen.securestorageX", false)]
-	[InlineData("", false)]
-	public void RecognisesOnlyItsOwnSecureStorageAliases(string alias, bool owned) =>
-		Assert.Equal(owned, TizenSecureStorage.IsOwnedAlias(alias));
+	[InlineData("maui.tizen.securestorage:token", "org.example.app", true)]
+	[InlineData("org.example.app maui.tizen.securestorage:token", "org.example.app", true)]
+	[InlineData("org.other.app maui.tizen.securestorage:token", "org.example.app", false)]
+	[InlineData("org.example.app maui.tizen.securestorage:token", null, false)]
+	[InlineData("some.other.component:token", "org.example.app", false)]
+	[InlineData("maui.tizen.securestorageX", "org.example.app", false)]
+	[InlineData("", "org.example.app", false)]
+	public void RecognisesOnlyItsOwnSecureStorageAliases(
+		string alias,
+		string? currentPackageId,
+		bool owned) =>
+		Assert.Equal(owned, TizenSecureStorage.IsOwnedAlias(alias, currentPackageId));
 
 	[Fact]
 	public void RemoveAllWouldNotTouchForeignSecureRepositoryAliases()
@@ -437,6 +546,7 @@ public class TizenServiceBehaviorTests
 
 		Assert.Equal("v1-value", await storage.GetAsync("token"));
 		Assert.Equal("v1-value", repository[TizenSecureStorage.ToAlias("token")]);
+		Assert.False(repository.Contains(TizenSecureStorage.ToLegacyNamespacedAlias("token")));
 		Assert.Equal("raw-value", repository["token"]);
 	}
 
@@ -523,6 +633,108 @@ public class TizenServiceBehaviorTests
 		Assert.False(repository.Contains(TizenSecureStorage.ToAlias("owned")));
 		Assert.Equal("legacy-value", repository["legacy-token"]);
 		Assert.Equal("leave-me", repository["unrelated"]);
+	}
+
+	[Fact]
+	public void SecureStorageRemoveAllPreservesQualifiedForeignPackageAliases()
+	{
+		var repository = new FakeSecureRepository
+		{
+			["org.current.app " + TizenSecureStorage.ToAlias("mine")] = "delete-me",
+			["org.foreign.app " + TizenSecureStorage.ToAlias("theirs")] = "keep-me",
+		};
+		var storage = new TizenSecureStorage(
+			repository,
+			currentPackageId: static () => "org.current.app");
+
+		storage.RemoveAll();
+
+		Assert.False(repository.Contains("org.current.app " + TizenSecureStorage.ToAlias("mine")));
+		Assert.Equal(
+			"keep-me",
+			repository["org.foreign.app " + TizenSecureStorage.ToAlias("theirs")]);
+	}
+
+	[Fact]
+	public async Task SecureStorageReplacementRestoresV1AndV2WhenCommitFails()
+	{
+		var v2 = TizenSecureStorage.ToAlias("token");
+		var v1 = TizenSecureStorage.ToLegacyNamespacedAlias("token");
+		var repository = new FakeSecureRepository
+		{
+			[v2] = "old-v2",
+			[v1] = "old-v1",
+		};
+		repository.FailSaveCalls.Add(2);
+		var storage = new TizenSecureStorage(repository);
+
+		await Assert.ThrowsAsync<InvalidOperationException>(() => storage.SetAsync("token", "new"));
+
+		Assert.Equal("old-v2", repository[v2]);
+		Assert.Equal("old-v1", repository[v1]);
+		Assert.DoesNotContain(
+			repository.GetAliases(),
+			alias => alias.StartsWith(TizenSecureStorage.AliasPrefix + "~tx~", StringComparison.Ordinal));
+	}
+
+	[Fact]
+	public async Task SecureStorageSuccessfulReplacementRemovesPreviousVersionDuplicate()
+	{
+		var v2 = TizenSecureStorage.ToAlias("token");
+		var v1 = TizenSecureStorage.ToLegacyNamespacedAlias("token");
+		var repository = new FakeSecureRepository
+		{
+			[v2] = "old-v2",
+			[v1] = "old-v1",
+		};
+		var storage = new TizenSecureStorage(repository);
+
+		await storage.SetAsync("token", "new");
+
+		Assert.Equal("new", repository[v2]);
+		Assert.False(repository.Contains(v1));
+		Assert.Single(repository.GetAliases());
+	}
+
+	[Fact]
+	public async Task SecureStorageInterruptedReplacementRetainsAndRecoversStagedValue()
+	{
+		var v2 = TizenSecureStorage.ToAlias("token");
+		var repository = new FakeSecureRepository
+		{
+			[v2] = "old",
+		};
+		repository.FailSaveCalls.UnionWith([2, 3]);
+		var storage = new TizenSecureStorage(repository);
+
+		await Assert.ThrowsAsync<AggregateException>(() => storage.SetAsync("token", "new"));
+		Assert.Contains(
+			repository.GetAliases(),
+			alias => alias.StartsWith(TizenSecureStorage.AliasPrefix + "~tx~", StringComparison.Ordinal));
+
+		Assert.Equal("new", await storage.GetAsync("token"));
+		Assert.Equal("new", repository[v2]);
+		Assert.DoesNotContain(
+			repository.GetAliases(),
+			alias => alias.StartsWith(TizenSecureStorage.AliasPrefix + "~tx~", StringComparison.Ordinal));
+	}
+
+	[Fact]
+	public async Task SecureStorageRejectsAmbiguousDuplicateInterruptedReplacements()
+	{
+		var keyPrefix = TizenSecureStorage.AliasPrefix + "~tx~" +
+			Convert.ToBase64String(Encoding.UTF8.GetBytes("token")).TrimEnd('=') + "~";
+		var repository = new FakeSecureRepository
+		{
+			[keyPrefix + "one"] = "first",
+			[keyPrefix + "two"] = "second",
+		};
+
+		var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+			() => new TizenSecureStorage(repository).GetAsync("token"));
+
+		Assert.Contains("Multiple interrupted", exception.Message, StringComparison.Ordinal);
+		Assert.Equal(2, repository.GetAliases().Count());
 	}
 
 	[Fact]
@@ -682,6 +894,27 @@ public class TizenServiceBehaviorTests
 		textToSpeech.Dispose();
 		await client.Disposed.Task;
 		Assert.Empty(client.WrongThreadOperations);
+	}
+
+	[Fact]
+	public async Task TextToSpeechCachesSpeedRangeBeforePrepareAndAppliesRateWhenReady()
+	{
+		using var dispatcher = new FakeTextToSpeechDispatcher();
+		var factory = new FakeTextToSpeechClientFactory(dispatcher);
+		using var textToSpeech = new TizenTextToSpeech(dispatcher, factory);
+
+		var speak = textToSpeech.SpeakAsync(
+			"rate",
+			new SpeechOptions { Rate = 1.0f },
+			TestContext.Current.CancellationToken);
+		var client = await factory.WaitForClientAsync();
+		await client.Played.Task;
+
+		Assert.Equal(["GetMaximumSpeed", "Prepare", "AddText", "Play"], client.Operations.Take(4));
+		Assert.Equal(5, client.LastSpeed);
+
+		await client.CompleteAsync(client.LastUtteranceId);
+		await speak;
 	}
 
 	[Fact]
@@ -1163,48 +1396,20 @@ public class TizenServiceBehaviorTests
 				static () => throw new PlatformNotSupportedException("Unsupported device profile")));
 
 	[Fact]
-	public async Task ContactLookupDisposesTheOwningRecord()
+	public void ConnectivityRollsBackAPartialNativeSubscription()
 	{
-		var record = new FakeContactRecord();
-		var completion = new TaskCompletionSource<Contact?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var subscribed = false;
 
-		TizenContacts.CompleteLookup(completion, () => record, static _ => new Contact());
+		Assert.Throws<InvalidOperationException>(() =>
+			TizenConnectivity.StartTransactional(
+				() =>
+				{
+					subscribed = true;
+					throw new InvalidOperationException("native add failed");
+				},
+				() => subscribed = false));
 
-		Assert.NotNull(await completion.Task);
-		Assert.True(record.Disposed);
-	}
-
-	[Fact]
-	public async Task ContactProjectionFailureDisposesTheRecordAndFaultsTheTask()
-	{
-		var record = new FakeContactRecord();
-		var completion = new TaskCompletionSource<Contact?>(TaskCreationOptions.RunContinuationsAsynchronously);
-		var failure = new InvalidOperationException("projection failed");
-
-		TizenContacts.CompleteLookup<FakeContactRecord>(
-			completion,
-			() => record,
-			_ => throw failure);
-
-		Assert.Same(failure, await Assert.ThrowsAsync<InvalidOperationException>(() => completion.Task));
-		Assert.True(record.Disposed);
-	}
-
-	[Fact]
-	public void SensorStartRollbackResetsEvenWhenCleanupFails()
-	{
-		var stopped = false;
-		var reset = false;
-
-		TizenSensorBase<global::Tizen.Sensor.Sensor>.RollbackFailedStart(
-			started: true,
-			subscribed: true,
-			stop: () => stopped = true,
-			unsubscribe: static () => throw new InvalidOperationException("unsubscribe failed"),
-			reset: () => reset = true);
-
-		Assert.True(stopped);
-		Assert.True(reset);
+		Assert.False(subscribed);
 	}
 
 	[Fact]
@@ -1299,6 +1504,15 @@ public class TizenServiceBehaviorTests
 	[InlineData("geo:0,0?q=Seattle")]
 	public void LauncherGeoUrisUseViewOperation(string uri) =>
 		Assert.Equal(TizenAppControlOperations.View, TizenLauncher.GetOperation(new Uri(uri)));
+
+	[Fact]
+	public void LauncherHandlerProbeTreatsNullAndExceptionsAsUnavailable()
+	{
+		Assert.False(TizenLauncher.HasHandler(static () => null));
+		Assert.False(TizenLauncher.HasHandler(
+			static () => throw new InvalidOperationException("native lookup failed")));
+		Assert.True(TizenLauncher.HasHandler(static () => ["org.example.handler"]));
+	}
 
 	[Fact]
 	public void GeolocationIsEnabledRequiresAnEnabledSupportedService()
@@ -1522,6 +1736,7 @@ public class TizenServiceBehaviorTests
 		readonly Action? _onAddText;
 		bool _insideErrorCallback;
 		bool _stopped;
+		bool _prepared;
 		int _nextUtteranceId;
 
 		public FakeTextToSpeechClient(
@@ -1565,9 +1780,15 @@ public class TizenServiceBehaviorTests
 
 		public int PlayCalls { get; private set; }
 
+		public int LastSpeed { get; private set; }
+
+		public List<string> Operations { get; } = [];
+
 		public void Prepare()
 		{
 			AssertThread(nameof(Prepare));
+			Operations.Add(nameof(Prepare));
+			_prepared = true;
 			StateChanged?.Invoke(TizenTextToSpeechState.Ready);
 		}
 
@@ -1581,13 +1802,20 @@ public class TizenServiceBehaviorTests
 		public int GetMaximumSpeed()
 		{
 			AssertThread(nameof(GetMaximumSpeed));
+			if (_prepared)
+				throw new InvalidOperationException("GetSpeedRange is only valid in Created.");
+			Operations.Add(nameof(GetMaximumSpeed));
 			return 10;
 		}
 
 		public int AddText(string text, string language, int voiceType, int speed)
 		{
 			AssertThread(nameof(AddText));
+			if (!_prepared)
+				throw new InvalidOperationException("AddText requires Ready.");
+			Operations.Add(nameof(AddText));
 			AddTextCalls++;
+			LastSpeed = speed;
 			LastUtteranceId = ++_nextUtteranceId;
 			_onAddText?.Invoke();
 			return LastUtteranceId;
@@ -1596,6 +1824,9 @@ public class TizenServiceBehaviorTests
 		public void Play()
 		{
 			AssertThread(nameof(Play));
+			if (!_prepared)
+				throw new InvalidOperationException("Play requires Ready.");
+			Operations.Add(nameof(Play));
 			PlayCalls++;
 			if (_throwOnPlay)
 				throw new InvalidOperationException("play failed");
@@ -1649,9 +1880,11 @@ public class TizenServiceBehaviorTests
 		readonly object _locker = new();
 
 		public Exception? SaveException { get; init; }
+		public HashSet<int> FailSaveCalls { get; } = [];
 		public int? MaximumAliasLength { get; init; }
 		public bool RejectWhitespaceAliases { get; init; }
 		public int SuccessfulSaves { get; private set; }
+		public int SaveCalls { get; private set; }
 
 		public string this[string alias]
 		{
@@ -1692,7 +1925,10 @@ public class TizenServiceBehaviorTests
 			lock (_locker)
 			{
 				ValidateAlias(alias);
+				SaveCalls++;
 
+				if (FailSaveCalls.Contains(SaveCalls))
+					throw new InvalidOperationException($"save failed at call {SaveCalls}");
 				if (SaveException is not null)
 					throw SaveException;
 
@@ -1753,6 +1989,7 @@ public class TizenServiceBehaviorTests
 
 		public object SyncRoot { get; } = new();
 		public bool RequireSynchronization { get; init; }
+		public bool RejectUnsupportedNativeTypes { get; init; }
 		public int MaximumConcurrentOperations { get; private set; }
 
 		public IEnumerable<string> Keys => Access(() => _values.Keys.ToArray());
@@ -1773,6 +2010,13 @@ public class TizenServiceBehaviorTests
 		{
 			Access(() =>
 			{
+				if (RejectUnsupportedNativeTypes &&
+					value is not (bool or int or double or string))
+				{
+					throw new ArgumentException(
+						$"Tizen preferences cannot store '{typeof(T).FullName}'.");
+				}
+
 				_values[key] = value;
 				_setCounts[key] = GetSetCount(key) + 1;
 			});
@@ -1809,11 +2053,4 @@ public class TizenServiceBehaviorTests
 			});
 	}
 
-	sealed class FakeContactRecord : IDisposable
-	{
-		public bool Disposed { get; private set; }
-
-		public void Dispose() =>
-			Disposed = true;
-	}
 }

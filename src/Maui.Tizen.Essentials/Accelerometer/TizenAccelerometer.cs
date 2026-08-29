@@ -21,6 +21,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		readonly TizenAccelerometerQueue _queue = new();
 		readonly object _queueLocker = new();
+		readonly TizenNativeCallbackCoordinator _callbacks = new();
 
 		/// <inheritdoc/>
 		public event EventHandler<AccelerometerChangedEventArgs>? ReadingChanged;
@@ -39,10 +40,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			(TizenAccelerometerSensor)TizenSensors.GetDefaultSensor(TizenSensorType.Accelerometer);
 
 		/// <inheritdoc/>
-		protected override void Subscribe(TizenAccelerometerSensor sensor) => sensor.DataUpdated += OnDataUpdated;
-
-		/// <inheritdoc/>
-		protected override void Unsubscribe(TizenAccelerometerSensor sensor) => sensor.DataUpdated -= OnDataUpdated;
+		protected override Action Subscribe(TizenAccelerometerSensor sensor, long generation)
+		{
+			EventHandler<global::Tizen.Sensor.AccelerometerDataUpdatedEventArgs> handler =
+				(sender, e) => OnDataUpdated(generation, e);
+			sensor.DataUpdated += handler;
+			return () => sensor.DataUpdated -= handler;
+		}
 
 		/// <inheritdoc/>
 		/// <remarks>
@@ -60,17 +64,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				_queue.Clear();
 		}
 
-		void OnDataUpdated(object? sender, global::Tizen.Sensor.AccelerometerDataUpdatedEventArgs e)
+		void OnDataUpdated(long generation, global::Tizen.Sensor.AccelerometerDataUpdatedEventArgs e)
 		{
+			if (!IsCurrentGeneration(generation))
+				return;
+
 			var reading = new AccelerometerData(e.X, e.Y, e.Z);
 
-			Raise(ReadingChanged, new AccelerometerChangedEventArgs(reading));
+			Raise(generation, ReadingChanged, new AccelerometerChangedEventArgs(reading));
 
-			if (ShakeDetected is not null)
-				ProcessShakeEvent(reading.Acceleration);
+			if (ShakeDetected is not null && IsCurrentGeneration(generation))
+				ProcessShakeEvent(generation, reading.Acceleration);
 		}
 
-		void ProcessShakeEvent(Vector3 acceleration)
+		void ProcessShakeEvent(long generation, Vector3 acceleration)
 		{
 			var now = TizenAccelerometerQueue.ToNanoseconds(DateTime.UtcNow);
 
@@ -91,7 +98,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					_queue.Clear();
 			}
 
-			if (!shaking)
+			if (!shaking || !IsCurrentGeneration(generation))
 				return;
 
 			var handler = ShakeDetected;
@@ -100,9 +107,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				return;
 
 			if (UseSyncContext)
-				MainThread.BeginInvokeOnMainThread(() => handler.Invoke(this, EventArgs.Empty));
+				_callbacks.Post(
+					() => IsCurrentGeneration(generation),
+					() => handler.Invoke(this, EventArgs.Empty));
 			else
-				handler.Invoke(this, EventArgs.Empty);
+			{
+				if (IsCurrentGeneration(generation))
+					handler.Invoke(this, EventArgs.Empty);
+			}
 		}
 	}
 }

@@ -27,6 +27,7 @@
   <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Essentials.Sources.props" />
 
   <PropertyGroup>
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(RepositoryRoot)eng/targets/TizenPackage.props</MSBuildAllProjects>
     <TargetFramework>$(DotNetTfm)</TargetFramework>
     <IsTizenProject>false</IsTizenProject>
     <!-- Match the product identity so downstream ref-pack lanes exercise the real assembly graph. -->
@@ -42,7 +43,7 @@
     <NoWarn>$(NoWarn);CS1591;NU1701</NoWarn>
 
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
-    <DefineConstants>$(DefineConstants);TIZEN</DefineConstants>
+    <DefineConstants>$(DefineConstants);TIZEN;TIZEN_API15</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -63,7 +64,7 @@
       surface with no workload, so it is the only place the baseline can actually be checked
       today. Without it, an API drift would sit undetected until the workload ships.
     -->
-    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
 
     <!--
       PackageDownload rather than PackageReference: the reference pack publishes no

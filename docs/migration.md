@@ -6,14 +6,16 @@ Extracting the .NET MAUI Tizen backend from `dotnet/maui` into this repository.
 
 | Phase | Scope | Status |
 |---|---|---|
-| **0** | Freeze baselines; inventory and disposition manifests; API baselines | Contract landed; generated data in progress |
+| **0** | Freeze baselines; inventory and disposition manifests; API baselines | **Complete** |
 | **1** | History-preserving import; repository scaffolding; docs; CI | **Complete** |
-| 2 | Handler implementation (`Maui.Tizen.Core`, `Maui.Tizen.Controls`) | Not started |
-| 3 | Essentials implementation | Not started |
-| 4 | BlazorWebView, Maps, Build.Tasks, Templates | Not started |
+| **2** | Handler implementation (`Maui.Tizen.Core`, `Maui.Tizen.Controls`) | **Core and Waves A/B/C merged** |
+| **3** | Essentials implementation | **Implemented and host/API15 tested; two external MAUI API blockers remain** |
+| 4 | BlazorWebView, Maps, Build.Tasks, Templates | Maps disposition complete (no API15 implementation); remaining packages in progress |
 | 5 | Device tests, samples, packaging and publishing | Not started |
 
-Phases 2 onward are **blocked on an external dependency** — see below.
+The Samsung workload blocks real Tizen-TFM builds, packaging and device execution. It does not
+block implementation: host-executable coordinators, API15 ref-pack builds, source/convention
+guards, mutation tests and the merged handler stack all run without it.
 
 ## The external gate
 
@@ -45,11 +47,19 @@ The lane in `eng/build-workload-free.sh` (required in CI) genuinely exercises:
 - central package management and package source mapping
 - MSBuild conventions and the workload gate itself
 - consistency between `Directory.Build.props`, `global.json` and `eng/baselines.json`
-- 20 repository invariant tests, built and executed on `net11.0`
+- the complete Core/Waves host suites and Core/Controls/Sample/Essentials API15 ref-pack lanes
+- the implemented Essentials DI, storage, permission, AppControl, dispatcher and lifecycle tests
+- package/source/PublicAPI/analyzer closure checks and locked Essentials/Wave B/Wave C mutations
+- migration tooling, package graph, consumer compile and repository invariant suites
 - integrity of the imported history and the import tooling
 
-So when the workload does ship, the workload is the *only* thing that needs to start
-working.
+At this integration head the principal executable inventories are 1,248 Core/Waves tests, 406
+Essentials tests in both Debug and Release, and 578 source/closure/parity tests. The canonical
+script also executes the repository, tooling, negative-control and hosted suites rather than
+inferring their result from a successful build.
+
+Hosted validation also runs validation, build, convention, DevFlow and consumer suites. Device
+behaviour, shipping packages and visual baselines remain explicitly gated rather than inferred.
 
 ### When the gate lifts
 
@@ -65,8 +75,8 @@ The transition is automatic and fail-closed:
 4. `eng/build-tizen.sh` restores, builds, and invokes Pack for every actual
    `net11.0-tizen11.0` product project. Any install, restore, build, or pack failure fails
    the workflow.
-5. After that lane is green, regenerate API baselines against the real Tizen build and
-   begin Phase 2.
+5. After that lane is green, regenerate API baselines against the real Tizen build and run the
+   device/profile/visual/package gates.
 
 ### SecureStorage data migration
 
@@ -84,8 +94,13 @@ read, are treated as absent rather than as storage failures. Raw aliases are nev
 the application-wide secure repository cannot prove that alias is owned by SecureStorage. A
 migration save failure is surfaced and leaves the legacy value intact.
 
-`Remove` deletes both generations of owned namespaced alias, and `RemoveAll` deletes every alias
-under the private ownership prefix. Both write tombstones in the application preference store.
+`SetAsync` stages the new bytes under a versioned transaction alias before removing either owned
+generation. A failed commit restores the prior v1/v2 aliases; if restoration itself fails, the
+staged bytes remain recoverable by the next read. Successful replacement removes duplicate v1 and
+transaction aliases. `Remove` deletes both owned generations, and `RemoveAll` deletes unqualified
+owned aliases plus qualified aliases whose owner exactly matches the current package id; a foreign
+package using the same raw prefix is preserved. Both removal paths write tombstones in the
+application preference store.
 Those tombstones suppress legacy fallback, so an unowned raw alias cannot
 resurrect a removed SecureStorage value. There is no safe way to distinguish an old SecureStorage
 raw alias from certificates, keys, or another component's data in the shared repository. Tombstones
@@ -106,6 +121,12 @@ whether it belonged to the default store or a named store. Per-key `Remove`/null
 per-store `Clear` write v2 tombstones instead of deleting ambiguous aliases, so later reads cannot
 resurrect removed data or cross-delete another logical store. `Clear` removes only the selected
 store's unambiguous v2 entries and never performs a native global clear.
+
+Tizen's native preference store supports only its documented primitive types. `long` and
+`DateTime` therefore use invariant versioned strings, `DateTimeOffset` uses a tagged round-trip
+string, and `float` is stored as `double` with a checked exact conversion on read. Compatibility
+reads migrate the earlier unsupported direct representations when encountered in development or
+legacy stores.
 
 ### Target contract provenance
 
@@ -211,7 +232,7 @@ The 87 files that exist only at `9.0.120` break down as:
 | **Compatibility layer** | .NET MAUI 11 drops it. Audit each of the 70 files; `move` only what net11 Tizen handlers genuinely require, `exclude` the rest. Expected outcome: the package is deleted entirely. |
 | **Graphics** | `Microsoft.Maui.Graphics` is upstreamed from its own repository and carries one Tizen view here. Likely `keep-upstream` — contribute the view back rather than shipping a package. |
 | **Build.Tasks** | The imported Tizen tasks depend on shared Resizetizer types (`ILogger`, `ResizeImageInfo`, `ResizedImageInfo`) whose filenames contain no "tizen" and were therefore correctly excluded by the import filter. Either vendor them here, or ship these tasks inside `Microsoft.Maui.Resizetizer` upstream. **Also unresolved:** these tasks use SkiaSharp for splash/icon generation, so enabling them raises real runtime and native-asset packaging questions (which SkiaSharp native assets ship, and how they reach a Tizen build). That is deliberately *not* papered over in the foundation — it is part of enabling the project, not of scaffolding it. |
-| **Documentation warnings** | `CS1591` is suppressed in `TizenPackage.props` while projects compile nothing. The inherited sources are not uniformly documented, so flipping a project to compile would otherwise fail on hundreds of missing-comment errors under warnings-as-errors. Remove the suppression per project as its documentation is completed. |
+| **Documentation warnings** | Shipping Core, Controls and Essentials explicitly opt into XML documentation before importing `TizenPackage.props`; projects that still compile nothing retain the no-documentation default. `CS1591` remains suppressed until package-by-package documentation completion. |
 | **`Tizen.UIExtensions`** | Needs republishing to drop its .NET 6-era `Microsoft.Maui.Graphics` dependencies. No API surface change expected. |
 
 ## The import
@@ -232,15 +253,17 @@ diffing the import commit alone. Full detail in [`../PROVENANCE.md`](../PROVENAN
 graph LR
     F["Phase 0-1<br/>Foundation<br/><b>done</b>"] --> I["Inventory + API baselines"]
     F --> G{{"Samsung workload<br/><b>external gate</b>"}}
-    I --> H["Phase 2<br/>Handlers"]
-    G --> H
-    G --> E["Phase 3<br/>Essentials"]
+    I --> H["Phase 2<br/>Handlers<br/><b>merged</b>"]
+    I --> E["Phase 3<br/>Essentials<br/><b>implemented</b>"]
+    G --> D["Real Tizen build/device/package gates"]
     H --> X["Phase 4<br/>BlazorWebView, Maps,<br/>Build.Tasks, Templates"]
     E --> X
-    X --> P["Phase 5<br/>Device tests, samples,<br/>packaging"]
+    X --> D
+    D --> P["Phase 5<br/>publish and transfer"]
 ```
 
-Inventory work can proceed now. Everything downstream of the gate cannot.
+Implementation and hosted verification proceed now. Only Tizen workload, device and publishing
+evidence remain downstream of the Samsung gate.
 
 ## See also
 

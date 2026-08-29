@@ -48,21 +48,38 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			ArgumentNullException.ThrowIfNull(request);
 
-			if (string.IsNullOrEmpty(request.File?.FullPath))
-				throw new ArgumentException("An OpenFileRequest requires a file with a full path.", nameof(request));
-
 			TizenPermissions.EnsureDeclared<Permissions.LaunchApp>();
 
-			var appControl = new TizenAppControl
-			{
-				Operation = TizenAppControlOperations.View,
-				Mime = TizenFileMimeTypes.All,
-				Uri = "file://" + request.File.FullPath,
-			};
+			var appControl = CreateOpenFileAppControl(request);
 
 			TizenAppControl.SendLaunchRequest(appControl);
 
 			return Task.FromResult(true);
+		}
+
+		internal static TizenAppControl CreateOpenFileAppControl(OpenFileRequest request)
+		{
+			var payload = CreateOpenFilePayload(request);
+
+			return new TizenAppControl
+			{
+				Operation = payload.Operation,
+				Mime = payload.Mime,
+				Uri = payload.Uri,
+			};
+		}
+
+		internal static TizenOpenFilePayload CreateOpenFilePayload(OpenFileRequest request)
+		{
+			ArgumentNullException.ThrowIfNull(request);
+
+			if (string.IsNullOrEmpty(request.File?.FullPath))
+				throw new ArgumentException("An OpenFileRequest requires a file with a full path.", nameof(request));
+
+			return new(
+				TizenAppControlOperations.View,
+				TizenShare.ResolveMime(request.File) ?? TizenFileMimeTypes.All,
+				"file://" + request.File.FullPath);
 		}
 
 		/// <inheritdoc/>
@@ -96,11 +113,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				Uri = uri.AbsoluteUri,
 			};
 
-		static bool HasHandler(TizenAppControl appControl)
+		internal static bool HasHandler(TizenAppControl appControl) =>
+			HasHandler(() => TizenAppControl.GetMatchedApplicationIds(appControl));
+
+		internal static bool HasHandler(Func<System.Collections.Generic.IEnumerable<string>?> getMatches)
 		{
 			try
 			{
-				return TizenAppControl.GetMatchedApplicationIds(appControl).Any();
+				return getMatches()?.Any() == true;
 			}
 			catch (Exception)
 			{
@@ -127,5 +147,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			return TizenAppControlOperations.View;
 		}
+
+		internal sealed record TizenOpenFilePayload(string Operation, string Mime, string Uri);
 	}
 }

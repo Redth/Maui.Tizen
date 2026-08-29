@@ -1,5 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!-- Read by TizenPackage.props during import; setting it afterwards is too late. -->
+    <MauiTizenGeneratesDocumentation>true</MauiTizenGeneratesDocumentation>
+    <DefineConstants>$(DefineConstants);TIZEN_API15</DefineConstants>
+  </PropertyGroup>
+
   <Import Project="$(MSBuildThisFileDirectory)../../eng/targets/TizenPackage.props" />
   <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Essentials.Sources.props" />
 

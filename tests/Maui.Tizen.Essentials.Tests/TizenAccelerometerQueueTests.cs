@@ -28,6 +28,39 @@ public class TizenAccelerometerQueueTests
 	}
 
 	[Fact]
+	public void IsNotShakingWithFewerThanFourSamples()
+	{
+		var queue = new TizenAccelerometerQueue();
+
+		queue.Add(0, accelerating: true);
+		queue.Add(300 * Millisecond, accelerating: true);
+		queue.Add(400 * Millisecond, accelerating: true);
+
+		Assert.False(queue.IsShaking);
+	}
+
+	[Theory]
+	[InlineData(4, 3, true)]
+	[InlineData(5, 3, false)]
+	[InlineData(5, 4, true)]
+	[InlineData(7, 5, false)]
+	[InlineData(7, 6, true)]
+	public void UsesExactThreeQuarterThreshold(int count, int accelerating, bool expected)
+	{
+		var queue = new TizenAccelerometerQueue();
+		var interval = 300 * Millisecond / (count - 1);
+
+		for (var index = 0; index < count; index++)
+		{
+			queue.Add(
+				index * interval,
+				accelerating: index < accelerating);
+		}
+
+		Assert.Equal(expected, queue.IsShaking);
+	}
+
+	[Fact]
 	public void IsShakingWhenMostOfALongEnoughWindowIsAccelerating()
 	{
 		var queue = new TizenAccelerometerQueue();

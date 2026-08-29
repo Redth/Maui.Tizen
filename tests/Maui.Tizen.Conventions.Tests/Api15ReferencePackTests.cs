@@ -148,4 +148,53 @@ public class Api15ReferencePackTests
             window.ObsoleteMembers["Instance"],
             StringComparison.OrdinalIgnoreCase);
     }
+
+    [Theory]
+    [InlineData("Tizen.NUI.dll", "Tizen.NUI.Clipboard")]
+    [InlineData("Tizen.Security.WebAuthn.dll", "Tizen.Security.WebAuthn.Authenticator")]
+    public async Task EssentialsApi15Capabilities_ArePresent(
+        string assemblyName,
+        string typeName)
+    {
+        var directory = await AcquireOrSkipAsync().ConfigureAwait(true);
+        var assembly = ReferencePackProbe.FindAssembly(directory, assemblyName);
+
+        Assert.True(assembly is not null, $"'{assemblyName}' is not in the API15 reference pack.");
+        Assert.NotNull(ReferencePackProbe.ReadTypeMembers(assembly!, typeName));
+    }
+
+    [Fact]
+    public async Task ScreenshotStrideAndClipboardTextMethods_ArePublicInApi15()
+    {
+        var directory = await AcquireOrSkipAsync().ConfigureAwait(true);
+        var nui = ReferencePackProbe.FindAssembly(directory, "Tizen.NUI.dll");
+        Assert.NotNull(nui);
+
+        var pixelBuffer = ReferencePackProbe.ReadTypeMembers(nui!, "Tizen.NUI.PixelBuffer");
+        var clipboard = ReferencePackProbe.ReadTypeMembers(nui!, "Tizen.NUI.Clipboard");
+
+        Assert.NotNull(pixelBuffer);
+        Assert.NotNull(clipboard);
+        Assert.True(pixelBuffer!.HasMethod("GetStrideBytes"));
+        Assert.True(clipboard!.HasMethod("SetData"));
+        Assert.True(clipboard.HasMethod("GetData"));
+    }
+
+    [Fact]
+    public async Task WebAuthnAuthenticator_HasTheRequiredApi15Operations()
+    {
+        var directory = await AcquireOrSkipAsync().ConfigureAwait(true);
+        var assembly = ReferencePackProbe.FindAssembly(directory, "Tizen.Security.WebAuthn.dll");
+        Assert.NotNull(assembly);
+
+        var authenticator = ReferencePackProbe.ReadTypeMembers(
+            assembly!,
+            "Tizen.Security.WebAuthn.Authenticator");
+        Assert.NotNull(authenticator);
+
+        Assert.True(authenticator!.HasMethod("SupportedAuthenticators"));
+        Assert.True(authenticator.HasMethod("MakeCredential"));
+        Assert.True(authenticator.HasMethod("GetAssertion"));
+        Assert.True(authenticator.HasMethod("Cancel"));
+    }
 }

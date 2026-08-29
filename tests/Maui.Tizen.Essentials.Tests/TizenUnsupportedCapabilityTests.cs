@@ -16,13 +16,9 @@ namespace Maui.Tizen.Essentials.Tests;
 public class TizenUnsupportedCapabilityTests
 {
 	[Fact]
-	public void ClipboardReportsNoSilentFallback()
+	public void ClipboardReportsOnlyTheSynchronousHasTextGap()
 	{
-		var clipboard = new TizenClipboard();
-
-		Assert.Throws<FeatureNotSupportedException>(() => _ = clipboard.HasText);
-		Assert.Throws<FeatureNotSupportedException>(() => { _ = clipboard.GetTextAsync(); });
-		Assert.Throws<FeatureNotSupportedException>(() => { _ = clipboard.SetTextAsync("hello"); });
+		Assert.Throws<FeatureNotSupportedException>(() => _ = new TizenClipboard().HasText);
 	}
 
 	[Fact]
@@ -44,6 +40,27 @@ public class TizenUnsupportedCapabilityTests
 		Assert.Throws<FeatureNotSupportedException>(() => { _ = passkeys.CreateAsync(null!, TestContext.Current.CancellationToken); });
 		Assert.Throws<FeatureNotSupportedException>(() => { _ = passkeys.AssertAsync(null!, TestContext.Current.CancellationToken); });
 	}
+
+	[Theory]
+	[InlineData(true, global::Tizen.Security.WebAuthn.AuthenticatorTransport.Internal, true)]
+	[InlineData(true, global::Tizen.Security.WebAuthn.AuthenticatorTransport.None, false)]
+	[InlineData(false, global::Tizen.Security.WebAuthn.AuthenticatorTransport.Internal, false)]
+	public void PasskeysDetectTheApi15NativeAuthenticator(
+		bool feature,
+		global::Tizen.Security.WebAuthn.AuthenticatorTransport authenticators,
+		bool expected) =>
+		Assert.Equal(
+			expected,
+			TizenPasskeys.IsNativeAuthenticatorAvailable(
+				() => feature,
+				() => authenticators));
+
+	[Fact]
+	public void PasskeysTreatNativeProbeFailuresAsUnavailable() =>
+		Assert.False(
+			TizenPasskeys.IsNativeAuthenticatorAvailable(
+				static () => true,
+				static () => throw new InvalidOperationException("native probe failed")));
 
 	[Fact]
 	public void WebAuthenticatorReportsUnsupported()

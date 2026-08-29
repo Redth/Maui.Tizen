@@ -157,7 +157,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 								text,
 								resolvedLanguage,
 								voiceType,
-								ResolveRate(state.Client!, rate));
+								ResolveRate(state, rate));
 						}).ConfigureAwait(false);
 
 						SetActiveUtterance(state, utteranceId, completion);
@@ -299,6 +299,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				return;
 			}
 
+			// Tizen only permits GetSpeedRange while the new client is in Created. Cache it before
+			// Prepare transitions the client, then apply the caller's rate after Ready.
+			state.MaximumSpeed = client.GetMaximumSpeed();
 			client.Prepare();
 
 			void OnStateChanged(TizenTextToSpeechState current)
@@ -527,13 +530,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			return (language, voiceType);
 		}
 
-		static int ResolveRate(ITizenTextToSpeechClient client, float? rate)
+		static int ResolveRate(ClientState state, float? rate)
 		{
 			if (rate is not { } value)
 				return 0;
 
 			return (int)Math.Round(
-				value / RateMax * client.GetMaximumSpeed(),
+				value / RateMax * state.MaximumSpeed,
 				MidpointRounding.AwayFromZero);
 		}
 
@@ -602,6 +605,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			public bool StopBeforeTeardown { get; set; }
 
 			public bool TeardownPosted { get; set; }
+
+			public int MaximumSpeed { get; set; }
 		}
 
 		sealed record ActiveUtterance(

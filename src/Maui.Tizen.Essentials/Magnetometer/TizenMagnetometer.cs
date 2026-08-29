@@ -23,12 +23,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			(TizenMagnetometerSensor)TizenSensors.GetDefaultSensor(TizenSensorType.Magnetometer);
 
 		/// <inheritdoc/>
-		protected override void Subscribe(TizenMagnetometerSensor sensor) => sensor.DataUpdated += OnDataUpdated;
-
-		/// <inheritdoc/>
-		protected override void Unsubscribe(TizenMagnetometerSensor sensor) => sensor.DataUpdated -= OnDataUpdated;
-
-		void OnDataUpdated(object? sender, global::Tizen.Sensor.MagnetometerDataUpdatedEventArgs e) =>
-			Raise(ReadingChanged, new MagnetometerChangedEventArgs(new MagnetometerData(e.X, e.Y, e.Z)));
+		protected override Action Subscribe(TizenMagnetometerSensor sensor, long generation)
+		{
+			EventHandler<global::Tizen.Sensor.MagnetometerDataUpdatedEventArgs> handler =
+				(sender, e) => Raise(
+					generation,
+					ReadingChanged,
+					new MagnetometerChangedEventArgs(new MagnetometerData(e.X, e.Y, e.Z)));
+			sensor.DataUpdated += handler;
+			return () => sensor.DataUpdated -= handler;
+		}
 	}
 }

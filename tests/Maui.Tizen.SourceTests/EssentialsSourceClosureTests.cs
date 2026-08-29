@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Xml.Linq;
 
 namespace Maui.Tizen.SourceTests;
@@ -106,6 +107,70 @@ public class EssentialsSourceClosureTests
 		Assert.Contains(
 			"ReplaceSingleton<IBattery, TizenBattery>(services);",
 			registration,
+			StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void MigrationDocumentationRecordsMergedHandlersAndImplementedEssentials()
+	{
+		var migration = File.ReadAllText(RepoPaths.Combine("docs", "migration.md"));
+
+		Assert.Contains("Core and Waves A/B/C merged", migration, StringComparison.Ordinal);
+		Assert.Contains("Implemented and host/API15 tested", migration, StringComparison.Ordinal);
+		Assert.DoesNotContain("| 2 | Handler implementation (`Maui.Tizen.Core`, `Maui.Tizen.Controls`) | Not started |", migration, StringComparison.Ordinal);
+		Assert.DoesNotContain("| 3 | Essentials implementation | Not started |", migration, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void ExactExternalMauiApiBlockersRemainMachineReadable()
+	{
+		using var document = JsonDocument.Parse(File.ReadAllText(RepoPaths.Combine(
+			"eng",
+			"validation",
+			"essentials-external-blockers.json")));
+		var blockers = document.RootElement
+			.GetProperty("blockers")
+			.EnumerateArray()
+			.ToDictionary(
+				blocker => blocker.GetProperty("id").GetString()!,
+				blocker => blocker);
+
+		Assert.Equal("active", blockers["maui-file-result-path-open"].GetProperty("status").GetString());
+		Assert.Equal("active", blockers["maui-passkey-response-factory"].GetProperty("status").GetString());
+		Assert.Contains(
+			"FileResult",
+			blockers["maui-file-result-path-open"].GetProperty("reason").GetString(),
+			StringComparison.Ordinal);
+		Assert.Contains(
+			"response",
+			blockers["maui-passkey-response-factory"].GetProperty("reason").GetString(),
+			StringComparison.OrdinalIgnoreCase);
+	}
+
+	[Fact]
+	public void Api15GeocodingContractMatchesTheRegisteredUnsupportedService()
+	{
+		using var document = JsonDocument.Parse(File.ReadAllText(RepoPaths.Combine(
+			"eng",
+			"validation",
+			"api15-contract.json")));
+		var geocoding = document.RootElement
+			.GetProperty("unsupportedServices")
+			.EnumerateArray()
+			.Single(service => service.GetProperty("contract").GetString() == "IGeocoding");
+
+		Assert.False(geocoding.GetProperty("doNotRegisterInDi").GetBoolean());
+		Assert.Contains(
+			"IPlatformGeocoding",
+			geocoding.GetProperty("behaviour").GetString(),
+			StringComparison.Ordinal);
+		Assert.Contains(
+			"FeatureNotSupportedException",
+			geocoding.GetProperty("behaviour").GetString(),
+			StringComparison.Ordinal);
+		Assert.Contains(
+			"MapServiceToken",
+			geocoding.GetProperty("behaviour").GetString(),
 			StringComparison.Ordinal);
 	}
 

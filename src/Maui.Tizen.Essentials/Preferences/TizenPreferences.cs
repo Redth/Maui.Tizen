@@ -17,6 +17,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// </remarks>
 	public sealed class TizenPreferences : IPreferences
 	{
+		const string LongPrefix = "maui-pref:long:v1:";
+		const string DateTimePrefix = "maui-pref:datetime:v1:";
+		const string DateTimeOffsetPrefix = "maui-pref:datetimeoffset:v1:";
+
 		readonly ITizenPreferencesStore _store;
 
 		/// <summary>
@@ -134,35 +138,170 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 						_store.Remove(fullKey);
 					break;
 				case DateTime dateTime:
-					_store.Set(fullKey, dateTime.ToBinary());
+					_store.Set(
+						fullKey,
+						DateTimePrefix + dateTime.ToBinary().ToString(CultureInfo.InvariantCulture));
 					break;
 				case DateTimeOffset dateTimeOffset:
-					_store.Set(fullKey, dateTimeOffset.ToString("O", CultureInfo.InvariantCulture));
+					_store.Set(
+						fullKey,
+						DateTimeOffsetPrefix + dateTimeOffset.ToString("O", CultureInfo.InvariantCulture));
 					break;
-				default:
+				case long longValue:
+					_store.Set(fullKey, LongPrefix + longValue.ToString(CultureInfo.InvariantCulture));
+					break;
+				case float floatValue:
+					_store.Set(fullKey, (double)floatValue);
+					break;
+				case bool or int or double or string:
 					_store.Set(fullKey, value);
 					break;
+				default:
+					throw new ArgumentException(
+						$"Preferences does not support values of type '{typeof(T).FullName}'.",
+						nameof(value));
 			}
 		}
 
 		T GetCore<T>(string fullKey, T defaultValue)
 		{
 			if (typeof(T) == typeof(DateTime))
-				return (T)(object)DateTime.FromBinary(_store.Get<long>(fullKey));
+			{
+				if (TryGetString(fullKey, out var saved) &&
+					saved.StartsWith(DateTimePrefix, StringComparison.Ordinal) &&
+					long.TryParse(
+						saved.AsSpan(DateTimePrefix.Length),
+						NumberStyles.Integer,
+						CultureInfo.InvariantCulture,
+						out var binary))
+				{
+					return (T)(object)DateTime.FromBinary(binary);
+				}
+
+				// First standalone builds attempted to use a native-unsupported Int64 directly.
+				// Keep the read path so test/development stores can migrate that representation.
+				try
+				{
+					var legacy = DateTime.FromBinary(_store.Get<long>(fullKey));
+					SetCore(fullKey, legacy);
+					return (T)(object)legacy;
+				}
+				catch (Exception exception) when (exception is InvalidCastException or ArgumentException)
+				{
+					return defaultValue;
+				}
+			}
 
 			if (typeof(T) == typeof(DateTimeOffset))
 			{
-				var saved = _store.Get<string>(fullKey);
-				return DateTimeOffset.TryParse(
+				if (!TryGetString(fullKey, out var saved))
+					return defaultValue;
+
+				var versioned = saved.StartsWith(DateTimeOffsetPrefix, StringComparison.Ordinal);
+				if (versioned)
+					saved = saved[DateTimeOffsetPrefix.Length..];
+
+				if (!DateTimeOffset.TryParse(
 					saved,
 					CultureInfo.InvariantCulture,
 					DateTimeStyles.RoundtripKind,
-					out var parsed)
-					? (T)(object)parsed
-					: defaultValue;
+					out var parsed))
+				{
+					return defaultValue;
+				}
+
+				if (!versioned)
+					SetCore(fullKey, parsed);
+				return (T)(object)parsed;
+			}
+
+			if (typeof(T) == typeof(long))
+			{
+				if (TryGetString(fullKey, out var saved) &&
+					saved.StartsWith(LongPrefix, StringComparison.Ordinal) &&
+					long.TryParse(
+						saved.AsSpan(LongPrefix.Length),
+						NumberStyles.Integer,
+						CultureInfo.InvariantCulture,
+						out var value))
+				{
+					return (T)(object)value;
+				}
+
+				try
+				{
+					var legacy = _store.Get<long>(fullKey);
+					SetCore(fullKey, legacy);
+					return (T)(object)legacy;
+				}
+				catch (Exception exception) when (exception is InvalidCastException or ArgumentException)
+				{
+					return defaultValue;
+				}
+			}
+
+			if (typeof(T) == typeof(float))
+			{
+				double saved;
+				try
+				{
+					saved = _store.Get<double>(fullKey);
+				}
+				catch (Exception exception) when (exception is InvalidCastException or ArgumentException)
+				{
+					// Compatibility with the pre-fix in-memory/development representation.
+					try
+					{
+						var legacy = _store.Get<float>(fullKey);
+						SetCore(fullKey, legacy);
+						return (T)(object)legacy;
+					}
+					catch (Exception fallback) when (fallback is InvalidCastException or ArgumentException)
+					{
+						return defaultValue;
+					}
+				}
+
+				return (T)(object)ToSingleExact(saved);
 			}
 
 			return _store.Get<T>(fullKey);
+		}
+
+		bool TryGetString(string key, out string value)
+		{
+			try
+			{
+				value = _store.Get<string>(key);
+				return true;
+			}
+			catch (Exception exception) when (exception is InvalidCastException or ArgumentException)
+			{
+				value = string.Empty;
+				return false;
+			}
+		}
+
+		internal static float ToSingleExact(double value)
+		{
+			if (double.IsNaN(value))
+				return float.NaN;
+			if (double.IsPositiveInfinity(value))
+				return float.PositiveInfinity;
+			if (double.IsNegativeInfinity(value))
+				return float.NegativeInfinity;
+			if (value > float.MaxValue || value < float.MinValue)
+				throw new OverflowException($"Stored preference value '{value}' is outside the Single range.");
+
+			var converted = (float)value;
+			if ((double)converted != value)
+			{
+				throw new InvalidOperationException(
+					$"Stored preference value '{value.ToString("R", CultureInfo.InvariantCulture)}' " +
+					"cannot be represented exactly as Single.");
+			}
+
+			return converted;
 		}
 
 		bool LegacyFallbackSuppressed(string key, string? sharedName) =>

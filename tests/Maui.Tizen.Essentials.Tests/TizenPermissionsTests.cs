@@ -262,6 +262,39 @@ public class TizenPermissionsTests
 	public void RejectsARequiresMappingWithNoPrivileges() =>
 		Assert.Throws<ArgumentException>(static () => TizenPermissionMapping.Requires());
 
+	[Theory]
+	[InlineData(global::Tizen.Security.RequestResult.AllowForever, true)]
+	[InlineData(global::Tizen.Security.RequestResult.DenyForever, false)]
+	[InlineData(global::Tizen.Security.RequestResult.DenyOnce, false)]
+	public void PermissionAnswerInterpretsOnlyTheRequestedPrivilege(
+		global::Tizen.Security.RequestResult result,
+		bool expected) =>
+		Assert.Equal(
+			expected,
+			TizenPermissions.InterpretRequestResponse(
+				"http://tizen.org/privilege/location",
+				global::Tizen.Security.CallCause.Answer,
+				result,
+				"http://tizen.org/privilege/location"));
+
+	[Fact]
+	public void PermissionErrorCauseFailsInsteadOfInterpretingResult() =>
+		Assert.Throws<InvalidOperationException>(() =>
+			TizenPermissions.InterpretRequestResponse(
+				"http://tizen.org/privilege/location",
+				global::Tizen.Security.CallCause.Error,
+				global::Tizen.Security.RequestResult.AllowForever,
+				"http://tizen.org/privilege/location"));
+
+	[Fact]
+	public void PermissionAnswerForAnotherPrivilegeFailsClosed() =>
+		Assert.Throws<InvalidOperationException>(() =>
+			TizenPermissions.InterpretRequestResponse(
+				"http://tizen.org/privilege/location",
+				global::Tizen.Security.CallCause.Answer,
+				global::Tizen.Security.RequestResult.AllowForever,
+				"http://tizen.org/privilege/camera"));
+
 	sealed class DerivedCameraPermission : Permissions.Camera
 	{
 	}

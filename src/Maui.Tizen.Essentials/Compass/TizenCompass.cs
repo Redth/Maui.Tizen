@@ -35,12 +35,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		public void Start(SensorSpeed sensorSpeed, bool applyLowPassFilter) => base.Start(sensorSpeed);
 
 		/// <inheritdoc/>
-		protected override void Subscribe(TizenOrientationSensorNative sensor) => sensor.DataUpdated += OnDataUpdated;
-
-		/// <inheritdoc/>
-		protected override void Unsubscribe(TizenOrientationSensorNative sensor) => sensor.DataUpdated -= OnDataUpdated;
-
-		void OnDataUpdated(object? sender, global::Tizen.Sensor.OrientationSensorDataUpdatedEventArgs e) =>
-			Raise(ReadingChanged, new CompassChangedEventArgs(new CompassData(e.Azimuth)));
+		protected override Action Subscribe(TizenOrientationSensorNative sensor, long generation)
+		{
+			EventHandler<global::Tizen.Sensor.OrientationSensorDataUpdatedEventArgs> handler =
+				(sender, e) => Raise(
+					generation,
+					ReadingChanged,
+					new CompassChangedEventArgs(new CompassData(e.Azimuth)));
+			sensor.DataUpdated += handler;
+			return () => sensor.DataUpdated -= handler;
+		}
 	}
 }

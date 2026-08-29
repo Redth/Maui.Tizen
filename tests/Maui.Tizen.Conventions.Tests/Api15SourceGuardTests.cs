@@ -357,11 +357,13 @@ public class Api15SourceGuardTests
 
         Assert.Equal("unsupported", geocoding.Status);
 
-        // Not merely degraded: the platform API it was built on no longer exists, so it must not be
-        // registered and must fail loudly rather than returning empty results that look like "no
-        // match found".
-        Assert.True(geocoding.DoNotRegisterInDi);
-        Assert.Contains("PlatformNotSupportedException", geocoding.Behaviour, StringComparison.Ordinal);
+        // The unsupported implementation is still registered so DI and the static facade resolve
+        // consistently. Operations fail loudly rather than returning an empty "no match" result.
+        Assert.False(geocoding.DoNotRegisterInDi);
+        Assert.Contains("IGeocoding", geocoding.Behaviour, StringComparison.Ordinal);
+        Assert.Contains("IPlatformGeocoding", geocoding.Behaviour, StringComparison.Ordinal);
+        Assert.Contains("FeatureNotSupportedException", geocoding.Behaviour, StringComparison.Ordinal);
+        Assert.Contains("MapServiceToken", geocoding.Behaviour, StringComparison.Ordinal);
         Assert.Contains("Tizen.Maps", geocoding.Reason, StringComparison.Ordinal);
     }
 

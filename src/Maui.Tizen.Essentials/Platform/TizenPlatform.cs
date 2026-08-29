@@ -18,6 +18,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// </remarks>
 	public static class TizenPlatform
 	{
+		internal static string? CurrentPackageId
+		{
+			get
+			{
+				try
+				{
+					return TizenApplication.Current.ApplicationInfo.PackageId;
+				}
+				catch
+				{
+					return null;
+				}
+			}
+		}
+
 		/// <summary>
 		/// Gets a <see cref="TizenPackage"/> with information about the current application package.
 		/// </summary>
@@ -25,7 +40,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			get
 			{
-				var packageId = TizenApplication.Current.ApplicationInfo.PackageId;
+				var packageId = CurrentPackageId ??
+					throw new InvalidOperationException("The current Tizen package id is unavailable.");
 				return TizenPackageManager.GetPackage(packageId);
 			}
 		}

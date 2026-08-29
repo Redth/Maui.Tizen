@@ -77,8 +77,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			TizenPermissions.EnsureDeclared<Permissions.LaunchApp>();
 			await TizenPermissions.EnsureGrantedAsync<Permissions.StorageRead>().ConfigureAwait(false);
 
-			var tcs = new TaskCompletionSource<FileResult?>(TaskCreationOptions.RunContinuationsAsynchronously);
-
 			var appControl = new TizenAppControl
 			{
 				Operation = photo ? TizenAppControlOperations.ImageCapture : TizenAppControlOperations.VideoCapture,
@@ -89,21 +87,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			if (!string.IsNullOrEmpty(appId))
 				appControl.ApplicationId = appId;
 
-			TizenAppControl.SendLaunchRequest(appControl, (request, reply, result) =>
-			{
-				if (result == TizenAppControlReplyResult.Succeeded &&
-					reply.ExtraData.TryGet(TizenAppControlData.Selected, out IEnumerable<string> selected))
+			return await TizenAppControlReply.RunAsync<TizenAppControl, TizenAppControlReplyResult, FileResult?>(
+				callback => TizenAppControl.SendLaunchRequest(
+					appControl,
+					TizenAppControlReply.NativeTimeoutMilliseconds,
+					(_, reply, result) => callback(reply, result)),
+				static (reply, result) =>
 				{
-					var file = selected?.FirstOrDefault();
-					tcs.TrySetResult(string.IsNullOrEmpty(file) ? null : new FileResult(file));
-				}
-				else
-				{
-					tcs.TrySetCanceled();
-				}
-			});
+					if (result != TizenAppControlReplyResult.Succeeded ||
+						!reply.ExtraData.TryGet(
+							TizenAppControlData.Selected,
+							out IEnumerable<string> selected))
+					{
+						return null;
+					}
 
-			return await tcs.Task.ConfigureAwait(false);
+					var file = selected?.FirstOrDefault();
+					return string.IsNullOrWhiteSpace(file) ? null : new FileResult(file);
+				}).ConfigureAwait(false);
 		}
 	}
 }

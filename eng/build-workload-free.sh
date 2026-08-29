@@ -69,7 +69,7 @@ info "SDK"
 # malformed file there breaks both in confusing ways.
 # ---------------------------------------------------------------------------
 info "JSON validation"
-for f in eng/baselines.json eng/manifests/*.json; do
+for f in eng/baselines.json eng/manifests/*.json eng/validation/*.json; do
   [[ -e "$f" ]] || continue
   check "$f is well-formed JSON" python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$f"
 done
@@ -265,7 +265,7 @@ if [[ $BUILD_OK -eq 1 ]]; then
   # runner, because console rendering is not a stable contract. A report file is.
   #
   # Raise this when adding tests; never lower it to make a run go green.
-  ESSENTIALS_TESTS_MINIMUM=352
+  ESSENTIALS_TESTS_MINIMUM=406
 
   check "essentials tests" "$ESSENTIALS_TESTS" \
     --report-xunit-junit --report-xunit-junit-filename results.xml \

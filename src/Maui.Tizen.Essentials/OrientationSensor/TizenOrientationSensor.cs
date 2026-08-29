@@ -23,12 +23,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			(TizenRotationVectorSensor)TizenSensors.GetDefaultSensor(TizenSensorType.OrientationSensor);
 
 		/// <inheritdoc/>
-		protected override void Subscribe(TizenRotationVectorSensor sensor) => sensor.DataUpdated += OnDataUpdated;
-
-		/// <inheritdoc/>
-		protected override void Unsubscribe(TizenRotationVectorSensor sensor) => sensor.DataUpdated -= OnDataUpdated;
-
-		void OnDataUpdated(object? sender, global::Tizen.Sensor.RotationVectorSensorDataUpdatedEventArgs e) =>
-			Raise(ReadingChanged, new OrientationSensorChangedEventArgs(new OrientationSensorData(e.X, e.Y, e.Z, e.W)));
+		protected override Action Subscribe(TizenRotationVectorSensor sensor, long generation)
+		{
+			EventHandler<global::Tizen.Sensor.RotationVectorSensorDataUpdatedEventArgs> handler =
+				(sender, e) => Raise(
+					generation,
+					ReadingChanged,
+					new OrientationSensorChangedEventArgs(new OrientationSensorData(e.X, e.Y, e.Z, e.W)));
+			sensor.DataUpdated += handler;
+			return () => sensor.DataUpdated -= handler;
+		}
 	}
 }

@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Devices.Sensors;
 using TizenSensor = Tizen.Sensor.Sensor;
@@ -6,213 +9,301 @@ using TizenSensor = Tizen.Sensor.Sensor;
 namespace Microsoft.Maui.Platforms.Tizen.Essentials
 {
 	/// <summary>
-	/// Shared start/stop bookkeeping for the Tizen sensor implementations.
+	/// Shared generation and ref-counted native lifetime for a Tizen sensor implementation.
 	/// </summary>
-	/// <typeparam name="TSensor">The native Tizen sensor type.</typeparam>
-	/// <remarks>
-	/// <para>
-	/// dotnet/maui expressed this logic once per sensor in the <c>*.shared.cs</c> half of a partial
-	/// class. Since this backend ships independently named classes, the common behaviour lives here
-	/// instead of being copied into each implementation.
-	/// </para>
-	/// <para>
-	/// Start and Stop are transactional. A native failure part way through leaves no subscription
-	/// behind and no state claiming the sensor is monitoring when it is not: an earlier version
-	/// restored <see cref="IsMonitoring"/> but left <c>DataUpdated</c> attached if
-	/// <c>sensor.Start()</c> threw, so the next Start would double-subscribe and every reading was
-	/// then raised twice.
-	/// </para>
-	/// </remarks>
 	public abstract class TizenSensorBase<TSensor>
 		where TSensor : TizenSensor
 	{
-		readonly object _locker = new();
+		static readonly TizenSensorLifetimeCoordinator<TSensor> Lifetime = new();
+		readonly TizenSensorGenerationGate _generation = new();
+		readonly object _operationLock = new();
+		readonly TizenNativeCallbackCoordinator _callbacks = new();
 
-		/// <summary>
-		/// Gets a value indicating whether readings should be marshalled to the main thread.
-		/// </summary>
-		protected bool UseSyncContext { get; private set; }
+		/// <summary>Gets whether readings should be marshalled to the main thread.</summary>
+		protected bool UseSyncContext => _generation.UseSyncContext;
 
-		/// <summary>
-		/// Gets a value indicating whether the sensor is currently being monitored.
-		/// </summary>
-		public bool IsMonitoring { get; private set; }
+		/// <summary>Gets whether this wrapper is currently monitoring.</summary>
+		public bool IsMonitoring => _generation.IsMonitoring;
 
-		/// <summary>
-		/// Gets a value indicating whether this device provides the sensor.
-		/// </summary>
+		/// <summary>Gets whether this device provides the sensor.</summary>
 		public abstract bool IsSupported { get; }
 
-		/// <summary>
-		/// Gets the display name used in diagnostics and exception messages.
-		/// </summary>
+		/// <summary>Gets the display name used in diagnostics.</summary>
 		protected abstract string SensorName { get; }
 
-		/// <summary>
-		/// Gets the shared native sensor instance.
-		/// </summary>
+		/// <summary>Gets the shared native sensor instance.</summary>
 		protected abstract TSensor Sensor { get; }
 
-		/// <summary>Attaches the native data-updated handler.</summary>
-		/// <param name="sensor">The native sensor.</param>
-		protected abstract void Subscribe(TSensor sensor);
-
-		/// <summary>Detaches the native data-updated handler.</summary>
-		/// <param name="sensor">The native sensor.</param>
-		protected abstract void Unsubscribe(TSensor sensor);
-
 		/// <summary>
-		/// Called after the sensor has started, so derived types can reset per-session state.
+		/// Subscribes a generation-specific native callback and returns its exact unsubscribe action.
 		/// </summary>
+		protected abstract Action Subscribe(TSensor sensor, long generation);
+
+		/// <summary>Resets per-wrapper state after a successful start.</summary>
 		protected virtual void OnStarted()
 		{
 		}
 
-		/// <summary>
-		/// Called after the sensor has stopped, so derived types can release per-session state.
-		/// </summary>
+		/// <summary>Releases per-wrapper state after stop or failed start.</summary>
 		protected virtual void OnStopped()
 		{
 		}
 
-		/// <summary>
-		/// Starts monitoring the sensor.
-		/// </summary>
-		/// <param name="sensorSpeed">The requested reporting speed.</param>
-		/// <exception cref="FeatureNotSupportedException">The device has no such sensor.</exception>
-		/// <exception cref="InvalidOperationException">Monitoring is already in progress.</exception>
+		/// <summary>Starts monitoring.</summary>
 		public void Start(SensorSpeed sensorSpeed)
 		{
 			if (!IsSupported)
 				throw TizenEssentialsSupport.NotSupported($"{SensorName}.Start", $"This device has no {SensorName} sensor.");
-
-			lock (_locker)
+			lock (_operationLock)
 			{
-				if (IsMonitoring)
-					throw new InvalidOperationException($"{SensorName} has already been started.");
-
-				var sensor = Sensor;
-				var subscribed = false;
-				var started = false;
+				var generation = _generation.BeginStart(
+					sensorSpeed is SensorSpeed.Default or SensorSpeed.UI,
+					SensorName);
 
 				try
 				{
-					sensor.Interval = sensorSpeed.ToPlatform();
-
-					Subscribe(sensor);
-					subscribed = true;
-
-					sensor.Start();
-					started = true;
-
-					OnStarted();
-
-					UseSyncContext = sensorSpeed is SensorSpeed.Default or SensorSpeed.UI;
-					IsMonitoring = true;
+					Lifetime.Start(
+						this,
+						Sensor,
+						sensorSpeed.ToPlatform(),
+						static (sensor, interval) => sensor.Interval = interval,
+						sensor => Subscribe(sensor, generation),
+						static sensor => sensor.Start(),
+						static sensor => sensor.Stop(),
+						static sensor => TizenSensors.ResetDefaultSensor(sensor),
+						OnStarted);
 				}
 				catch
 				{
-					RollbackFailedStart(
-						started,
-						subscribed,
-						() => sensor.Stop(),
-						() => Unsubscribe(sensor),
-						() => TizenSensors.ResetDefaultSensor(sensor));
+					_generation.Invalidate();
+					OnStopped();
 					throw;
 				}
 			}
 		}
 
-		internal static void RollbackFailedStart(
-			bool started,
-			bool subscribed,
-			Action stop,
-			Action unsubscribe,
-			Action reset)
+		/// <summary>Stops monitoring.</summary>
+		public void Stop()
 		{
-			if (subscribed)
-				TryRollback(unsubscribe);
+			if (!IsSupported)
+				throw TizenEssentialsSupport.NotSupported($"{SensorName}.Stop", $"This device has no {SensorName} sensor.");
+			lock (_operationLock)
+			{
+				if (!_generation.Invalidate())
+					return;
 
-			if (started)
-				TryRollback(stop);
-
-			TryRollback(reset);
+				Lifetime.Stop(
+					this,
+					static sensor => sensor.Stop(),
+					static sensor => TizenSensors.ResetDefaultSensor(sensor),
+					static (sensor, interval) => sensor.Interval = interval,
+					OnStopped);
+			}
 		}
 
-		static void TryRollback(Action action)
+		/// <summary>Returns whether a native callback belongs to the active start generation.</summary>
+		protected bool IsCurrentGeneration(long generation) =>
+			_generation.IsCurrent(generation);
+
+		/// <summary>Raises a reading only while its start generation is still active.</summary>
+		protected void Raise<TArgs>(
+			long generation,
+			EventHandler<TArgs>? handler,
+			TArgs args)
+			where TArgs : EventArgs
+		{
+			if (handler is null || !IsCurrentGeneration(generation))
+				return;
+
+			if (UseSyncContext)
+			{
+				_callbacks.Post(
+					() => IsCurrentGeneration(generation),
+					() => handler.Invoke(this, args));
+			}
+			else if (IsCurrentGeneration(generation))
+			{
+				handler.Invoke(this, args);
+			}
+		}
+	}
+
+	internal sealed class TizenSensorGenerationGate
+	{
+		long _generation;
+		int _monitoring;
+		int _useSyncContext;
+
+		public bool IsMonitoring => Volatile.Read(ref _monitoring) != 0;
+
+		public bool UseSyncContext => Volatile.Read(ref _useSyncContext) != 0;
+
+		public long BeginStart(bool useSyncContext, string sensorName)
+		{
+			if (Interlocked.CompareExchange(ref _monitoring, 1, 0) != 0)
+				throw new InvalidOperationException($"{sensorName} has already been started.");
+
+			Volatile.Write(ref _useSyncContext, useSyncContext ? 1 : 0);
+			return Interlocked.Increment(ref _generation);
+		}
+
+		public bool Invalidate()
+		{
+			if (Interlocked.Exchange(ref _monitoring, 0) == 0)
+				return false;
+
+			Interlocked.Increment(ref _generation);
+			return true;
+		}
+
+		public bool IsCurrent(long generation) =>
+			IsMonitoring && Volatile.Read(ref _generation) == generation;
+	}
+
+	internal sealed class TizenSensorLifetimeCoordinator<TSensor>
+		where TSensor : class
+	{
+		readonly object _locker = new();
+		readonly Dictionary<object, Registration> _registrations =
+			new(ReferenceEqualityComparer.Instance);
+		TSensor? _sensor;
+
+		public int ActiveCount
+		{
+			get
+			{
+				lock (_locker)
+					return _registrations.Count;
+			}
+		}
+
+		public void Start(
+			object owner,
+			TSensor sensor,
+			uint interval,
+			Action<TSensor, uint> setInterval,
+			Func<TSensor, Action> subscribe,
+			Action<TSensor> start,
+			Action<TSensor> stop,
+			Action<TSensor> reset,
+			Action started)
+		{
+			lock (_locker)
+			{
+				if (_registrations.ContainsKey(owner))
+					throw new InvalidOperationException("This sensor wrapper has already started.");
+
+				_sensor ??= sensor;
+				var first = _registrations.Count == 0;
+				Action? unsubscribe = null;
+				var registered = false;
+				var nativeStartAttempted = false;
+
+				try
+				{
+					unsubscribe = subscribe(_sensor);
+					_registrations.Add(owner, new(interval, unsubscribe));
+					registered = true;
+					ApplyFastestInterval(_sensor, setInterval);
+
+					if (first)
+					{
+						nativeStartAttempted = true;
+						start(_sensor);
+					}
+
+					started();
+				}
+				catch
+				{
+					if (registered)
+						_registrations.Remove(owner);
+					TryCleanup(unsubscribe);
+					if (first && nativeStartAttempted)
+						TryCleanup(() => stop(_sensor));
+
+					if (_registrations.Count == 0)
+					{
+						TryCleanup(() => reset(_sensor));
+						_sensor = null;
+					}
+					else
+					{
+						TryCleanup(() => ApplyFastestInterval(_sensor, setInterval));
+					}
+
+					throw;
+				}
+			}
+		}
+
+		public void Stop(
+			object owner,
+			Action<TSensor> stop,
+			Action<TSensor> reset,
+			Action<TSensor, uint> setInterval,
+			Action stopped)
+		{
+			lock (_locker)
+			{
+				if (!_registrations.Remove(owner, out var registration) || _sensor is null)
+					return;
+
+				var failures = new List<Exception>();
+				TryCleanup(registration.Unsubscribe, failures);
+
+				if (_registrations.Count == 0)
+				{
+					TryCleanup(() => stop(_sensor), failures);
+					TryCleanup(() => reset(_sensor), failures);
+					_sensor = null;
+				}
+				else
+				{
+					TryCleanup(() => ApplyFastestInterval(_sensor, setInterval), failures);
+				}
+
+				TryCleanup(stopped, failures);
+
+				if (failures.Count == 1)
+					throw failures[0];
+				if (failures.Count > 1)
+					throw new AggregateException("Sensor teardown failed.", failures);
+			}
+		}
+
+		void ApplyFastestInterval(TSensor sensor, Action<TSensor, uint> setInterval)
+		{
+			if (_registrations.Count == 0)
+				return;
+
+			setInterval(sensor, _registrations.Values.Min(registration => registration.Interval));
+		}
+
+		static void TryCleanup(Action? action)
+		{
+			try
+			{
+				action?.Invoke();
+			}
+			catch (Exception)
+			{
+				// Preserve the failure that triggered rollback.
+			}
+		}
+
+		static void TryCleanup(Action action, ICollection<Exception> failures)
 		{
 			try
 			{
 				action();
 			}
-			catch (Exception)
+			catch (Exception exception)
 			{
-				// Preserve the failure that caused the rollback.
+				failures.Add(exception);
 			}
 		}
 
-		/// <summary>
-		/// Stops monitoring the sensor.
-		/// </summary>
-		/// <exception cref="FeatureNotSupportedException">The device has no such sensor.</exception>
-		public void Stop()
-		{
-			if (!IsSupported)
-				throw TizenEssentialsSupport.NotSupported($"{SensorName}.Stop", $"This device has no {SensorName} sensor.");
-
-			lock (_locker)
-			{
-				if (!IsMonitoring)
-					return;
-
-				var sensor = Sensor;
-
-				// Unsubscribe first: once the handler is detached no further readings can be
-				// delivered, so even if Stop() throws the sensor is no longer raising events.
-				Unsubscribe(sensor);
-
-				try
-				{
-					sensor.Stop();
-				}
-				catch
-				{
-					// The native sensor is still running, so restore the subscription to keep the
-					// object's state and the platform's state consistent.
-					try
-					{
-						Subscribe(sensor);
-					}
-					catch
-					{
-						// Nothing further can be done; surface the original failure.
-					}
-
-					throw;
-				}
-
-				IsMonitoring = false;
-			}
-
-			OnStopped();
-		}
-
-		/// <summary>
-		/// Raises a reading changed event, honouring the requested sensor speed.
-		/// </summary>
-		/// <typeparam name="TArgs">The event argument type.</typeparam>
-		/// <param name="handler">The event handler to invoke.</param>
-		/// <param name="args">The event arguments.</param>
-		protected void Raise<TArgs>(EventHandler<TArgs>? handler, TArgs args)
-			where TArgs : EventArgs
-		{
-			if (handler is null)
-				return;
-
-			if (UseSyncContext)
-				MainThread.BeginInvokeOnMainThread(() => handler.Invoke(this, args));
-			else
-				handler.Invoke(this, args);
-		}
+		sealed record Registration(uint Interval, Action Unsubscribe);
 	}
 }

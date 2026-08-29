@@ -31,6 +31,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		const int PowerLockDisplay = 1;
 
 		readonly object _locker = new();
+		readonly TizenNativeCallbackCoordinator _callbacks = new();
 
 		EventHandler<DisplayInfoChangedEventArgs>? _mainDisplayInfoChanged;
 		bool _listening;
@@ -158,7 +159,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			(_displayRotation, _displayOrientation) = MapOrientation(e.DeviceOrientation, natural);
 
 			var args = new DisplayInfoChangedEventArgs(MainDisplayInfo);
-			MainThread.BeginInvokeOnMainThread(() => _mainDisplayInfoChanged?.Invoke(this, args));
+			_callbacks.Post(
+				() =>
+				{
+					lock (_locker)
+						return _mainDisplayInfoChanged is not null;
+				},
+				() =>
+				{
+					EventHandler<DisplayInfoChangedEventArgs>? handler;
+					lock (_locker)
+						handler = _mainDisplayInfoChanged;
+					handler?.Invoke(this, args);
+				});
 		}
 	}
 }

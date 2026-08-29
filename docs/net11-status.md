@@ -1,7 +1,6 @@
 # .NET 11 status: blockers and required MAUI API gaps
 
-Status of the **core standalone backend vertical slice** (application, window, page, content view,
-layout, label) in `src/Maui.Tizen.Core`.
+Status of the merged standalone Core/Waves backend plus the implemented Essentials package.
 
 Baselines are frozen in [`eng/baselines.json`](../eng/baselines.json); package versions are
 centrally configurable in [`eng/Maui.props`](../eng/Maui.props).
@@ -20,6 +19,10 @@ not compile identical sets - that would be impossible, since the platform source
 | `Maui.Tizen.Core.UnitTests` | portable + handler | test host | no |
 | `Maui.Tizen.Core.RefPackCompile` | portable + handler + platform | `Maui.Tizen.Core` | yes |
 | `Maui.Tizen.Sample.RefPackCompile` | sample only, references the above | `Maui.Tizen.Sample` | yes |
+| `Maui.Tizen.Controls.RefPackCompile` | Controls, Waves A/B/C and navigation | `Maui.Tizen.Controls` | yes |
+| `Maui.Tizen.Controls.ConsumerCompile` | consumer/catalog crossing the package boundary | consumer | yes |
+| `Maui.Tizen.Essentials.RefPackCompile` | exact Essentials shipping closure against API15 | `Maui.Tizen.Essentials` | yes |
+| `Maui.Tizen.Essentials.Tests` | host-executable storage/callback/lifecycle/DI behavior | test host | yes |
 | `Maui.Tizen.Core` (product) | portable + handler + platform | `Maui.Tizen.Core` | yes |
 
 Between them every owned source is compiled by at least one lane, and everything the product
@@ -44,8 +47,10 @@ identical, so neither can drift from the other.
 
 | Lane | Command | What it proves |
 | --- | --- | --- |
-| Unit tests | `dotnet test tests/Maui.Tizen.Core.UnitTests` | Mapper + command-mapper registration, DI/handler registration, hosting, dispatcher/timer/provider semantics, density conversion, layout z-index ordering, `IMauiContext` scoping. **417 tests at this head, all passing.** |
-| Compile validation | `dotnet build tests/Maui.Tizen.Core.RefPackCompile` | Every Core `#if TIZEN` source - including `TizenMauiApplication`, the NUI view groups and all the ported platform extensions - type-checks against the **real** TizenFX reference assemblies from `Samsung.Tizen.Ref.API15` (`ref/net8.0`). The sample is compiled separately by `Maui.Tizen.Sample.RefPackCompile`. **Both build cleanly.** |
+| Core/Waves tests | `dotnet test tests/Maui.Tizen.Core.UnitTests` | Mapper + command-mapper registration, concrete Controls startup, DI/handler registration, hosting, dispatcher/timer/provider semantics, density/layout, Wave A/B/C lifetimes and navigation. **1,248 tests at this head, all passing.** |
+| Source/closure tests | `dotnet test tests/Maui.Tizen.SourceTests` | Source ownership, mapper parity, startup and package closures, compile-backed MAUI API blockers. **578 tests at this head, all passing.** |
+| Essentials tests | execute `artifacts/bin/Maui.Tizen.Essentials.Tests/<Configuration>/net11.0/Maui.Tizen.Essentials.Tests` | DI facade bridge, native-faithful Preferences/SecureStorage, Clipboard/TTS/sensor/screenshot/AppControl lifecycle coordinators, permissions and translation behavior. **406 tests pass in Debug and Release.** |
+| Compile validation | build the four `*.RefPackCompile`/consumer projects | Core, Controls, Sample and Essentials shipping sources type-check against the **real** TizenFX reference assemblies from `Samsung.Tizen.Ref.API15` (`ref/net8.0`), with package-specific PublicAPI analyzers. **All build cleanly.** |
 | Product | `dotnet build src/Maui.Tizen.Core` | Fails with actionable `MAUITIZEN0001` from `Directory.Build.targets`. This is the intended behaviour. |
 
 Both lanes are wired into `eng/build-workload-free.sh`, so they run in the workload-free CI lane

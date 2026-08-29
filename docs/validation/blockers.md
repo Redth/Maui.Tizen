@@ -185,3 +185,44 @@ application under test, and a **release is blocked** rather than passing with th
 Running `run-hosted-validation.sh` on the self-hosted runner is explicitly *not* a substitute: the
 controller has no Tizen backend loaded, so those suites would skip there exactly as they do on any
 hosted runner.
+
+## 9. Pinned MAUI `FileResult` cannot open an external-backend path
+
+**Blocks:** merging the picker/media surface as fully supported.
+
+The pinned neutral `Microsoft.Maui.Essentials` package exposes public
+`FileResult(string fullPath)` constructors, but `FileBase.OpenReadAsync()` delegates to the
+assembly-internal virtual `PlatformOpenReadAsync()`. An external backend cannot override that
+member, cannot construct its own `FileBase`, and cannot replace the instance method with an
+extension method. The public `ShareFile(FileBase)`, `EmailAttachment(FileBase)`, and
+`OpenFileRequest(string, FileBase)` constructors also clone through MAUI's internal
+`PlatformInit`, so passing a picked `FileResult` directly fails on the neutral package.
+
+`MauiPublicApiBlockerTests.FileResultHasNoPublicPathOpenOverrideSeam` compiles an attempted
+`FileResult` subclass against the pinned package and requires compiler error `CS0115`.
+`TizenFileResultBlockerTests.NeutralFileResultCannotOpenAnExistingTizenPath` creates a real file
+under the test output, constructs the public path-based `FileResult`, and proves the inherited
+`OpenReadAsync` still fails. Explicit path-based reconstruction
+(`ShareFile(path, mime)`, `EmailAttachment(path, mime)`, `ReadOnlyFile(path, mime)`) works and is
+covered, but requiring callers to rebuild the object is not the standard FileBase flow.
+
+**Clears when:** MAUI makes `PlatformOpenReadAsync` protected, adds a public stream-factory
+constructor, or publishes an equivalent supported external-platform seam.
+
+## 10. Pinned MAUI passkey responses cannot be constructed externally
+
+**Blocks:** implementing `IPasskeys`, despite API15 having native WebAuthn.
+
+`Samsung.Tizen.Ref.API15 15.0.0.19396` contains
+`Tizen.Security.WebAuthn.Authenticator` with `SupportedAuthenticators`, `MakeCredential`,
+`GetAssertion`, and `Cancel`. The native premise is therefore supported. The blocker is MAUI:
+`PasskeyCreationResponse` and `PasskeyAssertionResponse` are sealed, and their JSON constructors
+are internal with no public factory.
+
+`MauiPublicApiBlockerTests.PasskeyResponsesHaveNoPublicConstructionOrFactorySurface` reflects only
+the public surface and compiles attempted construction against the pinned package, requiring
+`CS1729`/`CS0122`. Production code does not use reflection or private access.
+
+**Clears when:** MAUI publishes supported factories that accept the WebAuthn registration and
+assertion response JSON. Until then `TizenPasskeys.IsSupported` remains false rather than promising
+an operation whose required result cannot be returned.

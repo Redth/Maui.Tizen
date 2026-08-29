@@ -13,7 +13,7 @@ namespace Maui.Tizen.Essentials.Tests;
 /// </summary>
 public class ServiceCoverageMatrixTests
 {
-	static readonly string[] ValidLevels = ["Implemented", "Partial", "Unsupported"];
+	static readonly string[] ValidLevels = ["Implemented", "Partial", "Unsupported", "Blocked"];
 
 	static readonly string[] ValidProfiles =
 		["All", "Mobile", "Wearable", "TV", "Common", "–"];

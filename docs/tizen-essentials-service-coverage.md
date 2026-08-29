@@ -19,6 +19,7 @@ Support levels:
 | `Implemented` | The whole contract is backed by native Tizen APIs. |
 | `Partial` | Part of the contract is backed by native Tizen APIs. The remaining members throw `FeatureNotSupportedException` with an explicit reason. |
 | `Unsupported` | Tizen has no API that can satisfy the contract. Every member throws `FeatureNotSupportedException`. Nothing is faked. |
+| `Blocked` | Tizen has the platform capability, but the pinned public MAUI contract lacks an external-backend construction/override seam. A compile-backed blocker is recorded. |
 
 Nothing in this backend returns a success-shaped fallback (an empty collection, `null`, or a
 completed `Task`) to stand in for a capability the platform does not have.
@@ -37,14 +38,14 @@ Profile column values are the Tizen device profiles on which the service is usab
 | `IBarometer` | `TizenBarometer` | Implemented | All | `Tizen.Sensor.PressureSensor`. |
 | `IBattery` | `TizenBattery` | Partial | All | Power source read from Tizen's own reading (`None`/`Ac`/`Usb`/`Wireless`); state distinguishes `Full` and `NotCharging`. `EnergySaverStatus` / `EnergySaverStatusChanged` throw: Tizen exposes no application-visible power saving state. |
 | `IBrowser` | `TizenBrowser` | Partial | All | Always opens the system browser: Tizen has no in-app browser, so `BrowserLaunchMode` cannot be honoured. |
-| `IClipboard` | `TizenClipboard` | Unsupported | – | Tizen scopes copy/paste to the focused NUI/EFL window selection buffer; there is no headless clipboard service. |
+| `IClipboard` | `TizenClipboard` | Partial | All | `GetTextAsync`, `SetTextAsync`, and change notifications use public `Tizen.NUI.Clipboard` on the MAUI dispatcher. Synchronous `HasText` throws because API15 exposes reads only through an asynchronous callback; blocking the NUI loop would deadlock. |
 | `ICompass` | `TizenCompass` | Implemented | All | Azimuth from `Tizen.Sensor.OrientationSensor`. `applyLowPassFilter` has no extra effect (Tizen already fuses and filters). |
 | `IConnectivity` | `TizenConnectivity` | Implemented | All | `Tizen.Network.Connection`. `ConnectionProfiles` is queried synchronously per read, so it works without subscribing to `ConnectivityChanged`. Requires `network.get` + `internet`. |
 | `IContacts` | `TizenContacts` | Implemented | Mobile | `Tizen.Pims.Contacts`. `GetAllAsync` requests runtime `contact.read` consent and materialises the result before disposing the native cursor. |
 | `IDeviceDisplay` | `TizenDeviceDisplay` | Implemented | All | Screen metrics from feature keys; `KeepScreenOn` uses `device_power_request_lock` and requires the `display` privilege. |
 | `IDeviceInfo` | `TizenDeviceInfo` | Implemented | All | System / feature information keys. |
 | `IEmail` | `TizenEmail` | Implemented | Mobile | Tizen `compose` AppControl, including enumerable attachment paths and a compatible MIME filter. Gated on the `email` feature key. |
-| `IFilePicker` | `TizenFilePicker` | Partial | All | Tizen's `pick` operation accepts one MIME filter, so only the first entry of `PickOptions.FileTypes` is applied. |
+| `IFilePicker` | `TizenFilePicker` | Blocked | All | Tizen's `pick` operation and MIME filtering work, but pinned MAUI `FileResult` has no public path-open override. Standard `OpenReadAsync` and direct `ShareFile(FileBase)` / `EmailAttachment(FileBase)` / `OpenFileRequest(FileBase)` flows fail in the neutral package. Explicit path+MIME reconstruction works but is not a compatible replacement. See validation blocker 9. |
 | `IFileSystem` | `TizenFileSystem` | Implemented | All | Application `DirectoryInfo` data / cache / resource paths. |
 | `IFlashlight` | `TizenFlashlight` | Implemented | Mobile | `Tizen.System.Led`. Gated on `camera.back.flash`; requires the `led` privilege. |
 | `IGeocoding` | `TizenGeocoding` | Unsupported | – | `Tizen.Maps` (`MapService`) was deprecated in TizenFX API11 and **removed by API15**; there is no replacement. `MapServiceToken` is still accepted so a configured token cannot crash startup, but it is never used. |
@@ -54,9 +55,9 @@ Profile column values are the Tizen device profiles on which the service is usab
 | `ILauncher` | `TizenLauncher` | Implemented | All | AppControl launch requests with scheme-based operation selection. `CanOpenAsync`/`TryOpenAsync` query matched application ids, so `TryOpenAsync` returns `false` instead of throwing when nothing handles the URI. |
 | `IMagnetometer` | `TizenMagnetometer` | Implemented | All | `Tizen.Sensor.Magnetometer`. |
 | `IMap` | `TizenMap` | Partial | All | `geo:` AppControl. `MapLaunchOptions.NavigationMode` and the launch name cannot be honoured. |
-| `IMediaPicker` | `TizenMediaPicker` | Implemented | Mobile | Picking delegates to `TizenFilePicker`; capture uses the `image_capture` / `video_capture` AppControls. |
+| `IMediaPicker` | `TizenMediaPicker` | Blocked | Mobile | Pick/capture AppControls work, but their `FileResult` values have the same pinned-MAUI `OpenReadAsync` blocker as `IFilePicker`. |
 | `IOrientationSensor` | `TizenOrientationSensor` | Implemented | All | `Tizen.Sensor.RotationVectorSensor`. |
-| `IPasskeys` | `TizenPasskeys` | Unsupported | – | Tizen ships FIDO UAF, not a WebAuthn / CTAP2 credential manager. `IsSupported` is `false`. |
+| `IPasskeys` | `TizenPasskeys` | Blocked | All | API15 devices with `security.webauthn` publicly expose `Tizen.Security.WebAuthn.Authenticator`, including `SupportedAuthenticators`, MakeCredential/GetAssertion, and Cancel. Native ceremonies require the public `bluetooth` and `internet` privileges plus BLE and an available network transport. Pinned MAUI seals both response types and exposes no public constructor/factory, so the backend cannot return the native WebAuthn response without forbidden reflection. `IsSupported` remains `false` until that MAUI API exists. See validation blocker 10. |
 | `IPermissions` | `TizenPermissions` | Partial | All | Maps every built-in `Permissions.*` type to verified Tizen privileges, with privacy privileges resolved through `PrivacyPrivilegeManager`. `Permissions.Maps` and `Permissions.Reminders` have no Tizen equivalent and throw rather than reporting `Granted`. |
 | `IPhoneDialer` | `TizenPhoneDialer` | Implemented | Mobile | `tel:` AppControl, gated on the `contact` feature key. |
 | `IPreferences` | `TizenPreferences` | Implemented | All | `Tizen.Applications.Preference`; shared names are emulated with an **escaped** `{sharedName}~{key}` prefix so distinct stores cannot collide. Default-store keys stay unprefixed for compatibility. |
@@ -78,7 +79,7 @@ Profile column values are the Tizen device profiles on which the service is usab
 | Sources type-check against the **API15 reference pack** the product targets | Verified, by `tests/Maui.Tizen.Essentials.RefPackCompile` |
 | The declared public API surface matches `PublicAPI/slice/PublicAPI.Unshipped.txt` | Verified, by the PublicAPI analyzer in that same lane |
 | Sources compile against loadable Tizen implementation assemblies | Verified, by `src/Maui.Tizen.Essentials.HostVerification` |
-| DI registration, facade/`MainThread` ownership, permission privilege mapping, unsupported classification, ported translation logic | Verified, by `tests/Maui.Tizen.Essentials.Tests` (352 tests) |
+| DI registration, facade/`MainThread` ownership, native-faithful storage, callback/lifecycle coordinators, permission privilege mapping, unsupported classification, and ported translation logic | Verified, by `tests/Maui.Tizen.Essentials.Tests` (406 tests) |
 | `src/Maui.Tizen.Essentials` builds for `net11.0-tizen11.0` | **Blocked.** Fails with `MAUITIZEN0001`: the Samsung workload manifest `samsung.net.sdk.tizen.manifest-11.0.100` is unpublished. Nobody can build this TFM anywhere yet. |
 | Any behaviour that P/Invokes into Tizen (sensors, AppControl, key manager, NUI capture, TTS, geocoding, ...) | **Blocked.** Requires a Tizen device or emulator, which in turn requires the workload. |
 

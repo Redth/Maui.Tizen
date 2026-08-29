@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Text.Json;
 
 namespace Maui.Tizen.Validation.Tests;
 
@@ -149,6 +150,36 @@ public partial class ReleaseReadinessTests
                     $"Visual target '{target}' did not pass:{Environment.NewLine}{content}");
             }
         }
+    }
+
+    [Fact]
+    public void NoActiveEssentialsExternalApiBlockers()
+    {
+        SkipUnlessRelease();
+
+        var path = Path.Combine(
+            RepoLayout.Root,
+            "eng",
+            "validation",
+            "essentials-external-blockers.json");
+        Assert.True(File.Exists(path), $"Missing {RepoLayout.Relative(path)}.");
+
+        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        var active = document.RootElement
+            .GetProperty("blockers")
+            .EnumerateArray()
+            .Where(blocker =>
+                string.Equals(
+                    blocker.GetProperty("status").GetString(),
+                    "active",
+                    StringComparison.OrdinalIgnoreCase))
+            .Select(blocker => blocker.GetProperty("id").GetString())
+            .ToList();
+
+        Assert.True(
+            active.Count == 0,
+            $"Essentials still has active public-API blockers: {string.Join(", ", active)}. " +
+            "See docs/validation/blockers.md.");
     }
 
     [Fact]

@@ -21,6 +21,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			"Tizen exposes no application-visible power saving mode state.";
 
 		readonly object _locker = new();
+		readonly TizenNativeCallbackCoordinator _callbacks = new();
 
 		EventHandler<BatteryInfoChangedEventArgs>? _batteryInfoChanged;
 		bool _listening;
@@ -131,14 +132,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			// Snapshot on the native callback thread, then raise on the main thread.
 			var args = new BatteryInfoChangedEventArgs(ChargeLevel, State, PowerSource);
 
-			MainThread.BeginInvokeOnMainThread(() =>
-			{
-				EventHandler<BatteryInfoChangedEventArgs>? handler;
-				lock (_locker)
-					handler = _batteryInfoChanged;
-
-				handler?.Invoke(this, args);
-			});
+			_callbacks.Post(
+				() =>
+				{
+					lock (_locker)
+						return _batteryInfoChanged is not null;
+				},
+				() =>
+				{
+					EventHandler<BatteryInfoChangedEventArgs>? handler;
+					lock (_locker)
+						handler = _batteryInfoChanged;
+					handler?.Invoke(this, args);
+				});
 		}
 	}
 }

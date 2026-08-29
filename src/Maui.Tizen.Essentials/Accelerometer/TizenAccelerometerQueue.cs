@@ -49,8 +49,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				var newest = NewestTimestamp;
 				var count = _samples.Count;
 
-				return newest - oldest >= MinWindowSizeNanoseconds &&
-					_acceleratingCount >= (count >> 1) + (count >> 2);
+				return count >= MinQueueSize &&
+					newest - oldest >= MinWindowSizeNanoseconds &&
+					_acceleratingCount * 4 >= count * 3;
 			}
 		}
 

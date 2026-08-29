@@ -31,8 +31,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			TizenPermissions.EnsureDeclared<Permissions.LaunchApp>();
 			await TizenPermissions.EnsureGrantedAsync<Permissions.StorageRead>().ConfigureAwait(false);
 
-			var tcs = new TaskCompletionSource<IReadOnlyList<FileResult>>(TaskCreationOptions.RunContinuationsAsynchronously);
-
 			var appControl = new TizenAppControl
 			{
 				Operation = TizenAppControlOperations.Pick,
@@ -41,21 +39,27 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			};
 			appControl.ExtraData.Add(TizenAppControlData.SectionMode, allowMultiple ? "multiple" : "single");
 
-			TizenAppControl.SendLaunchRequest(appControl, (request, reply, result) =>
-			{
-				var files = new List<FileResult>();
-
-				if (result == TizenAppControlReplyResult.Succeeded &&
-					reply.ExtraData.TryGet(TizenAppControlData.Selected, out IEnumerable<string> selected) &&
-					selected is not null)
+			return await TizenAppControlReply.RunAsync<TizenAppControl, TizenAppControlReplyResult, IReadOnlyList<FileResult>>(
+				callback => TizenAppControl.SendLaunchRequest(
+					appControl,
+					TizenAppControlReply.NativeTimeoutMilliseconds,
+					(_, reply, result) => callback(reply, result)),
+				static (reply, result) =>
 				{
-					files.AddRange(selected.Select(static f => new FileResult(f)));
-				}
+					if (result != TizenAppControlReplyResult.Succeeded ||
+						!reply.ExtraData.TryGet(
+							TizenAppControlData.Selected,
+							out IEnumerable<string> selected) ||
+						selected is null)
+					{
+						return [];
+					}
 
-				tcs.TrySetResult(files);
-			});
-
-			return await tcs.Task.ConfigureAwait(false);
+					return selected
+						.Where(static path => !string.IsNullOrWhiteSpace(path))
+						.Select(static path => new FileResult(path))
+						.ToArray();
+				}).ConfigureAwait(false);
 		}
 
 		static string ResolveMimeType(PickOptions? options)

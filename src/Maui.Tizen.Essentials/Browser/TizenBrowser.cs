@@ -30,7 +30,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				Uri = uri.AbsoluteUri,
 			};
 
-			var hasMatches = TizenAppControl.GetMatchedApplicationIds(appControl).Any();
+			var hasMatches = TizenLauncher.HasHandler(appControl);
 
 			if (hasMatches)
 				TizenAppControl.SendLaunchRequest(appControl);

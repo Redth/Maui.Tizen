@@ -23,12 +23,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			(TizenPressureSensor)TizenSensors.GetDefaultSensor(TizenSensorType.Barometer);
 
 		/// <inheritdoc/>
-		protected override void Subscribe(TizenPressureSensor sensor) => sensor.DataUpdated += OnDataUpdated;
-
-		/// <inheritdoc/>
-		protected override void Unsubscribe(TizenPressureSensor sensor) => sensor.DataUpdated -= OnDataUpdated;
-
-		void OnDataUpdated(object? sender, global::Tizen.Sensor.PressureSensorDataUpdatedEventArgs e) =>
-			Raise(ReadingChanged, new BarometerChangedEventArgs(new BarometerData(e.Pressure)));
+		protected override Action Subscribe(TizenPressureSensor sensor, long generation)
+		{
+			EventHandler<global::Tizen.Sensor.PressureSensorDataUpdatedEventArgs> handler =
+				(sender, e) => Raise(
+					generation,
+					ReadingChanged,
+					new BarometerChangedEventArgs(new BarometerData(e.Pressure)));
+			sensor.DataUpdated += handler;
+			return () => sensor.DataUpdated -= handler;
+		}
 	}
 }

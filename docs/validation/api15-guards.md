@@ -30,11 +30,10 @@ repository carrying a workaround for a problem that no longer exists.
 
 The guard scans a file exactly when a project compiles it.
 
-This matters because `src/Maui.Tizen.*` was imported verbatim from dotnet/maui and currently sets
-`EnableDefaultCompileItems=false`, so those sources are `<None>` and nothing compiles them. Scanning
-them would produce hundreds of failures describing upstream history rather than anything this
-repository has adopted, and the only way to get green would be to switch the guard off — which is
-how guards die.
+This matters because the raw import still shares directories with adopted code. Core, Controls and
+Essentials keep default globbing disabled and instead compile explicit shared source manifests; the
+guard resolves those manifests and scans their exact closures. Projects that still compile nothing
+remain out of scope, so historical sources are not mistaken for shipping code.
 
 A project enters scope automatically the moment it opts into compiling, so the handler, Essentials
 and Blazor waves get covered as they land, with no change here.
@@ -46,8 +45,9 @@ handles explicit `<Compile Include/Remove>`, the default `**/*.cs` glob, and
 `EnableDefaultCompileItems` inherited from an imported props file, which is the mechanism
 `eng/targets/TizenPackage.props` actually uses.
 
-Today that means 10 compiled files across the two diagnostics projects. It found a real violation
-there: the DevFlow agent used `Window.Instance` in three places.
+Today that includes the finalized Core/Waves, Controls navigation, implemented Essentials, and the
+two diagnostics projects. The guard previously found a real violation in the DevFlow agent:
+`Window.Instance` in three places.
 
 ## Why not just rely on the compiler?
 
@@ -77,7 +77,7 @@ The ban is on `MapService`. `MapServiceToken` is explicitly **allowed**:
 
 | Member | Status | Why |
 |---|---|---|
-| `IGeocoding` | unsupported | Built on `Tizen.Maps`, which no longer exists. No replacement API. Must not be registered in DI, and throws `PlatformNotSupportedException`. |
+| `IGeocoding` / `IPlatformGeocoding` | registered unsupported service | Built on `Tizen.Maps`, which no longer exists. One `TizenGeocoding` singleton is registered for both contracts; operations throw `FeatureNotSupportedException`. |
 | `MapServiceToken` | accepted, no-op | App startup and the Essentials DI bridge set it during initialisation. Removing it turns a now-meaningless configuration call into a compile break for every consumer; throwing turns it into a startup crash. |
 
 The distinction is enforced by matching whole identifiers (`(?!\w)` after the symbol), so

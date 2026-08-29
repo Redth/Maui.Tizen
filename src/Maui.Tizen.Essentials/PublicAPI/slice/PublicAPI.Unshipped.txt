@@ -2,8 +2,7 @@
 abstract Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.IsSupported.get -> bool
 abstract Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.Sensor.get -> TSensor!
 abstract Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.SensorName.get -> string!
-abstract Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.Subscribe(TSensor! sensor) -> void
-abstract Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.Unsubscribe(TSensor! sensor) -> void
+abstract Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.Subscribe(TSensor! sensor, long generation) -> System.Action!
 const Microsoft.Maui.Platforms.Tizen.Essentials.TizenFileMimeTypes.All = "*/*" -> string!
 const Microsoft.Maui.Platforms.Tizen.Essentials.TizenFileMimeTypes.ImageAll = "image/*" -> string!
 const Microsoft.Maui.Platforms.Tizen.Essentials.TizenFileMimeTypes.ImageJpg = "image/jpeg" -> string!
@@ -53,6 +52,7 @@ Microsoft.Maui.Platforms.Tizen.Essentials.TizenBrowser.OpenAsync(System.Uri! uri
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenBrowser.TizenBrowser() -> void
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenClipboard
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenClipboard.ClipboardContentChanged -> System.EventHandler<System.EventArgs!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenClipboard.Dispose() -> void
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenClipboard.GetTextAsync() -> System.Threading.Tasks.Task<string?>!
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenClipboard.HasText.get -> bool
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenClipboard.SetTextAsync(string? text) -> System.Threading.Tasks.Task!
@@ -210,6 +210,7 @@ Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshot.CaptureAsync() -> Syst
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshot.CaptureAsync(Tizen.NUI.BaseComponents.View! view) -> System.Threading.Tasks.Task<Microsoft.Maui.Media.IScreenshotResult?>!
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshot.CaptureAsync(Tizen.NUI.Window! window) -> System.Threading.Tasks.Task<Microsoft.Maui.Media.IScreenshotResult!>!
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshot.CaptureViewAsync(object! platformView) -> System.Threading.Tasks.Task<Microsoft.Maui.Media.IScreenshotResult?>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshot.Dispose() -> void
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshot.IsCaptureSupported.get -> bool
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshot.TizenScreenshot() -> void
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshotExtensions
@@ -228,8 +229,9 @@ Microsoft.Maui.Platforms.Tizen.Essentials.TizenSemanticScreenReader
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenSemanticScreenReader.Announce(string! text) -> void
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenSemanticScreenReader.TizenSemanticScreenReader() -> void
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.IsCurrentGeneration(long generation) -> bool
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.IsMonitoring.get -> bool
-Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.Raise<TArgs>(System.EventHandler<TArgs!>? handler, TArgs! args) -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.Raise<TArgs>(long generation, System.EventHandler<TArgs!>? handler, TArgs! args) -> void
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.Start(Microsoft.Maui.Devices.Sensors.SensorSpeed sensorSpeed) -> void
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.Stop() -> void
 Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.TizenSensorBase() -> void

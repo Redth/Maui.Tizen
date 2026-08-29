@@ -32,8 +32,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			TizenPermissions.EnsureDeclared<Permissions.LaunchApp>();
 			await TizenPermissions.EnsureGrantedAsync<Permissions.ContactsRead>().ConfigureAwait(false);
 
-			var tcs = new TaskCompletionSource<Contact?>(TaskCreationOptions.RunContinuationsAsynchronously);
-
 			var appControl = new TizenAppControl
 			{
 				Operation = TizenAppControlOperations.Pick,
@@ -42,29 +40,25 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			};
 			appControl.ExtraData.Add(TizenAppControlData.SectionMode, "single");
 
-			TizenAppControl.SendLaunchRequest(appControl, (request, reply, result) =>
-			{
-				Contact? contact = null;
-
-				if (result == TizenAppControlReplyResult.Succeeded)
+			return await TizenAppControlReply.RunAsync<TizenAppControl, TizenAppControlReplyResult, Contact?>(
+				callback => TizenAppControl.SendLaunchRequest(
+					appControl,
+					TizenAppControlReply.NativeTimeoutMilliseconds,
+					(_, reply, result) => callback(reply, result)),
+				static (reply, result) =>
 				{
-					reply.ExtraData.TryGet(TizenAppControlData.Selected, out IEnumerable<string> selected);
-					var contactId = selected?.FirstOrDefault();
-
-					if (int.TryParse(contactId, out var id))
+					if (result != TizenAppControlReplyResult.Succeeded ||
+						!reply.ExtraData.TryGet(
+							TizenAppControlData.Selected,
+							out IEnumerable<string> selected) ||
+						!int.TryParse(selected?.FirstOrDefault(), out var id))
 					{
-						CompleteLookup(
-							tcs,
-							() => Manager.Value.Database.Get(TizenContact.Uri, id),
-							ToContact);
-						return;
+						return null;
 					}
-				}
 
-				tcs.TrySetResult(contact);
-			});
-
-			return await tcs.Task.ConfigureAwait(false);
+					using var record = Manager.Value.Database.Get(TizenContact.Uri, id);
+					return record is null ? null : ToContact(record);
+				}).ConfigureAwait(false);
 		}
 
 		/// <inheritdoc/>
@@ -140,21 +134,5 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				emails);
 		}
 
-		internal static void CompleteLookup<TRecord>(
-			TaskCompletionSource<Contact?> completion,
-			Func<TRecord?> lookup,
-			Func<TRecord, Contact> project)
-			where TRecord : class, IDisposable
-		{
-			try
-			{
-				using var record = lookup();
-				completion.TrySetResult(record is null ? null : project(record));
-			}
-			catch (Exception ex)
-			{
-				completion.TrySetException(ex);
-			}
-		}
 	}
 }

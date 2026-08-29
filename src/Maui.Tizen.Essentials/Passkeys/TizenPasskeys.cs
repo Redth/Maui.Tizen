@@ -10,19 +10,52 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 	/// Tizen implementation of <see cref="IPasskeys"/>.
 	/// </summary>
 	/// <remarks>
-	/// Tizen exposes FIDO UAF through <c>Tizen.Account.FidoClient</c>, which is a different protocol
-	/// from the WebAuthn / CTAP2 contract that <see cref="IPasskeys"/> models. There is no Tizen
-	/// credential manager that can produce a WebAuthn attestation or assertion, so
-	/// <see cref="IsSupported"/> reports <see langword="false"/> and both operations throw.
+	/// API15 exposes a public WebAuthn authenticator, but the pinned MAUI package exposes no public
+	/// constructor or factory for <see cref="PasskeyCreationResponse"/> or
+	/// <see cref="PasskeyAssertionResponse"/>. The backend can translate the input JSON and receive
+	/// native WebAuthn bytes, but cannot return the sealed MAUI response types without reflection or
+	/// an internal API. Until MAUI publishes that response factory, the complete contract is
+	/// unavailable and <see cref="IsSupported"/> must remain <see langword="false"/>.
 	/// </remarks>
 	public sealed class TizenPasskeys : IPasskeys
 	{
 		const string Reason =
-			"Tizen ships FIDO UAF (Tizen.Account.FidoClient) but no WebAuthn/CTAP2 credential " +
-			"manager that can satisfy the passkey creation and assertion contract.";
+			"Tizen API15 provides Tizen.Security.WebAuthn.Authenticator, but the pinned MAUI " +
+			"PasskeyCreationResponse and PasskeyAssertionResponse types are sealed and expose no " +
+			"public constructor or factory. Returning the native response would require forbidden " +
+			"reflection or an unavailable MAUI API.";
 
 		/// <inheritdoc/>
-		public bool IsSupported => false;
+		public bool IsSupported
+		{
+			get
+			{
+				// Probe the actual API15 feature/authenticator state so a future MAUI response
+				// factory can activate without replacing the native capability logic.
+				_ = IsNativeAuthenticatorAvailable();
+				return false;
+			}
+		}
+
+		internal static bool IsNativeAuthenticatorAvailable(
+			Func<bool> getFeature,
+			Func<global::Tizen.Security.WebAuthn.AuthenticatorTransport> getAuthenticators)
+		{
+			try
+			{
+				return getFeature() &&
+					getAuthenticators() != global::Tizen.Security.WebAuthn.AuthenticatorTransport.None;
+			}
+			catch (Exception)
+			{
+				return false;
+			}
+		}
+
+		internal static bool IsNativeAuthenticatorAvailable() =>
+			IsNativeAuthenticatorAvailable(
+				static () => TizenSystemInformation.GetFeatureInfo<bool>("security.webauthn"),
+				static () => global::Tizen.Security.WebAuthn.Authenticator.SupportedAuthenticators());
 
 		/// <inheritdoc/>
 		/// <exception cref="FeatureNotSupportedException">Always thrown.</exception>

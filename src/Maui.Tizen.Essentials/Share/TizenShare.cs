@@ -114,7 +114,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			return types.Length == 1 ? types[0]! : TizenFileMimeTypes.All;
 		}
 
-		static string? ResolveMime(FileBase file)
+		internal static string? ResolveMime(FileBase file)
 		{
 			try
 			{

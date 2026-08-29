@@ -78,7 +78,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		static Task<bool> TryLaunch(TizenAppControl appControl)
 		{
-			var canLaunch = TizenAppControl.GetMatchedApplicationIds(appControl).Any();
+			var canLaunch = TizenLauncher.HasHandler(appControl);
 
 			if (canLaunch)
 				TizenAppControl.SendLaunchRequest(appControl);

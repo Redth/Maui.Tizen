@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Maui.Storage;
@@ -29,8 +30,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		static readonly object Locker = new();
 		static readonly UTF8Encoding StrictUtf8 = new(false, true);
 		const string AliasVersion = "~v2~";
+		const string TransactionVersion = "~tx~";
 		readonly ITizenSecureRepository _repository;
 		readonly ITizenSecureStorageTombstones _tombstones;
+		readonly Func<string?> _currentPackageId;
 
 		/// <summary>
 		/// Prefix identifying aliases owned by this API.
@@ -45,16 +48,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// Creates a secure-storage service backed by Tizen's secure repository.
 		/// </summary>
 		public TizenSecureStorage()
-			: this(TizenSecureRepository.Instance, TizenSecureStorageTombstones.Instance)
+			: this(
+				TizenSecureRepository.Instance,
+				TizenSecureStorageTombstones.Instance,
+				static () => TizenPlatform.CurrentPackageId)
 		{
 		}
 
 		internal TizenSecureStorage(
 			ITizenSecureRepository repository,
-			ITizenSecureStorageTombstones? tombstones = null)
+			ITizenSecureStorageTombstones? tombstones = null,
+			Func<string?>? currentPackageId = null)
 		{
 			_repository = repository;
 			_tombstones = tombstones ?? new InMemorySecureStorageTombstones();
+			_currentPackageId = currentPackageId ?? (static () => null);
 		}
 
 		/// <inheritdoc/>
@@ -64,6 +72,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			lock (Locker)
 			{
+				RecoverStagedValue(key);
+
 				try
 				{
 					// The second parameter is the data password, not a default value.
@@ -78,13 +88,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					return Task.FromResult<string?>(null);
 
 				byte[] legacyValue;
+				string? migratedOwnedAlias = null;
 
 				try
 				{
 					if (!CanUseLegacyNamespacedAlias(key))
 						throw new InvalidOperationException();
 
-					legacyValue = _repository.Get(ToLegacyNamespacedAlias(key));
+					migratedOwnedAlias = ToLegacyNamespacedAlias(key);
+					legacyValue = _repository.Get(migratedOwnedAlias);
 				}
 				catch (InvalidOperationException)
 				{
@@ -120,6 +132,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				// Legacy namespaced and raw aliases are copied into v2. Raw aliases are unowned and
 				// may belong to another component, so they are never deleted.
 				_repository.Save(ToAlias(key), legacyValue);
+				if (migratedOwnedAlias is not null)
+				{
+					try
+					{
+						_repository.RemoveAlias(migratedOwnedAlias);
+					}
+					catch (Exception)
+					{
+						// The v2 copy is committed and wins. A duplicate v1 alias is harmless and
+						// can be cleaned by the next Set/Remove without failing this read.
+					}
+				}
 
 				return Task.FromResult<string?>(Encoding.UTF8.GetString(legacyValue));
 			}
@@ -134,11 +158,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			lock (Locker)
 			{
 				var alias = ToAlias(key);
-				RemoveOwnedAliasIfPresent(alias);
-				if (CanUseLegacyNamespacedAlias(key))
-					RemoveOwnedAliasIfPresent(ToLegacyNamespacedAlias(key));
-
-				_repository.Save(alias, Encoding.UTF8.GetBytes(value));
+				RecoverStagedValue(key);
+				ReplaceOwnedAliases(
+					key,
+					alias,
+					Encoding.UTF8.GetBytes(value));
 				_tombstones.Remove(key);
 				return Task.CompletedTask;
 			}
@@ -180,6 +204,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					// Missing v1 namespaced data is expected.
 				}
 
+				RemoveStagedAliases(key);
 				_tombstones.Add(key);
 				return removed;
 			}
@@ -209,9 +234,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					return;
 				}
 
+				var currentPackageId = _currentPackageId();
 				foreach (var alias in aliases)
 				{
-					if (!IsOwnedAlias(alias))
+					if (!IsOwnedAlias(alias, currentPackageId))
 						continue;
 
 					try
@@ -269,10 +295,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// <param name="alias">The raw key manager alias.</param>
 		/// <returns><see langword="true"/> when the alias is owned by this API.</returns>
 		/// <remarks>
-		/// Tizen may return aliases qualified with the owning package id (<c>pkgid alias</c>), so a
-		/// trailing match is accepted as well as an exact prefix match.
+		/// Tizen may return aliases qualified with the owning package id (<c>pkgid alias</c>).
+		/// Qualified aliases are accepted only when that owner exactly equals the current package;
+		/// another package can use the same raw prefix without transferring ownership.
 		/// </remarks>
-		internal static bool IsOwnedAlias(string alias)
+		internal static bool IsOwnedAlias(string alias, string? currentPackageId = null)
 		{
 			if (string.IsNullOrEmpty(alias))
 				return false;
@@ -280,10 +307,176 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			if (alias.StartsWith(AliasPrefix, StringComparison.Ordinal))
 				return true;
 
-			var separator = alias.LastIndexOf(' ');
+			var separator = alias.IndexOf(' ');
+			if (separator <= 0 || separator == alias.Length - 1)
+				return false;
 
-			return separator >= 0 &&
+			return !string.IsNullOrEmpty(currentPackageId) &&
+				alias.AsSpan(0, separator).Equals(currentPackageId, StringComparison.Ordinal) &&
 				alias.AsSpan(separator + 1).StartsWith(AliasPrefix, StringComparison.Ordinal);
+		}
+
+		void ReplaceOwnedAliases(string key, string alias, byte[] value)
+		{
+			var legacyAlias = CanUseLegacyNamespacedAlias(key)
+				? ToLegacyNamespacedAlias(key)
+				: null;
+			var hadCurrent = TryGet(alias, out var previousCurrent);
+			byte[]? previousLegacy = null;
+			var hadLegacy = legacyAlias is not null && TryGet(legacyAlias, out previousLegacy);
+			var stagedAlias = GetTransactionPrefix(key) + Guid.NewGuid().ToString("N");
+
+			// Stage first. If this fails, every prior alias is untouched.
+			_repository.Save(stagedAlias, value);
+
+			try
+			{
+				RemoveOwnedAliasIfPresent(alias);
+				if (legacyAlias is not null)
+					RemoveOwnedAliasIfPresent(legacyAlias);
+
+				_repository.Save(alias, value);
+			}
+			catch (Exception commitFailure)
+			{
+				var restoreFailures = new List<Exception>();
+				Restore(alias, hadCurrent, previousCurrent, restoreFailures);
+				if (legacyAlias is not null)
+					Restore(legacyAlias, hadLegacy, previousLegacy, restoreFailures);
+
+				if (restoreFailures.Count == 0)
+				{
+					RemoveOwnedAliasIfPresent(stagedAlias);
+					throw;
+				}
+
+				// The staged new value is deliberately retained when restoration fails. Its
+				// versioned key lets the next read recover rather than silently lose both values.
+				throw new AggregateException(
+					"SecureStorage replacement failed and one or more previous aliases could not be restored. " +
+					"The staged value was retained for recovery.",
+					new[] { commitFailure }.Concat(restoreFailures));
+			}
+
+			RemoveOwnedAliasIfPresent(stagedAlias);
+		}
+
+		void RecoverStagedValue(string key)
+		{
+			var alias = ToAlias(key);
+			var staged = GetStagedAliases(key).ToList();
+			if (staged.Count == 0)
+				return;
+
+			if (!TryGet(alias, out _))
+			{
+				// Multiple staged aliases can only result from interrupted retries. The repository's
+				// enumeration order is not a commit order, so fail closed rather than choosing one.
+				if (staged.Count != 1)
+				throw new InvalidOperationException(
+					$"Multiple interrupted SecureStorage replacements exist for '{key}'.");
+
+				_repository.Save(alias, _repository.Get(staged[0]));
+			}
+
+			foreach (var stagedAlias in staged)
+				RemoveOwnedAliasIfPresent(stagedAlias);
+		}
+
+		void RemoveStagedAliases(string key)
+		{
+			foreach (var alias in GetStagedAliases(key))
+				RemoveOwnedAliasIfPresent(alias);
+		}
+
+		IEnumerable<string> GetStagedAliases(string key)
+		{
+			IEnumerable<string> aliases;
+			try
+			{
+				aliases = _repository.GetAliases();
+			}
+			catch
+			{
+				yield break;
+			}
+
+			var prefix = GetTransactionPrefix(key);
+			var currentPackageId = _currentPackageId();
+			foreach (var qualifiedAlias in aliases)
+			{
+				if (!TryGetOwnedRawAlias(qualifiedAlias, currentPackageId, out var rawAlias))
+					continue;
+				if (rawAlias.StartsWith(prefix, StringComparison.Ordinal))
+					yield return qualifiedAlias;
+			}
+		}
+
+		static bool TryGetOwnedRawAlias(
+			string alias,
+			string? currentPackageId,
+			out string rawAlias)
+		{
+			if (alias.StartsWith(AliasPrefix, StringComparison.Ordinal))
+			{
+				rawAlias = alias;
+				return true;
+			}
+
+			var separator = alias.IndexOf(' ');
+			if (separator > 0 &&
+				!string.IsNullOrEmpty(currentPackageId) &&
+				alias.AsSpan(0, separator).Equals(currentPackageId, StringComparison.Ordinal) &&
+				alias.AsSpan(separator + 1).StartsWith(AliasPrefix, StringComparison.Ordinal))
+			{
+				rawAlias = alias[(separator + 1)..];
+				return true;
+			}
+
+			rawAlias = string.Empty;
+			return false;
+		}
+
+		static string GetTransactionPrefix(string key) =>
+			AliasPrefix + TransactionVersion +
+			Convert.ToBase64String(StrictUtf8.GetBytes(key))
+				.TrimEnd('=')
+				.Replace('+', '-')
+				.Replace('/', '_') +
+			"~";
+
+		bool TryGet(string alias, out byte[] value)
+		{
+			try
+			{
+				value = _repository.Get(alias);
+				return true;
+			}
+			catch (InvalidOperationException)
+			{
+				value = [];
+				return false;
+			}
+		}
+
+		void Restore(
+			string alias,
+			bool existed,
+			byte[]? value,
+			ICollection<Exception> failures)
+		{
+			if (!existed || value is null)
+				return;
+
+			try
+			{
+				if (!TryGet(alias, out _))
+					_repository.Save(alias, value);
+			}
+			catch (Exception exception)
+			{
+				failures.Add(exception);
+			}
 		}
 
 		void RemoveOwnedAliasIfPresent(string alias)
