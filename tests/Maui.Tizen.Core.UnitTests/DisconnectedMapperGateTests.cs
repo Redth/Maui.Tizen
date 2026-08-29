@@ -88,6 +88,38 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				pathPlatform.Applied.Count(entry => entry == "WaveBShapeUpdate"));
 		}
 
+		[Theory]
+		[InlineData(false)]
+		[InlineData(true)]
+		public void DisconnectedPointMapperCannotRestoreCollectionOwnership(bool polyline)
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<ControlsApp>()
+				.Build();
+			var context = new MauiContext(app.Services);
+			var shape = polyline
+				? (Microsoft.Maui.Controls.Shapes.Shape)new Microsoft.Maui.Controls.Shapes.Polyline()
+				: new Microsoft.Maui.Controls.Shapes.Polygon();
+			var handler = app.Services.GetRequiredService<IMauiHandlersFactory>()
+				.GetHandler(shape.GetType())
+				?? throw new InvalidOperationException("Shape handler was not registered.");
+			handler.SetMauiContext(context);
+			handler.SetVirtualView(shape);
+			handler.DisconnectHandler();
+
+			if (shape is Microsoft.Maui.Controls.Shapes.Polyline line)
+				TizenPolylineHandler.MapPoints((TizenPolylineHandler)handler, line);
+			else
+				TizenPolygonHandler.MapPoints(
+					(TizenPolygonHandler)handler,
+					(Microsoft.Maui.Controls.Shapes.Polygon)shape);
+
+			var points = handler.GetType()
+				.GetField("_points", BindingFlags.Instance | BindingFlags.NonPublic)!
+				.GetValue(handler);
+			Assert.Null(points);
+		}
+
 		[Fact]
 		public void SwipeMenuInitialAndSubsequentMappingsRunUntilDisconnect()
 		{
@@ -157,6 +189,78 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.True(result.ClearWasAttemptedBeforeDispose);
 			Assert.Null(((IElementHandler)handler).PlatformView);
 		}
+
+		[Theory]
+		[InlineData(false)]
+		[InlineData(true)]
+		public async Task ImageRebindClearsNativeResourceBeforeReleasingLoaderResult(bool isButton)
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<ControlsApp>()
+				.Build();
+			var context = new MauiContext(app.Services);
+			IElement original = isButton ? new ImageButton() : new Image();
+			IElement replacement = isButton ? new ImageButton() : new Image();
+			var handler = app.Services.GetRequiredService<IMauiHandlersFactory>()
+				.GetHandler(original.GetType())
+				?? throw new InvalidOperationException("Image handler was not registered.");
+			handler.SetMauiContext(context);
+			handler.SetVirtualView(original);
+			var platform = Assert.IsAssignableFrom<global::Tizen.UIExtensions.NUI.Image>(handler.PlatformView);
+			var loader = (TizenImageLoader<TizenImageSource>)handler.GetType()
+				.GetField("_sourceLoader", BindingFlags.Instance | BindingFlags.NonPublic)!
+				.GetValue(handler)!;
+			var result = new TrackingImageResult(() => platform.ResourceClearAttemptCount);
+
+			await LoadTrackingResult(loader, platform, result);
+			handler.SetVirtualView(replacement);
+
+			Assert.Equal(1, result.DisposeCount);
+			Assert.True(result.ClearWasAttemptedBeforeDispose);
+			Assert.Null(platform.ResourceUrl);
+			handler.DisconnectHandler();
+		}
+
+		[Fact]
+		public async Task ImageClearFailureStillReleasesLoaderResultAndBaseDisconnect()
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<ControlsApp>()
+				.Build();
+			var context = new MauiContext(app.Services);
+			var view = new Image();
+			var handler = Bind<TizenImageHandler>(app, context, typeof(Image), view);
+			var platform = handler.PlatformView;
+			var loader = (TizenImageLoader<TizenImageSource>)typeof(TizenImageHandler)
+				.GetField("_sourceLoader", BindingFlags.Instance | BindingFlags.NonPublic)!
+				.GetValue(handler)!;
+			var result = new TrackingImageResult(() => platform.ResourceClearAttemptCount);
+
+			await LoadTrackingResult(loader, platform, result);
+			platform.ThrowOnResourceClear = true;
+
+			Assert.Throws<InvalidOperationException>(
+				() => ((IElementHandler)handler).DisconnectHandler());
+			Assert.Equal(1, result.DisposeCount);
+			Assert.True(result.ClearWasAttemptedBeforeDispose);
+			Assert.Null(((IElementHandler)handler).PlatformView);
+		}
+
+		static Task LoadTrackingResult(
+			TizenImageLoader<TizenImageSource> loader,
+			global::Tizen.UIExtensions.NUI.Image platform,
+			TrackingImageResult result) =>
+			loader.LoadAsync(
+				new TrackingImageSource(),
+				(_, _) => Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(result),
+				action =>
+				{
+					action();
+					return Task.CompletedTask;
+				},
+				_ => platform.ResourceUrl = "loaded",
+				static () => true,
+				static () => true);
 
 		static THandler Bind<THandler>(
 			MauiApp app,

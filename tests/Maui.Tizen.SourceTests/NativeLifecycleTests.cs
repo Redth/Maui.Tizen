@@ -56,6 +56,30 @@ public class NativeLifecycleTests
 		Assert.Contains("ReplayQueuedOpen();", source, StringComparison.Ordinal);
 	}
 
+	[Fact]
+	public void SwipeItemMaterializationEnumeratesFrozenSnapshot()
+	{
+		var source = ReadCode(
+			"src", "Maui.Tizen.Core", "Platform", "Tizen", "TizenSwipeViewGroup.cs");
+
+		Assert.Contains(
+			"_swipeItems.MaterializeFrozen(\n\t\t\t\toperation,\n\t\t\t\tsnapshot.Items,",
+			source,
+			StringComparison.Ordinal);
+		Assert.DoesNotContain("foreach (var item in items)", source, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void RefreshLayoutClearsPullResetWhenProgrammaticRefreshStarts()
+	{
+		var source = ReadCode(
+			"src", "Maui.Tizen.Core", "Platform", "Tizen", "TizenRefreshLayout.cs");
+
+		var observe = source.IndexOf("_nativeActivity.ObserveRefreshStarted();", StringComparison.Ordinal);
+		var apply = source.IndexOf("IsRefreshing = isRefreshing;", StringComparison.Ordinal);
+		Assert.True(observe >= 0 && observe < apply);
+	}
+
 	/// <summary>Every image call site captures Core's finalized commit dispatcher.</summary>
 	[Theory]
 	[InlineData("Image/TizenImageHandler.cs")]

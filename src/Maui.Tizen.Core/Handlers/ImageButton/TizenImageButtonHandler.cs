@@ -64,8 +64,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			if (!ReferenceEquals(((IElementHandler)this).VirtualView, view))
 			{
 				var replacement = new TizenImageLoader<TizenImageSource>();
+				var platformView = Platform(this);
+				var dispatcher = TizenDispatchExtensions.CaptureDispatcher(this);
 				TizenCleanup.Run(
 					_sourceEvents.Invalidate,
+					() => dispatcher(() =>
+					{
+						if (platformView is not null)
+							platformView.ResourceUrl = null;
+					}).GetAwaiter().GetResult(),
 					_sourceLoader.Dispose,
 					() => _sourceLoader = replacement);
 			}
@@ -89,9 +96,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override void DisconnectHandler(TizenImageButtonView platformView)
 		{
+			var dispatcher = TizenDispatchExtensions.CaptureDispatcher(this);
 			TizenCleanup.Run(
 				_sourceEvents.Invalidate,
-				() => platformView.ResourceUrl = null,
+				() => dispatcher(() => platformView.ResourceUrl = null).GetAwaiter().GetResult(),
 				_sourceLoader.Dispose,
 				() =>
 				{

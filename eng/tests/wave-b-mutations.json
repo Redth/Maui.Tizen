@@ -319,6 +319,32 @@
     "expected": "ReentrantItemMaterializationCannotCommitIntoReplacedActionTree"
   },
   {
+    "id": "enumerate-live-swipe-items-during-materialization",
+    "file": "src/Maui.Tizen.Core/Platform/Tizen/TizenSwipeViewGroup.cs",
+    "replacements": [
+      {
+        "search": "\t\t\t\tsnapshot.Items,",
+        "replace": "\t\t\t\titems,"
+      }
+    ],
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "filter": "FullyQualifiedName~SwipeItemMaterializationEnumeratesFrozenSnapshot",
+    "expected": "SwipeItemMaterializationEnumeratesFrozenSnapshot"
+  },
+  {
+    "id": "dispose-reentrantly-adopted-swipe-item",
+    "file": "src/Maui.Tizen.Core/Platform/TizenSwipeStructureCoordinator.cs",
+    "replacements": [
+      {
+        "search": "if (!Owns(item, view, handler))",
+        "replace": "if (DateTime.UtcNow.Ticks != long.MinValue)"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~ReentrantMaterializationAdoptsSamePairExactlyOnce",
+    "expected": "ReentrantMaterializationAdoptsSamePairExactlyOnce"
+  },
+  {
     "id": "keep-below-threshold-reset-on-success",
     "file": "src/Maui.Tizen.Core/Handlers/RefreshView/TizenRefreshViewHandler.cs",
     "replacements": [
@@ -330,6 +356,45 @@
     "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
     "filter": "FullyQualifiedName~SuccessfulPullClearsBelowThresholdResetActivity",
     "expected": "SuccessfulPullClearsBelowThresholdResetActivity"
+  },
+  {
+    "id": "keep-reset-on-programmatic-refresh-start",
+    "file": "src/Maui.Tizen.Core/Platform/TizenRefreshNativeIdlePoller.cs",
+    "replacements": [
+      {
+        "search": "\t\t\t_resetting = false;\n\t\t\t_refreshActive = true;",
+        "replace": "\t\t\t_refreshActive = true;"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~ProgrammaticRefreshClearsBelowThresholdResetWithoutQuietFrames",
+    "expected": "ProgrammaticRefreshClearsBelowThresholdResetWithoutQuietFrames"
+  },
+  {
+    "id": "drop-refresh-layout-start-observation",
+    "file": "src/Maui.Tizen.Core/Platform/Tizen/TizenRefreshLayout.cs",
+    "replacements": [
+      {
+        "search": "\t\t\tif (isRefreshing)\n\t\t\t\t_nativeActivity.ObserveRefreshStarted();",
+        "replace": "\t\t\t// mutation: platform refresh start does not clear pull-reset ownership"
+      }
+    ],
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "filter": "FullyQualifiedName~RefreshLayoutClearsPullResetWhenProgrammaticRefreshStarts",
+    "expected": "RefreshLayoutClearsPullResetWhenProgrammaticRefreshStarts"
+  },
+  {
+    "id": "skip-native-pull-reset-on-disable",
+    "file": "src/Maui.Tizen.Core/Handlers/RefreshView/TizenRefreshViewHandler.cs",
+    "replacements": [
+      {
+        "search": "\t\t\t\t\tplatformView.CancelNativePull();",
+        "replace": "\t\t\t\t\tif (DateTime.UtcNow.Ticks == long.MinValue)\n\t\t\t\t\t\tplatformView.CancelNativePull();"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~DisableDuringBelowThresholdPullForcesResetAndEventuallyIdles",
+    "expected": "DisableDuringBelowThresholdPullForcesResetAndEventuallyIdles"
   },
   {
     "id": "leave-active-swipe-gesture-on-disable",
@@ -362,13 +427,78 @@
     "file": "src/Maui.Tizen.Core/Handlers/ImageButton/TizenImageButtonHandler.cs",
     "replacements": [
       {
-        "search": "\t\t\t\t() => platformView.ResourceUrl = null,\n\t\t\t\t_sourceLoader.Dispose,",
-        "replace": "\t\t\t\t_sourceLoader.Dispose,\n\t\t\t\t() => platformView.ResourceUrl = null,"
+        "search": "\t\t\t\t() => dispatcher(() => platformView.ResourceUrl = null).GetAwaiter().GetResult(),\n\t\t\t\t_sourceLoader.Dispose,",
+        "replace": "\t\t\t\t_sourceLoader.Dispose,\n\t\t\t\t() => dispatcher(() => platformView.ResourceUrl = null).GetAwaiter().GetResult(),"
       }
     ],
     "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
     "filter": "FullyQualifiedName~ImageButtonClearFailureStillReleasesLoaderResultAndBaseDisconnect",
     "expected": "ImageButtonClearFailureStillReleasesLoaderResultAndBaseDisconnect"
+  },
+  {
+    "id": "release-image-result-before-native-clear",
+    "file": "src/Maui.Tizen.Core/Handlers/Image/TizenImageHandler.cs",
+    "replacements": [
+      {
+        "search": "\t\t\t\t() => dispatcher(platformView.Clear).GetAwaiter().GetResult(),\n\t\t\t\t_sourceLoader.Dispose,",
+        "replace": "\t\t\t\t_sourceLoader.Dispose,\n\t\t\t\t() => dispatcher(platformView.Clear).GetAwaiter().GetResult(),"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~ImageClearFailureStillReleasesLoaderResultAndBaseDisconnect",
+    "expected": "ImageClearFailureStillReleasesLoaderResultAndBaseDisconnect"
+  },
+  {
+    "id": "drop-image-rebind-native-clear",
+    "file": "src/Maui.Tizen.Core/Handlers/Image/TizenImageHandler.cs",
+    "replacements": [
+      {
+        "search": "\t\t\t\t\t() => dispatcher(() => platformView?.Clear()).GetAwaiter().GetResult(),",
+        "replace": "\t\t\t\t\t// mutation: rebind releases the loader while the old native resource remains"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~ImageRebindClearsNativeResourceBeforeReleasingLoaderResult",
+    "expected": "ImageRebindClearsNativeResourceBeforeReleasingLoaderResult"
+  },
+  {
+    "id": "drop-imagebutton-rebind-native-clear",
+    "file": "src/Maui.Tizen.Core/Handlers/ImageButton/TizenImageButtonHandler.cs",
+    "replacements": [
+      {
+        "search": "\t\t\t\t\t() => dispatcher(() =>\n\t\t\t\t\t{\n\t\t\t\t\t\tif (platformView is not null)\n\t\t\t\t\t\t\tplatformView.ResourceUrl = null;\n\t\t\t\t\t}).GetAwaiter().GetResult(),",
+        "replace": "\t\t\t\t\t// mutation: rebind releases the loader while the old native resource remains"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~ImageRebindClearsNativeResourceBeforeReleasingLoaderResult",
+    "expected": "ImageRebindClearsNativeResourceBeforeReleasingLoaderResult"
+  },
+  {
+    "id": "restore-polygon-subscription-after-disconnect",
+    "file": "src/Maui.Tizen.Controls/Core/Handlers/Shapes/Polygon/TizenPolygonHandler.cs",
+    "replacements": [
+      {
+        "search": "\t\t\tif (handler.LivePlatformView is null)\n\t\t\t\treturn;",
+        "replace": "\t\t\tif (polygon.Points is null)\n\t\t\t\treturn;"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~DisconnectedPointMapperCannotRestoreCollectionOwnership",
+    "expected": "DisconnectedPointMapperCannotRestoreCollectionOwnership"
+  },
+  {
+    "id": "restore-polyline-subscription-after-disconnect",
+    "file": "src/Maui.Tizen.Controls/Core/Handlers/Shapes/Polyline/TizenPolylineHandler.cs",
+    "replacements": [
+      {
+        "search": "\t\t\tif (handler.LivePlatformView is null)\n\t\t\t\treturn;",
+        "replace": "\t\t\tif (polyline.Points is null)\n\t\t\t\treturn;"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~DisconnectedPointMapperCannotRestoreCollectionOwnership",
+    "expected": "DisconnectedPointMapperCannotRestoreCollectionOwnership"
   },
   {
     "id": "use-throwing-path-platform-property",

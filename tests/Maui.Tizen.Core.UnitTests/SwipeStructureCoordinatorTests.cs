@@ -138,6 +138,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				currentOperation,
 				currentItem,
 				currentView,
+				handler: null,
+				owner: new object(),
 				static () => true,
 				static () => throw new Xunit.Sdk.XunitException("Current item was disposed.")));
 
@@ -145,6 +147,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				staleOperation,
 				staleItem,
 				staleView,
+				handler: null,
+				owner: new object(),
 				static () => true,
 				() => staleDisposed++));
 
@@ -152,6 +156,87 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.False(registry.TryGetValue(staleItem, out _));
 			Assert.True(registry.TryGetValue(currentItem, out var retained));
 			Assert.Same(currentView, retained);
+		}
+
+		[Fact]
+		public void ReentrantMaterializationAdoptsSamePairExactlyOnce()
+		{
+			var registry = new TizenSwipeItemRegistry<object, object>();
+			var item = new object();
+			var view = new object();
+			var handler = new object();
+			var outerOwner = new object();
+			var currentOwner = new object();
+			var outerOperation = registry.ReserveMaterialization();
+			var adopted = 0;
+			var disposed = 0;
+			var reentered = false;
+
+			registry.MaterializeFrozen(
+				outerOperation,
+				new[] { item },
+				outerOwner,
+				currentItem =>
+				{
+					if (!reentered)
+					{
+						reentered = true;
+						registry.Drain();
+						var currentOperation = registry.ReserveMaterialization();
+						registry.MaterializeFrozen(
+							currentOperation,
+							new[] { currentItem },
+							currentOwner,
+							_ => view,
+							_ => handler,
+							static () => true,
+							(_, _) => adopted++,
+							(_, _, _) => disposed++);
+					}
+
+					return view;
+				},
+				_ => handler,
+				static () => true,
+				(_, _) => adopted++,
+				(_, _, _) => disposed++);
+
+			Assert.Equal(1, adopted);
+			Assert.Equal(0, disposed);
+			Assert.True(registry.Owns(item, view, handler));
+			Assert.Single(registry.Drain());
+		}
+
+		[Fact]
+		public void MaterializationEnumeratesTheFrozenSnapshot()
+		{
+			var registry = new TizenSwipeItemRegistry<ISwipeItem, object>();
+			var first = new SwipeItem();
+			var second = new SwipeItem();
+			var liveItems = new SwipeItems { first, second };
+			var swipeView = new SwipeView { LeftItems = liveItems };
+			var snapshot = TizenSwipeItemsSnapshot.Capture(((ISwipeView)swipeView).LeftItems);
+			var owner = new object();
+			var operation = registry.ReserveMaterialization();
+			var materialized = new List<ISwipeItem>();
+
+			registry.MaterializeFrozen(
+				operation,
+				snapshot.Items,
+				owner,
+				item =>
+				{
+					materialized.Add(item);
+					if (ReferenceEquals(item, first))
+						liveItems.Clear();
+					return new object();
+				},
+				static _ => null,
+				static () => true,
+				static (_, _) => { },
+				static (_, _, _) => { });
+
+			Assert.Equal(new ISwipeItem[] { first, second }, materialized);
 		}
 
 		[Fact]

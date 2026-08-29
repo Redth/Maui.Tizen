@@ -16,10 +16,24 @@ cleanup() {
     kill -TERM "$runner_pid"
     wait "$runner_pid" 2>/dev/null || true
   fi
+  if [[ -d "$LOCK_DIR" && -f "$EMPTY_MANIFEST" ]]; then
+    WAVE_B_MUTATION_MANIFEST="$EMPTY_MANIFEST" \
+    WAVE_B_MUTATION_LOCK_DIR="$LOCK_DIR" \
+    "$RUNNER" >/dev/null 2>&1 || true
+  fi
   rm -rf "$SCRATCH"
-  rmdir "$LOCK_DIR" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
+
+wait_for_pause() {
+  local pid="$1"
+  local marker="$REPO_ROOT/artifacts/wave-b-mutations/$pid/paused"
+  for _ in {1..100}; do
+    [[ -f "$marker" ]] && return 0
+    sleep 0.05
+  done
+  return 1
+}
 
 mkdir -p "$SCRATCH"
 printf '[]\n' >"$EMPTY_MANIFEST"
@@ -41,12 +55,16 @@ WAVE_B_MUTATION_PAUSE_SECONDS=30 \
 "$RUNNER" >"$SCRATCH/signal.log" 2>&1 &
 runner_pid=$!
 
-pause_marker="$REPO_ROOT/artifacts/wave-b-mutations/$runner_pid/paused"
-for _ in {1..100}; do
-  [[ -f "$pause_marker" ]] && break
-  sleep 0.05
-done
-test -f "$pause_marker"
+wait_for_pause "$runner_pid"
+
+if WAVE_B_MUTATION_MANIFEST="$EMPTY_MANIFEST" \
+   WAVE_B_MUTATION_LOCK_DIR="$LOCK_DIR" \
+   "$RUNNER" >"$SCRATCH/active-lock.log" 2>&1; then
+  echo "Active mutation lock was not exclusive." >&2
+  exit 1
+fi
+grep -q "PID $runner_pid" "$SCRATCH/active-lock.log"
+test -d "$LOCK_DIR"
 
 kill -TERM "$runner_pid"
 set +e
@@ -62,6 +80,44 @@ if [[ "$status" -ne 143 ]]; then
 fi
 
 test ! -d "$LOCK_DIR"
+test "$(shasum -a 256 "$TARGET" | awk '{print $1}')" = "$initial_hash"
+test "$(git -C "$REPO_ROOT" status --porcelain=v1)" = "$initial_status"
+
+LOCK_DIR="$REPO_ROOT/artifacts/locks/wave-b-runner-test-kill-$$.lock"
+WAVE_B_MUTATION_MANIFEST="$MANIFEST" \
+WAVE_B_MUTATION_LOCK_DIR="$LOCK_DIR" \
+WAVE_B_MUTATION_PAUSE_SECONDS=30 \
+"$RUNNER" >"$SCRATCH/signal-kill.log" 2>&1 &
+runner_pid=$!
+wait_for_pause "$runner_pid"
+killed_pid="$runner_pid"
+
+kill -KILL "$runner_pid"
+set +e
+wait "$runner_pid"
+status=$?
+set -e
+runner_pid=""
+
+if [[ "$status" -ne 137 ]]; then
+  cat "$SCRATCH/signal-kill.log"
+  echo "KILL returned $status instead of 137." >&2
+  exit 1
+fi
+
+test -d "$LOCK_DIR"
+test "$(shasum -a 256 "$TARGET" | awk '{print $1}')" != "$initial_hash"
+
+if WAVE_B_MUTATION_MANIFEST="$EMPTY_MANIFEST" \
+   WAVE_B_MUTATION_LOCK_DIR="$LOCK_DIR" \
+   "$RUNNER" >"$SCRATCH/stale-lock.log" 2>&1; then
+  echo "Empty manifest was accepted while reclaiming stale lock." >&2
+  exit 1
+fi
+grep -q "Reclaimed stale Wave B mutation lock from PID $killed_pid" "$SCRATCH/stale-lock.log"
+grep -q 'at least one mutation' "$SCRATCH/stale-lock.log"
+test ! -d "$LOCK_DIR"
+test ! -d "$REPO_ROOT/artifacts/wave-b-mutations/$killed_pid"
 test "$(shasum -a 256 "$TARGET" | awk '{print $1}')" = "$initial_hash"
 test "$(git -C "$REPO_ROOT" status --porcelain=v1)" = "$initial_status"
 
@@ -117,4 +173,4 @@ test ! -d "$LOCK_DIR"
 test "$(shasum -a 256 "$TARGET" | awk '{print $1}')" = "$initial_hash"
 test "$(git -C "$REPO_ROOT" status --porcelain=v1)" = "$initial_status"
 
-echo "PASS mutation runner empty-manifest, TERM and INT cleanup behavior"
+echo "PASS mutation runner empty-manifest, active/stale lock, KILL, TERM and INT behavior"

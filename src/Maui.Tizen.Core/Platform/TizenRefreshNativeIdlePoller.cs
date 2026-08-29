@@ -11,6 +11,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 	{
 		bool _touchActive;
 		bool _resetting;
+		bool _refreshActive;
 		int _quietFrames;
 
 		public bool HasPendingActivity => _touchActive || _resetting;
@@ -33,12 +34,31 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			_touchActive = false;
 			_resetting = false;
+			_refreshActive = true;
 			_quietFrames = 0;
 		}
 
 		public bool IsBusy(bool isRefreshing, int requiredQuietFrames)
 		{
-			if (_touchActive || isRefreshing)
+			if (isRefreshing)
+			{
+				if (!_refreshActive)
+					ObserveRefreshStarted();
+
+				_quietFrames = 0;
+				return true;
+			}
+
+			if (_refreshActive)
+			{
+				_refreshActive = false;
+				_touchActive = false;
+				_resetting = false;
+				_quietFrames = 0;
+				return false;
+			}
+
+			if (_touchActive)
 			{
 				_quietFrames = 0;
 				return true;

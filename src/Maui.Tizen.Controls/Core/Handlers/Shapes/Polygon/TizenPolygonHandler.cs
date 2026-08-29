@@ -58,12 +58,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected override void ConnectHandler(TizenShapeView platformView)
 		{
-			if (VirtualView is Polygon polygon)
+			base.ConnectHandler(platformView);
+
+			if (LivePlatformView is not null && VirtualView is Polygon polygon)
 			{
 				UpdatePointsSubscription(polygon.Points);
 			}
-
-			base.ConnectHandler(platformView);
 		}
 
 		protected override void DisconnectHandler(TizenShapeView platformView)
@@ -98,14 +98,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		void OnPointsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
 		{
-			if (VirtualView is IShapeView shapeView)
+			if (LivePlatformView is { } platformView && VirtualView is IShapeView shapeView)
 			{
-				PlatformView?.InvalidateShape(shapeView);
+				platformView.InvalidateShape(shapeView);
 			}
 		}
 
 		public static void MapPoints(TizenPolygonHandler handler, Polygon polygon)
 		{
+			if (handler.LivePlatformView is null)
+				return;
+
 			handler.UpdatePointsSubscription(polygon.Points);
 			ApplyFillRule(handler, polygon);
 		}

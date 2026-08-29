@@ -493,47 +493,43 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			var swipeItems = new List<NView>();
 
-			foreach (var item in items)
-			{
-				var swipeItem = item.ToPlatformView(MauiContext);
-				if (swipeItem is null)
-					continue;
-
-				var preparedHandler = item.Handler;
-				if (!_swipeItems.CommitPrepared(
-					operation,
-					item,
-					swipeItem,
-					() =>
+			_swipeItems.MaterializeFrozen(
+				operation,
+				snapshot.Items,
+				actionView,
+				item => item.ToPlatformView(MauiContext),
+				item => item.Handler,
+				() =>
 						ReferenceEquals(_actionView, actionView) &&
 						_swipeDirection == direction &&
 						direction is { } expectedDirection &&
 						snapshot.Matches(GetSwipeItemsByDirection(expectedDirection)),
-					() => DisposePreparedSwipeItem(item, swipeItem, preparedHandler)))
-					continue;
-
-				if (item is ISwipeItemView formsSwipeItemView)
-					UpdateSwipeItemViewLayout(formsSwipeItemView);
-
-				actionView.Add(swipeItem);
-				swipeItems.Add(swipeItem);
-				var itemGeneration = operation;
-
-				swipeItem.TouchEvent += (s, e) =>
+				(item, swipeItem) =>
 				{
-					if (!_swipeItems.IsCurrent(itemGeneration, item, swipeItem))
-						return true;
+					if (item is ISwipeItemView formsSwipeItemView)
+						UpdateSwipeItemViewLayout(formsSwipeItemView);
 
-					if (e.Touch.GetState(0) == TPointStateType.Up)
+					actionView.Add(swipeItem);
+					swipeItems.Add(swipeItem);
+					var itemGeneration = operation;
+
+					swipeItem.TouchEvent += (s, e) =>
 					{
-						ExecuteSwipeItem(item);
-						if (GetSwipeItemsByDirection()?.SwipeBehaviorOnInvoked != SwipeBehaviorOnInvoked.RemainOpen)
-							ResetSwipe();
-					}
+						if (!_swipeItems.IsCurrent(itemGeneration, item, swipeItem))
+							return true;
 
-					return true;
-				};
-			}
+						if (e.Touch.GetState(0) == TPointStateType.Up)
+						{
+							ExecuteSwipeItem(item);
+							if (GetSwipeItemsByDirection()?.SwipeBehaviorOnInvoked != SwipeBehaviorOnInvoked.RemainOpen)
+								ResetSwipe();
+						}
+
+						return true;
+					};
+				},
+				(item, view, handler) =>
+					DisposePreparedSwipeItem(item, view, handler as IElementHandler));
 
 			if (!_swipeItems.IsOperationCurrent(operation)
 				|| !ReferenceEquals(_actionView, actionView))

@@ -103,6 +103,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (_disconnected)
 				return;
 
+			if (isRefreshing)
+				_nativeActivity.ObserveRefreshStarted();
+
 			IsRefreshing = isRefreshing;
 		}
 
@@ -113,7 +116,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		internal void ObserveNativeRefreshStarted() => _nativeActivity.ObserveRefreshStarted();
 
-		internal void CancelNativePull() => _nativeActivity.ReleasePull();
+		internal void CancelNativePull()
+		{
+			_nativeActivity.ReleasePull();
+			IsRefreshing = false;
+		}
 
 		internal Task<bool> WaitForNativeIdleAsync(
 			Func<Action, Task> dispatch,

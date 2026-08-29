@@ -123,6 +123,31 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Fact]
+		public void ProgrammaticRefreshClearsBelowThresholdResetWithoutQuietFrames()
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<ControlsApp>()
+				.Build();
+			var view = new RefreshView { IsRefreshEnabled = true };
+			var handler = Assert.IsType<TizenRefreshViewHandler>(
+				app.Services.GetRequiredService<IMauiHandlersFactory>().GetHandler(typeof(RefreshView)));
+			var elementHandler = (IElementHandler)handler;
+			elementHandler.SetMauiContext(new MauiContext(app.Services));
+			elementHandler.SetVirtualView(view);
+			var platform = Assert.IsType<TizenRefreshLayout>(elementHandler.PlatformView);
+
+			platform.BeginBelowThresholdPull();
+			platform.ReleaseBelowThresholdPull();
+			Assert.True(platform.HasPendingNativeActivity);
+
+			view.IsRefreshing = true;
+			elementHandler.UpdateValue(nameof(IRefreshView.IsRefreshing));
+
+			Assert.False(platform.HasPendingNativeActivity);
+			elementHandler.DisconnectHandler();
+		}
+
+		[Fact]
 		public void DisableDuringBelowThresholdPullForcesResetAndEventuallyIdles()
 		{
 			using var app = MauiApp.CreateBuilder()
@@ -140,6 +165,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			view.IsRefreshEnabled = false;
 			elementHandler.UpdateValue(nameof(IRefreshView.IsRefreshEnabled));
 
+			Assert.True(platform.NativePullResetCount > 0);
 			Assert.True(platform.RefreshState.IsCompleting);
 			Assert.True(SpinWait.SpinUntil(
 				() => !platform.RefreshState.IsCompleting,

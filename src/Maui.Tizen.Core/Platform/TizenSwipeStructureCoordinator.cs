@@ -31,6 +31,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public static TizenSwipeItemsSnapshot Capture(ISwipeItems? items) => new(items);
 
+		public IReadOnlyList<ISwipeItem> Items => _items;
+
 		public bool Matches(ISwipeItems? items)
 		{
 			if ((items?.Mode ?? default) != _mode
@@ -130,49 +132,112 @@ namespace Microsoft.Maui.Platforms.Tizen
 		where TItem : class
 		where TView : class
 	{
-		readonly Dictionary<TItem, TView> _items = new();
+		readonly Dictionary<TItem, Entry> _items = new();
 		long _generation;
+
+		sealed record Entry(TView View, object? Handler, object? Owner);
 
 		public long CurrentGeneration => System.Threading.Volatile.Read(ref _generation);
 
 		public long ReserveMaterialization() =>
 			System.Threading.Interlocked.Increment(ref _generation);
 
-		public void Add(TItem item, TView view) => _items.Add(item, view);
+		public void Add(TItem item, TView view) => _items.Add(item, new(view, null, null));
 
 		public bool CommitPrepared(
 			long operation,
 			TItem item,
 			TView view,
+			object? handler,
+			object owner,
 			Func<bool> isExpected,
 			Action disposePrepared)
 		{
+			ArgumentNullException.ThrowIfNull(owner);
 			ArgumentNullException.ThrowIfNull(isExpected);
 			ArgumentNullException.ThrowIfNull(disposePrepared);
 
 			if (CurrentGeneration != operation || !isExpected())
 			{
-				disposePrepared();
+				if (!Owns(item, view, handler))
+					disposePrepared();
 				return false;
 			}
 
-			_items.Add(item, view);
+			_items.Add(item, new(view, handler, owner));
 			return true;
+		}
+
+		public void MaterializeFrozen(
+			long operation,
+			IEnumerable<TItem> items,
+			object owner,
+			Func<TItem, TView?> materialize,
+			Func<TItem, object?> getHandler,
+			Func<bool> isExpected,
+			Action<TItem, TView> adopt,
+			Action<TItem, TView, object?> disposePrepared)
+		{
+			ArgumentNullException.ThrowIfNull(items);
+			ArgumentNullException.ThrowIfNull(owner);
+			ArgumentNullException.ThrowIfNull(materialize);
+			ArgumentNullException.ThrowIfNull(getHandler);
+			ArgumentNullException.ThrowIfNull(isExpected);
+			ArgumentNullException.ThrowIfNull(adopt);
+			ArgumentNullException.ThrowIfNull(disposePrepared);
+
+			foreach (var item in items)
+			{
+				var view = materialize(item);
+				if (view is null)
+					continue;
+
+				var handler = getHandler(item);
+				if (!CommitPrepared(
+					operation,
+					item,
+					view,
+					handler,
+					owner,
+					isExpected,
+					() => disposePrepared(item, view, handler)))
+					continue;
+
+				adopt(item, view);
+			}
 		}
 
 		public bool IsOperationCurrent(long operation) => CurrentGeneration == operation;
 
-		public bool TryGetValue(TItem item, out TView? view) => _items.TryGetValue(item, out view);
+		public bool TryGetValue(TItem item, out TView? view)
+		{
+			if (_items.TryGetValue(item, out var entry))
+			{
+				view = entry.View;
+				return true;
+			}
+
+			view = null;
+			return false;
+		}
+
+		public bool Owns(TItem item, TView view, object? handler) =>
+			_items.TryGetValue(item, out var current) &&
+			ReferenceEquals(current.View, view) &&
+			ReferenceEquals(current.Handler, handler) &&
+			current.Owner is not null;
 
 		public bool IsCurrent(long generation, TItem item, TView view) =>
 			CurrentGeneration == generation &&
 			_items.TryGetValue(item, out var current) &&
-			ReferenceEquals(current, view);
+			ReferenceEquals(current.View, view);
 
 		public IReadOnlyList<KeyValuePair<TItem, TView>> Drain()
 		{
 			System.Threading.Interlocked.Increment(ref _generation);
-			var snapshot = _items.ToArray();
+			var snapshot = _items
+				.Select(static pair => new KeyValuePair<TItem, TView>(pair.Key, pair.Value.View))
+				.ToArray();
 			_items.Clear();
 			return snapshot;
 		}
