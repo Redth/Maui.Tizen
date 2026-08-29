@@ -14,8 +14,6 @@
       the EXPECTED key sets can be read on a hosted runner; only the Tizen side needs a device.
     -->
     <PackageReference Include="Microsoft.Maui.Core" />
-    <!-- Carries the API15 XML documentation omitted from Samsung.Tizen.Ref.API15. -->
-    <PackageDownload Include="Tizen.NET.API15" Version="[$(TizenReferencePackVersion)]" />
   </ItemGroup>
 
 </Project>

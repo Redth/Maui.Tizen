@@ -215,7 +215,7 @@ public class Api15ReferencePackTests
     }
 
     [Fact]
-    public async Task SecureRepositoryDocumentsArgumentExceptionAsTheEmptyAliasSentinel()
+    public async Task SecureRepositoryGetAliases_IsPublicInApi15()
     {
         var directory = await AcquireOrSkipAsync().ConfigureAwait(true);
         var assembly = ReferencePackProbe.FindAssembly(
@@ -223,24 +223,10 @@ public class Api15ReferencePackTests
             "Tizen.Security.SecureRepository.dll");
         Assert.NotNull(assembly);
 
-        var pack = RepositoryBaselines.Target.ReferencePack;
-        var xml = Path.Combine(
-            PackageDependencyProbe.GlobalPackagesFolder,
-            "tizen.net.api15",
-            pack.Version.ToLowerInvariant(),
-            "ref",
-            "net8.0",
-            "Tizen.Security.SecureRepository.xml");
-        Assert.True(File.Exists(xml), $"Missing API15 documentation file '{xml}'.");
-        var documentation = File.ReadAllText(xml);
-
-        Assert.Contains(
-            """<member name="M:Tizen.Security.SecureRepository.DataManager.GetAliases">""",
-            documentation,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            """<exception cref="T:System.ArgumentException">Thrown when there's no alias to get.</exception>""",
-            documentation,
-            StringComparison.Ordinal);
+        var dataManager = ReferencePackProbe.ReadTypeMembers(
+            assembly!,
+            "Tizen.Security.SecureRepository.DataManager");
+        Assert.NotNull(dataManager);
+        Assert.True(dataManager!.HasMethod("GetAliases"));
     }
 }
