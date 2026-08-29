@@ -48,8 +48,8 @@ identical, so neither can drift from the other.
 | Lane | Command | What it proves |
 | --- | --- | --- |
 | Core/Waves tests | `dotnet test tests/Maui.Tizen.Core.UnitTests` | Mapper + command-mapper registration, concrete Controls startup, DI/handler registration, hosting, dispatcher/timer/provider semantics, density/layout, Wave A/B/C lifetimes and navigation. **1,248 tests at this head, all passing.** |
-| Source/closure tests | `dotnet test tests/Maui.Tizen.SourceTests` | Source ownership, mapper parity, startup and package closures, compile-backed MAUI API blockers. **578 tests at this head, all passing.** |
-| Essentials tests | execute `artifacts/bin/Maui.Tizen.Essentials.Tests/<Configuration>/net11.0/Maui.Tizen.Essentials.Tests` | DI facade bridge, native-faithful Preferences/SecureStorage, Clipboard/TTS/sensor/screenshot/AppControl lifecycle coordinators, permissions and translation behavior. **447 tests pass in Debug and Release.** |
+| Source/closure tests | `dotnet test tests/Maui.Tizen.SourceTests` | Source ownership, mapper parity, startup and package closures, compile-backed MAUI API blockers. **579 tests at this head, all passing.** |
+| Essentials tests | execute `artifacts/bin/Maui.Tizen.Essentials.Tests/<Configuration>/net11.0/Maui.Tizen.Essentials.Tests` | DI facade bridge, native-faithful Preferences/SecureStorage, Clipboard/TTS/sensor/screenshot/AppControl lifecycle coordinators, permissions and translation behavior. **449 tests pass in Debug and Release.** |
 | Compile validation | build the four `*.RefPackCompile`/consumer projects | Core, Controls, Sample and Essentials shipping sources type-check against the **real** TizenFX reference assemblies from `Samsung.Tizen.Ref.API15` (`ref/net8.0`), with package-specific PublicAPI analyzers. **All build cleanly.** |
 | Product | `dotnet build src/Maui.Tizen.Core` | Fails with actionable `MAUITIZEN0001` from `Directory.Build.targets`. This is the intended behaviour. |
 

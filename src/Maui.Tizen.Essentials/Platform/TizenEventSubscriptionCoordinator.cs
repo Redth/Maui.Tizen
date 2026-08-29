@@ -8,7 +8,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		readonly object _stateLock = new();
 		readonly object _transitionLock = new();
 		readonly object _sender;
-		readonly Func<Action<TEventArgs>, Action> _start;
+		readonly Func<TizenEventGeneration<TEventArgs>, Action> _start;
 		readonly TizenNativeCallbackCoordinator _callbacks;
 		EventHandler<TEventArgs>? _handlers;
 		Action? _unsubscribe;
@@ -17,7 +17,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		public TizenEventSubscriptionCoordinator(
 			object sender,
-			Func<Action<TEventArgs>, Action> start,
+			Func<TizenEventGeneration<TEventArgs>, Action> start,
 			TizenNativeCallbackCoordinator? callbacks = null)
 		{
 			_sender = sender;
@@ -49,7 +49,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				{
 					// This delegate is unique to this subscription generation. A native source that
 					// retains it after unsubscribe cannot be relabelled as a later generation.
-					unsubscribe = _start(args => Publish(generation, args));
+					unsubscribe = _start(new(this, generation));
 					lock (_stateLock)
 					{
 						if (_disposed || _generation != generation || _handlers is null)
@@ -103,31 +103,37 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			}
 		}
 
-		public void Publish(long generation, TEventArgs args)
+		internal void Publish(long generation, TEventArgs args) =>
+			Commit(generation, () => args);
+
+		internal void Commit(long generation, Func<TEventArgs> createArgs)
 		{
-			lock (_stateLock)
-			{
-				if (_disposed || _generation != generation || _handlers is null)
-					return;
-			}
+			ArgumentNullException.ThrowIfNull(createArgs);
+			if (!IsCurrent(generation))
+				return;
 
 			_callbacks.Post(
-				() =>
-				{
-					lock (_stateLock)
-					{
-						return !_disposed &&
-							_generation == generation &&
-							_handlers is not null;
-					}
-				},
+				() => IsCurrent(generation),
 				() =>
 				{
 					EventHandler<TEventArgs>? handlers;
+					TEventArgs args;
 					lock (_stateLock)
-						handlers = _generation == generation ? _handlers : null;
-					handlers?.Invoke(_sender, args);
+					{
+						if (_disposed || _generation != generation || _handlers is null)
+							return;
+
+						args = createArgs();
+						handlers = _handlers;
+					}
+					handlers.Invoke(_sender, args);
 				});
+		}
+
+		bool IsCurrent(long generation)
+		{
+			lock (_stateLock)
+				return !_disposed && _generation == generation && _handlers is not null;
 		}
 
 		public void Dispose()
@@ -150,5 +156,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				unsubscribe?.Invoke();
 			}
 		}
+	}
+
+	internal readonly struct TizenEventGeneration<TEventArgs>
+		where TEventArgs : EventArgs
+	{
+		readonly TizenEventSubscriptionCoordinator<TEventArgs> _owner;
+		readonly long _generation;
+
+		public TizenEventGeneration(
+			TizenEventSubscriptionCoordinator<TEventArgs> owner,
+			long generation)
+		{
+			_owner = owner;
+			_generation = generation;
+		}
+
+		public void Publish(TEventArgs args) =>
+			_owner.Publish(_generation, args);
+
+		public void Commit(Func<TEventArgs> createArgs) =>
+			_owner.Commit(_generation, createArgs);
 	}
 }

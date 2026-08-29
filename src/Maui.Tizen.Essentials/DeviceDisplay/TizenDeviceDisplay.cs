@@ -31,25 +31,22 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		const int PowerLockDisplay = 1;
 
 		readonly TizenEventSubscriptionCoordinator<DisplayInfoChangedEventArgs> _events;
+		readonly ITizenDeviceDisplayNative _native;
 		bool _keepScreenOn;
 		DisplayRotation _displayRotation = DisplayRotation.Rotation0;
 		DisplayOrientation _displayOrientation = DisplayOrientation.Unknown;
 
-		static TizenCoreApplication? CoreApplication => TizenApplication.Current as TizenCoreApplication;
-
-		static int DisplayWidth => TizenSystemInformation.GetFeatureInfo<int>("screen.width");
-
-		static int DisplayHeight => TizenSystemInformation.GetFeatureInfo<int>("screen.height");
-
-		static int DisplayDpi =>
-			TizenSystemInformation.CurrentProfile == TizenDeviceProfile.TV
-				? 72
-				: TizenSystemInformation.GetFeatureInfo<int>("screen.dpi");
-
 		/// <summary>Creates the Tizen display service.</summary>
-		public TizenDeviceDisplay()
+		public TizenDeviceDisplay() : this(TizenDeviceDisplayNative.Instance)
 		{
-			_events = new(this, StartListeners);
+		}
+
+		internal TizenDeviceDisplay(
+			ITizenDeviceDisplayNative native,
+			TizenNativeCallbackCoordinator? callbacks = null)
+		{
+			_native = native;
+			_events = new(this, StartListeners, callbacks);
 		}
 
 		/// <inheritdoc/>
@@ -78,15 +75,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			get
 			{
-				var width = DisplayWidth;
-				var height = DisplayHeight;
+				var metrics = _native.GetMetrics();
 
 				return new DisplayInfo(
-					width: width,
-					height: height,
-					density: DisplayDpi / BaseLogicalDpi,
+					width: metrics.Width,
+					height: metrics.Height,
+					density: metrics.Dpi / BaseLogicalDpi,
 					orientation: _displayOrientation == DisplayOrientation.Unknown
-						? GetNaturalOrientation(width, height)
+						? GetNaturalOrientation(metrics.Width, metrics.Height)
 						: _displayOrientation,
 					rotation: _displayRotation);
 			}
@@ -99,19 +95,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			remove => _events.Remove(value);
 		}
 
-		Action StartListeners(Action<DisplayInfoChangedEventArgs> publish)
+		Action StartListeners(TizenEventGeneration<DisplayInfoChangedEventArgs> generation)
 		{
-			if (CoreApplication is not { } app)
-				return static () => { };
-
-			EventHandler<TizenDeviceOrientationEventArgs> handler = (_, e) =>
+			return _native.Subscribe(deviceOrientation =>
 			{
-				var natural = GetNaturalOrientation(DisplayWidth, DisplayHeight);
-				(_displayRotation, _displayOrientation) = MapOrientation(e.DeviceOrientation, natural);
-				publish(new DisplayInfoChangedEventArgs(MainDisplayInfo));
-			};
-			app.DeviceOrientationChanged += handler;
-			return () => app.DeviceOrientationChanged -= handler;
+				generation.Commit(() =>
+				{
+					var metrics = _native.GetMetrics();
+					var natural = GetNaturalOrientation(metrics.Width, metrics.Height);
+					(_displayRotation, _displayOrientation) = MapOrientation(deviceOrientation, natural);
+					return new DisplayInfoChangedEventArgs(MainDisplayInfo);
+				});
+			});
 		}
 
 		static DisplayOrientation GetNaturalOrientation(int width, int height) =>
@@ -137,5 +132,38 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		/// <inheritdoc/>
 		public void Dispose() => _events.Dispose();
+	}
+
+	internal readonly record struct TizenDisplayMetrics(int Width, int Height, int Dpi);
+
+	internal interface ITizenDeviceDisplayNative
+	{
+		TizenDisplayMetrics GetMetrics();
+
+		Action Subscribe(Action<TizenDeviceOrientation> callback);
+	}
+
+	sealed class TizenDeviceDisplayNative : ITizenDeviceDisplayNative
+	{
+		public static TizenDeviceDisplayNative Instance { get; } = new();
+
+		public TizenDisplayMetrics GetMetrics() =>
+			new(
+				TizenSystemInformation.GetFeatureInfo<int>("screen.width"),
+				TizenSystemInformation.GetFeatureInfo<int>("screen.height"),
+				TizenSystemInformation.CurrentProfile == TizenDeviceProfile.TV
+					? 72
+					: TizenSystemInformation.GetFeatureInfo<int>("screen.dpi"));
+
+		public Action Subscribe(Action<TizenDeviceOrientation> callback)
+		{
+			if (TizenApplication.Current is not TizenCoreApplication app)
+				return static () => { };
+
+			EventHandler<TizenDeviceOrientationEventArgs> handler =
+				(_, e) => callback(e.DeviceOrientation);
+			app.DeviceOrientationChanged += handler;
+			return () => app.DeviceOrientationChanged -= handler;
+		}
 	}
 }

@@ -17,9 +17,9 @@ public class TizenEventSubscriptionCoordinatorTests
 		var started = false;
 		coordinator = new(
 			this,
-			publish =>
+			generation =>
 			{
-				publish(EventArgs.Empty);
+				generation.Publish(EventArgs.Empty);
 				started = true;
 				return static () => { };
 			},
@@ -36,8 +36,8 @@ public class TizenEventSubscriptionCoordinatorTests
 		using var dispatcher = new StrictCallbackDispatcher(blockFirst: true);
 		var oldCalls = 0;
 		var replacementCalls = 0;
-		Action<EventArgs>? currentNative = null;
-		var retained = new List<Action<EventArgs>>();
+		Action? currentNative = null;
+		var retained = new List<Action>();
 		EventHandler<EventArgs> old = (_, _) => oldCalls++;
 		var replacementDelivered = new TaskCompletionSource(
 			TaskCreationOptions.RunContinuationsAsynchronously);
@@ -48,30 +48,39 @@ public class TizenEventSubscriptionCoordinatorTests
 		};
 		var coordinator = new TizenEventSubscriptionCoordinator<EventArgs>(
 			this,
-			publish =>
+			generation =>
 			{
-				currentNative = publish;
-				retained.Add(publish);
-				return () => currentNative = null;
+				Action native = () => generation.Publish(EventArgs.Empty);
+				currentNative = native;
+				retained.Add(native);
+				return () =>
+				{
+					if (ReferenceEquals(currentNative, native))
+						currentNative = null;
+				};
 			},
 			new TizenNativeCallbackCoordinator(dispatcher));
 
 		coordinator.Add(old);
 		var oldNative = Assert.Single(retained);
-		oldNative(EventArgs.Empty);
-		await dispatcher.Queued.Task.WaitAsync(TestContext.Current.CancellationToken);
+		oldNative();
+		await dispatcher.Queued.Task.WaitAsync(
+			TimeSpan.FromMilliseconds(250),
+			TestContext.Current.CancellationToken);
 		coordinator.Remove(old);
 		coordinator.Add(replacement);
 		Assert.NotSame(oldNative, currentNative);
-		oldNative(EventArgs.Empty);
+		oldNative();
 		dispatcher.Release();
 		await dispatcher.Drained.Task.WaitAsync(TestContext.Current.CancellationToken);
 
 		Assert.Equal(0, oldCalls);
 		Assert.Equal(0, replacementCalls);
 
-		currentNative!(EventArgs.Empty);
-		await replacementDelivered.Task.WaitAsync(TestContext.Current.CancellationToken);
+		currentNative!();
+		await replacementDelivered.Task.WaitAsync(
+			TimeSpan.FromMilliseconds(250),
+			TestContext.Current.CancellationToken);
 		Assert.Equal(1, replacementCalls);
 	}
 
@@ -83,7 +92,7 @@ public class TizenEventSubscriptionCoordinatorTests
 		var fail = true;
 		var coordinator = new TizenEventSubscriptionCoordinator<EventArgs>(
 			this,
-			publish =>
+			generation =>
 			{
 				try
 				{
@@ -115,19 +124,19 @@ public class TizenEventSubscriptionCoordinatorTests
 		using var dispatcher = new StrictCallbackDispatcher(blockFirst: true);
 		var native = false;
 		var calls = 0;
-		Action<EventArgs>? nativeCallback = null;
+		Action? nativeCallback = null;
 		var coordinator = new TizenEventSubscriptionCoordinator<EventArgs>(
 			this,
-			publish =>
+			generation =>
 			{
 				native = true;
-				nativeCallback = publish;
+				nativeCallback = () => generation.Publish(EventArgs.Empty);
 				return () => native = false;
 			},
 			new TizenNativeCallbackCoordinator(dispatcher));
 		coordinator.Add((_, _) => calls++);
 		coordinator.Add((_, _) => calls++);
-		nativeCallback!(EventArgs.Empty);
+		nativeCallback!();
 		await dispatcher.Queued.Task.WaitAsync(TestContext.Current.CancellationToken);
 		coordinator.Dispose();
 		dispatcher.Release();

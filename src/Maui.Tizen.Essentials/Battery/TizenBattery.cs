@@ -90,14 +90,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			remove => throw TizenEssentialsSupport.NotSupported($"{nameof(IBattery)}.{nameof(EnergySaverStatusChanged)}", EnergySaverReason);
 		}
 
-		Action StartListeners(Action<BatteryInfoChangedEventArgs> publish)
+		Action StartListeners(TizenEventGeneration<BatteryInfoChangedEventArgs> generation)
 		{
 			var percent = false;
 			var charging = false;
 			void OnChanged(object? sender, object e)
 			{
 				var args = new BatteryInfoChangedEventArgs(ChargeLevel, State, PowerSource);
-				publish(args);
+				generation.Publish(args);
 			}
 
 			try

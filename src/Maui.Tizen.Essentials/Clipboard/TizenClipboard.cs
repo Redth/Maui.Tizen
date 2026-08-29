@@ -38,9 +38,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			_native = native;
 			_events = new(
 				this,
-				publish =>
+				generation =>
 				{
-					Action nativeCallback = () => publish(EventArgs.Empty);
+					Action nativeCallback = () => generation.Publish(EventArgs.Empty);
 					_dispatcher.Invoke(() => _native.StartChangeNotifications(nativeCallback));
 					return () => _dispatcher.Invoke(_native.StopChangeNotifications);
 				},
@@ -231,7 +231,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		global::Tizen.NUI.Clipboard? _clipboard;
 		global::Tizen.NUI.WindowSystem.Shell.TizenShell? _shell;
 		global::Tizen.NUI.WindowSystem.Shell.KVMService? _kvm;
-		Action? _changed;
+		EventHandler<global::Tizen.NUI.ClipboardDataSelectedEventArgs>? _dataSelectedHandler;
 
 		public static TizenClipboardNative Instance { get; } = new();
 
@@ -249,6 +249,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			global::Tizen.NUI.WindowSystem.Shell.TizenShell? shell = null;
 			global::Tizen.NUI.WindowSystem.Shell.KVMService? kvm = null;
+			EventHandler<global::Tizen.NUI.ClipboardDataSelectedEventArgs>? dataSelectedHandler = null;
 			var selected = false;
 			var subscribed = false;
 			try
@@ -259,19 +260,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					global::Tizen.NUI.Window.Default);
 				kvm.SetSecondarySelection();
 				selected = true;
-				Clipboard.DataSelected += OnDataSelected;
+				dataSelectedHandler = (_, _) => changed();
+				Clipboard.DataSelected += dataSelectedHandler;
 				subscribed = true;
 				_shell = shell;
 				_kvm = kvm;
-				_changed = changed;
+				_dataSelectedHandler = dataSelectedHandler;
 			}
 			catch
 			{
-				if (subscribed)
+				if (subscribed && dataSelectedHandler is not null)
 				{
 				try
 				{
-					Clipboard.DataSelected -= OnDataSelected;
+					Clipboard.DataSelected -= dataSelectedHandler;
 				}
 				catch (Exception)
 				{
@@ -307,17 +309,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 		public void StopChangeNotifications()
 		{
-			if (_kvm is null && _changed is null)
+			if (_kvm is null && _dataSelectedHandler is null)
 				return;
 
 			var failures = new List<Exception>();
-			try
+			if (_dataSelectedHandler is not null)
 			{
-				Clipboard.DataSelected -= OnDataSelected;
-			}
-			catch (Exception exception)
-			{
-				failures.Add(exception);
+				try
+				{
+					Clipboard.DataSelected -= _dataSelectedHandler;
+				}
+				catch (Exception exception)
+				{
+					failures.Add(exception);
+				}
 			}
 
 			try
@@ -347,7 +352,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				failures.Add(exception);
 			}
 
-			_changed = null;
+			_dataSelectedHandler = null;
 			_kvm = null;
 			_shell = null;
 
@@ -364,7 +369,5 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				MimeType,
 				(success, clipEvent) => callback(success, success ? clipEvent.Data : null));
 
-		void OnDataSelected(object? sender, global::Tizen.NUI.ClipboardDataSelectedEventArgs e) =>
-			_changed?.Invoke();
 	}
 }

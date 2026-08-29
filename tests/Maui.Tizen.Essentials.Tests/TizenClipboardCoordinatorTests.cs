@@ -180,6 +180,33 @@ public class TizenClipboardCoordinatorTests
 		Assert.Equal(0, replacementCalls);
 	}
 
+	[Fact]
+	public async Task RetainedOldNativeEventDelegateCannotReachReplacementSubscriber()
+	{
+		using var dispatcher = new StrictDispatcher();
+		var native = new FakeClipboardNative(dispatcher);
+		using var clipboard = new TizenClipboard(dispatcher, native);
+		var oldCalls = 0;
+		var replacementCalls = new TaskCompletionSource(
+			TaskCreationOptions.RunContinuationsAsynchronously);
+		EventHandler<EventArgs> old = (_, _) => oldCalls++;
+		EventHandler<EventArgs> replacement = (_, _) => replacementCalls.TrySetResult();
+
+		clipboard.ClipboardContentChanged += old;
+		var oldNative = Assert.Single(native.RetainedDataSelectedHandlers);
+		clipboard.ClipboardContentChanged -= old;
+		clipboard.ClipboardContentChanged += replacement;
+		Assert.NotSame(oldNative, native.CurrentDataSelectedHandler);
+
+		await native.RaiseRetainedAsync(0);
+		await Task.Delay(25, TestContext.Current.CancellationToken);
+		Assert.Equal(0, oldCalls);
+		Assert.False(replacementCalls.Task.IsCompleted);
+
+		await native.RaiseChangedAsync();
+		await replacementCalls.Task.WaitAsync(TestContext.Current.CancellationToken);
+	}
+
 	sealed class StrictDispatcher : ITizenClipboardDispatcher, IDisposable
 	{
 		readonly BlockingCollection<Action> _work = [];
@@ -330,6 +357,10 @@ public class TizenClipboardCoordinatorTests
 
 		public int ChangeSubscriberCount => _dataSelected?.GetInvocationList().Length ?? 0;
 
+		public List<Action> RetainedDataSelectedHandlers { get; } = [];
+
+		public Action? CurrentDataSelectedHandler => _dataSelected;
+
 		public int StartNotificationsCalls { get; private set; }
 
 		public int StopNotificationsCalls { get; private set; }
@@ -342,9 +373,11 @@ public class TizenClipboardCoordinatorTests
 		{
 			AssertThread("start notifications");
 			StartNotificationsCalls++;
-			_dataSelected = changed;
+			Action dataSelected = () => changed();
+			_dataSelected = dataSelected;
+			RetainedDataSelectedHandlers.Add(dataSelected);
 			if (RaiseOnStart)
-				changed();
+				dataSelected();
 			if (FailStartNotifications)
 			{
 				_dataSelected = null;
@@ -382,6 +415,9 @@ public class TizenClipboardCoordinatorTests
 
 		public Task RaiseChangedAsync() =>
 			_dispatcher.InvokeAsync(() => _dataSelected?.Invoke());
+
+		public Task RaiseRetainedAsync(int index) =>
+			_dispatcher.InvokeAsync(() => RetainedDataSelectedHandlers[index]());
 
 		void AssertThread(string operation)
 		{

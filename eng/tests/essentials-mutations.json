@@ -406,12 +406,12 @@
     "expected": "StaleQueuedEventNeverReachesReplacementSubscriber",
     "replacements": [
       {
-        "search": "_generation == generation &&\n\t\t\t\t\t\t\t_handlers is not null",
-        "replace": "_generation >= generation &&\n\t\t\t\t\t\t\t_handlers is not null"
+        "search": "return !_disposed && _generation == generation && _handlers is not null;",
+        "replace": "return !_disposed && _generation >= generation && _handlers is not null;"
       },
       {
-        "search": "handlers = _generation == generation ? _handlers : null;",
-        "replace": "handlers = _generation >= generation ? _handlers : null;"
+        "search": "if (_disposed || _generation != generation || _handlers is null)\n\t\t\t\t\t\t\treturn;\n\n\t\t\t\t\t\targs = createArgs();",
+        "replace": "if (_disposed || _generation < generation || _handlers is null)\n\t\t\t\t\t\t\treturn;\n\n\t\t\t\t\t\targs = createArgs();"
       }
     ]
   },
@@ -537,15 +537,42 @@
     ]
   },
   {
-    "id": "event-native-delegate-relabeled-to-current-generation",
+    "id": "event-publisher-drops-captured-generation",
     "file": "src/Maui.Tizen.Essentials/Platform/TizenEventSubscriptionCoordinator.cs",
     "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
     "filter": "FullyQualifiedName~StaleQueuedEventNeverReachesReplacementSubscriber",
     "expected": "StaleQueuedEventNeverReachesReplacementSubscriber",
     "replacements": [
       {
-        "search": "unsubscribe = _start(args => Publish(generation, args));",
-        "replace": "unsubscribe = _start(args => Publish(_generation, args));"
+        "search": "_owner.Publish(_generation, args);",
+        "replace": "_owner.Publish(_generation + 1, args);"
+      }
+    ]
+  },
+  {
+    "id": "clipboard-native-relay-uses-mutable-current-handler",
+    "file": "src/Maui.Tizen.Essentials/Clipboard/TizenClipboard.cs",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "mode": "source",
+    "filter": "FullyQualifiedName~ClipboardNativeRelayUsesTheExactGenerationHandler",
+    "expected": "ClipboardNativeRelayUsesTheExactGenerationHandler",
+    "replacements": [
+      {
+        "search": "dataSelectedHandler = (_, _) => changed();",
+        "replace": "dataSelectedHandler = OnDataSelected;"
+      }
+    ]
+  },
+  {
+    "id": "device-display-mutates-state-before-generation-commit",
+    "file": "src/Maui.Tizen.Essentials/DeviceDisplay/TizenDeviceDisplay.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~RetainedAndQueuedOldNativeCallbacksCannotMutateReplacementState",
+    "expected": "RetainedAndQueuedOldNativeCallbacksCannotMutateReplacementState",
+    "replacements": [
+      {
+        "search": "generation.Commit(() =>\n\t\t\t\t{\n\t\t\t\t\tvar metrics = _native.GetMetrics();\n\t\t\t\t\tvar natural = GetNaturalOrientation(metrics.Width, metrics.Height);\n\t\t\t\t\t(_displayRotation, _displayOrientation) = MapOrientation(deviceOrientation, natural);\n\t\t\t\t\treturn new DisplayInfoChangedEventArgs(MainDisplayInfo);\n\t\t\t\t});",
+        "replace": "var metrics = _native.GetMetrics();\n\t\t\t\tvar natural = GetNaturalOrientation(metrics.Width, metrics.Height);\n\t\t\t\t(_displayRotation, _displayOrientation) = MapOrientation(deviceOrientation, natural);\n\t\t\t\tgeneration.Publish(new DisplayInfoChangedEventArgs(MainDisplayInfo));"
       }
     ]
   }

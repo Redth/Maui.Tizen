@@ -53,8 +53,8 @@ The lane in `eng/build-workload-free.sh` (required in CI) genuinely exercises:
 - migration tooling, package graph, consumer compile and repository invariant suites
 - integrity of the imported history and the import tooling
 
-At this integration head the principal executable inventories are 1,248 Core/Waves tests, 447
-Essentials tests in both Debug and Release, and 578 source/closure/parity tests. The canonical
+At this integration head the principal executable inventories are 1,248 Core/Waves tests, 449
+Essentials tests in both Debug and Release, and 579 source/closure/parity tests. The canonical
 script also executes the repository, tooling, negative-control and hosted suites rather than
 inferring their result from a successful build.
 

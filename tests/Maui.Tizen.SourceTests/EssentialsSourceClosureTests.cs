@@ -111,6 +111,30 @@ public class EssentialsSourceClosureTests
 	}
 
 	[Fact]
+	public void ClipboardNativeRelayUsesTheExactGenerationHandler()
+	{
+		var source = File.ReadAllText(RepoPaths.Combine(
+			"src",
+			"Maui.Tizen.Essentials",
+			"Clipboard",
+			"TizenClipboard.cs"));
+
+		Assert.DoesNotContain("Action? _changed", source, StringComparison.Ordinal);
+		Assert.Contains(
+			"dataSelectedHandler = (_, _) => changed();",
+			source,
+			StringComparison.Ordinal);
+		Assert.Contains(
+			"Clipboard.DataSelected += dataSelectedHandler;",
+			source,
+			StringComparison.Ordinal);
+		Assert.Contains(
+			"Clipboard.DataSelected -= _dataSelectedHandler;",
+			source,
+			StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void MigrationDocumentationRecordsMergedHandlersAndImplementedEssentials()
 	{
 		var migration = File.ReadAllText(RepoPaths.Combine("docs", "migration.md"));

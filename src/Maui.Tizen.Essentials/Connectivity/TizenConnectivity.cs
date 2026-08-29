@@ -131,7 +131,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			remove => _events.Remove(value);
 		}
 
-		Action StartListeners(Action<ConnectivityChangedEventArgs> publish)
+		Action StartListeners(TizenEventGeneration<ConnectivityChangedEventArgs> generation)
 		{
 			TizenPermissions.EnsureDeclared<Permissions.NetworkState>();
 
@@ -140,7 +140,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				var args = new ConnectivityChangedEventArgs(
 					GetNetworkAccess(static () => TizenConnectionManager.CurrentConnection.Type),
 					GetConnectionProfiles());
-				publish(args);
+				generation.Publish(args);
 			};
 
 			StartTransactional(
