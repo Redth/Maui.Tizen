@@ -141,6 +141,23 @@ namespace Microsoft.Maui.Platforms.Tizen
 			return removals;
 		}
 
+		public static List<IView> CommitCompletedPop(IReadOnlyList<IView> current, IView popped)
+		{
+			ArgumentNullException.ThrowIfNull(current);
+			ArgumentNullException.ThrowIfNull(popped);
+
+			var updated = new List<IView>(current);
+			for (var index = updated.Count - 1; index >= 0; index--)
+			{
+				if (ReferenceEquals(updated[index], popped))
+				{
+					updated.RemoveAt(index);
+					break;
+				}
+			}
+			return updated;
+		}
+
 		static bool Contains(IReadOnlyList<IView> stack, IView page)
 		{
 			for (var i = 0; i < stack.Count; i++)
@@ -151,5 +168,22 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			return false;
 		}
+	}
+
+	internal sealed class NavigationRequestGeneration<TOwner>
+		where TOwner : class
+	{
+		int _generation;
+
+		public (int Generation, TOwner Owner) Begin(TOwner owner)
+		{
+			ArgumentNullException.ThrowIfNull(owner);
+			return (++_generation, owner);
+		}
+
+		public void Invalidate() => _generation++;
+
+		public bool IsCurrent((int Generation, TOwner Owner) request, TOwner? currentOwner) =>
+			request.Generation == _generation && ReferenceEquals(request.Owner, currentOwner);
 	}
 }

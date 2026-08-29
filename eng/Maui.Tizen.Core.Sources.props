@@ -55,6 +55,7 @@
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenPopupLifecycle.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenTextSelection.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenDispatchExtensions.cs" />
+    <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Platform/TizenContentSlot.cs" />
     <MauiTizenPortableCompile Include="$(MauiTizenCoreDir)Fonts/TizenFontManager.cs" />
   </ItemGroup>
 

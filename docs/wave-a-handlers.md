@@ -288,7 +288,8 @@ Two gaps in MAUI's public surface shaped this wave. Both are additions to the li
    deliberately **not** by reflecting over the internal type, which would bind this backend to
    MAUI implementation detail and break silently on any servicing update.
 
-   Tracked upstream by [dotnet/maui#37864](https://github.com/dotnet/maui/pull/37864), which adds
+   Merged upstream in [dotnet/maui#37864](https://github.com/dotnet/maui/pull/37864), but absent
+   from the pinned package; that change adds
    a public read-only `IImageSourcePaint`. Upstream's guidance is **consumption only**: external
    implementation is unsupported and the interface may gain members, so this backend must only
    pattern match MAUI's own built-in paint and must never declare `Paint : IImageSourcePaint`.

@@ -13,7 +13,8 @@ The machine-readable companion to this document is
 [`wave-b-mapper-parity.json`](wave-b-mapper-parity.json). **It is generated, not hand-maintained.**
 `Maui.Tizen.SourceTests` rebuilds it from the migrated sources, the effective finalized
 `TizenViewMappers` chain, and reflection over the real MAUI assemblies. It records inherited Tizen
-implementations separately from explicit unsupported bodies and fails if the committed copy drifts:
+implementations separately from explicit unsupported bodies, evaluates property and command
+mappers independently, and fails if the committed copy drifts:
 
 ```bash
 dotnet test tests/Maui.Tizen.SourceTests                          # verify

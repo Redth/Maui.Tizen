@@ -34,6 +34,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		readonly SkiaGraphicsView _searchButton;
 
 		PointStateType _lastPointState;
+		bool _isCollapsed;
 
 		public TizenSearchBarView()
 		{
@@ -79,6 +80,19 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		/// <summary>Raised when the inner text field loses focus.</summary>
 		public event EventHandler? EntryUnfocused;
+
+		/// <summary>Gets whether the search surface is showing only its search affordance.</summary>
+		public bool IsCollapsed => _isCollapsed;
+
+		/// <summary>Switches between the compact search affordance and the full editor.</summary>
+		public void SetCollapsed(bool collapsed)
+		{
+			if (_isCollapsed == collapsed)
+				return;
+
+			_isCollapsed = collapsed;
+			LayoutContent(SizeWidth, SizeHeight);
+		}
 
 		/// <summary>
 		/// Moves focus to the inner text field.
@@ -134,9 +148,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_searchButton.IsEnabled = enabled;
 		}
 
-		public TSize Measure(double availableWidth, double availableHeight)
+		public virtual TSize Measure(double availableWidth, double availableHeight)
 		{
 			var minimumHeight = Math.Max(IconSize.ToScaledPixel() + IconMargin.ToScaledPixel(), _entry.PixelSize + 10);
+			if (_isCollapsed)
+				return new TSize(minimumHeight, minimumHeight);
 
 			if (!string.IsNullOrEmpty(_entry.Text) || !string.IsNullOrEmpty(_entry.Placeholder))
 				return new TSize(availableWidth, Math.Max(_entry.NaturalSize.Height, minimumHeight));
@@ -188,18 +204,34 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		void OnLayoutUpdated(object? sender, global::Tizen.UIExtensions.Common.LayoutEventArgs e)
 		{
+			LayoutContent(SizeWidth, SizeHeight);
+		}
+
+		/// <summary>Arranges the entry and search button within the supplied bounds.</summary>
+		protected virtual void LayoutContent(float width, float height)
+		{
 			var margin = (float)IconMargin.ToScaledPixel();
 			var halfMargin = margin / 2.0f;
 			var iconSize = (float)IconSize.ToScaledPixel();
 			var iconArea = iconSize + margin;
 
 			CornerRadius = CornerRadiusDp.ToScaledPixel();
+			if (_isCollapsed)
+			{
+				_entry.Hide();
+				_entry.SizeWidth = 0;
+				_searchButton.Position = new Position(halfMargin, (height - iconSize) / 2.0f);
+				_searchButton.SizeHeight = iconSize;
+				_searchButton.SizeWidth = iconSize;
+				return;
+			}
 
+			_entry.Show();
 			_entry.Position = new Position(halfMargin, 0);
-			_entry.SizeHeight = SizeHeight;
-			_entry.SizeWidth = Math.Max(0, SizeWidth - iconArea - halfMargin);
+			_entry.SizeHeight = height;
+			_entry.SizeWidth = Math.Max(0, width - iconArea - halfMargin);
 
-			_searchButton.Position = new Position(_entry.SizeWidth + _entry.Position.X + halfMargin, (SizeHeight - iconSize) / 2.0f);
+			_searchButton.Position = new Position(_entry.SizeWidth + _entry.Position.X + halfMargin, (height - iconSize) / 2.0f);
 			_searchButton.SizeHeight = iconSize;
 			_searchButton.SizeWidth = iconSize;
 		}

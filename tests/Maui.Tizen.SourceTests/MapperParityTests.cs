@@ -12,7 +12,8 @@ public sealed record ParityHandler(
 	string? NeutralHandler,
 	IReadOnlyList<ParityMapper> PropertyMappers,
 	IReadOnlyList<ParityMapper> CommandMappers,
-	IReadOnlyList<string> UncoveredNeutralKeys);
+	IReadOnlyList<string> UncoveredNeutralKeys,
+	IReadOnlyList<string> UncoveredNeutralCommandKeys);
 
 public sealed record ParityDocument(string Wave, string Description, IReadOnlyList<ParityHandler> Handlers);
 
@@ -42,12 +43,20 @@ public class MapperParityTests
 			var neutralKeys = neutral is null
 				? Array.Empty<string>()
 				: NeutralMaui.MapperKeys(neutral, "Mapper").ToArray();
+			var neutralCommandKeys = neutral is null
+				? Array.Empty<string>()
+				: NeutralMaui.MapperKeys(neutral, "CommandMapper").ToArray();
 
 			var effectiveProperty = EffectiveEntries(handler, property: true);
 			var effectiveCommand = EffectiveEntries(handler, property: false);
 
 			var uncovered = neutralKeys
 				.Where(k => !effectiveProperty.ContainsKey(k))
+				.Distinct(StringComparer.Ordinal)
+				.OrderBy(k => k, StringComparer.Ordinal)
+				.ToList();
+			var uncoveredCommands = neutralCommandKeys
+				.Where(k => !effectiveCommand.ContainsKey(k))
 				.Distinct(StringComparer.Ordinal)
 				.OrderBy(k => k, StringComparer.Ordinal)
 				.ToList();
@@ -59,7 +68,8 @@ public class MapperParityTests
 				neutralKeys.Length > 0 ? neutral!.FullName : null,
 				effectiveProperty.Values.ToList(),
 				effectiveCommand.Values.ToList(),
-				uncovered));
+				uncovered,
+				uncoveredCommands));
 		}
 
 		return new ParityDocument(
@@ -112,23 +122,26 @@ public class MapperParityTests
 		{
 			Add(WaveBSource.SharedViewMapper, "InheritedTizen");
 
-			foreach (var key in NeutralMaui.ViewMapperKeys.Order(StringComparer.Ordinal))
+			if (property)
 			{
-				if (effective.ContainsKey(key))
-					continue;
-
-				var reason = key switch
+				foreach (var key in NeutralMaui.ViewMapperKeys.Order(StringComparer.Ordinal))
 				{
-					"Border" => "The obsolete IBorder.Border mapper is intentionally unsupported.",
-					"ContainerView" => "MAUI exposes no settable container hook to an out-of-repo backend.",
-					_ => null,
-				};
+					if (effective.ContainsKey(key))
+						continue;
 
-				effective[key] = new ParityMapper(
-					key,
-					"ViewHandler.ViewMapper",
-					reason is null ? "InheritedControls" : "Unsupported",
-					reason);
+					var reason = key switch
+					{
+						"Border" => "The obsolete IBorder.Border mapper is intentionally unsupported.",
+						"ContainerView" => "MAUI exposes no settable container hook to an out-of-repo backend.",
+						_ => null,
+					};
+
+					effective[key] = new ParityMapper(
+						key,
+						"ViewHandler.ViewMapper",
+						reason is null ? "InheritedControls" : "Unsupported",
+						reason);
+				}
 			}
 		}
 
@@ -169,17 +182,24 @@ public class MapperParityTests
 	public void EveryNeutralMapperKeyIsImplementedOrRecorded()
 	{
 		var document = Build();
-		var recorded = LoadRecordedGaps();
+		var recordedProperties = LoadRecordedGaps(commands: false);
+		var recordedCommands = LoadRecordedGaps(commands: true);
 		var failures = new List<string>();
 
 		foreach (var handler in document.Handlers)
 		{
 			foreach (var key in handler.UncoveredNeutralKeys)
 			{
-				if (!recorded.TryGetValue(handler.Handler, out var keys) || !keys.Contains(key))
+				if (!recordedProperties.TryGetValue(handler.Handler, out var keys) || !keys.Contains(key))
 				{
 					failures.Add($"{handler.Handler} does not map '{key}' and it is not recorded in {ManifestRelativePath}.");
 				}
+			}
+
+			foreach (var key in handler.UncoveredNeutralCommandKeys)
+			{
+				if (!recordedCommands.TryGetValue(handler.Handler, out var keys) || !keys.Contains(key))
+					failures.Add($"{handler.Handler} does not map command '{key}' and it is not recorded in {ManifestRelativePath}.");
 			}
 		}
 
@@ -232,7 +252,7 @@ public class MapperParityTests
 		Assert.Empty(failures);
 	}
 
-	static Dictionary<string, HashSet<string>> LoadRecordedGaps()
+	static Dictionary<string, HashSet<string>> LoadRecordedGaps(bool commands)
 	{
 		var path = RepoPaths.Combine(ManifestRelativePath.Split('/'));
 
@@ -245,7 +265,9 @@ public class MapperParityTests
 
 		return document?.Handlers.ToDictionary(
 			h => h.Handler,
-			h => h.UncoveredNeutralKeys.ToHashSet(StringComparer.Ordinal),
+			h => ((commands ? h.UncoveredNeutralCommandKeys : h.UncoveredNeutralKeys)
+				?? Array.Empty<string>())
+				.ToHashSet(StringComparer.Ordinal),
 			StringComparer.Ordinal) ?? new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
 	}
 }

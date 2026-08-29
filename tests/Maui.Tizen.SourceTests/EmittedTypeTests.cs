@@ -1,5 +1,7 @@
 using System.Reflection.Metadata;
+using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
+using System.Xml.Linq;
 
 namespace Maui.Tizen.SourceTests;
 
@@ -162,6 +164,156 @@ public class EmittedTypeTests
 		foreach (var name in expected)
 		{
 			Assert.Contains(name, CoreMetadata.Defined);
+		}
+	}
+
+	[Fact]
+	public void GroupedSourceCrossesTheCompiledItemAdaptorBoundaryAsIList()
+	{
+		using var stream = File.OpenRead(ControlsRefPackAssembly.Path);
+		using var pe = new PEReader(stream);
+		var reader = pe.GetMetadataReader();
+		var source = FindType(reader, "Microsoft.Maui.Platforms.Tizen.Platform.TizenGroupItemSource");
+		var observableSource = FindType(reader, "Microsoft.Maui.Platforms.Tizen.Platform.TizenObservableItemSource");
+		var adaptor = FindType(reader, "Microsoft.Maui.Platforms.Tizen.Platform.TizenGroupItemTemplateAdaptor");
+
+		var interfaces = source.GetInterfaceImplementations()
+			.Select(handle => reader.GetInterfaceImplementation(handle).Interface)
+			.Select(handle => TypeName(reader, handle))
+			.ToHashSet(StringComparer.Ordinal);
+
+		Assert.Contains("System.Collections.IList", interfaces);
+		Assert.Contains("System.Collections.Specialized.INotifyCollectionChanged", interfaces);
+		var observableInterfaces = observableSource.GetInterfaceImplementations()
+			.Select(handle => reader.GetInterfaceImplementation(handle).Interface)
+			.Select(handle => TypeName(reader, handle))
+			.ToHashSet(StringComparer.Ordinal);
+		Assert.Contains("System.Collections.IList", observableInterfaces);
+		Assert.Contains("System.Collections.Specialized.INotifyCollectionChanged", observableInterfaces);
+		Assert.Equal("Tizen.UIExtensions.NUI.ItemAdaptor", TypeName(reader, adaptor.BaseType));
+	}
+
+	[Fact]
+	public void ItemsControlPublishesTheNativeMeasurableContract()
+	{
+		using var stream = File.OpenRead(ControlsRefPackAssembly.Path);
+		using var pe = new PEReader(stream);
+		var reader = pe.GetMetadataReader();
+		var control = FindType(
+			reader,
+			"Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl`1");
+		var interfaces = control.GetInterfaceImplementations()
+			.Select(handle => reader.GetInterfaceImplementation(handle).Interface)
+			.Select(handle => TypeName(reader, handle))
+			.ToHashSet(StringComparer.Ordinal);
+
+		Assert.Contains("Tizen.UIExtensions.Common.IMeasurable", interfaces);
+	}
+
+	[Fact]
+	public void PinnedItemAdaptorRetainsIListAndSubscribesToItsNotifications()
+	{
+		var versions = XDocument.Load(RepoPaths.Combine("Directory.Packages.props"));
+		var version = versions.Descendants("PackageVersion")
+			.Single(element => (string?)element.Attribute("Include") == "Tizen.UIExtensions.NUI")
+			.Attribute("Version")!.Value;
+		var packages = Environment.GetEnvironmentVariable("NUGET_PACKAGES")
+			?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
+		var assemblyPath = Directory.EnumerateFiles(
+				Path.Combine(packages, "tizen.uiextensions.nui", version, "lib"),
+				"Tizen.UIExtensions.NUI.dll",
+				SearchOption.AllDirectories)
+			.First();
+
+		using var stream = File.OpenRead(assemblyPath);
+		using var pe = new PEReader(stream);
+		var reader = pe.GetMetadataReader();
+		var adaptor = FindType(reader, "Tizen.UIExtensions.NUI.ItemAdaptor");
+		var setItemsSource = adaptor.GetMethods()
+			.Select(reader.GetMethodDefinition)
+			.Single(method => reader.GetString(method.Name) == "SetItemsSource");
+		var il = pe.GetMethodBody(setItemsSource.RelativeVirtualAddress).GetILBytes();
+
+		Assert.NotNull(il);
+		Assert.True(ReferencesType(il!, reader, 0x75, "System.Collections.IList"));
+		Assert.True(ReferencesType(il, reader, 0x75, "System.Collections.Specialized.INotifyCollectionChanged"));
+		Assert.True(ReferencesMember(il, reader, 0x6f, "add_CollectionChanged"));
+	}
+
+	static TypeDefinition FindType(MetadataReader reader, string fullName)
+	{
+		foreach (var handle in reader.TypeDefinitions)
+		{
+			var type = reader.GetTypeDefinition(handle);
+			var name = $"{reader.GetString(type.Namespace)}.{reader.GetString(type.Name)}";
+			if (name == fullName)
+				return type;
+		}
+
+		throw new InvalidOperationException($"Type '{fullName}' was not emitted.");
+	}
+
+	static string TypeName(MetadataReader reader, EntityHandle handle) =>
+		handle.Kind switch
+		{
+			HandleKind.TypeDefinition => Name(reader, reader.GetTypeDefinition((TypeDefinitionHandle)handle)),
+			HandleKind.TypeReference => Name(reader, reader.GetTypeReference((TypeReferenceHandle)handle)),
+			_ => handle.Kind.ToString(),
+		};
+
+	static string Name(MetadataReader reader, TypeDefinition type) =>
+		$"{reader.GetString(type.Namespace)}.{reader.GetString(type.Name)}";
+
+	static string Name(MetadataReader reader, TypeReference type) =>
+		$"{reader.GetString(type.Namespace)}.{reader.GetString(type.Name)}";
+
+	static bool ReferencesType(
+		byte[] il,
+		MetadataReader reader,
+		byte opcode,
+		string expected)
+	{
+		foreach (var handle in TokensFollowing(il, opcode))
+		{
+			if (handle.Kind is HandleKind.TypeDefinition or HandleKind.TypeReference
+				&& TypeName(reader, handle) == expected)
+				return true;
+		}
+
+		return false;
+	}
+
+	static bool ReferencesMember(byte[] il, MetadataReader reader, byte opcode, string expected)
+	{
+		foreach (var handle in TokensFollowing(il, opcode))
+		{
+			if (handle.Kind == HandleKind.MemberReference
+				&& reader.GetString(reader.GetMemberReference((MemberReferenceHandle)handle).Name) == expected)
+				return true;
+		}
+
+		return false;
+	}
+
+	static IEnumerable<EntityHandle> TokensFollowing(byte[] il, byte opcode)
+	{
+		for (var index = 0; index + sizeof(int) < il.Length; index++)
+		{
+			if (il[index] != opcode)
+				continue;
+
+			var token = BitConverter.ToInt32(il, index + 1);
+			EntityHandle handle;
+			try
+			{
+				handle = MetadataTokens.EntityHandle(token);
+			}
+			catch (ArgumentException)
+			{
+				continue;
+			}
+
+			yield return handle;
 		}
 	}
 

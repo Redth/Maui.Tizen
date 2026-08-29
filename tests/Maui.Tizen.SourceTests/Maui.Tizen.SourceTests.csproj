@@ -34,6 +34,7 @@
   <ItemGroup>
     <Compile Include="@(MauiTizenWaveBPortableCompile)" LinkBase="WaveB" />
     <Compile Include="$(MauiTizenCoreDir)Platform/TizenCleanup.cs" LinkBase="Shared" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/TizenContentSlot.cs" LinkBase="Shared" />
     <Compile Include="$(MauiTizenCoreDir)Platform/TizenImageLoader.cs" LinkBase="Shared" />
     <Compile Include="$(MauiTizenCoreDir)ImageSources/TizenImageSourceServiceCollectionExtensions.cs" LinkBase="WaveB" />
 
@@ -74,6 +75,59 @@
     -->
     <PackageReference Include="Microsoft.Maui.Core" />
     <PackageReference Include="Microsoft.Maui.Controls" />
+  </ItemGroup>
+
+  <ItemGroup Label="Executable slice of the Wave C adapters">
+    <!--
+      These two adapters are pure Microsoft.Maui.Controls code with no Tizen.NUI dependency, so
+      unlike the rest of Wave C they can be COMPILED AND EXECUTED on a plain net11.0 host.
+
+      That matters: flyout template resolution is where a real regression was found (a pre-resolved
+      template owner reaching IShellController and silently selecting the wrong BindableProperty).
+      Source analysis cannot catch that class of bug - only running the algorithm can. Everything
+      else in Wave C touches NUI and stays source-verified plus API15 type-checked.
+
+      Compiled by link rather than via ProjectReference because the Wave C project targets
+      the Tizen framework and cannot be restored until the Samsung workload ships.
+    -->
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Platform/Toolbar/TizenToolbarNavigationSlot.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Platform/Toolbar/ToolbarOwnership.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ToolbarDrawerToggle.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ShellElementTree.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ShellTemplateResolver.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ShellFlyoutTemplateResolution.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ItemSelectionState.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/BidirectionalUpdateGate.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/SelectionProposalCoordinator.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/OwnedReplacementCoordinator.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/RawSelectionProjection.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ViewportConstraint.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ExceptionSafeCleanup.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ItemSelectionSynchronizer.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ShellSectionViewCache.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ShellRootMountCoordinator.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenGroupItemSource.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Platform/Shell/TizenItemAppearance.cs"
+             LinkBase="WaveCAdapters" />
   </ItemGroup>
 
   <!--

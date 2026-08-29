@@ -79,6 +79,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Controls
 				handlers.AddHandler<IndicatorView, TizenIndicatorViewHandler>();
 				handlers.AddHandler<SwipeItemView, TizenSwipeItemViewHandler>();
 				handlers.AddHandler<SwipeItem, TizenSwipeItemMenuItemHandler>();
+
+				TizenNavigationHandlers.Register(handlers);
 			});
 
 			return builder;

@@ -74,7 +74,14 @@ public static class WaveBSource
 			.ToList();
 	}
 
-	static IEnumerable<HandlerSource> Parse(string path)
+	/// <summary>
+	/// Parses every handler declared in <paramref name="path"/>.
+	/// </summary>
+	/// <remarks>
+	/// Public so that Wave C can reuse it instead of duplicating the parser. The extraction rules
+	/// (mapper field names, <c>nameof</c> keys, empty-body no-ops) are wave-independent.
+	/// </remarks>
+	public static IEnumerable<HandlerSource> Parse(string path)
 	{
 		var root = ParseTree(path).GetRoot();
 
@@ -103,12 +110,17 @@ public static class WaveBSource
 			{
 				foreach (var variable in field.Declaration.Variables)
 				{
-					var target = variable.Identifier.Text switch
-					{
-						"Mapper" or "ViewMapper" => property,
-						"CommandMapper" or "ViewCommandMapper" => command,
-						_ => null,
-					};
+					// Suffix rather than exact match: handlers that shadow a generic base mapper
+					// have to give the field a distinct name (CarouselViewMapper,
+					// ItemsViewCommandMapper, ...), and an exact "Mapper" match silently reported
+					// those handlers as having no mapper coverage at all - which then showed up as
+					// dozens of fictitious parity gaps. CommandMapper is tested first because a
+					// name ending in "CommandMapper" also ends in "Mapper".
+					var name = variable.Identifier.Text;
+					var target =
+						name.EndsWith("CommandMapper", StringComparison.Ordinal) ? command
+						: name.EndsWith("Mapper", StringComparison.Ordinal) ? property
+						: null;
 
 					if (target is null || variable.Initializer?.Value is not BaseObjectCreationExpressionSyntax creation)
 					{
@@ -175,6 +187,21 @@ public static class WaveBSource
 
 		if (argument is IdentifierNameSyntax identifier && constants.TryGetValue(identifier.Identifier.Text, out var constant))
 			return constant;
+
+		if (argument is MemberAccessExpressionSyntax member)
+		{
+			if (member.Name.Identifier.Text == "PropertyName"
+				&& member.Expression is MemberAccessExpressionSyntax property)
+			{
+				var name = property.Name.Identifier.Text;
+				return name.EndsWith("Property", StringComparison.Ordinal)
+					? name[..^"Property".Length]
+					: name;
+			}
+
+			if (constants.TryGetValue(member.Name.Identifier.Text, out var memberConstant))
+				return memberConstant;
+		}
 
 		return null;
 	}

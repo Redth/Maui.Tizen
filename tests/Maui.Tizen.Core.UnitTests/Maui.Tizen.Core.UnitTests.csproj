@@ -62,6 +62,20 @@
     <Compile Include="$(MauiTizenCoreDir)Platform/Tizen/TizenRefreshStateMachine.cs" LinkBase="WaveB" />
     <Compile Include="@(MauiTizenWaveBHandlerCompile)" LinkBase="WaveB" />
     <Compile Include="@(MauiTizenWaveBControlsCompile)" LinkBase="WaveBControls" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/TizenNavigationHandlers.cs"
+             LinkBase="WaveC" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ShellElementTree.cs"
+             LinkBase="WaveC" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ExceptionSafeCleanup.cs"
+             LinkBase="WaveC" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Handlers/Shell/TizenShellItemHandler.cs"
+             LinkBase="WaveC" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Handlers/Shell/TizenShellSectionHandler.cs"
+             LinkBase="WaveC" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Handlers/Shell/TizenShellHandler.cs"
+             LinkBase="WaveC" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Handlers/Navigation/TizenNavigationViewHandler.cs"
+             LinkBase="WaveC" />
 
     <!--
       The Controls bridge. Every NUI call in it is inside `#if TIZEN`, so it compiles against the

@@ -88,7 +88,15 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				"src/Maui.Tizen.Controls/Hosting/TizenShapeHandlerCollectionExtensions.cs",
 				"src/Maui.Tizen.Controls/Platform/TizenControlsHostingExtensions.cs",
 				"src/Maui.Tizen.Controls/Platform/TizenControlsMappings.cs",
-			}.OrderBy(path => path, StringComparer.Ordinal).ToArray();
+			}
+				.Concat(Directory
+					.EnumerateFiles(
+						Path.Combine(controlsRoot, "Navigation"),
+						"*.cs",
+						SearchOption.AllDirectories)
+					.Select(path => Path.GetRelativePath(TestRepositoryPaths.Root, path).Replace('\\', '/')))
+				.OrderBy(path => path, StringComparer.Ordinal)
+				.ToArray();
 
 			Assert.Equal(expected, compiled);
 

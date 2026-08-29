@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <Import Project="$(RepositoryRoot)eng/Maui.props" />
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.WaveC.Sources.props" />
 
   <PropertyGroup>
     <TargetFramework>$(DotNetTfm)</TargetFramework>
@@ -14,6 +15,7 @@
     <ProjectReference Include="../Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj" />
     <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Microsoft.Maui.Core" />
+    <Compile Include="@(MauiTizenWaveCCatalogCompile)" LinkBase="Catalog" />
   </ItemGroup>
 
 </Project>

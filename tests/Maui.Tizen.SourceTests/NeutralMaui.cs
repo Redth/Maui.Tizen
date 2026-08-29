@@ -58,12 +58,22 @@ public static class NeutralMaui
 
 		var getKeys = mapper.GetType().GetMethod("GetKeys", Type.EmptyTypes);
 
-		if (getKeys?.Invoke(mapper, null) is not IEnumerable values)
+		if (getKeys?.Invoke(mapper, null) is IEnumerable values)
+			return values.Cast<object?>().Select(v => v?.ToString() ?? string.Empty).ToList();
+
+		for (Type? type = mapper.GetType(); type is not null; type = type.BaseType)
 		{
-			return Array.Empty<string>();
+			var storage = type.GetField("_mapper", BindingFlags.NonPublic | BindingFlags.Instance)
+				?? type.GetField("_commandMapper", BindingFlags.NonPublic | BindingFlags.Instance);
+			if (storage?.GetValue(mapper) is IDictionary entries)
+			{
+				return entries.Keys.Cast<object?>()
+					.Select(value => value?.ToString() ?? string.Empty)
+					.ToList();
+			}
 		}
 
-		return values.Cast<object?>().Select(v => v?.ToString() ?? string.Empty).ToList();
+		return Array.Empty<string>();
 	}
 
 	static IReadOnlySet<string> LoadViewMapperKeys()

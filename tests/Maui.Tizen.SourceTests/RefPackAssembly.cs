@@ -93,6 +93,14 @@ public static class RefPackAssembly
 				yield return path;
 		}
 
+		if (sourceDirectories.Any(directory =>
+			directory.Contains("Maui.Tizen.Controls", StringComparison.Ordinal)))
+		{
+			var waveCManifest = RepoPaths.Combine("eng", "Maui.Tizen.WaveC.Sources.props");
+			if (File.Exists(waveCManifest))
+				yield return waveCManifest;
+		}
+
 		foreach (var source in SourceFiles(sourceDirectories))
 			yield return source;
 	}

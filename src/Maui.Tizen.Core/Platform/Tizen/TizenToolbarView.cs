@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.Maui;
 using Tizen.NUI.BaseComponents;
 using Tizen.UIExtensions.Common.GraphicsView;
@@ -30,6 +31,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 	{
 		const double ToolbarTextSize = 20d;
 		const double ToolbarHeight = 50d;
+		readonly View _contentHost;
+		readonly TizenContentSlot<View> _contentSlot = new();
 
 		/// <summary>Initializes a new instance of the <see cref="TizenToolbarView"/> class.</summary>
 		public TizenToolbarView()
@@ -37,6 +40,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 			BoxShadow = new NShadow(5d.ToScaledPixel(), NColor.Black, new NVector2(0, 0));
 			Label.FontSize = ToolbarTextSize.ToScaledPoint();
 			SizeHeight = ToolbarHeight.ToScaledPixel();
+			_contentHost = new View
+			{
+				WidthSpecification = LayoutParamPolicies.MatchParent,
+				HeightSpecification = LayoutParamPolicies.MatchParent,
+			};
+			_contentHost.Hide();
+			base.Content = _contentHost;
 		}
 
 		/// <summary>Raised when the toolbar icon is pressed.</summary>
@@ -52,12 +62,64 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </remarks>
 		public View? SearchBar
 		{
-			get => base.Content;
+			get => _contentSlot.Search;
 			set
 			{
-				base.Content = value;
-				Label.SizeWidth = base.Content is null ? SizeWidth : 0;
+				if (ReferenceEquals(_contentSlot.Search, value))
+					return;
+
+				UpdateContentSlot(_contentSlot.SetSearch(value));
 			}
+		}
+
+		/// <summary>Updates the custom title content without displacing an active search view.</summary>
+		public void SetTitleContent(View? content)
+		{
+			UpdateContentSlot(_contentSlot.SetTitle(content));
+		}
+
+		void UpdateContentSlot(TizenContentSlotChange<View> change)
+		{
+			if (change.Previous is not null
+				&& !ReferenceEquals(change.Previous, change.Current)
+				&& ReferenceEquals(change.Previous.GetParent(), _contentHost))
+			{
+				_contentHost.Remove(change.Previous);
+			}
+
+			var active = _contentSlot.Current;
+			foreach (var child in _contentHost.Children.ToList())
+			{
+				if (!ReferenceEquals(child, active))
+					_contentHost.Remove(child);
+			}
+
+			if (active is null)
+			{
+				_contentHost.Hide();
+				Label.SizeWidth = SizeWidth;
+				return;
+			}
+
+			if (!ReferenceEquals(active.GetParent(), _contentHost))
+			{
+				active.Unparent();
+				_contentHost.Add(active);
+			}
+			_contentHost.Show();
+			Label.SizeWidth = 0;
+		}
+
+		protected override void Dispose(bool disposing)
+		{
+			if (disposing)
+			{
+				_contentSlot.Search?.Unparent();
+				_contentSlot.Title?.Unparent();
+				_contentSlot.Clear();
+			}
+
+			base.Dispose(disposing);
 		}
 
 		/// <summary>Gets the toolbar's expanded height, in scaled pixels.</summary>
@@ -144,5 +206,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </para>
 		/// </remarks>
 		void SetToolbar(TizenToolbarView toolbar);
+
+		/// <summary>Detaches and disposes the toolbar currently owned by the container.</summary>
+		void ClearToolbar();
+
+		/// <summary>Detaches <paramref name="toolbar"/> without disposing it for an ownership transfer.</summary>
+		void DetachToolbar(TizenToolbarView toolbar);
 	}
 }

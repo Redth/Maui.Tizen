@@ -109,6 +109,7 @@ check "normalize script is syntactically valid" bash -n eng/import/normalize-lay
 check "Tizen workload gate script is syntactically valid" bash -n eng/ci/tizen-workload-gate.sh
 check "real Tizen lane script is syntactically valid" bash -n eng/build-tizen.sh
 check "Tizen workload transition tests are syntactically valid" bash -n eng/tests/test-ci-tizen-workload-gate.sh
+check "Wave C mutation runner is syntactically valid" bash -n eng/tests/run-wave-c-negative-controls.sh
 
 # ---------------------------------------------------------------------------
 # 4. Restore and build the workload-independent projects.
@@ -229,6 +230,7 @@ if [[ $BUILD_OK -eq 1 ]]; then
   check "migration tooling tests" "$DOTNET" test tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj --no-build -c Release
   check "Wave B negative controls" env DOTNET="$DOTNET" "$REPO_ROOT/eng/tests/run-wave-b-negative-controls.sh"
   check "Wave B mutation runner behavior" "$REPO_ROOT/eng/tests/test-wave-b-mutation-runner.sh"
+  check "Wave C negative controls" "$REPO_ROOT/eng/tests/run-wave-c-negative-controls.sh"
 else
   fail "tests skipped - a preceding build failed (running --no-build now would only add cascading noise)"
   FAILURES=$((FAILURES + 1))
@@ -278,6 +280,15 @@ else
   fail "snapshot verification regressions failed"
   FAILURES=$((FAILURES + 1))
 fi
+
+# 7. Parity determinism.
+#
+# The full suite above is NOT sufficient evidence that parity generation is deterministic. MAUI's
+# neutral mappers are mutated at runtime by Controls' RemapForControls, so a parity test can pass
+# in the full suite purely because an earlier test already initialized Controls, while failing in a
+# fresh process. This runs each parity-sensitive test alone to catch exactly that.
+info "Parity isolation checks"
+check "parity isolation" ./eng/run-parity-isolation-checks.sh
 
 # ---------------------------------------------------------------------------
 # 6. Report the Tizen gate explicitly.

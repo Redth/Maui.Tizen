@@ -254,68 +254,6 @@
       ],
       "CommandMappers": [
         {
-          "Key": "AnchorX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AnchorY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AutomationId",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Background",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundColor",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundImageSource",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Border",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "The obsolete IBorder.Border mapper is intentionally unsupported."
-        },
-        {
-          "Key": "Clip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ContainerView",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "MAUI exposes no settable container hook to an out-of-repo backend."
-        },
-        {
-          "Key": "Description",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ExcludedWithChildren",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "FlowDirection",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Focus",
           "Method": "TizenViewMappers.MapFocus",
           "Status": "InheritedTizen"
@@ -326,119 +264,9 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "HeadingLevel",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Height",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Hint",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "InputTransparent",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "InvalidateMeasure",
           "Method": "TizenViewMappers.MapInvalidateMeasure",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "IsEnabled",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "IsInAccessibleTree",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Opacity",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Rotation",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Scale",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Semantics",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Shadow",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ToolTip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "Unfocus",
@@ -446,22 +274,13 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "Visibility",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Width",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "ZIndex",
           "Method": "TizenViewMappers.MapZIndex",
           "Status": "InheritedTizen"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenBoxViewHandler",
@@ -716,68 +535,6 @@
       ],
       "CommandMappers": [
         {
-          "Key": "AnchorX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AnchorY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AutomationId",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Background",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundColor",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundImageSource",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Border",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "The obsolete IBorder.Border mapper is intentionally unsupported."
-        },
-        {
-          "Key": "Clip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ContainerView",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "MAUI exposes no settable container hook to an out-of-repo backend."
-        },
-        {
-          "Key": "Description",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ExcludedWithChildren",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "FlowDirection",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Focus",
           "Method": "TizenViewMappers.MapFocus",
           "Status": "InheritedTizen"
@@ -788,119 +545,9 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "HeadingLevel",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Height",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Hint",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "InputTransparent",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "InvalidateMeasure",
           "Method": "TizenViewMappers.MapInvalidateMeasure",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "IsEnabled",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "IsInAccessibleTree",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Opacity",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Rotation",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Scale",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Semantics",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Shadow",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ToolTip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "Unfocus",
@@ -908,22 +555,13 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "Visibility",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Width",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "ZIndex",
           "Method": "TizenViewMappers.MapZIndex",
           "Status": "InheritedTizen"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenGraphicsViewHandler",
@@ -1129,68 +767,6 @@
       ],
       "CommandMappers": [
         {
-          "Key": "AnchorX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AnchorY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AutomationId",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Background",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundColor",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundImageSource",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Border",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "The obsolete IBorder.Border mapper is intentionally unsupported."
-        },
-        {
-          "Key": "Clip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ContainerView",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "MAUI exposes no settable container hook to an out-of-repo backend."
-        },
-        {
-          "Key": "Description",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ExcludedWithChildren",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "FlowDirection",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Focus",
           "Method": "TizenViewMappers.MapFocus",
           "Status": "InheritedTizen"
@@ -1199,26 +775,6 @@
           "Key": "Frame",
           "Method": "TizenViewMappers.MapFrameCommand",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "HeadingLevel",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Height",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Hint",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "InputTransparent",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "Invalidate",
@@ -1231,109 +787,9 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "IsEnabled",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "IsInAccessibleTree",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Opacity",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Rotation",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Scale",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Semantics",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Shadow",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ToolTip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Unfocus",
           "Method": "TizenViewMappers.MapUnfocus",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "Visibility",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Width",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "ZIndex",
@@ -1341,7 +797,8 @@
           "Status": "InheritedTizen"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenImageButtonHandler",
@@ -1578,68 +1035,6 @@
       ],
       "CommandMappers": [
         {
-          "Key": "AnchorX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AnchorY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AutomationId",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Background",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundColor",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundImageSource",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Border",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "The obsolete IBorder.Border mapper is intentionally unsupported."
-        },
-        {
-          "Key": "Clip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ContainerView",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "MAUI exposes no settable container hook to an out-of-repo backend."
-        },
-        {
-          "Key": "Description",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ExcludedWithChildren",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "FlowDirection",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Focus",
           "Method": "TizenViewMappers.MapFocus",
           "Status": "InheritedTizen"
@@ -1650,119 +1045,9 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "HeadingLevel",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Height",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Hint",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "InputTransparent",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "InvalidateMeasure",
           "Method": "TizenViewMappers.MapInvalidateMeasure",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "IsEnabled",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "IsInAccessibleTree",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Opacity",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Rotation",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Scale",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Semantics",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Shadow",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ToolTip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "Unfocus",
@@ -1770,22 +1055,13 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "Visibility",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Width",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "ZIndex",
           "Method": "TizenViewMappers.MapZIndex",
           "Status": "InheritedTizen"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenImageHandler",
@@ -2001,68 +1277,6 @@
       ],
       "CommandMappers": [
         {
-          "Key": "AnchorX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AnchorY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AutomationId",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Background",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundColor",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundImageSource",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Border",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "The obsolete IBorder.Border mapper is intentionally unsupported."
-        },
-        {
-          "Key": "Clip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ContainerView",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "MAUI exposes no settable container hook to an out-of-repo backend."
-        },
-        {
-          "Key": "Description",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ExcludedWithChildren",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "FlowDirection",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Focus",
           "Method": "TizenViewMappers.MapFocus",
           "Status": "InheritedTizen"
@@ -2073,119 +1287,9 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "HeadingLevel",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Height",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Hint",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "InputTransparent",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "InvalidateMeasure",
           "Method": "TizenViewMappers.MapInvalidateMeasure",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "IsEnabled",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "IsInAccessibleTree",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Opacity",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Rotation",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Scale",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Semantics",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Shadow",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ToolTip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "Unfocus",
@@ -2193,22 +1297,13 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "Visibility",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Width",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "ZIndex",
           "Method": "TizenViewMappers.MapZIndex",
           "Status": "InheritedTizen"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenIndicatorViewHandler",
@@ -2454,68 +1549,6 @@
       ],
       "CommandMappers": [
         {
-          "Key": "AnchorX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AnchorY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AutomationId",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Background",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundColor",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundImageSource",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Border",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "The obsolete IBorder.Border mapper is intentionally unsupported."
-        },
-        {
-          "Key": "Clip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ContainerView",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "MAUI exposes no settable container hook to an out-of-repo backend."
-        },
-        {
-          "Key": "Description",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ExcludedWithChildren",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "FlowDirection",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Focus",
           "Method": "TizenViewMappers.MapFocus",
           "Status": "InheritedTizen"
@@ -2526,119 +1559,9 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "HeadingLevel",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Height",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Hint",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "InputTransparent",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "InvalidateMeasure",
           "Method": "TizenViewMappers.MapInvalidateMeasure",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "IsEnabled",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "IsInAccessibleTree",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Opacity",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Rotation",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Scale",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Semantics",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Shadow",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ToolTip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "Unfocus",
@@ -2646,22 +1569,13 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "Visibility",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Width",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "ZIndex",
           "Method": "TizenViewMappers.MapZIndex",
           "Status": "InheritedTizen"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenLineHandler",
@@ -2937,68 +1851,6 @@
       ],
       "CommandMappers": [
         {
-          "Key": "AnchorX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AnchorY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AutomationId",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Background",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundColor",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundImageSource",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Border",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "The obsolete IBorder.Border mapper is intentionally unsupported."
-        },
-        {
-          "Key": "Clip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ContainerView",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "MAUI exposes no settable container hook to an out-of-repo backend."
-        },
-        {
-          "Key": "Description",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ExcludedWithChildren",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "FlowDirection",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Focus",
           "Method": "TizenViewMappers.MapFocus",
           "Status": "InheritedTizen"
@@ -3009,119 +1861,9 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "HeadingLevel",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Height",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Hint",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "InputTransparent",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "InvalidateMeasure",
           "Method": "TizenViewMappers.MapInvalidateMeasure",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "IsEnabled",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "IsInAccessibleTree",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Opacity",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Rotation",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Scale",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Semantics",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Shadow",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ToolTip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "Unfocus",
@@ -3129,22 +1871,13 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "Visibility",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Width",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "ZIndex",
           "Method": "TizenViewMappers.MapZIndex",
           "Status": "InheritedTizen"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenPathHandler",
@@ -3410,68 +2143,6 @@
       ],
       "CommandMappers": [
         {
-          "Key": "AnchorX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AnchorY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AutomationId",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Background",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundColor",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundImageSource",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Border",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "The obsolete IBorder.Border mapper is intentionally unsupported."
-        },
-        {
-          "Key": "Clip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ContainerView",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "MAUI exposes no settable container hook to an out-of-repo backend."
-        },
-        {
-          "Key": "Description",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ExcludedWithChildren",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "FlowDirection",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Focus",
           "Method": "TizenViewMappers.MapFocus",
           "Status": "InheritedTizen"
@@ -3482,119 +2153,9 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "HeadingLevel",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Height",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Hint",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "InputTransparent",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "InvalidateMeasure",
           "Method": "TizenViewMappers.MapInvalidateMeasure",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "IsEnabled",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "IsInAccessibleTree",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Opacity",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Rotation",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Scale",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Semantics",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Shadow",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ToolTip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "Unfocus",
@@ -3602,22 +2163,13 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "Visibility",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Width",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "ZIndex",
           "Method": "TizenViewMappers.MapZIndex",
           "Status": "InheritedTizen"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenPolygonHandler",
@@ -3883,68 +2435,6 @@
       ],
       "CommandMappers": [
         {
-          "Key": "AnchorX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AnchorY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AutomationId",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Background",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundColor",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundImageSource",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Border",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "The obsolete IBorder.Border mapper is intentionally unsupported."
-        },
-        {
-          "Key": "Clip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ContainerView",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "MAUI exposes no settable container hook to an out-of-repo backend."
-        },
-        {
-          "Key": "Description",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ExcludedWithChildren",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "FlowDirection",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Focus",
           "Method": "TizenViewMappers.MapFocus",
           "Status": "InheritedTizen"
@@ -3955,119 +2445,9 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "HeadingLevel",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Height",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Hint",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "InputTransparent",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "InvalidateMeasure",
           "Method": "TizenViewMappers.MapInvalidateMeasure",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "IsEnabled",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "IsInAccessibleTree",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Opacity",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Rotation",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Scale",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Semantics",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Shadow",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ToolTip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "Unfocus",
@@ -4075,22 +2455,13 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "Visibility",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Width",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "ZIndex",
           "Method": "TizenViewMappers.MapZIndex",
           "Status": "InheritedTizen"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenPolylineHandler",
@@ -4356,68 +2727,6 @@
       ],
       "CommandMappers": [
         {
-          "Key": "AnchorX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AnchorY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AutomationId",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Background",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundColor",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundImageSource",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Border",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "The obsolete IBorder.Border mapper is intentionally unsupported."
-        },
-        {
-          "Key": "Clip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ContainerView",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "MAUI exposes no settable container hook to an out-of-repo backend."
-        },
-        {
-          "Key": "Description",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ExcludedWithChildren",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "FlowDirection",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Focus",
           "Method": "TizenViewMappers.MapFocus",
           "Status": "InheritedTizen"
@@ -4428,119 +2737,9 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "HeadingLevel",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Height",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Hint",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "InputTransparent",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "InvalidateMeasure",
           "Method": "TizenViewMappers.MapInvalidateMeasure",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "IsEnabled",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "IsInAccessibleTree",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Opacity",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Rotation",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Scale",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Semantics",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Shadow",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ToolTip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "Unfocus",
@@ -4548,22 +2747,13 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "Visibility",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Width",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "ZIndex",
           "Method": "TizenViewMappers.MapZIndex",
           "Status": "InheritedTizen"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenRectangleHandler",
@@ -4829,68 +3019,6 @@
       ],
       "CommandMappers": [
         {
-          "Key": "AnchorX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AnchorY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AutomationId",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Background",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundColor",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundImageSource",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Border",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "The obsolete IBorder.Border mapper is intentionally unsupported."
-        },
-        {
-          "Key": "Clip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ContainerView",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "MAUI exposes no settable container hook to an out-of-repo backend."
-        },
-        {
-          "Key": "Description",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ExcludedWithChildren",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "FlowDirection",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Focus",
           "Method": "TizenViewMappers.MapFocus",
           "Status": "InheritedTizen"
@@ -4901,119 +3029,9 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "HeadingLevel",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Height",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Hint",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "InputTransparent",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "InvalidateMeasure",
           "Method": "TizenViewMappers.MapInvalidateMeasure",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "IsEnabled",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "IsInAccessibleTree",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Opacity",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Rotation",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Scale",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Semantics",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Shadow",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ToolTip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "Unfocus",
@@ -5021,22 +3039,13 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "Visibility",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Width",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "ZIndex",
           "Method": "TizenViewMappers.MapZIndex",
           "Status": "InheritedTizen"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenRefreshViewHandler",
@@ -5257,68 +3266,6 @@
       ],
       "CommandMappers": [
         {
-          "Key": "AnchorX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AnchorY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AutomationId",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Background",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundColor",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundImageSource",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Border",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "The obsolete IBorder.Border mapper is intentionally unsupported."
-        },
-        {
-          "Key": "Clip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ContainerView",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "MAUI exposes no settable container hook to an out-of-repo backend."
-        },
-        {
-          "Key": "Description",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ExcludedWithChildren",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "FlowDirection",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Focus",
           "Method": "TizenViewMappers.MapFocus",
           "Status": "InheritedTizen"
@@ -5329,119 +3276,9 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "HeadingLevel",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Height",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Hint",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "InputTransparent",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "InvalidateMeasure",
           "Method": "TizenViewMappers.MapInvalidateMeasure",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "IsEnabled",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "IsInAccessibleTree",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Opacity",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Rotation",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Scale",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Semantics",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Shadow",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ToolTip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "Unfocus",
@@ -5449,22 +3286,13 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "Visibility",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Width",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "ZIndex",
           "Method": "TizenViewMappers.MapZIndex",
           "Status": "InheritedTizen"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenRoundRectangleHandler",
@@ -5725,68 +3553,6 @@
       ],
       "CommandMappers": [
         {
-          "Key": "AnchorX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AnchorY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AutomationId",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Background",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundColor",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundImageSource",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Border",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "The obsolete IBorder.Border mapper is intentionally unsupported."
-        },
-        {
-          "Key": "Clip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ContainerView",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "MAUI exposes no settable container hook to an out-of-repo backend."
-        },
-        {
-          "Key": "Description",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ExcludedWithChildren",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "FlowDirection",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Focus",
           "Method": "TizenViewMappers.MapFocus",
           "Status": "InheritedTizen"
@@ -5797,119 +3563,9 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "HeadingLevel",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Height",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Hint",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "InputTransparent",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "InvalidateMeasure",
           "Method": "TizenViewMappers.MapInvalidateMeasure",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "IsEnabled",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "IsInAccessibleTree",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Opacity",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Rotation",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Scale",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Semantics",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Shadow",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ToolTip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "Unfocus",
@@ -5917,22 +3573,13 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "Visibility",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Width",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "ZIndex",
           "Method": "TizenViewMappers.MapZIndex",
           "Status": "InheritedTizen"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenScrollViewHandler",
@@ -6153,68 +3800,6 @@
       ],
       "CommandMappers": [
         {
-          "Key": "AnchorX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AnchorY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AutomationId",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Background",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundColor",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundImageSource",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Border",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "The obsolete IBorder.Border mapper is intentionally unsupported."
-        },
-        {
-          "Key": "Clip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ContainerView",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "MAUI exposes no settable container hook to an out-of-repo backend."
-        },
-        {
-          "Key": "Description",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ExcludedWithChildren",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "FlowDirection",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Focus",
           "Method": "TizenViewMappers.MapFocus",
           "Status": "InheritedTizen"
@@ -6225,64 +3810,9 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "HeadingLevel",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Height",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Hint",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "InputTransparent",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "InvalidateMeasure",
           "Method": "TizenViewMappers.MapInvalidateMeasure",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "IsEnabled",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "IsInAccessibleTree",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Opacity",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "RequestScrollTo",
@@ -6290,74 +3820,9 @@
           "Status": "Supported"
         },
         {
-          "Key": "Rotation",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Scale",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Semantics",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Shadow",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ToolTip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Unfocus",
           "Method": "TizenViewMappers.MapUnfocus",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "Visibility",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Width",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "ZIndex",
@@ -6365,7 +3830,8 @@
           "Status": "InheritedTizen"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenShapeViewHandler",
@@ -6621,68 +4087,6 @@
       ],
       "CommandMappers": [
         {
-          "Key": "AnchorX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AnchorY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AutomationId",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Background",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundColor",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundImageSource",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Border",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "The obsolete IBorder.Border mapper is intentionally unsupported."
-        },
-        {
-          "Key": "Clip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ContainerView",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "MAUI exposes no settable container hook to an out-of-repo backend."
-        },
-        {
-          "Key": "Description",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ExcludedWithChildren",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "FlowDirection",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Focus",
           "Method": "TizenViewMappers.MapFocus",
           "Status": "InheritedTizen"
@@ -6693,119 +4097,9 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "HeadingLevel",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Height",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Hint",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "InputTransparent",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "InvalidateMeasure",
           "Method": "TizenViewMappers.MapInvalidateMeasure",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "IsEnabled",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "IsInAccessibleTree",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Opacity",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Rotation",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Scale",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Semantics",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Shadow",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ToolTip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "Unfocus",
@@ -6813,22 +4107,13 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "Visibility",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Width",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "ZIndex",
           "Method": "TizenViewMappers.MapZIndex",
           "Status": "InheritedTizen"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenSwipeItemMenuItemHandler",
@@ -6878,7 +4163,8 @@
         }
       ],
       "CommandMappers": [],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenSwipeItemViewHandler",
@@ -7084,68 +4370,6 @@
       ],
       "CommandMappers": [
         {
-          "Key": "AnchorX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AnchorY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AutomationId",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Background",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundColor",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundImageSource",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Border",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "The obsolete IBorder.Border mapper is intentionally unsupported."
-        },
-        {
-          "Key": "Clip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ContainerView",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "MAUI exposes no settable container hook to an out-of-repo backend."
-        },
-        {
-          "Key": "Description",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ExcludedWithChildren",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "FlowDirection",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Focus",
           "Method": "TizenViewMappers.MapFocus",
           "Status": "InheritedTizen"
@@ -7156,119 +4380,9 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "HeadingLevel",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Height",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Hint",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "InputTransparent",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "InvalidateMeasure",
           "Method": "TizenViewMappers.MapInvalidateMeasure",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "IsEnabled",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "IsInAccessibleTree",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Opacity",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Rotation",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Scale",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Semantics",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Shadow",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ToolTip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "Unfocus",
@@ -7276,22 +4390,13 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "Visibility",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Width",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "ZIndex",
           "Method": "TizenViewMappers.MapZIndex",
           "Status": "InheritedTizen"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     },
     {
       "Handler": "TizenSwipeViewHandler",
@@ -7522,68 +4627,6 @@
       ],
       "CommandMappers": [
         {
-          "Key": "AnchorX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AnchorY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "AutomationId",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Background",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundColor",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "BackgroundImageSource",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Border",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "The obsolete IBorder.Border mapper is intentionally unsupported."
-        },
-        {
-          "Key": "Clip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ContainerView",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "Unsupported",
-          "Reason": "MAUI exposes no settable container hook to an out-of-repo backend."
-        },
-        {
-          "Key": "Description",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ExcludedWithChildren",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "FlowDirection",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Focus",
           "Method": "TizenViewMappers.MapFocus",
           "Status": "InheritedTizen"
@@ -7594,64 +4637,9 @@
           "Status": "InheritedTizen"
         },
         {
-          "Key": "HeadingLevel",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Height",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Hint",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "InputTransparent",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "InvalidateMeasure",
           "Method": "TizenViewMappers.MapInvalidateMeasure",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "IsEnabled",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "IsInAccessibleTree",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MaximumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumHeight",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "MinimumWidth",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Opacity",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "RequestClose",
@@ -7664,74 +4652,9 @@
           "Status": "Supported"
         },
         {
-          "Key": "Rotation",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "RotationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Scale",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ScaleY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Semantics",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Shadow",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "ToolTip",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationX",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "TranslationY",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
           "Key": "Unfocus",
           "Method": "TizenViewMappers.MapUnfocus",
           "Status": "InheritedTizen"
-        },
-        {
-          "Key": "Visibility",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
-        },
-        {
-          "Key": "Width",
-          "Method": "ViewHandler.ViewMapper",
-          "Status": "InheritedControls"
         },
         {
           "Key": "ZIndex",
@@ -7739,7 +4662,8 @@
           "Status": "InheritedTizen"
         }
       ],
-      "UncoveredNeutralKeys": []
+      "UncoveredNeutralKeys": [],
+      "UncoveredNeutralCommandKeys": []
     }
   ]
 }
