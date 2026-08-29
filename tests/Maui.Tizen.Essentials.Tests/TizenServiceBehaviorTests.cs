@@ -636,6 +636,38 @@ public class TizenServiceBehaviorTests
 	}
 
 	[Fact]
+	public void SecureRepositoryNormalizesOnlyDocumentedNoAliasArgumentException()
+	{
+		Assert.Empty(new TizenSecureRepository(
+			static () => throw new ArgumentException("there's no alias to get")).GetAliases());
+
+		var genuine = Assert.Throws<ArgumentException>(() =>
+			new TizenSecureRepository(
+				static () => throw new ArgumentException("invalid repository argument", "alias"))
+			.GetAliases());
+		Assert.Equal("alias", genuine.ParamName);
+
+		Assert.Throws<InvalidOperationException>(() =>
+			new TizenSecureRepository(
+				static () => throw new InvalidOperationException("repository failed"))
+			.GetAliases());
+	}
+
+	[Fact]
+	public async Task SecureStorageEmptyRepositorySupportsFirstReadWriteRemoveAndRemoveAll()
+	{
+		var repository = new FakeSecureRepository();
+		var storage = new TizenSecureStorage(repository);
+
+		Assert.Null(await storage.GetAsync("token"));
+		await storage.SetAsync("token", "value");
+		Assert.Equal("value", await storage.GetAsync("token"));
+		Assert.True(storage.Remove("token"));
+		Assert.Null(await storage.GetAsync("token"));
+		storage.RemoveAll();
+	}
+
+	[Fact]
 	public void SecureStorageRemoveAllPreservesQualifiedForeignPackageAliases()
 	{
 		var repository = new FakeSecureRepository

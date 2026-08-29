@@ -20,7 +20,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// <summary>Creates the Tizen connectivity service.</summary>
 		public TizenConnectivity()
 		{
-			_events = new(this, StartListeners, StopListeners);
+			_events = new(this, StartListeners);
 		}
 
 		/// <inheritdoc/>
@@ -131,13 +131,23 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			remove => _events.Remove(value);
 		}
 
-		void StartListeners()
+		Action StartListeners(Action<ConnectivityChangedEventArgs> publish)
 		{
 			TizenPermissions.EnsureDeclared<Permissions.NetworkState>();
 
+			EventHandler<TizenConnectionTypeEventArgs> handler = (_, _) =>
+			{
+				var args = new ConnectivityChangedEventArgs(
+					GetNetworkAccess(static () => TizenConnectionManager.CurrentConnection.Type),
+					GetConnectionProfiles());
+				publish(args);
+			};
+
 			StartTransactional(
-				() => TizenConnectionManager.ConnectionTypeChanged += OnConnectionTypeChanged,
-				() => TizenConnectionManager.ConnectionTypeChanged -= OnConnectionTypeChanged);
+				() => TizenConnectionManager.ConnectionTypeChanged += handler,
+				() => TizenConnectionManager.ConnectionTypeChanged -= handler);
+
+			return () => TizenConnectionManager.ConnectionTypeChanged -= handler;
 		}
 
 		internal static void StartTransactional(Action subscribe, Action unsubscribe)
@@ -159,21 +169,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 				throw;
 			}
-		}
-
-		void StopListeners()
-		{
-			TizenConnectionManager.ConnectionTypeChanged -= OnConnectionTypeChanged;
-		}
-
-		void OnConnectionTypeChanged(object? sender, TizenConnectionTypeEventArgs e)
-		{
-			// Snapshot on the native callback thread, then raise on the main thread.
-			var args = new ConnectivityChangedEventArgs(
-				GetNetworkAccess(static () => TizenConnectionManager.CurrentConnection.Type),
-				GetConnectionProfiles());
-
-			_events.Publish(args);
 		}
 
 		/// <inheritdoc/>

@@ -38,8 +38,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			_native = native;
 			_events = new(
 				this,
-				() => _dispatcher.Invoke(() => _native.StartChangeNotifications(OnDataSelected)),
-				() => _dispatcher.Invoke(_native.StopChangeNotifications),
+				publish =>
+				{
+					Action nativeCallback = () => publish(EventArgs.Empty);
+					_dispatcher.Invoke(() => _native.StartChangeNotifications(nativeCallback));
+					return () => _dispatcher.Invoke(_native.StopChangeNotifications);
+				},
 				new TizenNativeCallbackCoordinator(dispatcher));
 		}
 
@@ -155,8 +159,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			else
 				completion.TrySetResult(null);
 		}
-
-		void OnDataSelected() => _events.Publish(EventArgs.Empty);
 
 		/// <inheritdoc/>
 		public void Dispose()

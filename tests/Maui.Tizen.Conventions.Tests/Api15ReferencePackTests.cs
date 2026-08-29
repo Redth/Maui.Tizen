@@ -213,4 +213,34 @@ public class Api15ReferencePackTests
         Assert.True(service.HasMethod("UnsetSecondarySelection"));
         Assert.True(service.HasMethod("Dispose"));
     }
+
+    [Fact]
+    public async Task SecureRepositoryDocumentsArgumentExceptionAsTheEmptyAliasSentinel()
+    {
+        var directory = await AcquireOrSkipAsync().ConfigureAwait(true);
+        var assembly = ReferencePackProbe.FindAssembly(
+            directory,
+            "Tizen.Security.SecureRepository.dll");
+        Assert.NotNull(assembly);
+
+        var pack = RepositoryBaselines.Target.ReferencePack;
+        var xml = Path.Combine(
+            PackageDependencyProbe.GlobalPackagesFolder,
+            "tizen.net.api15",
+            pack.Version.ToLowerInvariant(),
+            "ref",
+            "net8.0",
+            "Tizen.Security.SecureRepository.xml");
+        Assert.True(File.Exists(xml), $"Missing API15 documentation file '{xml}'.");
+        var documentation = File.ReadAllText(xml);
+
+        Assert.Contains(
+            """<member name="M:Tizen.Security.SecureRepository.DataManager.GetAliases">""",
+            documentation,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            """<exception cref="T:System.ArgumentException">Thrown when there's no alias to get.</exception>""",
+            documentation,
+            StringComparison.Ordinal);
+    }
 }

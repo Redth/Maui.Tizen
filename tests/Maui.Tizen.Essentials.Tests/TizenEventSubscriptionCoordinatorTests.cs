@@ -17,12 +17,12 @@ public class TizenEventSubscriptionCoordinatorTests
 		var started = false;
 		coordinator = new(
 			this,
-			() =>
+			publish =>
 			{
-				coordinator!.Publish(EventArgs.Empty);
+				publish(EventArgs.Empty);
 				started = true;
+				return static () => { };
 			},
-			static () => { },
 			new TizenNativeCallbackCoordinator(dispatcher));
 
 		coordinator.Add(static (_, _) => { });
@@ -34,26 +34,45 @@ public class TizenEventSubscriptionCoordinatorTests
 	public async Task StaleQueuedEventNeverReachesReplacementSubscriber()
 	{
 		using var dispatcher = new StrictCallbackDispatcher(blockFirst: true);
-		var coordinator = new TizenEventSubscriptionCoordinator<EventArgs>(
-			this,
-			static () => { },
-			static () => { },
-			new TizenNativeCallbackCoordinator(dispatcher));
 		var oldCalls = 0;
 		var replacementCalls = 0;
+		Action<EventArgs>? currentNative = null;
+		var retained = new List<Action<EventArgs>>();
 		EventHandler<EventArgs> old = (_, _) => oldCalls++;
-		EventHandler<EventArgs> replacement = (_, _) => replacementCalls++;
+		var replacementDelivered = new TaskCompletionSource(
+			TaskCreationOptions.RunContinuationsAsynchronously);
+		EventHandler<EventArgs> replacement = (_, _) =>
+		{
+			replacementCalls++;
+			replacementDelivered.TrySetResult();
+		};
+		var coordinator = new TizenEventSubscriptionCoordinator<EventArgs>(
+			this,
+			publish =>
+			{
+				currentNative = publish;
+				retained.Add(publish);
+				return () => currentNative = null;
+			},
+			new TizenNativeCallbackCoordinator(dispatcher));
 
 		coordinator.Add(old);
-		coordinator.Publish(EventArgs.Empty);
+		var oldNative = Assert.Single(retained);
+		oldNative(EventArgs.Empty);
 		await dispatcher.Queued.Task.WaitAsync(TestContext.Current.CancellationToken);
 		coordinator.Remove(old);
 		coordinator.Add(replacement);
+		Assert.NotSame(oldNative, currentNative);
+		oldNative(EventArgs.Empty);
 		dispatcher.Release();
 		await dispatcher.Drained.Task.WaitAsync(TestContext.Current.CancellationToken);
 
 		Assert.Equal(0, oldCalls);
 		Assert.Equal(0, replacementCalls);
+
+		currentNative!(EventArgs.Empty);
+		await replacementDelivered.Task.WaitAsync(TestContext.Current.CancellationToken);
+		Assert.Equal(1, replacementCalls);
 	}
 
 	[Fact]
@@ -64,13 +83,21 @@ public class TizenEventSubscriptionCoordinatorTests
 		var fail = true;
 		var coordinator = new TizenEventSubscriptionCoordinator<EventArgs>(
 			this,
-			() =>
+			publish =>
 			{
-				native = true;
-				if (fail)
-					throw new InvalidOperationException("subscribe failed");
+				try
+				{
+					native = true;
+					if (fail)
+						throw new InvalidOperationException("subscribe failed");
+					return () => native = false;
+				}
+				catch
+				{
+					native = false;
+					throw;
+				}
 			},
-			() => native = false,
 			new TizenNativeCallbackCoordinator(dispatcher));
 		EventHandler<EventArgs> handler = static (_, _) => { };
 
@@ -88,14 +115,19 @@ public class TizenEventSubscriptionCoordinatorTests
 		using var dispatcher = new StrictCallbackDispatcher(blockFirst: true);
 		var native = false;
 		var calls = 0;
+		Action<EventArgs>? nativeCallback = null;
 		var coordinator = new TizenEventSubscriptionCoordinator<EventArgs>(
 			this,
-			() => native = true,
-			() => native = false,
+			publish =>
+			{
+				native = true;
+				nativeCallback = publish;
+				return () => native = false;
+			},
 			new TizenNativeCallbackCoordinator(dispatcher));
-
 		coordinator.Add((_, _) => calls++);
-		coordinator.Publish(EventArgs.Empty);
+		coordinator.Add((_, _) => calls++);
+		nativeCallback!(EventArgs.Empty);
 		await dispatcher.Queued.Task.WaitAsync(TestContext.Current.CancellationToken);
 		coordinator.Dispose();
 		dispatcher.Release();

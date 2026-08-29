@@ -8,23 +8,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		readonly object _stateLock = new();
 		readonly object _transitionLock = new();
 		readonly object _sender;
-		readonly Action _start;
-		readonly Action _stop;
+		readonly Func<Action<TEventArgs>, Action> _start;
 		readonly TizenNativeCallbackCoordinator _callbacks;
 		EventHandler<TEventArgs>? _handlers;
+		Action? _unsubscribe;
 		long _generation;
-		bool _listening;
 		bool _disposed;
 
 		public TizenEventSubscriptionCoordinator(
 			object sender,
-			Action start,
-			Action stop,
+			Func<Action<TEventArgs>, Action> start,
 			TizenNativeCallbackCoordinator? callbacks = null)
 		{
 			_sender = sender;
 			_start = start;
-			_stop = stop;
 			_callbacks = callbacks ?? new TizenNativeCallbackCoordinator();
 		}
 
@@ -35,24 +32,30 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			lock (_transitionLock)
 			{
-				var start = false;
+				long generation;
 				lock (_stateLock)
 				{
 					ObjectDisposedException.ThrowIf(_disposed, this);
-					start = _handlers is null;
+					var start = _handlers is null;
 					_handlers += handler;
-					if (start)
-						_generation++;
+					if (!start)
+						return;
+
+					generation = ++_generation;
 				}
 
-				if (!start)
-					return;
-
+				Action? unsubscribe = null;
 				try
 				{
-					_start();
+					// This delegate is unique to this subscription generation. A native source that
+					// retains it after unsubscribe cannot be relabelled as a later generation.
+					unsubscribe = _start(args => Publish(generation, args));
 					lock (_stateLock)
-						_listening = true;
+					{
+						if (_disposed || _generation != generation || _handlers is null)
+							throw new ObjectDisposedException(nameof(TizenEventSubscriptionCoordinator<TEventArgs>));
+						_unsubscribe = unsubscribe;
+					}
 				}
 				catch
 				{
@@ -60,11 +63,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					{
 						_handlers -= handler;
 						_generation++;
+						_unsubscribe = null;
 					}
 
 					try
 					{
-						_stop();
+						unsubscribe?.Invoke();
 					}
 					catch (Exception)
 					{
@@ -83,31 +87,28 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 			lock (_transitionLock)
 			{
-				var stop = false;
+				Action? unsubscribe = null;
 				lock (_stateLock)
 				{
 					_handlers -= handler;
-					if (_handlers is null && _listening)
+					if (_handlers is null && _unsubscribe is not null)
 					{
 						_generation++;
-						_listening = false;
-						stop = true;
+						unsubscribe = _unsubscribe;
+						_unsubscribe = null;
 					}
 				}
 
-				if (stop)
-					_stop();
+				unsubscribe?.Invoke();
 			}
 		}
 
-		public void Publish(TEventArgs args)
+		public void Publish(long generation, TEventArgs args)
 		{
-			long generation;
 			lock (_stateLock)
 			{
-				if (_disposed || !_listening || _handlers is null)
+				if (_disposed || _generation != generation || _handlers is null)
 					return;
-				generation = _generation;
 			}
 
 			_callbacks.Post(
@@ -116,7 +117,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					lock (_stateLock)
 					{
 						return !_disposed &&
-							_listening &&
 							_generation == generation &&
 							_handlers is not null;
 					}
@@ -134,7 +134,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		{
 			lock (_transitionLock)
 			{
-				var stop = false;
+				Action? unsubscribe;
 				lock (_stateLock)
 				{
 					if (_disposed)
@@ -143,12 +143,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					_disposed = true;
 					_generation++;
 					_handlers = null;
-					stop = _listening;
-					_listening = false;
+					unsubscribe = _unsubscribe;
+					_unsubscribe = null;
 				}
 
-				if (stop)
-					_stop();
+				unsubscribe?.Invoke();
 			}
 		}
 	}

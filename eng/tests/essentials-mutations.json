@@ -380,8 +380,8 @@
     "expected": "ChangeNotificationIsPostedAndIgnoredAfterUnsubscribe",
     "replacements": [
       {
-        "search": "() => _dispatcher.Invoke(() => _native.StartChangeNotifications(OnDataSelected)),",
-        "replace": "static () => { },"
+        "search": "_dispatcher.Invoke(() => _native.StartChangeNotifications(nativeCallback));",
+        "replace": "_dispatcher.Invoke(static () => { });"
       }
     ]
   },
@@ -520,6 +520,32 @@
       {
         "search": "\t\t\tcatch (Exception exception)\n\t\t\t{\n\t\t\t\tfailures.Add(exception);\n\t\t\t\treturn false;\n\t\t\t}\n\t\t}\n\n\t\tstatic void ThrowDeletionFailures",
         "replace": "\t\t\tcatch (Exception)\n\t\t\t{\n\t\t\t\treturn false;\n\t\t\t}\n\t\t}\n\n\t\tstatic void ThrowDeletionFailures"
+      }
+    ]
+  },
+  {
+    "id": "secure-repository-does-not-normalize-empty-api15-result",
+    "file": "src/Maui.Tizen.Essentials/SecureStorage/TizenSecureStorage.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~SecureRepositoryNormalizesOnlyDocumentedNoAliasArgumentException",
+    "expected": "SecureRepositoryNormalizesOnlyDocumentedNoAliasArgumentException",
+    "replacements": [
+      {
+        "search": "NormalizeAliases(_getAliases);",
+        "replace": "_getAliases().ToArray();"
+      }
+    ]
+  },
+  {
+    "id": "event-native-delegate-relabeled-to-current-generation",
+    "file": "src/Maui.Tizen.Essentials/Platform/TizenEventSubscriptionCoordinator.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~StaleQueuedEventNeverReachesReplacementSubscriber",
+    "expected": "StaleQueuedEventNeverReachesReplacementSubscriber",
+    "replacements": [
+      {
+        "search": "unsubscribe = _start(args => Publish(generation, args));",
+        "replace": "unsubscribe = _start(args => Publish(_generation, args));"
       }
     ]
   }

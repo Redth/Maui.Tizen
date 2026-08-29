@@ -619,10 +619,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 
 	sealed class TizenSecureRepository : ITizenSecureRepository
 	{
-		public static TizenSecureRepository Instance { get; } = new();
+		readonly Func<IEnumerable<string>> _getAliases;
 
-		TizenSecureRepository()
+		public static TizenSecureRepository Instance { get; } =
+			new(DataManager.GetAliases);
+
+		internal TizenSecureRepository(Func<IEnumerable<string>> getAliases)
 		{
+			_getAliases = getAliases;
 		}
 
 		public byte[] Get(string alias) =>
@@ -635,6 +639,22 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			DataManager.RemoveAlias(alias);
 
 		public IEnumerable<string> GetAliases() =>
-			DataManager.GetAliases();
+			NormalizeAliases(_getAliases);
+
+		internal static IReadOnlyList<string> NormalizeAliases(
+			Func<IEnumerable<string>> getAliases)
+		{
+			try
+			{
+				return getAliases().ToArray();
+			}
+			catch (ArgumentException exception) when (exception.ParamName is null)
+			{
+				// API15 documents ArgumentException from this parameterless call specifically as
+				// "there's no alias to get". An ArgumentException naming a parameter is not that
+				// sentinel and must propagate as a genuine repository failure.
+				return [];
+			}
+		}
 	}
 }

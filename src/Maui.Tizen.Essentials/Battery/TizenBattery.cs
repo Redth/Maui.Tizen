@@ -25,7 +25,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// <summary>Creates the Tizen battery service.</summary>
 		public TizenBattery()
 		{
-			_events = new(this, StartListeners, StopListeners);
+			_events = new(this, StartListeners);
 		}
 
 		/// <inheritdoc/>
@@ -90,10 +90,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			remove => throw TizenEssentialsSupport.NotSupported($"{nameof(IBattery)}.{nameof(EnergySaverStatusChanged)}", EnergySaverReason);
 		}
 
-		void StartListeners()
+		Action StartListeners(Action<BatteryInfoChangedEventArgs> publish)
 		{
 			var percent = false;
 			var charging = false;
+			void OnChanged(object? sender, object e)
+			{
+				var args = new BatteryInfoChangedEventArgs(ChargeLevel, State, PowerSource);
+				publish(args);
+			}
+
 			try
 			{
 				TizenBatteryInfo.PercentChanged += OnChanged;
@@ -110,21 +116,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 					TizenBatteryInfo.PercentChanged -= OnChanged;
 				throw;
 			}
-		}
 
-		void StopListeners()
-		{
-			TizenBatteryInfo.PercentChanged -= OnChanged;
-			TizenBatteryInfo.ChargingStateChanged -= OnChanged;
-			TizenBatteryInfo.LevelChanged -= OnChanged;
-		}
-
-		void OnChanged(object? sender, object e)
-		{
-			// Snapshot on the native callback thread, then raise on the main thread.
-			var args = new BatteryInfoChangedEventArgs(ChargeLevel, State, PowerSource);
-
-			_events.Publish(args);
+			return () =>
+			{
+				TizenBatteryInfo.PercentChanged -= OnChanged;
+				TizenBatteryInfo.ChargingStateChanged -= OnChanged;
+				TizenBatteryInfo.LevelChanged -= OnChanged;
+			};
 		}
 
 		/// <inheritdoc/>

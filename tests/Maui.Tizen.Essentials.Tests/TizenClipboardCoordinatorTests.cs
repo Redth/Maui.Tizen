@@ -346,7 +346,11 @@ public class TizenClipboardCoordinatorTests
 			if (RaiseOnStart)
 				changed();
 			if (FailStartNotifications)
+			{
+				_dataSelected = null;
+				StopNotificationsCalls++;
 				throw new InvalidOperationException("secondary selection failed");
+			}
 		}
 
 		public void StopChangeNotifications()

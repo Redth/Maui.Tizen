@@ -71,9 +71,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 							$"Tizen did not answer the '{privilege}' permission request within {effectiveTimeout}."));
 			});
 
-			source.Response += OnResponse;
 			try
 			{
+				source.Response += OnResponse;
 				source.Request();
 				return await completion.Task.ConfigureAwait(false);
 			}

@@ -49,7 +49,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 		/// <summary>Creates the Tizen display service.</summary>
 		public TizenDeviceDisplay()
 		{
-			_events = new(this, StartListeners, StopListeners);
+			_events = new(this, StartListeners);
 		}
 
 		/// <inheritdoc/>
@@ -99,20 +99,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 			remove => _events.Remove(value);
 		}
 
-		void StartListeners()
+		Action StartListeners(Action<DisplayInfoChangedEventArgs> publish)
 		{
 			if (CoreApplication is not { } app)
-				return;
+				return static () => { };
 
-			app.DeviceOrientationChanged += OnRotationChanged;
-		}
-
-		void StopListeners()
-		{
-			if (CoreApplication is not { } app)
-				return;
-
-			app.DeviceOrientationChanged -= OnRotationChanged;
+			EventHandler<TizenDeviceOrientationEventArgs> handler = (_, e) =>
+			{
+				var natural = GetNaturalOrientation(DisplayWidth, DisplayHeight);
+				(_displayRotation, _displayOrientation) = MapOrientation(e.DeviceOrientation, natural);
+				publish(new DisplayInfoChangedEventArgs(MainDisplayInfo));
+			};
+			app.DeviceOrientationChanged += handler;
+			return () => app.DeviceOrientationChanged -= handler;
 		}
 
 		static DisplayOrientation GetNaturalOrientation(int width, int height) =>
@@ -134,15 +133,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Essentials
 				TizenDeviceOrientation.Orientation_270 => (DisplayRotation.Rotation270, rotated),
 				_ => (DisplayRotation.Unknown, DisplayOrientation.Unknown),
 			};
-		}
-
-		void OnRotationChanged(object? sender, TizenDeviceOrientationEventArgs e)
-		{
-			var natural = GetNaturalOrientation(DisplayWidth, DisplayHeight);
-			(_displayRotation, _displayOrientation) = MapOrientation(e.DeviceOrientation, natural);
-
-			var args = new DisplayInfoChangedEventArgs(MainDisplayInfo);
-			_events.Publish(args);
 		}
 
 		/// <inheritdoc/>
