@@ -56,14 +56,25 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public static float ToScaledDP(this float pixel) => (float)((double)pixel).ToScaledDP();
 	}
 
-	internal sealed class TizenTargetImageReadiness : ITizenImageReadinessTarget, IDisposable
+	internal sealed class TizenTargetImageReadiness : ITizenImageReadinessTarget, IAsyncDisposable
 	{
 		readonly NImageView _target;
+		readonly Func<Action, Task> _dispatch;
+		readonly CancellationTokenRegistration _cancellation;
+		int _unsubscribed;
 
-		public TizenTargetImageReadiness(NImageView target)
+		public TizenTargetImageReadiness(
+			NImageView target,
+			Func<Action, Task> dispatch,
+			CancellationToken cancellationToken)
 		{
 			_target = target;
+			_dispatch = dispatch;
 			_target.ResourceReady += OnResourceReady;
+			_cancellation = cancellationToken.Register(
+				static state =>
+					((TizenTargetImageReadiness)state!).UnsubscribeAsync().AsTask().GetAwaiter().GetResult(),
+				this);
 		}
 
 		public event EventHandler? ResourceReady;
@@ -81,7 +92,21 @@ namespace Microsoft.Maui.Platforms.Tizen
 		void OnResourceReady(object? sender, NImageView.ResourceReadyEventArgs args) =>
 			ResourceReady?.Invoke(this, EventArgs.Empty);
 
-		public void Dispose() => _target.ResourceReady -= OnResourceReady;
+		async ValueTask UnsubscribeAsync()
+		{
+			if (Interlocked.Exchange(ref _unsubscribed, 1) != 0)
+				return;
+
+			await TizenImageReadinessCoordinator.DispatchCleanupAsync(
+				_dispatch,
+				() => _target.ResourceReady -= OnResourceReady);
+		}
+
+		public async ValueTask DisposeAsync()
+		{
+			_cancellation.Dispose();
+			await UnsubscribeAsync();
+		}
 	}
 
 	internal static class TizenTargetImageExtensions
@@ -89,6 +114,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public static async Task<bool> ApplyAndWaitForReadyAsync(
 			this NImageView target,
 			TizenImageSource? image,
+			Func<Action, Task> dispatch,
 			CancellationToken cancellationToken)
 		{
 			if (image?.ResourceUrl is not { Length: > 0 } url)
@@ -97,7 +123,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return true;
 			}
 
-			using var readiness = new TizenTargetImageReadiness(target);
+			await using var readiness = new TizenTargetImageReadiness(
+				target,
+				dispatch,
+				cancellationToken);
 			return await TizenImageReadinessCoordinator
 				.WaitAsync(readiness, url, immediate: false, cancellationToken);
 		}

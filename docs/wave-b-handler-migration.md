@@ -135,7 +135,9 @@ checks remain only for Tizen-only wiring that cannot load on the host:
 failure, holds a worktree-scoped exclusive lock, restores exact original bytes in a trap, and
 verifies the working-tree status is unchanged. Because mutation builds exercise canonical output
 paths, the runner finishes by rebuilding restored sources and running `--no-build` checks; mutated
-assemblies cannot survive the lane. The canonical workload-free build invokes it.
+assemblies cannot survive the lane. Empty manifests are rejected, and dedicated TERM/INT tests
+verify signal-compatible nonzero exits after exact restoration. A worktree lock prevents concurrent
+runners from racing backups or restores. The canonical workload-free build invokes it.
 
 These tests found three real defects during development: two missing command mappers
 (`new(...)` initialisers were not being read), and `ISwipeItemMenuItem.IconColor` having no mapper
@@ -545,7 +547,12 @@ Content or item-collection changes now drain the action registry, reject late to
 reset open/direction/offset state, and rebuild only a still-valid side. Layout pairs filtered visible
 virtual items with visible native children, so a hidden leading item cannot shift every action.
 A same-side open requested during animated close is queued and replayed after close instead of being
-misclassified as already open.
+misclassified as already open. Disabling during an active gesture cancels its animation, restores
+content position, clears terminal state and offset, and leaves re-enable coherent. Item
+materialization reserves the action-tree generation before `ToPlatformView`; reentrant collection
+changes dispose the prepared stale item rather than attaching it to a replaced tree.
+The swipe-menu handler enters disconnecting state only as the first disconnect action, so initial
+and subsequent connected mappings remain live and teardown mappings are ignored.
 
 ### A refresh restart during the completion window
 
@@ -572,7 +579,10 @@ layout disconnected, detaches content before child disposal, and retains a compl
 until bounded native-state polling observes it idle. A timeout retains the platform instead of
 disposing beneath UIExtensions' private continuation. The layout also tracks the full native touch
 pull/reset lifecycle; a below-threshold release requires a conservative quiet-frame interval before
-the retained platform is released.
+the retained platform is released. A successful pull clears that reset state immediately, while
+disable forces an active below-threshold pull into the same observed completion path.
+Disabling an active swipe gesture likewise synthesizes terminal cancellation, restores position and
+clears gesture/animation state before re-enable.
 
 ### Image cleanup belongs on the main loop
 
@@ -584,6 +594,10 @@ Disconnect invalidates the originating part and clears its loading state before 
 loader. URI preloads use API15's `Immediate` policy. More importantly, each real destination
 `ImageView` subscribes to its own `ResourceReady` before URL assignment; loading completion waits
 for that captured target's status with source/target generation and cancellation checks.
+Cancellation synchronously waits for dispatcher-owned native event unsubscription before disconnect
+can dispose the destination; ImageButton clears its URL before releasing the loader-owned result.
+All Wave B and concrete Controls shape mappers resolve the native target through the shared
+live-platform gate, including property and command paths reentered after teardown.
 
 ### Visibility is not the indicator's to decide alone
 

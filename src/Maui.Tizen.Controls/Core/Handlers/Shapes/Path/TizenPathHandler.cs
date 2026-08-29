@@ -63,13 +63,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </remarks>
 		public static void MapShape(TizenPathHandler handler, Path path)
 		{
-			handler.PlatformView?.UpdateShape(path);
+			handler.LivePlatformView?.UpdateShape(path);
 			ApplyRenderTransform(handler, path);
 		}
 
 		public static void MapData(TizenPathHandler handler, Path path)
 		{
-			handler.PlatformView?.UpdateShape(path);
+			handler.LivePlatformView?.UpdateShape(path);
 			ApplyRenderTransform(handler, path);
 		}
 
@@ -84,7 +84,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </remarks>
 		static void ApplyRenderTransform(TizenPathHandler handler, Path path)
 		{
-			if (handler.PlatformView?.Drawable is not ShapeDrawable shapeDrawable)
+			if (handler.LivePlatformView?.Drawable is not ShapeDrawable shapeDrawable)
 				return;
 
 			var matrix = path.RenderTransform?.Value;
@@ -92,7 +92,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			shapeDrawable.UpdateRenderTransform(
 				matrix is null ? Matrix3x2.Identity : matrix.Value.ToMatrix3X2());
 
-			handler.PlatformView?.InvalidateShape(path);
+			handler.LivePlatformView?.InvalidateShape(path);
 		}
 	}
 }

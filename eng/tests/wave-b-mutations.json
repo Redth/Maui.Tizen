@@ -254,7 +254,7 @@
     "file": "src/Maui.Tizen.Core/Handlers/Image/TizenImageHandler.cs",
     "replacements": [
       {
-        "search": "(platformImage, token) => target.ApplyAndWaitForReadyAsync(platformImage, token),",
+        "search": "(platformImage, token) => target.ApplyAndWaitForReadyAsync(platformImage, commitOnUiThread, token),",
         "replace": "platformImage => target.ResourceUrl = platformImage?.ResourceUrl,"
       }
     ],
@@ -267,7 +267,7 @@
     "file": "src/Maui.Tizen.Core/Handlers/ImageButton/TizenImageButtonHandler.cs",
     "replacements": [
       {
-        "search": "(platformImage, token) => target.ApplyAndWaitForReadyAsync(platformImage, token),",
+        "search": "(platformImage, token) => target.ApplyAndWaitForReadyAsync(platformImage, commitOnUiThread, token),",
         "replace": "platformImage => target.ResourceUrl = platformImage?.ResourceUrl,"
       }
     ],
@@ -280,12 +280,107 @@
     "file": "src/Maui.Tizen.Core/Handlers/SwipeItemMenuItem/TizenSwipeItemMenuItemHandler.cs",
     "replacements": [
       {
-        "search": "(platformImage, token) => icon.ApplyAndWaitForReadyAsync(platformImage, token),",
+        "search": "(platformImage, token) => icon.ApplyAndWaitForReadyAsync(platformImage, commitOnUiThread, token),",
         "replace": "platformImage => icon.ResourceUrl = platformImage?.ResourceUrl,"
       }
     ],
     "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
     "filter": "FullyQualifiedName~ImageHandlersUseTheSharedLoaderAndDispatcher",
     "expected": "TizenSwipeItemMenuItemHandler"
+  },
+  {
+    "id": "begin-disconnect-during-swipeitem-connect",
+    "file": "src/Maui.Tizen.Core/Handlers/SwipeItemMenuItem/TizenSwipeItemMenuItemHandler.cs",
+    "replacements": [
+      {
+        "search": "\t\t\tTizenCleanup.Run(\n\t\t\t\t_sourceEvents.Invalidate,\n\t\t\t\t_sourceLoader.Dispose,",
+        "replace": "\t\t\tTizenCleanup.Run(\n\t\t\t\t_disconnecting.BeginDisconnect,\n\t\t\t\t_sourceEvents.Invalidate,\n\t\t\t\t_sourceLoader.Dispose,"
+      },
+      {
+        "search": "\t\t\tTizenCleanup.Run(\n\t\t\t\t_disconnecting.BeginDisconnect,\n\t\t\t\t_sourceEvents.Invalidate,\n\t\t\t\t_sourceLoader.Dispose,\n\t\t\t\t() => base.DisconnectHandler(platformView));",
+        "replace": "\t\t\tTizenCleanup.Run(\n\t\t\t\t_sourceEvents.Invalidate,\n\t\t\t\t_sourceLoader.Dispose,\n\t\t\t\t() => base.DisconnectHandler(platformView));"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~SwipeMenuInitialAndSubsequentMappingsRunUntilDisconnect",
+    "expected": "SwipeMenuInitialAndSubsequentMappingsRunUntilDisconnect"
+  },
+  {
+    "id": "allow-stale-swipe-item-materialization",
+    "file": "src/Maui.Tizen.Core/Platform/TizenSwipeStructureCoordinator.cs",
+    "replacements": [
+      {
+        "search": "if (CurrentGeneration != operation || !isExpected())",
+        "replace": "if (!isExpected())"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~ReentrantItemMaterializationCannotCommitIntoReplacedActionTree",
+    "expected": "ReentrantItemMaterializationCannotCommitIntoReplacedActionTree"
+  },
+  {
+    "id": "keep-below-threshold-reset-on-success",
+    "file": "src/Maui.Tizen.Core/Handlers/RefreshView/TizenRefreshViewHandler.cs",
+    "replacements": [
+      {
+        "search": "\t\t\tPlatform(this)?.ObserveNativeRefreshStarted();",
+        "replace": "\t\t\t// mutation: successful refresh leaves below-threshold reset active"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~SuccessfulPullClearsBelowThresholdResetActivity",
+    "expected": "SuccessfulPullClearsBelowThresholdResetActivity"
+  },
+  {
+    "id": "leave-active-swipe-gesture-on-disable",
+    "file": "src/Maui.Tizen.Core/Platform/TizenSwipeStructureCoordinator.cs",
+    "replacements": [
+      {
+        "search": "\t\t\tif (!wasActive)\n\t\t\t\treturn false;",
+        "replace": "\t\t\tif (!wasActive || DateTime.UtcNow.Ticks != long.MinValue)\n\t\t\t\treturn false;"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~DisablingActiveGestureClearsTerminalStateBeforeReenable",
+    "expected": "DisablingActiveGestureClearsTerminalStateBeforeReenable"
+  },
+  {
+    "id": "drop-dispatched-target-unsubscribe",
+    "file": "src/Maui.Tizen.Core/Platform/Tizen/TizenWaveBInterop.cs",
+    "replacements": [
+      {
+        "search": "\t\t\tawait UnsubscribeAsync();",
+        "replace": "\t\t\t// mutation: native subscription survives disposal"
+      }
+    ],
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "filter": "FullyQualifiedName~TargetReadinessCancellationSynchronouslyDispatchesNativeUnsubscribe",
+    "expected": "TargetReadinessCancellationSynchronouslyDispatchesNativeUnsubscribe"
+  },
+  {
+    "id": "release-imagebutton-result-before-native-clear",
+    "file": "src/Maui.Tizen.Core/Handlers/ImageButton/TizenImageButtonHandler.cs",
+    "replacements": [
+      {
+        "search": "\t\t\t\t() => platformView.ResourceUrl = null,\n\t\t\t\t_sourceLoader.Dispose,",
+        "replace": "\t\t\t\t_sourceLoader.Dispose,\n\t\t\t\t() => platformView.ResourceUrl = null,"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~ImageButtonClearFailureStillReleasesLoaderResultAndBaseDisconnect",
+    "expected": "ImageButtonClearFailureStillReleasesLoaderResultAndBaseDisconnect"
+  },
+  {
+    "id": "use-throwing-path-platform-property",
+    "file": "src/Maui.Tizen.Controls/Core/Handlers/Shapes/Path/TizenPathHandler.cs",
+    "replacements": [
+      {
+        "search": "public static void MapData(TizenPathHandler handler, Path path)\n\t\t{\n\t\t\thandler.LivePlatformView?.UpdateShape(path);",
+        "replace": "public static void MapData(TizenPathHandler handler, Path path)\n\t\t{\n\t\t\thandler.PlatformView.UpdateShape(path);"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~PropertyAndCommandMappersIgnoreClearedPlatformViews",
+    "expected": "PropertyAndCommandMappersIgnoreClearedPlatformViews"
   }
 ]

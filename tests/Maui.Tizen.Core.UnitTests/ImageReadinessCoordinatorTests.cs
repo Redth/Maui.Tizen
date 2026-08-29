@@ -87,5 +87,36 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wait);
 			Assert.Equal("unsubscribe", target.Operations[^1]);
 		}
+
+		[Fact]
+		public async Task NativeUnsubscribeCompletesOnDispatcherBeforeDisposalCanContinue()
+		{
+			Action? queued = null;
+			var unsubscribed = false;
+			var dispatched = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+			Task Dispatch(Action action)
+			{
+				queued = () =>
+				{
+					action();
+					dispatched.SetResult();
+				};
+				return dispatched.Task;
+			}
+
+			var cleanup = TizenImageReadinessCoordinator.DispatchCleanupAsync(
+				Dispatch,
+				() => unsubscribed = true);
+
+			Assert.False(unsubscribed);
+			Assert.NotNull(queued);
+			Assert.False(cleanup.IsCompleted);
+
+			queued!();
+			await cleanup;
+
+			Assert.True(unsubscribed);
+		}
 	}
 }

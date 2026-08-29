@@ -88,6 +88,7 @@ Microsoft.Maui.Platforms.Tizen.Handlers.TizenSearchBarHandler
 Microsoft.Maui.Platforms.Tizen.Handlers.TizenSearchBarHandler.TizenSearchBarHandler() -> void
 Microsoft.Maui.Platforms.Tizen.Handlers.TizenSearchBarHandler.TizenSearchBarHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
 Microsoft.Maui.Platforms.Tizen.Handlers.TizenShapeViewHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenShapeViewHandler.LivePlatformView.get -> Microsoft.Maui.Platforms.Tizen.TizenShapeView?
 Microsoft.Maui.Platforms.Tizen.Handlers.TizenShapeViewHandler.TizenShapeViewHandler() -> void
 Microsoft.Maui.Platforms.Tizen.Handlers.TizenShapeViewHandler.TizenShapeViewHandler(Microsoft.Maui.IPropertyMapper? mapper) -> void
 Microsoft.Maui.Platforms.Tizen.Handlers.TizenShapeViewHandler.TizenShapeViewHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper) -> void

@@ -35,18 +35,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public TizenPolylineHandler()
 			: base(Mapper, CommandMapper)
-		{{
-		}}
+		{
+			{
+			}
+		}
 
 		public TizenPolylineHandler(IPropertyMapper? mapper)
 			: base(mapper ?? Mapper, CommandMapper)
-		{{
-		}}
+		{
+			{
+			}
+		}
 
 		public TizenPolylineHandler(IPropertyMapper? mapper, CommandMapper? commandMapper)
 			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
-		{{
-		}}
+		{
+			{
+			}
+		}
 
 		Microsoft.Maui.Controls.PointCollection? _points;
 
@@ -112,7 +118,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// </remarks>
 		public static void MapShape(TizenPolylineHandler handler, Polyline polyline)
 		{
-			handler.PlatformView?.UpdateShape(polyline);
+			handler.LivePlatformView?.UpdateShape(polyline);
 			ApplyFillRule(handler, polyline);
 		}
 
@@ -121,13 +127,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		static void ApplyFillRule(TizenPolylineHandler handler, Polyline polyline)
 		{
-			if (handler.PlatformView?.Drawable is not ShapeDrawable shapeDrawable)
+			if (handler.LivePlatformView?.Drawable is not ShapeDrawable shapeDrawable)
 				return;
 
 			shapeDrawable.UpdateWindingMode(
 				polyline.FillRule == FillRule.EvenOdd ? WindingMode.EvenOdd : WindingMode.NonZero);
 
-			handler.PlatformView?.InvalidateShape(polyline);
+			handler.LivePlatformView?.InvalidateShape(polyline);
 		}
 	}
 }

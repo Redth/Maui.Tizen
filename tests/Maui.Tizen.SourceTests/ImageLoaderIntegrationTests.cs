@@ -57,4 +57,17 @@ public class ImageLoaderIntegrationTests
 		Assert.DoesNotContain("AddTizenUriAndFontImageSources", services, StringComparison.Ordinal);
 	}
 
+	[Fact]
+	public void TargetReadinessCancellationSynchronouslyDispatchesNativeUnsubscribe()
+	{
+		var source = Read(
+			"src", "Maui.Tizen.Core", "Platform", "Tizen", "TizenWaveBInterop.cs");
+
+		Assert.Contains(
+			"UnsubscribeAsync().AsTask().GetAwaiter().GetResult()",
+			source,
+			StringComparison.Ordinal);
+		Assert.Contains("await UnsubscribeAsync();", source, StringComparison.Ordinal);
+	}
+
 }

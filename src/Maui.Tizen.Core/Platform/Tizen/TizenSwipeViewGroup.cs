@@ -243,6 +243,21 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public void UpdateIsSwipeEnabled(bool isEnabled)
 		{
 			_isSwipeEnabled = isEnabled;
+
+			if (!isEnabled && TizenSwipeStructureCoordinator.DisableGesture(
+				ref _isSwiping,
+				ref _isResettingSwipe,
+				ref _isOpen,
+				ref _swipeDirection,
+				ref _swipeOffset,
+				ref _swipeThreshold,
+				CancelContentCallbacks,
+				RestoreContentPosition))
+			{
+				TizenCleanup.Run(
+					DisposeSwipeItems,
+					_openCoordinator.Reset);
+			}
 		}
 
 		public void UpdateIsVisibleSwipeItem(ISwipeItem item)
@@ -465,51 +480,93 @@ namespace Microsoft.Maui.Platforms.Tizen
 			if (items?.Count == 0 || items == null)
 				return;
 
-			_actionView = new NView
+			var direction = _swipeDirection;
+			var snapshot = TizenSwipeItemsSnapshot.Capture(items);
+			var operation = _swipeItems.ReserveMaterialization();
+			var actionView = new NView
 			{
 				Layout = new global::Tizen.NUI.AbsoluteLayout(),
 				WidthSpecification = global::Tizen.NUI.BaseComponents.LayoutParamPolicies.MatchParent,
 				HeightSpecification = global::Tizen.NUI.BaseComponents.LayoutParamPolicies.MatchParent,
 			};
+			_actionView = actionView;
 
 			var swipeItems = new List<NView>();
 
 			foreach (var item in items)
 			{
 				var swipeItem = item.ToPlatformView(MauiContext);
-				if (swipeItem != null)
+				if (swipeItem is null)
+					continue;
+
+				var preparedHandler = item.Handler;
+				if (!_swipeItems.CommitPrepared(
+					operation,
+					item,
+					swipeItem,
+					() =>
+						ReferenceEquals(_actionView, actionView) &&
+						_swipeDirection == direction &&
+						direction is { } expectedDirection &&
+						snapshot.Matches(GetSwipeItemsByDirection(expectedDirection)),
+					() => DisposePreparedSwipeItem(item, swipeItem, preparedHandler)))
+					continue;
+
+				if (item is ISwipeItemView formsSwipeItemView)
+					UpdateSwipeItemViewLayout(formsSwipeItemView);
+
+				actionView.Add(swipeItem);
+				swipeItems.Add(swipeItem);
+				var itemGeneration = operation;
+
+				swipeItem.TouchEvent += (s, e) =>
 				{
-					if (item is ISwipeItemView formsSwipeItemView)
+					if (!_swipeItems.IsCurrent(itemGeneration, item, swipeItem))
+						return true;
+
+					if (e.Touch.GetState(0) == TPointStateType.Up)
 					{
-						UpdateSwipeItemViewLayout(formsSwipeItemView);
+						ExecuteSwipeItem(item);
+						if (GetSwipeItemsByDirection()?.SwipeBehaviorOnInvoked != SwipeBehaviorOnInvoked.RemainOpen)
+							ResetSwipe();
 					}
 
-					_actionView.Add(swipeItem);
-					_swipeItems.Add(item, swipeItem);
-					swipeItems.Add(swipeItem);
-					var itemGeneration = _swipeItems.CurrentGeneration;
-
-					swipeItem.TouchEvent += (s, e) =>
-					{
-						if (!_swipeItems.IsCurrent(itemGeneration, item, swipeItem))
-							return true;
-
-						if (e.Touch.GetState(0) == TPointStateType.Up)
-						{
-							ExecuteSwipeItem(item);
-							if (GetSwipeItemsByDirection()?.SwipeBehaviorOnInvoked != SwipeBehaviorOnInvoked.RemainOpen)
-								ResetSwipe();
-						}
-
-						return true;
-					};
-				}
+					return true;
+				};
 			}
 
-			Children.Add(_actionView);
+			if (!_swipeItems.IsOperationCurrent(operation)
+				|| !ReferenceEquals(_actionView, actionView))
+				return;
+
+			Children.Add(actionView);
 			_contentView.RaiseToTop();
 
 			LayoutSwipeItems(swipeItems);
+		}
+
+		static void DisposePreparedSwipeItem(
+			ISwipeItem item,
+			NView view,
+			IElementHandler? handler)
+		{
+			TizenCleanup.Run(
+				view.Unparent,
+				() =>
+				{
+					if (handler is ITizenPlatformViewHandler platformViewHandler)
+						platformViewHandler.Dispose();
+					else
+					{
+						handler?.DisconnectHandler();
+						view.Dispose();
+					}
+				},
+				() =>
+				{
+					if (ReferenceEquals(item.Handler, handler))
+						item.Handler = null;
+				});
 		}
 
 		void LayoutSwipeItems(List<NView> children)

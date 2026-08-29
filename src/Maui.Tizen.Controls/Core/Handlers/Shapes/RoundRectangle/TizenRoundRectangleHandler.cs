@@ -30,20 +30,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public TizenRoundRectangleHandler()
 			: base(Mapper, CommandMapper)
-		{{
-		}}
+		{
+			{
+			}
+		}
 
 		public TizenRoundRectangleHandler(IPropertyMapper? mapper)
 			: base(mapper ?? Mapper, CommandMapper)
-		{{
-		}}
+		{
+			{
+			}
+		}
 
 		public TizenRoundRectangleHandler(IPropertyMapper? mapper, CommandMapper? commandMapper)
 			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
-		{{
-		}}
+		{
+			{
+			}
+		}
 
 		public static void MapCornerRadius(TizenRoundRectangleHandler handler, RoundRectangle roundRectangle) =>
-			handler.PlatformView?.InvalidateShape(roundRectangle);
+			handler.LivePlatformView?.InvalidateShape(roundRectangle);
 	}
 }

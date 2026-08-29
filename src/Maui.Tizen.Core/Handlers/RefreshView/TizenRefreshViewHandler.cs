@@ -129,6 +129,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		void OnRefreshing(object? sender, EventArgs e)
 		{
+			Platform(this)?.ObserveNativeRefreshStarted();
 			_refreshCoordinator?.ObserveNativeStart();
 
 			// Tizen's RefreshLayout has no API to disable the pull gesture, so the gesture still
@@ -205,6 +206,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 			if (!refreshView.IsRefreshEnabled)
 			{
+				if (Platform(handler) is { HasPendingNativeActivity: true } platformView)
+				{
+					platformView.CancelNativePull();
+					handler._refreshCoordinator?.ObserveNativeStart();
+				}
+
 				if (refreshView.IsRefreshing)
 					refreshView.IsRefreshing = false;
 

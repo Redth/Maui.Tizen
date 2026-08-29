@@ -33,29 +33,35 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		public TizenLineHandler()
 			: base(Mapper, CommandMapper)
-		{{
-		}}
+		{
+			{
+			}
+		}
 
 		public TizenLineHandler(IPropertyMapper? mapper)
 			: base(mapper ?? Mapper, CommandMapper)
-		{{
-		}}
+		{
+			{
+			}
+		}
 
 		public TizenLineHandler(IPropertyMapper? mapper, CommandMapper? commandMapper)
 			: base(mapper ?? Mapper, commandMapper ?? CommandMapper)
-		{{
-		}}
+		{
+			{
+			}
+		}
 
 		public static void MapX1(TizenLineHandler handler, Line line) =>
-			handler.PlatformView?.InvalidateShape(line);
+			handler.LivePlatformView?.InvalidateShape(line);
 
 		public static void MapY1(TizenLineHandler handler, Line line) =>
-			handler.PlatformView?.InvalidateShape(line);
+			handler.LivePlatformView?.InvalidateShape(line);
 
 		public static void MapX2(TizenLineHandler handler, Line line) =>
-			handler.PlatformView?.InvalidateShape(line);
+			handler.LivePlatformView?.InvalidateShape(line);
 
 		public static void MapY2(TizenLineHandler handler, Line line) =>
-			handler.PlatformView?.InvalidateShape(line);
+			handler.LivePlatformView?.InvalidateShape(line);
 	}
 }

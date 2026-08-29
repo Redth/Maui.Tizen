@@ -48,7 +48,25 @@ namespace Tizen.UIExtensions.NUI
 
 	public class Image : Microsoft.Maui.Platforms.Tizen.TizenPlatformView
 	{
-		public string? ResourceUrl { get; set; }
+		string? _resourceUrl;
+
+		public bool ThrowOnResourceClear { get; set; }
+		public int ResourceClearAttemptCount { get; private set; }
+
+		public string? ResourceUrl
+		{
+			get => _resourceUrl;
+			set
+			{
+				if (value is null)
+				{
+					ResourceClearAttemptCount++;
+					if (ThrowOnResourceClear)
+						throw new InvalidOperationException("resource clear");
+				}
+				_resourceUrl = value;
+			}
+		}
 		public global::Tizen.NUI.Color? ImageColor { get; set; }
 	}
 
@@ -317,6 +335,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public void ReleaseBelowThresholdPull() => _nativeActivity.ReleasePull();
 
+		public void ObserveNativeRefreshStarted() => _nativeActivity.ObserveRefreshStarted();
+
+		public void CancelNativePull() => _nativeActivity.ReleasePull();
+
 		public void UpdateContent(IView? content, IMauiContext? context) =>
 			UpdateContent(content, context, static () => true);
 
@@ -368,6 +390,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public int StructuralInvalidationCount { get; private set; }
 		public int OpenRequestCount { get; private set; }
 		public int CloseRequestCount { get; private set; }
+		public bool GestureActive { get; private set; }
+		public double GestureOffset { get; private set; }
 
 		public void DisposeChildHandlers()
 		{
@@ -423,6 +447,32 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public void UpdateIsSwipeEnabled(bool enabled)
 		{
+			if (!enabled)
+			{
+				var swiping = GestureActive;
+				var resetting = false;
+				var open = GestureActive;
+				SwipeDirection? direction = GestureActive ? SwipeDirection.Right : null;
+				var offset = GestureOffset;
+				var threshold = 0d;
+				TizenSwipeStructureCoordinator.DisableGesture(
+					ref swiping,
+					ref resetting,
+					ref open,
+					ref direction,
+					ref offset,
+					ref threshold,
+					static () => { },
+					static () => { });
+				GestureActive = swiping;
+				GestureOffset = offset;
+			}
+		}
+
+		public void BeginGestureForTest()
+		{
+			GestureActive = true;
+			GestureOffset = 24;
 		}
 
 		public void UpdateSwipeTransitionMode(SwipeTransitionMode mode)
@@ -564,6 +614,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public static void UpdateShape(this TizenShapeView view, IShapeView virtualView)
 		{
+			view.Record("WaveBShapeUpdate");
 		}
 
 		public static void InvalidateShape(this TizenShapeView view, IShapeView virtualView)
@@ -600,10 +651,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public static void UpdateText(this global::Tizen.UIExtensions.NUI.Button view, ISwipeItemMenuItem item)
 		{
+			view.Record("WaveBMenuText");
 		}
 
 		public static void UpdateTextColor(this global::Tizen.UIExtensions.NUI.Button view, ITextStyle item)
 		{
+			view.Record("WaveBMenuTextColor");
 		}
 
 		public static void UpdateCharacterSpacing(this global::Tizen.UIExtensions.NUI.Button view, ITextStyle item)
@@ -628,6 +681,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public static Task<bool> ApplyAndWaitForReadyAsync(
 			this global::Tizen.UIExtensions.NUI.Image target,
 			TizenImageSource? image,
+			Func<Action, Task> dispatch,
 			CancellationToken token)
 		{
 			target.ResourceUrl = image?.ResourceUrl;

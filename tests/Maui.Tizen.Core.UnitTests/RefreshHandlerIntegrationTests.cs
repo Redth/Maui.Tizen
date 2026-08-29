@@ -98,6 +98,57 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(0, platform.NativeStateReadAfterDisposeCount);
 		}
 
+		[Fact]
+		public void SuccessfulPullClearsBelowThresholdResetActivity()
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<ControlsApp>()
+				.Build();
+			var view = new RefreshView { IsRefreshEnabled = true };
+			var handler = Assert.IsType<TizenRefreshViewHandler>(
+				app.Services.GetRequiredService<IMauiHandlersFactory>().GetHandler(typeof(RefreshView)));
+			var elementHandler = (IElementHandler)handler;
+			elementHandler.SetMauiContext(new MauiContext(app.Services));
+			elementHandler.SetVirtualView(view);
+			var platform = Assert.IsType<TizenRefreshLayout>(elementHandler.PlatformView);
+
+			platform.BeginBelowThresholdPull();
+			platform.ReleaseBelowThresholdPull();
+			Assert.True(platform.HasPendingNativeActivity);
+
+			platform.RaiseRefreshing();
+
+			Assert.False(platform.HasPendingNativeActivity);
+			elementHandler.DisconnectHandler();
+		}
+
+		[Fact]
+		public void DisableDuringBelowThresholdPullForcesResetAndEventuallyIdles()
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<ControlsApp>()
+				.Build();
+			var view = new RefreshView { IsRefreshEnabled = true };
+			var handler = Assert.IsType<TizenRefreshViewHandler>(
+				app.Services.GetRequiredService<IMauiHandlersFactory>().GetHandler(typeof(RefreshView)));
+			var elementHandler = (IElementHandler)handler;
+			elementHandler.SetMauiContext(new MauiContext(app.Services));
+			elementHandler.SetVirtualView(view);
+			var platform = Assert.IsType<TizenRefreshLayout>(elementHandler.PlatformView);
+
+			platform.BeginBelowThresholdPull();
+			view.IsRefreshEnabled = false;
+			elementHandler.UpdateValue(nameof(IRefreshView.IsRefreshEnabled));
+
+			Assert.True(platform.RefreshState.IsCompleting);
+			Assert.True(SpinWait.SpinUntil(
+				() => !platform.RefreshState.IsCompleting,
+				TimeSpan.FromSeconds(1)));
+
+			Assert.False(platform.HasPendingNativeActivity);
+			elementHandler.DisconnectHandler();
+		}
+
 		sealed class ControlsApp : Application
 		{
 		}

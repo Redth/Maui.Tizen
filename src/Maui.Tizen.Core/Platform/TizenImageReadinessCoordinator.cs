@@ -18,6 +18,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 	internal static class TizenImageReadinessCoordinator
 	{
+		public static Task DispatchCleanupAsync(Func<Action, Task> dispatch, Action cleanup)
+		{
+			ArgumentNullException.ThrowIfNull(dispatch);
+			ArgumentNullException.ThrowIfNull(cleanup);
+			return dispatch(cleanup);
+		}
+
 		public static async Task<bool> WaitAsync(
 			ITizenImageReadinessTarget target,
 			string url,

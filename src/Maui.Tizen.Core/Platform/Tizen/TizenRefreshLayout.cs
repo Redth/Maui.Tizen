@@ -111,6 +111,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		internal bool HasPendingNativeActivity => _nativeActivity.HasPendingActivity;
 
+		internal void ObserveNativeRefreshStarted() => _nativeActivity.ObserveRefreshStarted();
+
+		internal void CancelNativePull() => _nativeActivity.ReleasePull();
+
 		internal Task<bool> WaitForNativeIdleAsync(
 			Func<Action, Task> dispatch,
 			Func<CancellationToken, Task> nextFrame,

@@ -107,5 +107,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			TizenHandlerLifecycle.TryGetLivePlatformView(handler, out TizenShapeView? platformView)
 				? platformView
 				: null;
+
+		protected TizenShapeView? LivePlatformView => Platform(this);
 	}
 }

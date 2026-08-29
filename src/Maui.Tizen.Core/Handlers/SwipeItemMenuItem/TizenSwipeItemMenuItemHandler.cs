@@ -71,7 +71,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			var replacement = new TizenImageLoader<TizenImageSource>();
 
 			TizenCleanup.Run(
-				_disconnecting.BeginDisconnect,
 				_sourceEvents.Invalidate,
 				_sourceLoader.Dispose,
 				() => _sourceLoader = replacement,
@@ -82,6 +81,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void DisconnectHandler(TizenButton platformView)
 		{
 			TizenCleanup.Run(
+				_disconnecting.BeginDisconnect,
 				_sourceEvents.Invalidate,
 				_sourceLoader.Dispose,
 				() => base.DisconnectHandler(platformView));
@@ -242,7 +242,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				handler._sourceEvents,
 				(imageSource, token) => provider.GetTizenImageAsync(imageSource, token),
 				commitOnUiThread,
-				(platformImage, token) => icon.ApplyAndWaitForReadyAsync(platformImage, token),
+				(platformImage, token) => icon.ApplyAndWaitForReadyAsync(platformImage, commitOnUiThread, token),
 				() =>
 					ReferenceEquals(handler.VirtualView, virtualView) &&
 					ReferenceEquals(Platform(handler), target) &&

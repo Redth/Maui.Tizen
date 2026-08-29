@@ -29,6 +29,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_quietFrames = 0;
 		}
 
+		public void ObserveRefreshStarted()
+		{
+			_touchActive = false;
+			_resetting = false;
+			_quietFrames = 0;
+		}
+
 		public bool IsBusy(bool isRefreshing, int requiredQuietFrames)
 		{
 			if (_touchActive || isRefreshing)

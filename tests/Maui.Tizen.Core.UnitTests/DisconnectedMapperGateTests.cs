@@ -3,6 +3,8 @@
 
 using System.Runtime.CompilerServices;
 using System.Linq;
+using System.Reflection;
+using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui;
 using Microsoft.Maui.Controls;
@@ -73,6 +75,87 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			((IElementHandler)shape).DisconnectHandler();
 			TizenShapeViewHandler.MapFill(shape, ellipse);
 			Assert.Equal(shapeCount, shapePlatform.Applied.Count(entry => entry == "WaveBShape"));
+
+			var pathView = new Microsoft.Maui.Controls.Shapes.Path();
+			var path = Bind<TizenPathHandler>(
+				app, context, typeof(Microsoft.Maui.Controls.Shapes.Path), pathView);
+			var pathPlatform = path.PlatformView;
+			var pathCount = pathPlatform.Applied.Count(entry => entry == "WaveBShapeUpdate");
+			((IElementHandler)path).DisconnectHandler();
+			TizenPathHandler.MapData(path, pathView);
+			Assert.Equal(
+				pathCount,
+				pathPlatform.Applied.Count(entry => entry == "WaveBShapeUpdate"));
+		}
+
+		[Fact]
+		public void SwipeMenuInitialAndSubsequentMappingsRunUntilDisconnect()
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<ControlsApp>()
+				.Build();
+			var context = new MauiContext(app.Services);
+			var item = new SwipeItem { Text = "initial" };
+			var handler = Bind<TizenSwipeItemMenuItemHandler>(
+				app, context, typeof(SwipeItem), item);
+			var platform = handler.PlatformView;
+
+			Assert.Contains("WaveBMenuText", platform.Applied);
+			var initialCount = platform.Applied.Count(entry => entry == "WaveBMenuText");
+
+			item.Text = "updated";
+			var updatedCount = platform.Applied.Count(entry => entry == "WaveBMenuText");
+			Assert.True(updatedCount > initialCount);
+			TizenSwipeItemMenuItemHandler.MapText(handler, item);
+
+			Assert.Equal(
+				updatedCount + 1,
+				platform.Applied.Count(entry => entry == "WaveBMenuText"));
+
+			((IElementHandler)handler).DisconnectHandler();
+			TizenSwipeItemMenuItemHandler.MapText(handler, item);
+
+			Assert.Equal(
+				updatedCount + 1,
+				platform.Applied.Count(entry => entry == "WaveBMenuText"));
+		}
+
+		[Fact]
+		public async Task ImageButtonClearFailureStillReleasesLoaderResultAndBaseDisconnect()
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<ControlsApp>()
+				.Build();
+			var context = new MauiContext(app.Services);
+			var view = new ImageButton();
+			var handler = Bind<TizenImageButtonHandler>(
+				app, context, typeof(ImageButton), view);
+			var platform = handler.PlatformView;
+			var loader = (TizenImageLoader<TizenImageSource>)typeof(TizenImageButtonHandler)
+				.GetField("_sourceLoader", BindingFlags.Instance | BindingFlags.NonPublic)!
+				.GetValue(handler)!;
+			var result = new TrackingImageResult(() => platform.ResourceClearAttemptCount);
+			var source = new TrackingImageSource();
+
+			await loader.LoadAsync(
+				source,
+				(_, _) => Task.FromResult<IImageSourceServiceResult<TizenImageSource>?>(result),
+				action =>
+				{
+					action();
+					return Task.CompletedTask;
+				},
+				_ => platform.ResourceUrl = "loaded",
+				static () => true,
+				static () => true);
+
+			platform.ThrowOnResourceClear = true;
+
+			Assert.Throws<InvalidOperationException>(
+				() => ((IElementHandler)handler).DisconnectHandler());
+			Assert.Equal(1, result.DisposeCount);
+			Assert.True(result.ClearWasAttemptedBeforeDispose);
+			Assert.Null(((IElementHandler)handler).PlatformView);
 		}
 
 		static THandler Bind<THandler>(
@@ -91,6 +174,30 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 		sealed class ControlsApp : Application
 		{
+		}
+
+		sealed class TrackingImageSource : IImageSource
+		{
+			public bool IsEmpty => false;
+		}
+
+		sealed class TrackingImageResult : IImageSourceServiceResult<TizenImageSource>
+		{
+			readonly System.Func<int> _clearAttemptCount;
+
+			public TrackingImageResult(System.Func<int> clearAttemptCount) =>
+				_clearAttemptCount = clearAttemptCount;
+
+			public TizenImageSource Value { get; } = new();
+			public bool IsResolutionDependent => false;
+			public bool IsDisposed => DisposeCount > 0;
+			public int DisposeCount { get; private set; }
+			public bool ClearWasAttemptedBeforeDispose { get; private set; }
+			public void Dispose()
+			{
+				ClearWasAttemptedBeforeDispose = _clearAttemptCount() > 0;
+				DisposeCount++;
+			}
 		}
 	}
 }

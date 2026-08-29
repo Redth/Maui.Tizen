@@ -120,6 +120,41 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Fact]
+		public void ReentrantItemMaterializationCannotCommitIntoReplacedActionTree()
+		{
+			var registry = new TizenSwipeItemRegistry<object, object>();
+			var staleItem = new object();
+			var staleView = new object();
+			var currentItem = new object();
+			var currentView = new object();
+			var staleDisposed = 0;
+
+			var staleOperation = registry.ReserveMaterialization();
+
+			// External materialization changes the collection/action tree before stale commit.
+			registry.Drain();
+			var currentOperation = registry.ReserveMaterialization();
+			Assert.True(registry.CommitPrepared(
+				currentOperation,
+				currentItem,
+				currentView,
+				static () => true,
+				static () => throw new Xunit.Sdk.XunitException("Current item was disposed.")));
+
+			Assert.False(registry.CommitPrepared(
+				staleOperation,
+				staleItem,
+				staleView,
+				static () => true,
+				() => staleDisposed++));
+
+			Assert.Equal(1, staleDisposed);
+			Assert.False(registry.TryGetValue(staleItem, out _));
+			Assert.True(registry.TryGetValue(currentItem, out var retained));
+			Assert.Same(currentView, retained);
+		}
+
+		[Fact]
 		public void SameSideOpenDuringAnimatedCloseQueuesAndReplays()
 		{
 			var coordinator = new TizenSwipeOpenCoordinator();
@@ -182,6 +217,35 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 					Assert.Equal("second-visible", pair.Item.Name);
 					Assert.Equal("native-second", pair.View.Name);
 				});
+		}
+
+		[Fact]
+		public void DisablingActiveGestureClearsTerminalStateBeforeReenable()
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<ControlsApp>()
+				.Build();
+			var view = new SwipeView { IsEnabled = true };
+			var handler = Assert.IsType<TizenSwipeViewHandler>(
+				app.Services.GetRequiredService<IMauiHandlersFactory>().GetHandler(typeof(SwipeView)));
+			var elementHandler = (IElementHandler)handler;
+			elementHandler.SetMauiContext(new MauiContext(app.Services));
+			elementHandler.SetVirtualView(view);
+			var platform = Assert.IsType<TizenSwipeViewGroup>(elementHandler.PlatformView);
+			platform.BeginGestureForTest();
+
+			view.IsEnabled = false;
+			elementHandler.UpdateValue(nameof(IView.IsEnabled));
+
+			Assert.False(platform.GestureActive);
+			Assert.Equal(0, platform.GestureOffset);
+
+			view.IsEnabled = true;
+			elementHandler.UpdateValue(nameof(IView.IsEnabled));
+			platform.BeginGestureForTest();
+			Assert.True(platform.GestureActive);
+
+			elementHandler.DisconnectHandler();
 		}
 
 		sealed class ControlsApp : Application

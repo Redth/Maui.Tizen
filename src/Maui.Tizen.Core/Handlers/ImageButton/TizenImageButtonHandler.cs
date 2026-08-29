@@ -79,7 +79,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 			TizenCleanup.Run(
 				_sourceEvents.Invalidate,
-				() => platformView.ResourceUrl = null,
 				_sourceLoader.Dispose,
 				() => _sourceLoader = replacement,
 				() => base.ConnectHandler(platformView),
@@ -92,6 +91,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 			TizenCleanup.Run(
 				_sourceEvents.Invalidate,
+				() => platformView.ResourceUrl = null,
 				_sourceLoader.Dispose,
 				() =>
 				{
@@ -152,7 +152,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				handler._sourceEvents,
 				(imageSource, token) => provider.GetTizenImageAsync(imageSource, token),
 				commitOnUiThread,
-				(platformImage, token) => target.ApplyAndWaitForReadyAsync(platformImage, token),
+				(platformImage, token) => target.ApplyAndWaitForReadyAsync(platformImage, commitOnUiThread, token),
 				() =>
 					ReferenceEquals(handler.VirtualView, virtualView) &&
 					ReferenceEquals(Platform(handler), target));

@@ -4,10 +4,10 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOTNET="${DOTNET:-dotnet}"
-MANIFEST="$REPO_ROOT/eng/tests/wave-b-mutations.json"
+MANIFEST="${WAVE_B_MUTATION_MANIFEST:-$REPO_ROOT/eng/tests/wave-b-mutations.json}"
 SCRATCH="$REPO_ROOT/artifacts/wave-b-mutations/$$"
 LOCK_ROOT="$REPO_ROOT/artifacts/locks"
-LOCK_DIR="$LOCK_ROOT/wave-b-mutations.lock"
+LOCK_DIR="${WAVE_B_MUTATION_LOCK_DIR:-$LOCK_ROOT/wave-b-mutations.lock}"
 CURRENT_FILE=""
 CURRENT_BACKUP=""
 
@@ -32,10 +32,23 @@ cleanup() {
   rm -rf "$SCRATCH"
   rmdir "$LOCK_DIR" 2>/dev/null || true
 }
-trap cleanup EXIT INT TERM
+on_signal() {
+  local status="$1"
+  trap - EXIT INT TERM
+  cleanup
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
 
 INITIAL_STATUS="$(git status --porcelain=v1)"
 COUNT="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))))' "$MANIFEST")"
+if [[ ! "$COUNT" =~ ^[1-9][0-9]*$ ]]; then
+  echo "Mutation manifest must contain at least one mutation." >&2
+  exit 1
+fi
+EXECUTED=0
 
 for ((index = 0; index < COUNT; index++)); do
   mutation_json="$(python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1]))[int(sys.argv[2])]))' "$MANIFEST" "$index")"
@@ -71,6 +84,11 @@ for replacement in mutation["replacements"]:
 path.write_text(text)
 PY
 
+  if [[ "${WAVE_B_MUTATION_PAUSE_SECONDS:-0}" != "0" ]]; then
+    touch "$SCRATCH/paused"
+    sleep "$WAVE_B_MUTATION_PAUSE_SECONDS"
+  fi
+
   set +e
   "$DOTNET" test "$project" -c Release --no-restore --filter "$filter" \
     --logger 'console;verbosity=minimal' >"$log" 2>&1
@@ -97,7 +115,13 @@ PY
   fi
 
   printf 'PASS %s\n' "$mutation_id"
+  EXECUTED=$((EXECUTED + 1))
 done
+
+if [[ "$EXECUTED" -eq 0 || "$EXECUTED" -ne "$COUNT" ]]; then
+  echo "Mutation runner executed $EXECUTED of $COUNT mutations." >&2
+  exit 1
+fi
 
 # Every mutation builds into the ordinary project graph so the test runner exercises the same
 # compilation users do. Rebuild the exact restored sources before leaving, then prove --no-build

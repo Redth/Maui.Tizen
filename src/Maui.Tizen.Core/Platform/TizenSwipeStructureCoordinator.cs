@@ -87,6 +87,43 @@ namespace Microsoft.Maui.Platforms.Tizen
 				? candidate
 				: null;
 		}
+
+		public static bool DisableGesture(
+			ref bool isSwiping,
+			ref bool isResetting,
+			ref bool isOpen,
+			ref SwipeDirection? direction,
+			ref double offset,
+			ref double threshold,
+			Action cancelAnimation,
+			Action restorePosition)
+		{
+			var wasActive =
+				isSwiping ||
+				isResetting ||
+				isOpen ||
+				direction is not null ||
+				Math.Abs(offset) > double.Epsilon;
+
+			if (!wasActive)
+				return false;
+
+			try
+			{
+				TizenCleanup.Run(cancelAnimation, restorePosition);
+			}
+			finally
+			{
+				isSwiping = false;
+				isResetting = false;
+				isOpen = false;
+				direction = null;
+				offset = 0;
+				threshold = 0;
+			}
+
+			return true;
+		}
 	}
 
 	internal sealed class TizenSwipeItemRegistry<TItem, TView>
@@ -98,7 +135,32 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public long CurrentGeneration => System.Threading.Volatile.Read(ref _generation);
 
+		public long ReserveMaterialization() =>
+			System.Threading.Interlocked.Increment(ref _generation);
+
 		public void Add(TItem item, TView view) => _items.Add(item, view);
+
+		public bool CommitPrepared(
+			long operation,
+			TItem item,
+			TView view,
+			Func<bool> isExpected,
+			Action disposePrepared)
+		{
+			ArgumentNullException.ThrowIfNull(isExpected);
+			ArgumentNullException.ThrowIfNull(disposePrepared);
+
+			if (CurrentGeneration != operation || !isExpected())
+			{
+				disposePrepared();
+				return false;
+			}
+
+			_items.Add(item, view);
+			return true;
+		}
+
+		public bool IsOperationCurrent(long operation) => CurrentGeneration == operation;
 
 		public bool TryGetValue(TItem item, out TView? view) => _items.TryGetValue(item, out view);
 
