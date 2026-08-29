@@ -1,3 +1,4 @@
+using System;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
@@ -91,10 +92,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			try
 			{
 				if (carousel is not null)
+				{
+					carousel.ConnectEvents();
 					carousel.Scrolled += OnCarouselScrolled;
+					carousel.ItemsLayoutChanged += OnItemsLayoutChanged;
+				}
 				UpdateItemsLayout();
 				UpdateIsSwipeEnabled();
-				UpdateInitialPositionFromManaged();
 			}
 			catch
 			{
@@ -105,22 +109,27 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			}
 		}
 
-		protected override void DisconnectHandler(NView platformView)
+		private protected override void DisconnectPlatformEvents(TizenItemsViewControl<CarouselView> platformView)
 		{
-			try
+			if (platformView is TizenCarouselViewControl carousel)
 			{
-				if (platformView is TizenCarouselViewControl carousel)
-					carousel.Scrolled -= OnCarouselScrolled;
-			}
-			finally
-			{
-				base.DisconnectHandler(platformView);
+				carousel.Scrolled -= OnCarouselScrolled;
+				carousel.ItemsLayoutChanged -= OnItemsLayoutChanged;
+				carousel.DisconnectEvents();
 			}
 		}
 
 		protected override void OnAdaptorInstalled()
 		{
 			base.OnAdaptorInstalled();
+			UpdateInitialPositionFromManaged();
+		}
+
+		private protected override void OnAdaptorReplacing() => PlatformView?.PrepareForAdaptorReplacement();
+
+		protected override void OnItemsChanged()
+		{
+			base.OnItemsChanged();
 			UpdateInitialPositionFromManaged();
 		}
 
@@ -204,15 +213,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		void UpdateCurrentItemFromManaged()
 		{
-			if (_feedback.IsApplyingNative || PlatformView is null)
+			if (PlatformView is null)
 				return;
 
-			var expectedPosition = VirtualView.CurrentItem is not null && Adaptor is not null
-				? Adaptor.GetItemIndex(VirtualView.CurrentItem)
-				: -1;
-
-			_feedback.ApplyManaged(expectedPosition, () =>
-				PlatformView.UpdateCurrentItem(VirtualView.CurrentItem));
+			_feedback.ApplyManagedCurrentItem(
+				VirtualView.CurrentItem,
+				Adaptor?.Count ?? 0,
+				item => Adaptor?.GetItemIndex(item) ?? -1,
+				position => VirtualView.Position = position,
+				() => PlatformView.UpdateCurrentItem(
+					VirtualView.CurrentItem,
+					VirtualView.AnimateCurrentItemChanges));
 		}
 
 		void UpdateInitialPositionFromManaged()
@@ -225,12 +236,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		void UpdatePositionFromManaged()
 		{
-			if (_feedback.IsApplyingNative || PlatformView is null)
+			if (PlatformView is null)
 				return;
 
-			_feedback.ApplyManaged(
+			_feedback.ApplyManagedPosition(
 				VirtualView.Position,
-				() => PlatformView.UpdatePosition(VirtualView.Position));
+				Adaptor?.Count ?? 0,
+				index => Adaptor?[index],
+				item => VirtualView.CurrentItem = item,
+				() => PlatformView.UpdatePosition(
+					VirtualView.Position,
+					VirtualView.AnimatePositionChanges));
 		}
 
 		void UpdateIsSwipeEnabled()
@@ -250,8 +266,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				index => Adaptor[index],
 				value => VirtualView.Position = value,
 				value => VirtualView.CurrentItem = value);
-			VirtualView.IsScrolling = false;
 		}
+
+		void OnItemsLayoutChanged(object? sender, EventArgs e) => UpdateInitialPositionFromManaged();
 
 		#endregion
 	}

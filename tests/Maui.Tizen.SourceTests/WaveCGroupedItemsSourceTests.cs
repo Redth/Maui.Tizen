@@ -97,10 +97,43 @@ public class WaveCGroupedItemsSourceTests
 			[
 				NotifyCollectionChangedAction.Remove,
 				NotifyCollectionChangedAction.Replace,
-				NotifyCollectionChangedAction.Move,
+				NotifyCollectionChangedAction.Reset,
 				NotifyCollectionChangedAction.Reset,
 			],
 			actions);
+	}
+
+	[Fact]
+	public void MultiRowInnerReplaceIsNormalizedToReset()
+	{
+		var group = new RangeObservableCollection<object> { "a", "b", "c" };
+		var groups = new ObservableCollection<object> { group };
+		using var source = Create(groups);
+		NotifyCollectionChangedEventArgs? observed = null;
+		source.CollectionChanged += (_, args) => observed = args;
+
+		group.ReplaceRange(0, 2, "x", "y");
+
+		Assert.NotNull(observed);
+		Assert.Equal(NotifyCollectionChangedAction.Reset, observed.Action);
+		Assert.Equal(["x", "y", "c"], source.OfType<string>());
+	}
+
+	[Fact]
+	public void MultiRowOuterReplaceIsNormalizedToReset()
+	{
+		var groups = new ObservableCollection<object>
+		{
+			new ObservableCollection<object> { "a", "b" },
+		};
+		using var source = Create(groups);
+		NotifyCollectionChangedEventArgs? observed = null;
+		source.CollectionChanged += (_, args) => observed = args;
+
+		groups[0] = new ObservableCollection<object> { "x", "y" };
+
+		Assert.NotNull(observed);
+		Assert.Equal(NotifyCollectionChangedAction.Reset, observed.Action);
 	}
 
 	[Fact]
@@ -170,6 +203,29 @@ public class WaveCGroupedItemsSourceTests
 		Assert.Equal(0, notifications);
 	}
 
+	[Fact]
+	public void DisposalFromAnInFlightResetStopsAllLaterCallbacks()
+	{
+		var group = new ObservableCollection<object> { "a" };
+		var groups = new ObservableCollection<object> { group };
+		var source = Create(groups);
+		var firstNotifications = 0;
+		var laterNotifications = 0;
+		source.CollectionChanged += (_, _) =>
+		{
+			firstNotifications++;
+			source.Dispose();
+		};
+		source.CollectionChanged += (_, _) => laterNotifications++;
+
+		group.Clear();
+		group.Add("after-dispose");
+		groups.Clear();
+
+		Assert.Equal(1, firstNotifications);
+		Assert.Equal(0, laterNotifications);
+	}
+
 	static TizenGroupItemSource Create(
 		ObservableCollection<object> groups,
 		bool header = true,
@@ -181,4 +237,21 @@ public class WaveCGroupedItemsSourceTests
 			GroupHeaderTemplate = header ? new DataTemplate(() => new Label()) : null,
 			GroupFooterTemplate = footer ? new DataTemplate(() => new Label()) : null,
 		});
+
+	sealed class RangeObservableCollection<T> : ObservableCollection<T>
+	{
+		public void ReplaceRange(int index, int count, params T[] replacement)
+		{
+			var removed = Items.Skip(index).Take(count).ToList();
+			for (var offset = 0; offset < count; offset++)
+				Items.RemoveAt(index);
+			for (var offset = 0; offset < replacement.Length; offset++)
+				Items.Insert(index + offset, replacement[offset]);
+			OnCollectionChanged(new NotifyCollectionChangedEventArgs(
+				NotifyCollectionChangedAction.Replace,
+				replacement,
+				removed,
+				index));
+		}
+	}
 }

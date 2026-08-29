@@ -1,4 +1,5 @@
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Platforms.Tizen.Adapters;
 using Tizen.UIExtensions.NUI;
 
 using TCollectionViewSelectionMode = Tizen.UIExtensions.NUI.CollectionViewSelectionMode;
@@ -30,19 +31,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// </summary>
 		public static ICollectionViewLayoutManager ToLayoutManager(this IItemsLayout layout, MauiItemSizingStrategy sizing = MauiItemSizingStrategy.MeasureFirstItem)
 		{
+			var state = ItemsLayoutSnapshot.Capture(layout);
 			return layout switch
 			{
-				LinearItemsLayout listItemsLayout => new LinearLayoutManager(
-					listItemsLayout.Orientation == ItemsLayoutOrientation.Horizontal,
+				LinearItemsLayout => new LinearLayoutManager(
+					state.IsHorizontal,
 					(TItemSizingStrategy)sizing,
-					(int)listItemsLayout.ItemSpacing.ToScaledPixel()),
+					(int)state.ItemSpacing.ToScaledPixel()),
 
-				GridItemsLayout gridItemsLayout => new GridLayoutManager(
-					gridItemsLayout.Orientation == ItemsLayoutOrientation.Horizontal,
-					gridItemsLayout.Span,
+				GridItemsLayout => new GridLayoutManager(
+					state.IsHorizontal,
+					state.Span,
 					(TItemSizingStrategy)sizing,
-					(int)gridItemsLayout.VerticalItemSpacing.ToScaledPixel(),
-					(int)gridItemsLayout.HorizontalItemSpacing.ToScaledPixel()),
+					(int)state.VerticalItemSpacing.ToScaledPixel(),
+					(int)state.HorizontalItemSpacing.ToScaledPixel()),
 
 				_ => new LinearLayoutManager(false),
 			};

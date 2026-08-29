@@ -123,6 +123,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 					// A stale index can outlive the item it referred to when the source shrinks.
 					if (index < 0 || index >= native.Count)
 					{
+						native.RequestItemUnselect(index);
 						continue;
 					}
 
@@ -147,6 +148,23 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 			finally
 			{
 				_pushingToNative = false;
+			}
+		}
+
+		public void SuppressNativeFeedback(System.Action action)
+		{
+			if (action is null)
+				return;
+
+			var wasPushing = _pushingToNative;
+			_pushingToNative = true;
+			try
+			{
+				action();
+			}
+			finally
+			{
+				_pushingToNative = wasPushing;
 			}
 		}
 

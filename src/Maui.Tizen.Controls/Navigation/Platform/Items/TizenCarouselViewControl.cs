@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
 using Tizen.NUI;
@@ -22,10 +23,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 	/// </remarks>
 	public class TizenCarouselViewControl : TizenItemsViewControl<CarouselView>
 	{
+		List<View> _visibleViews = new();
 		int _lastPosition = -1;
 		readonly DeferredCarouselPosition _deferredPosition = new();
+		readonly CarouselInteractionState _interaction = new();
+		readonly CarouselViewportTracker _viewport = new();
 		IItemsLayout? _observedItemsLayout;
 		bool _disposed;
+		bool _eventsConnected;
 
 		public TizenCarouselViewControl(CarouselView element) : base(element)
 		{
@@ -33,15 +38,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		public override void Rebind(CarouselView element)
 		{
+			var previous = Element;
 			base.Rebind(element);
+			ClearVisibleViews(previous);
 			_lastPosition = -1;
-			UpdateLayoutManager();
+			_viewport.Reset();
 		}
 
 		/// <summary>
 		/// Raised when the scroll position changes.
 		/// </summary>
 		public event EventHandler<int>? Scrolled;
+
+		internal event EventHandler? ItemsLayoutChanged;
 
 		protected override NCollectionView CreateCollectionView()
 		{
@@ -58,8 +67,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 			base.Initialize();
 			UpdateLayoutManager();
-			CollectionView.Scrolled += OnCollectionViewScrolled;
-			Relayout += OnRelayout;
+			ConnectEvents();
 		}
 
 		public void UpdateLayoutManager()
@@ -75,30 +83,31 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			}
 
 			CollectionView.LayoutManager = itemsLayout.ToLayoutManager(Microsoft.Maui.Controls.ItemSizingStrategy.MeasureAllItems);
-			if (itemsLayout is ItemsLayout layout)
-			{
-				CollectionView.SnapPointsType = (TSnapPointsType)layout.SnapPointsType;
-				CollectionView.SnapPointsAlignment = (TSnapPointsAlignment)layout.SnapPointsAlignment;
-			}
+			var state = ItemsLayoutSnapshot.Capture(itemsLayout);
+			CollectionView.SnapPointsType = (TSnapPointsType)state.SnapPointsType;
+			CollectionView.SnapPointsAlignment = (TSnapPointsAlignment)state.SnapPointsAlignment;
 			CollectionView.ScrollView.HideScrollbar = CollectionView.LayoutManager.IsHorizontal
 				? Element.HorizontalScrollBarVisibility == ScrollBarVisibility.Never
 				: Element.VerticalScrollBarVisibility == ScrollBarVisibility.Never;
-			if (Element.CurrentItem is not null)
-				_deferredPosition.SetCurrentItem(Element.CurrentItem);
-			else
-				_deferredPosition.SetPosition(Element.Position);
 			TryApplyPendingPosition();
+			ItemsLayoutChanged?.Invoke(this, EventArgs.Empty);
 		}
 
 		public void UpdatePosition(int position)
+			=> UpdatePosition(position, animate: false);
+
+		internal void UpdatePosition(int position, bool animate)
 		{
-			_deferredPosition.SetPosition(position);
+			_deferredPosition.SetPosition(position, animate);
 			TryApplyPendingPosition();
 		}
 
 		public void UpdateCurrentItem(object? currentItem)
+			=> UpdateCurrentItem(currentItem, animate: false);
+
+		internal void UpdateCurrentItem(object? currentItem, bool animate)
 		{
-			_deferredPosition.SetCurrentItem(currentItem);
+			_deferredPosition.SetCurrentItem(currentItem, animate);
 			TryApplyPendingPosition();
 		}
 
@@ -113,15 +122,27 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		{
 			int currentIndex = e.CenterItemIndex;
 
-			if (currentIndex != _lastPosition && currentIndex >= 0)
+			if (currentIndex >= 0)
 			{
-				UpdateVisualStates(currentIndex);
-				_lastPosition = currentIndex;
-				Scrolled?.Invoke(this, currentIndex);
+				UpdateVisualStates(currentIndex, e.FirstVisibleItemIndex, e.LastVisibleItemIndex);
+				if (currentIndex != _lastPosition)
+				{
+					_lastPosition = currentIndex;
+					Scrolled?.Invoke(this, currentIndex);
+				}
 			}
 		}
 
-		void OnRelayout(object? sender, EventArgs e) => TryApplyPendingPosition();
+		void OnRelayout(object? sender, EventArgs e)
+		{
+			if (!_viewport.Update(Size.Width, Size.Height))
+				return;
+			if (Element.CurrentItem is not null)
+				_deferredPosition.SetCurrentItem(Element.CurrentItem);
+			else
+				_deferredPosition.SetPosition(Element.Position);
+			TryApplyPendingPosition();
+		}
 
 		void OnItemsLayoutPropertyChanged(object? sender, PropertyChangedEventArgs e)
 		{
@@ -139,30 +160,122 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					&& Size.Height > 0,
 				adaptor?.Count ?? 0,
 				item => item is null ? -1 : adaptor?.GetItemIndex(item) ?? -1,
-				index => CollectionView.ScrollTo(index, animate: false));
+				(index, animate) =>
+				{
+					if (animate)
+					{
+						_interaction.BeginAnimation();
+						ApplyInteractionState();
+					}
+					CollectionView.ScrollTo(index, animate: animate);
+				});
 		}
 
-		void UpdateVisualStates(int currentIndex)
+		internal void PrepareForAdaptorReplacement() => ClearVisibleViews(Element);
+
+		internal void ConnectEvents()
+		{
+			if (_eventsConnected)
+				return;
+
+			_eventsConnected = true;
+			CollectionView.Scrolled += OnCollectionViewScrolled;
+			CollectionView.ScrollView.ScrollDragStarted += OnDragStarted;
+			CollectionView.ScrollView.ScrollDragEnded += OnDragEnded;
+			CollectionView.ScrollView.ScrollAnimationStarted += OnScrollAnimationStarted;
+			CollectionView.ScrollView.ScrollAnimationEnded += OnScrollAnimationEnded;
+			Relayout += OnRelayout;
+		}
+
+		internal void DisconnectEvents()
+		{
+			if (!_eventsConnected)
+				return;
+
+			_eventsConnected = false;
+			CollectionView.Scrolled -= OnCollectionViewScrolled;
+			CollectionView.ScrollView.ScrollDragStarted -= OnDragStarted;
+			CollectionView.ScrollView.ScrollDragEnded -= OnDragEnded;
+			CollectionView.ScrollView.ScrollAnimationStarted -= OnScrollAnimationStarted;
+			CollectionView.ScrollView.ScrollAnimationEnded -= OnScrollAnimationEnded;
+			Relayout -= OnRelayout;
+			if (_observedItemsLayout is not null)
+			{
+				_observedItemsLayout.PropertyChanged -= OnItemsLayoutPropertyChanged;
+				_observedItemsLayout = null;
+			}
+			ClearVisibleViews(Element);
+			_interaction.Reset();
+			ApplyInteractionState();
+		}
+
+		void OnDragStarted(object? sender, EventArgs e)
+		{
+			_interaction.BeginDrag();
+			ApplyInteractionState();
+		}
+
+		void OnDragEnded(object? sender, EventArgs e)
+		{
+			_interaction.EndDrag();
+			ApplyInteractionState();
+		}
+
+		void OnScrollAnimationStarted(object? sender, EventArgs e)
+		{
+			_interaction.BeginAnimation();
+			ApplyInteractionState();
+		}
+
+		void OnScrollAnimationEnded(object? sender, EventArgs e)
+		{
+			_interaction.EndAnimation();
+			ApplyInteractionState();
+		}
+
+		void ApplyInteractionState()
+		{
+			Element.SetIsDragging(_interaction.IsDragging);
+			Element.IsScrolling = _interaction.IsScrolling;
+		}
+
+		void ClearVisibleViews(CarouselView owner)
+		{
+			foreach (var view in _visibleViews)
+			{
+				VisualStateManager.GoToState(view, CarouselView.DefaultItemVisualState);
+				owner.VisibleViews.Remove(view);
+			}
+			_visibleViews.Clear();
+		}
+
+		void UpdateVisualStates(int currentIndex, int firstVisibleIndex, int lastVisibleIndex)
 		{
 			var adaptor = CollectionView.Adaptor as TizenItemTemplateAdaptor;
 			if (adaptor == null)
 				return;
 
-			// Update visual states for visible items
-			int count = adaptor.Count;
-			for (int i = 0; i < count; i++)
+			var newViews = new List<View>();
+			var first = Math.Max(0, firstVisibleIndex);
+			var last = Math.Min(adaptor.Count - 1, lastVisibleIndex);
+			for (int i = first; i <= last; i++)
 			{
 				var view = adaptor.GetTemplatedView(i);
 				if (view == null)
 					continue;
 
-				var state = i == currentIndex
-					? VisualStateManager.CommonStates.Selected
-					: VisualStateManager.CommonStates.Normal;
-
-				// Use VisualStateManager to transition the state
-				VisualStateManager.GoToState(view, state);
+				VisualStateManager.GoToState(view, CarouselVisualState.ForIndex(i, currentIndex));
+				newViews.Add(view);
+				if (!Element.VisibleViews.Contains(view))
+					Element.VisibleViews.Add(view);
 			}
+
+			foreach (var view in _visibleViews.Where(view => !newViews.Contains(view)))
+			{
+				VisualStateManager.GoToState(view, CarouselView.DefaultItemVisualState);
+				Element.VisibleViews.Remove(view);
+			}
+			_visibleViews = newViews;
 		}
 
 		protected override void Dispose(bool disposing)
@@ -172,13 +285,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			if (disposing)
 			{
-				CollectionView.Scrolled -= OnCollectionViewScrolled;
-				Relayout -= OnRelayout;
-				if (_observedItemsLayout is not null)
-				{
-					_observedItemsLayout.PropertyChanged -= OnItemsLayoutPropertyChanged;
-					_observedItemsLayout = null;
-				}
+				DisconnectEvents();
 			}
 			_disposed = true;
 			base.Dispose(disposing);

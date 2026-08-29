@@ -152,4 +152,21 @@ namespace Microsoft.Maui.Platforms.Tizen
 			return false;
 		}
 	}
+
+	internal sealed class NavigationRequestGeneration<TOwner>
+		where TOwner : class
+	{
+		int _generation;
+
+		public (int Generation, TOwner Owner) Begin(TOwner owner)
+		{
+			ArgumentNullException.ThrowIfNull(owner);
+			return (++_generation, owner);
+		}
+
+		public void Invalidate() => _generation++;
+
+		public bool IsCurrent((int Generation, TOwner Owner) request, TOwner? currentOwner) =>
+			request.Generation == _generation && ReferenceEquals(request.Owner, currentOwner);
+	}
 }

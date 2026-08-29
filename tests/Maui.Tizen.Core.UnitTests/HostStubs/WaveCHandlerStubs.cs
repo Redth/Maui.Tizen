@@ -16,14 +16,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override object CreatePlatformElement() => new();
 	}
 
-	class TizenToolbarHandler : WaveCHostHandler<Toolbar>;
+	class TizenToolbarHandler : ElementHandler<Toolbar, TizenToolbarView>
+	{
+		public TizenToolbarHandler() : base(ElementMapper)
+		{
+		}
+
+		protected override TizenToolbarView CreatePlatformElement() => new();
+	}
 	class TizenMenuBarHandler : WaveCHostHandler<IMenuBar>;
 	class TizenMenuBarItemHandler : WaveCHostHandler<IMenuBarItem>;
 	class TizenMenuFlyoutHandler : WaveCHostHandler<IMenuFlyout>;
 	class TizenMenuFlyoutItemHandler : WaveCHostHandler<IMenuFlyoutItem>;
 	class TizenMenuFlyoutSeparatorHandler : WaveCHostHandler<IMenuFlyoutSeparator>;
 	class TizenMenuFlyoutSubItemHandler : WaveCHostHandler<IMenuFlyoutSubItem>;
-	class TizenNavigationViewHandler : WaveCHostHandler<NavigationPage>;
 	class TizenFlyoutViewHandler : WaveCHostHandler<FlyoutPage>;
 	class TizenTabbedPageHandler : WaveCHostHandler<TabbedPage>;
 	class TizenCollectionViewHandler : WaveCHostHandler<CollectionView>;
@@ -171,5 +177,59 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		public void Dispose()
 		{
 		}
+	}
+}
+
+namespace Microsoft.Maui.Platforms.Tizen
+{
+	public class TizenToolbarView : TizenPlatformView
+	{
+	}
+
+	public class TizenStackNavigationManager : TizenPlatformView
+	{
+		public IView? ConnectedView { get; private set; }
+		public int ConnectCount { get; private set; }
+		public int DisconnectCount { get; private set; }
+		public int NavigationRequests { get; private set; }
+		public IReadOnlyList<IView>? LastStack { get; private set; }
+		public TizenToolbarView? Toolbar { get; private set; }
+
+		public void Connect(IView view)
+		{
+			ConnectedView = view;
+			ConnectCount++;
+		}
+
+		public void Disconnect()
+		{
+			ConnectedView = null;
+			DisconnectCount++;
+		}
+
+		public void RequestNavigation(NavigationRequest request)
+		{
+			LastStack = request.NavigationStack;
+			NavigationRequests++;
+		}
+
+		public void SetToolbar(TizenToolbarView toolbar) => Toolbar = toolbar;
+
+		public void DetachToolbar(TizenToolbarView toolbar)
+		{
+			if (ReferenceEquals(Toolbar, toolbar))
+				Toolbar = null;
+		}
+	}
+}
+
+namespace Microsoft.Maui.Platform
+{
+	using Microsoft.Maui.Controls;
+
+	internal static class WaveCToolbarHostExtensions
+	{
+		public static object ToPlatformView(this Toolbar toolbar, IMauiContext context) =>
+			new global::Microsoft.Maui.Platforms.Tizen.TizenToolbarView();
 	}
 }

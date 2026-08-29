@@ -30,14 +30,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		public override void Disconnect()
 		{
-			base.Disconnect();
-			_rootMount.Clear(root =>
-			{
-				PlatformNavigation.Pop(root);
-				root.Dispose();
-			});
-			ShellSection = null;
-			_pendingAppearance = null;
+			ExceptionSafeCleanup.Run(
+				() => base.Disconnect(),
+				() => _rootMount.Clear(root =>
+				{
+					PlatformNavigation.Pop(root);
+					root.Dispose();
+				}),
+				() =>
+				{
+					ShellSection = null;
+					_pendingAppearance = null;
+				});
 		}
 
 		public void UpdateCurrentItem(ShellContent? content) =>
@@ -71,7 +75,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					appearance.Unselected);
 			}
 
+			if (!IsCurrentNavigationRequest)
+				return;
 			await PlatformNavigation.Push(root, false);
+			if (!IsCurrentNavigationRequest)
+				return;
 
 			navigationStack.RemoveAt(0);
 			await base.InitializeStack(navigationStack, animated);

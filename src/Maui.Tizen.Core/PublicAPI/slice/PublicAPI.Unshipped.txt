@@ -407,7 +407,9 @@ Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.Entry.get -> Tizen.UIExtension
 Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.EntryFocused -> System.EventHandler?
 Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.EntryUnfocused -> System.EventHandler?
 Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.FocusEntry() -> bool
+Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.IsCollapsed.get -> bool
 Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.SearchButtonPressed -> System.EventHandler?
+Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.SetCollapsed(bool collapsed) -> void
 Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.TizenSearchBarView() -> void
 Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.UnfocusEntry() -> void
 virtual Microsoft.Maui.Platforms.Tizen.TizenSearchBarView.LayoutContent(float width, float height) -> void
@@ -422,6 +424,7 @@ Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager
 Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.ClearToolbar() -> void
 Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.DetachToolbar(Microsoft.Maui.Platforms.Tizen.TizenToolbarView! toolbar) -> void
 Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.GetNavigationItem(Microsoft.Maui.IView! page) -> Microsoft.Maui.Platforms.Tizen.TizenNaviPage!
+Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.IsCurrentNavigationRequest.get -> bool
 Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.MauiContext.get -> Microsoft.Maui.IMauiContext?
 Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.MauiContext.set -> void
 Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager.NavigationStack.get -> System.Collections.Generic.IReadOnlyList<Microsoft.Maui.IView!>!

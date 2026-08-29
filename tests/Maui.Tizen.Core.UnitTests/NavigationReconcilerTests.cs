@@ -186,5 +186,32 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Same(b1, Assert.Single(plan.Pops));
 			Assert.Same(b2, Assert.Single(plan.Pushes));
 		}
+
+		[Fact]
+		public void RebindInvalidatesCompletionFromThePreviousNavigationOwner()
+		{
+			var generations = new NavigationRequestGeneration<object>();
+			var previousOwner = new object();
+			var currentOwner = new object();
+			var previous = generations.Begin(previousOwner);
+
+			generations.Invalidate();
+			var current = generations.Begin(currentOwner);
+
+			Assert.False(generations.IsCurrent(previous, currentOwner));
+			Assert.True(generations.IsCurrent(current, currentOwner));
+		}
+
+		[Fact]
+		public void ANewerRequestSupersedesAnOlderRequestForTheSameOwner()
+		{
+			var generations = new NavigationRequestGeneration<object>();
+			var owner = new object();
+			var first = generations.Begin(owner);
+			var second = generations.Begin(owner);
+
+			Assert.False(generations.IsCurrent(first, owner));
+			Assert.True(generations.IsCurrent(second, owner));
+		}
 	}
 }

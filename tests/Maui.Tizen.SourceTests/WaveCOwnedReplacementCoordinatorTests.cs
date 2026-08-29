@@ -36,6 +36,26 @@ public class WaveCOwnedReplacementCoordinatorTests
 		Assert.Equal(["first-handler", "second-handler"], released);
 	}
 
+	[Fact]
+	public void RealizedItemOwnershipReleasesEveryHandlerWhenOneThrows()
+	{
+		var ownership = new RealizedItemOwnership<object, string>();
+		var first = new object();
+		var second = new object();
+		var released = new List<string>();
+		ownership.Track(first, "first-handler");
+		ownership.Track(second, "second-handler");
+
+		Assert.Throws<AggregateException>(() => ownership.ReleaseAll((_, handler) =>
+		{
+			released.Add(handler);
+			if (handler == "first-handler")
+				throw new InvalidOperationException("expected");
+		}));
+
+		Assert.Equal(2, released.Count);
+	}
+
 	sealed class Resource(string name)
 	{
 		public string Name { get; } = name;

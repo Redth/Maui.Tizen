@@ -47,10 +47,57 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 
 		public bool IsApplyingNative => _gate.IsApplyingNative;
 
+		public bool IsApplyingManaged => _gate.IsApplyingManaged;
+
 		public void ApplyManaged(int? expectedPosition, Action update)
 		{
 			_pendingManagedPosition = expectedPosition;
 			_gate.ApplyManaged(update);
+		}
+
+		public bool ApplyManagedCurrentItem(
+			object? currentItem,
+			int count,
+			Func<object, int> getIndex,
+			Action<int> setPosition,
+			Action updateNative)
+		{
+			ArgumentNullException.ThrowIfNull(getIndex);
+			ArgumentNullException.ThrowIfNull(setPosition);
+			ArgumentNullException.ThrowIfNull(updateNative);
+			if (IsApplyingNative || IsApplyingManaged)
+				return false;
+
+			var index = currentItem is null ? -1 : getIndex(currentItem);
+			ApplyManaged(index, () =>
+			{
+				if (index >= 0 && index < count)
+					setPosition(index);
+				updateNative();
+			});
+			return true;
+		}
+
+		public bool ApplyManagedPosition(
+			int position,
+			int count,
+			Func<int, object?> getItem,
+			Action<object?> setCurrentItem,
+			Action updateNative)
+		{
+			ArgumentNullException.ThrowIfNull(getItem);
+			ArgumentNullException.ThrowIfNull(setCurrentItem);
+			ArgumentNullException.ThrowIfNull(updateNative);
+			if (IsApplyingNative || IsApplyingManaged)
+				return false;
+
+			ApplyManaged(position, () =>
+			{
+				if (position >= 0 && position < count)
+					setCurrentItem(getItem(position));
+				updateNative();
+			});
+			return true;
 		}
 
 		public bool ApplyNative(
@@ -81,21 +128,23 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 
 	internal sealed class DeferredCarouselPosition
 	{
-		int? _position;
+		(int Position, bool Animate)? _position;
 		object? _currentItem;
 		bool _hasCurrentItem;
+		bool _animateCurrentItem;
 
-		public void SetPosition(int position)
+		public void SetPosition(int position, bool animate = false)
 		{
 			_hasCurrentItem = false;
 			_currentItem = null;
-			_position = position;
+			_position = (position, animate);
 		}
 
-		public void SetCurrentItem(object? currentItem)
+		public void SetCurrentItem(object? currentItem, bool animate = false)
 		{
 			_currentItem = currentItem;
 			_hasCurrentItem = currentItem is not null;
+			_animateCurrentItem = animate;
 			if (_hasCurrentItem)
 				_position = null;
 		}
@@ -104,7 +153,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 			bool hasLayout,
 			int itemCount,
 			Func<object?, int> getItemIndex,
-			Action<int> scrollTo)
+			Action<int, bool> scrollTo)
 		{
 			ArgumentNullException.ThrowIfNull(getItemIndex);
 			ArgumentNullException.ThrowIfNull(scrollTo);
@@ -113,11 +162,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 				return false;
 
 			var applied = false;
-			if (_position is int position)
+			if (_position is { } target)
 			{
-				if (position >= 0 && position < itemCount)
+				if (target.Position >= 0 && target.Position < itemCount)
 				{
-					scrollTo(position);
+					scrollTo(target.Position, target.Animate);
 					applied = true;
 				}
 				_position = null;
@@ -128,7 +177,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 				var index = getItemIndex(_currentItem);
 				if (index >= 0 && index < itemCount)
 				{
-					scrollTo(index);
+					scrollTo(index, _animateCurrentItem);
 					_hasCurrentItem = false;
 					_currentItem = null;
 					applied = true;
@@ -139,10 +188,123 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 		}
 	}
 
+	internal static class CarouselVisualState
+	{
+		public static string ForIndex(int index, int currentIndex)
+		{
+			if (index == currentIndex)
+				return CarouselView.CurrentItemVisualState;
+			if (index == currentIndex - 1)
+				return CarouselView.PreviousItemVisualState;
+			if (index == currentIndex + 1)
+				return CarouselView.NextItemVisualState;
+			return CarouselView.DefaultItemVisualState;
+		}
+	}
+
+	internal sealed class CarouselInteractionState
+	{
+		bool _dragging;
+		bool _animating;
+
+		public bool IsDragging => _dragging;
+
+		public bool IsScrolling => _dragging || _animating;
+
+		public void BeginDrag() => _dragging = true;
+
+		public void EndDrag() => _dragging = false;
+
+		public void BeginAnimation() => _animating = true;
+
+		public void EndAnimation() => _animating = false;
+
+		public void Reset()
+		{
+			_dragging = false;
+			_animating = false;
+		}
+	}
+
+	internal sealed class CarouselViewportTracker
+	{
+		double _width;
+		double _height;
+
+		public bool Update(double width, double height)
+		{
+			if (width <= 0 || height <= 0 || (_width == width && _height == height))
+				return false;
+
+			_width = width;
+			_height = height;
+			return true;
+		}
+
+		public void Reset()
+		{
+			_width = 0;
+			_height = 0;
+		}
+	}
+
+	internal readonly record struct ItemsLayoutSnapshot(
+		bool IsHorizontal,
+		int Span,
+		double ItemSpacing,
+		double VerticalItemSpacing,
+		double HorizontalItemSpacing,
+		SnapPointsType SnapPointsType,
+		SnapPointsAlignment SnapPointsAlignment)
+	{
+		public static ItemsLayoutSnapshot Capture(IItemsLayout layout)
+		{
+			ArgumentNullException.ThrowIfNull(layout);
+
+			return layout switch
+			{
+				GridItemsLayout grid => new(
+					grid.Orientation == ItemsLayoutOrientation.Horizontal,
+					grid.Span,
+					0,
+					grid.VerticalItemSpacing,
+					grid.HorizontalItemSpacing,
+					grid.SnapPointsType,
+					grid.SnapPointsAlignment),
+				LinearItemsLayout linear => new(
+					linear.Orientation == ItemsLayoutOrientation.Horizontal,
+					1,
+					linear.ItemSpacing,
+					0,
+					0,
+					linear.SnapPointsType,
+					linear.SnapPointsAlignment),
+				_ => new(false, 1, 0, 0, 0, SnapPointsType.None, SnapPointsAlignment.Start),
+			};
+		}
+	}
+
 	internal static class SearchResultsLayout
 	{
-		public static bool IsVisible(string? query, int itemCount, bool searchBoxHidden) =>
-			!searchBoxHidden && !string.IsNullOrWhiteSpace(query) && itemCount > 0;
+		public static bool IsVisible(
+			string? query,
+			int itemCount,
+			bool searchEnabled,
+			bool showsResults,
+			bool searchBoxHidden) =>
+			searchEnabled
+				&& showsResults
+				&& !searchBoxHidden
+				&& !string.IsNullOrWhiteSpace(query)
+				&& itemCount > 0;
+
+		public static bool IsCollapsed(
+			SearchBoxVisibility visibility,
+			bool isFocused,
+			string? query) =>
+			visibility == SearchBoxVisibility.Collapsible
+				&& !isFocused
+				&& string.IsNullOrEmpty(query);
 
 		public static double ConstrainHeight(double measuredHeight, double screenHeight) =>
 			Math.Min(Math.Max(0, measuredHeight), Math.Max(0, screenHeight) / 2);

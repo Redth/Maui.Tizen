@@ -90,21 +90,35 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 			ArgumentNullException.ThrowIfNull(release);
 
 			var live = liveItems.ToHashSet();
-			foreach (var item in _owners.Keys.Where(item => !live.Contains(item)).ToList())
-				Release(item, release);
+			ReleaseMany(_owners.Keys.Where(item => !live.Contains(item)).ToList(), release);
 		}
 
 		public void ReleaseAll(Action<TItem, TOwner> release)
 		{
 			ArgumentNullException.ThrowIfNull(release);
-			foreach (var item in _owners.Keys.ToList())
-				Release(item, release);
+			ReleaseMany(_owners.Keys.ToList(), release);
 		}
 
-		void Release(TItem item, Action<TItem, TOwner> release)
+		void ReleaseMany(IReadOnlyList<TItem> items, Action<TItem, TOwner> release)
 		{
-			if (_owners.Remove(item, out var owner))
-				release(item, owner);
+			List<Exception>? errors = null;
+			foreach (var item in items)
+			{
+				if (!_owners.Remove(item, out var owner))
+					continue;
+
+				try
+				{
+					release(item, owner);
+				}
+				catch (Exception ex)
+				{
+					(errors ??= new()).Add(ex);
+				}
+			}
+
+			if (errors is { Count: > 0 })
+				throw new AggregateException(errors);
 		}
 	}
 }

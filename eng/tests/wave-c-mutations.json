@@ -7,8 +7,8 @@
     "expected": "WaveCShellRootMountCoordinatorTests",
     "replacements": [
       {
-        "search": "Root ??= create();\n\t\t\tif (_current is not null)\n\t\t\t\tupdate(Root, _current);",
-        "replace": "Root ??= create();\n\t\t\tif (false && _current is not null)\n\t\t\t\tupdate(Root, _current);"
+        "search": "Root ??= create();\n\t\t\tupdate(Root, _current);",
+        "replace": "Root ??= create();\n\t\t\t// mutation: pending content is not applied"
       }
     ]
   },
@@ -98,8 +98,8 @@
     "expected": "CarouselNativeFeedbackIsBidirectionalAndBoundsChecked",
     "replacements": [
       {
-        "search": "setCurrentItem(getItem(position));",
-        "replace": "// mutation: CurrentItem was not updated"
+        "search": "return _gate.ApplyNative(() =>\n\t\t\t{\n\t\t\t\tsetPosition(position);\n\t\t\t\tsetCurrentItem(getItem(position));\n\t\t\t});",
+        "replace": "return _gate.ApplyNative(() =>\n\t\t\t{\n\t\t\t\tsetPosition(position);\n\t\t\t\t// mutation: CurrentItem was not updated\n\t\t\t});"
       }
     ]
   },
@@ -261,14 +261,14 @@
   },
   {
     "id": "items-layout-snap",
-    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenCollectionViewControl.cs",
-    "filter": "FullyQualifiedName~WaveCItemsLifecycleSourceTests.RuntimeItemsLayoutChangesRebuildLayoutAndSnapSettings",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCItemsScrollCoordinatorTests.ItemsLayoutSnapshotReflectsRuntimeSpanSpacingAndSnapChanges",
     "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
-    "expected": "RuntimeItemsLayoutChangesRebuildLayoutAndSnapSettings",
+    "expected": "ItemsLayoutSnapshotReflectsRuntimeSpanSpacingAndSnapChanges",
     "replacements": [
       {
-        "search": "CollectionView.SnapPointsAlignment = (TSnapPointsAlignment)layout.SnapPointsAlignment;",
-        "replace": "// mutation: snap alignment is not updated"
+        "search": "grid.SnapPointsAlignment),",
+        "replace": "SnapPointsAlignment.Start),"
       }
     ]
   },
@@ -347,6 +347,318 @@
       {
         "search": "Math.Max(0, allocated - header - footer);",
         "replace": "Math.Max(0, allocated);"
+      }
+    ]
+  },
+  {
+    "id": "group-disposed-reset",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenGroupItemSource.cs",
+    "filter": "FullyQualifiedName~WaveCGroupedItemsSourceTests.DisposalFromAnInFlightResetStopsAllLaterCallbacks",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "DisposalFromAnInFlightResetStopsAllLaterCallbacks",
+    "replacements": [
+      {
+        "search": "if (_disposed)\n\t\t\t\t\tbreak;",
+        "replace": "if (false && _disposed)\n\t\t\t\t\tbreak;"
+      }
+    ]
+  },
+  {
+    "id": "group-move-reset",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenGroupItemSource.cs",
+    "filter": "FullyQualifiedName~WaveCGroupedItemsSourceTests.InnerRemoveReplaceMoveAndResetAreTranslated",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "InnerRemoveReplaceMoveAndResetAreTranslated",
+    "replacements": [
+      {
+        "search": "case NotifyCollectionChangedAction.Move:\n\t\t\t\t\tRaise(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));",
+        "replace": "case NotifyCollectionChangedAction.Move when e.NewItems is not null:\n\t\t\t\t\tRaise(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, e.NewItems, oldStart + e.NewStartingIndex));"
+      }
+    ]
+  },
+  {
+    "id": "group-multi-replace-reset",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenGroupItemSource.cs",
+    "filter": "FullyQualifiedName~WaveCGroupedItemsSourceTests.MultiRowInnerReplaceIsNormalizedToReset",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "MultiRowInnerReplaceIsNormalizedToReset",
+    "replacements": [
+      {
+        "search": "if (e.NewItems.Count == 1)",
+        "replace": "if (e.NewItems.Count > 0)"
+      }
+    ]
+  },
+  {
+    "id": "selection-configuration-feedback",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemSelectionSynchronizer.cs",
+    "filter": "FullyQualifiedName~WaveCItemSelectionSynchronizerTests.NativeFeedbackIsSuppressedWhileSelectionModeAndAdaptorAreConfigured",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "NativeFeedbackIsSuppressedWhileSelectionModeAndAdaptorAreConfigured",
+    "replacements": [
+      {
+        "search": "var wasPushing = _pushingToNative;\n\t\t\t_pushingToNative = true;",
+        "replace": "var wasPushing = _pushingToNative;\n\t\t\t_pushingToNative = false;"
+      }
+    ]
+  },
+  {
+    "id": "stale-native-index-clear",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemSelectionSynchronizer.cs",
+    "filter": "FullyQualifiedName~WaveCItemSelectionSynchronizerTests.StaleNativeIndexesAreExplicitlyClearedAfterTheSourceShrinks",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "StaleNativeIndexesAreExplicitlyClearedAfterTheSourceShrinks",
+    "replacements": [
+      {
+        "search": "native.RequestItemUnselect(index);\n\t\t\t\t\t\tcontinue;",
+        "replace": "// mutation: stale native index retained\n\t\t\t\t\t\tcontinue;"
+      }
+    ]
+  },
+  {
+    "id": "side-effect-free-rebind",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenCarouselViewControl.cs",
+    "filter": "FullyQualifiedName~WaveCItemsLifecycleSourceTests.PlatformViewRebindOnlyChangesItsElementBeforeMappersRun",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "PlatformViewRebindOnlyChangesItsElementBeforeMappersRun",
+    "replacements": [
+      {
+        "search": "public override void Rebind(CarouselView element)\n\t\t{\n\t\t\tvar previous = Element;\n\t\t\tbase.Rebind(element);\n\t\t\tClearVisibleViews(previous);\n\t\t\t_lastPosition = -1;\n\t\t\t_viewport.Reset();\n\t\t}",
+        "replace": "public override void Rebind(CarouselView element)\n\t\t{\n\t\t\tvar previous = Element;\n\t\t\tClearVisibleViews(previous);\n\t\t\tbase.Rebind(element);\n\t\t\t_lastPosition = -1;\n\t\t\t_viewport.Reset();\n\t\t}"
+      }
+    ]
+  },
+  {
+    "id": "empty-grid-span",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ViewportConstraint.cs",
+    "filter": "FullyQualifiedName~WaveCViewportConstraintTests.EmptyContentSpansTheGridCrossAxis",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "EmptyContentSpansTheGridCrossAxis",
+    "replacements": [
+      {
+        "search": "ResolveWithin(spanCrossAxis ? double.PositiveInfinity : constraint, allocated);",
+        "replace": "ResolveWithin(constraint, allocated);"
+      }
+    ]
+  },
+  {
+    "id": "empty-header-footer-extent",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ViewportConstraint.cs",
+    "filter": "FullyQualifiedName~WaveCViewportConstraintTests.HeaderOrFooterAloneKeepsAUsableEmptyExtent",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "HeaderOrFooterAloneKeepsAUsableEmptyExtent",
+    "replacements": [
+      {
+        "search": "hasEmptyView || hasEmptyViewTemplate || hasHeader || hasFooter;",
+        "replace": "hasEmptyView || hasEmptyViewTemplate;"
+      }
+    ]
+  },
+  {
+    "id": "search-disabled-results",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCItemsScrollCoordinatorTests.SearchResultsRequireAnActiveQueryAndVisibleSearchBox",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "SearchResultsRequireAnActiveQueryAndVisibleSearchBox",
+    "replacements": [
+      {
+        "search": "searchEnabled\n\t\t\t\t&& showsResults",
+        "replace": "showsResults"
+      }
+    ]
+  },
+  {
+    "id": "search-collapsible",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCItemsScrollCoordinatorTests.CollapsibleSearchExpandsForFocusOrAnActiveQuery",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "CollapsibleSearchExpandsForFocusOrAnActiveQuery",
+    "replacements": [
+      {
+        "search": "visibility == SearchBoxVisibility.Collapsible\n\t\t\t\t&& !isFocused",
+        "replace": "visibility == SearchBoxVisibility.Collapsible"
+      }
+    ]
+  },
+  {
+    "id": "search-shows-results",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCItemsScrollCoordinatorTests.SearchResultsRequireAnActiveQueryAndVisibleSearchBox",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "SearchResultsRequireAnActiveQueryAndVisibleSearchBox",
+    "replacements": [
+      {
+        "search": "&& showsResults\n\t\t\t\t&& !searchBoxHidden",
+        "replace": "&& true\n\t\t\t\t&& !searchBoxHidden"
+      }
+    ]
+  },
+  {
+    "id": "search-focus-bridge",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Shell/TizenShellSearchView.cs",
+    "filter": "FullyQualifiedName~WaveCShellWiringTests.ShellSearchViewOwnsQueryResultsAndCommandSubscriptions",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "ShellSearchViewOwnsQueryResultsAndCommandSubscriptions",
+    "replacements": [
+      {
+        "search": "_searchHandler.FocusChangeRequested += OnFocusChangeRequested;",
+        "replace": "// mutation: managed focus requests are not observed"
+      }
+    ]
+  },
+  {
+    "id": "toolbar-overflow-routing",
+    "file": "src/Maui.Tizen.Controls/Navigation/Platform/Toolbar/TizenToolbarExtensions.cs",
+    "filter": "FullyQualifiedName~WaveCToolbarOwnershipTests.ToolbarButtonsUseControllerActivationAndReflectCanExecute",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "ToolbarButtonsUseControllerActivationAndReflectCanExecute",
+    "replacements": [
+      {
+        "search": "TMaterialIconButton more = CreateIconButton(platformToolbar, toolbar.IconColor, MaterialIcons.MoreVert);",
+        "replace": "TMaterialIconButton more = CreateNavigationIconButton(platformToolbar, toolbar.IconColor, MaterialIcons.MoreVert);"
+      }
+    ]
+  },
+  {
+    "id": "carousel-managed-companion",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCItemsScrollCoordinatorTests.ManagedCurrentItemUpdatesItsCompanionPosition",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "ManagedCurrentItemUpdatesItsCompanionPosition",
+    "replacements": [
+      {
+        "search": "setPosition(index);",
+        "replace": "// mutation: Position companion is not synchronized"
+      }
+    ]
+  },
+  {
+    "id": "carousel-visual-state",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCItemsScrollCoordinatorTests.CarouselVisualStateUsesCurrentAndAdjacentPositions",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "CarouselVisualStateUsesCurrentAndAdjacentPositions",
+    "replacements": [
+      {
+        "search": "return CarouselView.PreviousItemVisualState;",
+        "replace": "return CarouselView.DefaultItemVisualState;"
+      }
+    ]
+  },
+  {
+    "id": "carousel-true-scrolling",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCItemsScrollCoordinatorTests.CarouselScrollingRemainsTrueBetweenDragEndAndAnimationEnd",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "CarouselScrollingRemainsTrueBetweenDragEndAndAnimationEnd",
+    "replacements": [
+      {
+        "search": "public bool IsScrolling => _dragging || _animating;",
+        "replace": "public bool IsScrolling => _dragging && _animating;"
+      }
+    ]
+  },
+  {
+    "id": "carousel-animation-choice",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCItemsScrollCoordinatorTests.CarouselDeferredTargetsRetainTheirAnimationChoice",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "CarouselDeferredTargetsRetainTheirAnimationChoice",
+    "replacements": [
+      {
+        "search": "_position = (position, animate);",
+        "replace": "_position = (position, false);"
+      }
+    ]
+  },
+  {
+    "id": "navigation-rebind",
+    "file": "src/Maui.Tizen.Controls/Navigation/Handlers/Navigation/TizenNavigationViewHandler.cs",
+    "filter": "FullyQualifiedName~WaveCShellMapperExecutionTests.NavigationHandlerRebindsManagerAndSynchronizesTheNewStack",
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "expected": "NavigationHandlerRebindsManagerAndSynchronizesTheNewStack",
+    "replacements": [
+      {
+        "search": "if (platformView is not null)\n\t\t\t{\n\t\t\t\tplatformView.Connect(VirtualView);\n\t\t\t\tUpdateToolbar();\n\t\t\t\tSyncNavigationStack(platformView);\n\t\t\t}",
+        "replace": "if (platformView is not null)\n\t\t\t{\n\t\t\t\t// mutation: platform manager remains bound to the old view\n\t\t\t\tUpdateToolbar();\n\t\t\t\tSyncNavigationStack(platformView);\n\t\t\t}"
+      }
+    ]
+  },
+  {
+    "id": "navigation-request-generation",
+    "file": "src/Maui.Tizen.Core/Platform/TizenNavigationReconciler.cs",
+    "filter": "FullyQualifiedName~NavigationReconcilerTests.ANewerRequestSupersedesAnOlderRequestForTheSameOwner",
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "expected": "ANewerRequestSupersedesAnOlderRequestForTheSameOwner",
+    "replacements": [
+      {
+        "search": "request.Generation == _generation && ReferenceEquals(request.Owner, currentOwner);",
+        "replace": "ReferenceEquals(request.Owner, currentOwner);"
+      }
+    ]
+  },
+  {
+    "id": "shell-null-current",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ShellRootMountCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCShellRootMountCoordinatorTests.NullCurrentUnmountsTheExistingRootContent",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "NullCurrentUnmountsTheExistingRootContent",
+    "replacements": [
+      {
+        "search": "if (Root is not null)\n\t\t\t\tupdate(Root, current);",
+        "replace": "if (Root is not null && current is not null)\n\t\t\t\tupdate(Root, current);"
+      }
+    ]
+  },
+  {
+    "id": "effective-tab-appearance",
+    "file": "src/Maui.Tizen.Controls/Navigation/Handlers/Shell/TizenShellItemHandler.cs",
+    "filter": "FullyQualifiedName~WaveCShellWiringTests.TabAppearanceUsesEffectiveValuesAndSurvivesLazyRootCreation",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "TabAppearanceUsesEffectiveValuesAndSurvivesLazyRootCreation",
+    "replacements": [
+      {
+        "search": "shellAppearance.EffectiveTabBarBackgroundColor,",
+        "replace": "appearance.BackgroundColor,"
+      }
+    ]
+  },
+  {
+    "id": "multiple-empty-selection",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemSelectionSynchronizer.cs",
+    "filter": "FullyQualifiedName~WaveCItemSelectionSynchronizerTests.EmptyNativeSelectionDoesNotRestoreWithoutAnInvalidRejection",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "EmptyNativeSelectionDoesNotRestoreWithoutAnInvalidRejection",
+    "replacements": [
+      {
+        "search": "if (rejectedInvalidIndex\n\t\t\t\t&& kept.Count == 0",
+        "replace": "if (!rejectedInvalidIndex\n\t\t\t\t&& kept.Count == 0"
+      }
+    ]
+  },
+  {
+    "id": "carousel-resize-retry",
+    "file": "src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs",
+    "filter": "FullyQualifiedName~WaveCItemsScrollCoordinatorTests.CarouselRetriesItsTargetOnlyForValidOrChangedBounds",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "CarouselRetriesItsTargetOnlyForValidOrChangedBounds",
+    "replacements": [
+      {
+        "search": "width <= 0 || height <= 0 || (_width == width && _height == height)",
+        "replace": "width <= 0 || height <= 0"
+      }
+    ]
+  },
+  {
+    "id": "null-adaptor-install-callback",
+    "file": "src/Maui.Tizen.Controls/Navigation/Handlers/Items/TizenItemsViewHandler.cs",
+    "filter": "FullyQualifiedName~WaveCItemsLifecycleSourceTests.EveryAdaptorInstallationReappliesManagedSelection",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "EveryAdaptorInstallationReappliesManagedSelection",
+    "replacements": [
+      {
+        "search": "&& newAdaptor is not null\n\t\t\t\t&& ReferenceEquals",
+        "replace": "&& ReferenceEquals"
       }
     ]
   }

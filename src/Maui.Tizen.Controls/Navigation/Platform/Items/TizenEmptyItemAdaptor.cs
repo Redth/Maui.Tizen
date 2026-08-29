@@ -38,7 +38,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		protected IMauiContext MauiContext => _itemsView.Handler!.MauiContext!;
 
 		static bool HasEmptyContent(ItemsView itemsView) =>
-			itemsView.EmptyView is not null || itemsView.EmptyViewTemplate is not null;
+			ViewportConstraint.NeedsEmptyPlaceholder(
+				itemsView.EmptyView is not null,
+				itemsView.EmptyViewTemplate is not null,
+				itemsView is StructuredItemsView { Header: not null },
+				itemsView is StructuredItemsView { Footer: not null });
 
 		public override NView CreateNativeView(int index)
 		{
@@ -97,7 +101,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			var allocated = (CollectionView as NView)?.Size.ToCommon() ?? TSize.Zero;
 			var header = _headerFooter?.MeasureHeader(allocated.Width, allocated.Height) ?? TSize.Zero;
 			var footer = _headerFooter?.MeasureFooter(allocated.Width, allocated.Height) ?? TSize.Zero;
-			var horizontal = (CollectionView as NCollectionView)?.LayoutManager?.IsHorizontal == true;
+			var layoutManager = (CollectionView as NCollectionView)?.LayoutManager;
+			var horizontal = layoutManager?.IsHorizontal == true;
+			var grid = layoutManager as GridLayoutManager;
 			var remainingWidth = horizontal
 				? ViewportConstraint.Remaining(allocated.Width, header.Width, footer.Width)
 				: allocated.Width;
@@ -105,8 +111,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				? allocated.Height
 				: ViewportConstraint.Remaining(allocated.Height, header.Height, footer.Height);
 			return new TSize(
-				(float)ViewportConstraint.ResolveWithin(widthConstraint, remainingWidth),
-				(float)ViewportConstraint.ResolveWithin(heightConstraint, remainingHeight));
+				(float)ViewportConstraint.ResolveEmptyCell(
+					widthConstraint,
+					remainingWidth,
+					!horizontal && grid?.Span > 1),
+				(float)ViewportConstraint.ResolveEmptyCell(
+					heightConstraint,
+					remainingHeight,
+					horizontal && grid?.Span > 1));
 		}
 
 		/// <summary>

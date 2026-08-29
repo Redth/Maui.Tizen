@@ -197,7 +197,7 @@ Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionView.MauiContext.get ->
 Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionView.ShellSection.get -> Microsoft.Maui.Controls.ShellSection!
 Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionView.TizenShellSectionView(Microsoft.Maui.Controls.ShellSection! shellSection, Microsoft.Maui.IMauiContext! context) -> void
 Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionView.UpdateAppearance(Microsoft.Maui.Controls.ShellAppearance! appearance) -> void
-Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionView.UpdateCurrentItem(Microsoft.Maui.Controls.ShellContent! content) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionView.UpdateCurrentItem(Microsoft.Maui.Controls.ShellContent? content) -> void
 Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionView.UpdateTopTabBarColors(Microsoft.Maui.Graphics.Color! foregroundColor, Microsoft.Maui.Graphics.Color! backgroundColor, Microsoft.Maui.Graphics.Color! titleColor, Microsoft.Maui.Graphics.Color! unselectedColor) -> void
 Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView
 Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.CurrentShellItemView.get -> Microsoft.Maui.Platforms.Tizen.Platform.TizenShellItemView?
@@ -238,8 +238,8 @@ Microsoft.Maui.Platforms.Tizen.Platform.TizenTabbedPageView.UpdateCurrentPage() 
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.ConnectHandler(Tizen.NUI.BaseComponents.View! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.CreateAdaptor() -> Tizen.UIExtensions.NUI.ItemAdaptor!
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.CreatePlatformView() -> Tizen.NUI.BaseComponents.View!
-override Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.DisconnectHandler(Tizen.NUI.BaseComponents.View! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.OnAdaptorInstalled() -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.OnItemsChanged() -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenCollectionViewHandler.CreatePlatformView() -> Tizen.NUI.BaseComponents.View!
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler.ConnectHandler(Tizen.UIExtensions.NUI.DrawerView! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler.CreatePlatformView() -> Tizen.UIExtensions.NUI.DrawerView!
@@ -257,6 +257,7 @@ override Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSubItemHandler.C
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler.CreatePlatformView() -> Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager!
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler.SetVirtualView(Microsoft.Maui.IView! view) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.TizenShapeView! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.TizenShapeView! platformView) -> void
 override Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.TizenShapeView! platformView) -> void

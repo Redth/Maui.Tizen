@@ -17,7 +17,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 	/// <para>
 	/// so that adopting it is a one-line body swap here, with no call-site churn and no behaviour
 	/// re-derivation at a point where the design is no longer fresh in anyone's mind. The PR is
-	/// still open, so nothing is bound to it yet.
+	/// merged upstream but the API is not present in the pinned package, so this adapter remains.
 	/// </para>
 	/// <para>
 	/// <b>Do not surface the template owner.</b> Earlier revisions of this backend exposed the

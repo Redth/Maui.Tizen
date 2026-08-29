@@ -345,7 +345,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				{
 					WidthSpecification = LayoutParamPolicies.MatchParent,
 					HeightSpecification = LayoutParamPolicies.MatchParent,
-					LayoutManager = new LinearLayoutManager(false),
+					LayoutManager = new LinearLayoutManager(
+						false,
+						global::Tizen.UIExtensions.NUI.ItemSizingStrategy.MeasureAllItems),
 					SelectionMode = CollectionViewSelectionMode.SingleAlways,
 				};
 				_flyoutCollectionView.ScrollView.HideScrollbar = true;
@@ -622,17 +624,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				return;
 
 			var header = ShellController.FlyoutHeader;
-			if (HeaderOnMenu)
+			var usesGeneratedContent = FlyoutContentMode.UsesGeneratedContent(_customFlyoutContent);
+			if (FlyoutHeaderOwnership.UseScrollingHeader(HeaderOnMenu, usesGeneratedContent))
 			{
 				SetFixedFlyoutView(ref _fixedHeader, null, value => _flyoutView.Header = value);
-				if (FlyoutContentMode.UsesGeneratedContent(_customFlyoutContent))
-					UpdateFlyoutItemsCore(shell, header);
+				UpdateFlyoutItemsCore(shell, header);
 			}
 			else
 			{
-				if (FlyoutContentMode.UsesGeneratedContent(_customFlyoutContent))
+				if (usesGeneratedContent)
 					UpdateFlyoutItemsCore(shell, scrollingHeader: null);
-				SetFixedFlyoutView(ref _fixedHeader, header, value => _flyoutView.Header = value);
+				if (FlyoutHeaderOwnership.UseFixedHeader(HeaderOnMenu, usesGeneratedContent))
+					SetFixedFlyoutView(ref _fixedHeader, header, value => _flyoutView.Header = value);
 			}
 		}
 
@@ -774,7 +777,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				_toolbarOwnership.Release,
 				() =>
 				{
-					if (_mainContentView is ITizenToolbarContainer container)
+					if (_mainContentView?.HasBody() == true
+						&& _mainContentView is ITizenToolbarContainer container)
 						container.DetachToolbar(platformToolbar);
 				},
 				() => elementHandler?.DisconnectHandler(),

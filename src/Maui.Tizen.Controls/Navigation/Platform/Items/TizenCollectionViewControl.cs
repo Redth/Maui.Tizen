@@ -1,11 +1,13 @@
 using System;
 using System.ComponentModel;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Platforms.Tizen.Adapters;
 using Tizen.NUI;
 using Tizen.UIExtensions.NUI;
 using NCollectionView = Tizen.UIExtensions.NUI.CollectionView;
 using NLayoutParamPolicies = Tizen.NUI.BaseComponents.LayoutParamPolicies;
 using NView = Tizen.NUI.BaseComponents.View;
+using TCollectionViewSelectionMode = Tizen.UIExtensions.NUI.CollectionViewSelectionMode;
 using TSnapPointsAlignment = Tizen.UIExtensions.NUI.SnapPointsAlignment;
 using TSnapPointsType = Tizen.UIExtensions.NUI.SnapPointsType;
 using MauiCollectionView = Microsoft.Maui.Controls.CollectionView;
@@ -94,11 +96,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			}
 
 			CollectionView.LayoutManager = itemsLayout.ToLayoutManager(Element.ItemSizingStrategy);
-			if (itemsLayout is ItemsLayout layout)
-			{
-				CollectionView.SnapPointsType = (TSnapPointsType)layout.SnapPointsType;
-				CollectionView.SnapPointsAlignment = (TSnapPointsAlignment)layout.SnapPointsAlignment;
-			}
+			var state = ItemsLayoutSnapshot.Capture(itemsLayout);
+			CollectionView.SnapPointsType = (TSnapPointsType)state.SnapPointsType;
+			CollectionView.SnapPointsAlignment = (TSnapPointsAlignment)state.SnapPointsAlignment;
 			CollectionView.ScrollView.HideScrollbar = CollectionView.LayoutManager.IsHorizontal
 				? Element.HorizontalScrollBarVisibility == ScrollBarVisibility.Never
 				: Element.VerticalScrollBarVisibility == ScrollBarVisibility.Never;
@@ -107,7 +107,6 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		public override void Rebind(TItemsView element)
 		{
 			base.Rebind(element);
-			UpdateLayoutManager(element.ItemsLayout ?? LinearItemsLayout.Vertical);
 		}
 
 		protected override void Dispose(bool disposing)
@@ -146,13 +145,14 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		public void UpdateSelectionMode()
 		{
-			CollectionView.SelectionMode = Element.SelectionMode.ToNative();
+			CollectionView.SelectionMode = CollectionView.Adaptor is TizenEmptyItemAdaptor
+				? TCollectionViewSelectionMode.None
+				: Element.SelectionMode.ToNative();
 		}
 
 		public override void Rebind(TItemsView element)
 		{
 			base.Rebind(element);
-			UpdateSelectionMode();
 		}
 	}
 

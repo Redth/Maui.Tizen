@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Platform;
@@ -20,6 +21,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 	{
 		Toolbar? _toolbarElement;
 		TizenToolbarView? _platformToolbar;
+		bool _rebinding;
 
 		public static IPropertyMapper<IStackNavigationView, TizenNavigationViewHandler> Mapper =
 			new PropertyMapper<IStackNavigationView, TizenNavigationViewHandler>(TizenViewMappers.ViewMapper)
@@ -47,6 +49,33 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		object INavigationViewHandler.PlatformView => PlatformView;
 
+		public override void SetVirtualView(IView view)
+		{
+			var platformView = ((IElementHandler)this).PlatformView as TizenStackNavigationManager;
+			if (platformView is not null)
+			{
+				ReleaseToolbar(platformView);
+				platformView.Disconnect();
+			}
+
+			_rebinding = platformView is not null;
+			try
+			{
+				base.SetVirtualView(view);
+			}
+			finally
+			{
+				_rebinding = false;
+			}
+
+			if (platformView is not null)
+			{
+				platformView.Connect(VirtualView);
+				UpdateToolbar();
+				SyncNavigationStack(platformView);
+			}
+		}
+
 		protected override TizenStackNavigationManager CreatePlatformView() => new();
 
 		protected override void ConnectHandler(TizenStackNavigationManager platformView)
@@ -56,6 +85,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			{
 				platformView.Connect(VirtualView);
 				UpdateToolbar();
+				SyncNavigationStack(platformView);
 			}
 			catch
 			{
@@ -74,8 +104,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			{
 				if (platformView.HasBody())
 				{
-					ReleaseToolbar(platformView);
+					ReleaseToolbar(platformView, detachNative: true);
 					platformView.Disconnect();
+				}
+				else
+				{
+					ReleaseToolbar(platformView, detachNative: false);
 				}
 			}
 			finally
@@ -97,7 +131,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		public static void MapToolbar(TizenNavigationViewHandler handler, IStackNavigationView view) =>
-			handler.UpdateToolbar();
+			handler.MapToolbar();
+
+		void MapToolbar()
+		{
+			if (!_rebinding)
+				UpdateToolbar();
+		}
 
 		void UpdateToolbar()
 		{
@@ -129,7 +169,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			}
 		}
 
-		void ReleaseToolbar(TizenStackNavigationManager container)
+		void ReleaseToolbar(TizenStackNavigationManager container, bool detachNative = true)
 		{
 			var toolbar = _toolbarElement;
 			var platformToolbar = _platformToolbar;
@@ -140,7 +180,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				return;
 
 			ExceptionSafeCleanup.Run(
-				() => container.DetachToolbar(platformToolbar),
+				() =>
+				{
+					if (detachNative)
+						container.DetachToolbar(platformToolbar);
+				},
 				() => elementHandler?.DisconnectHandler(),
 				platformToolbar.Dispose,
 				() =>
@@ -148,6 +192,16 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 					if (toolbar is not null && ReferenceEquals(toolbar.Handler, elementHandler))
 						toolbar.Handler = null;
 				});
+		}
+
+		void SyncNavigationStack(TizenStackNavigationManager platformView)
+		{
+			if (VirtualView is NavigationPage page)
+			{
+				platformView.RequestNavigation(new NavigationRequest(
+					page.Navigation.NavigationStack.Cast<IView>().ToList(),
+					animated: false));
+			}
 		}
 	}
 }

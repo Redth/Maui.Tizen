@@ -73,11 +73,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			switch (TizenToolbarNavigationSlot.GetNavigationIconKind(toolbar, drawerToggleVisible))
 			{
 				case TizenNavigationIconKind.BackButton:
-					platformToolbar.Icon = CreateIconButton(platformToolbar, toolbar.IconColor, MaterialIcons.ArrowBack);
+					platformToolbar.Icon = CreateNavigationIconButton(platformToolbar, toolbar.IconColor, MaterialIcons.ArrowBack);
 					break;
 
 				case TizenNavigationIconKind.DrawerToggle:
-					platformToolbar.Icon = CreateIconButton(platformToolbar, toolbar.IconColor, MaterialIcons.Menu);
+					platformToolbar.Icon = CreateNavigationIconButton(platformToolbar, toolbar.IconColor, MaterialIcons.Menu);
 					break;
 
 				default:
@@ -217,14 +217,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		static TMaterialIconButton CreateIconButton(TizenToolbarView platformToolbar, GColor? iconColor, MaterialIcons icon)
 		{
-			TMaterialIconButton button = new()
+			return new TMaterialIconButton
 			{
 				Icon = icon,
 				Color = iconColor.IsNotDefault() ? iconColor!.ToTizen() : platformToolbar.GetAccentColor(),
 			};
+		}
 
+		static TMaterialIconButton CreateNavigationIconButton(
+			TizenToolbarView platformToolbar,
+			GColor? iconColor,
+			MaterialIcons icon)
+		{
+			var button = CreateIconButton(platformToolbar, iconColor, icon);
 			button.Clicked += (_, _) => platformToolbar.SendIconPressed();
-
 			return button;
 		}
 

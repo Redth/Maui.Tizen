@@ -65,7 +65,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 			base.OnAdaptorSelectionChanged(sender, e);
 
-			if (VirtualView == null || Adaptor == null)
+			if (_selection.IsPushingToNative || VirtualView == null || Adaptor == null)
 				return;
 
 			IReadOnlyList<int> keptIndexes = e.SelectedIndexes;
@@ -134,6 +134,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			UpdateSelectedItems();
 		}
 
+		private protected override void ConfigureNativeAdaptor(System.Action configure) =>
+			_selection.SuppressNativeFeedback(configure);
+
 		protected override void OnItemsChanged()
 		{
 			base.OnItemsChanged();
@@ -143,7 +146,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 
 		protected virtual void UpdateSelectionMode()
 		{
-			PlatformView?.UpdateSelectionMode();
+			_selection.SuppressNativeFeedback(() => PlatformView?.UpdateSelectionMode());
 		}
 
 		protected virtual void UpdateSelectedItem()

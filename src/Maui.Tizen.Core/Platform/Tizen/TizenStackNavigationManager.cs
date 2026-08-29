@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Maui;
 using Microsoft.Maui.Platform;
@@ -34,6 +35,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 	{
 		readonly Dictionary<IView, TizenNaviPage> _pageMap = new();
 		readonly Dictionary<IView, IViewHandler?> _handlerMap = new();
+		readonly SemaphoreSlim _navigationGate = new(1, 1);
+		readonly NavigationRequestGeneration<IStackNavigation> _navigationRequests = new();
+		(int Generation, IStackNavigation Owner)? _activeRequest;
+		bool _resetPending;
+		bool _isDisposed;
 
 		TizenToolbarView? _toolbar;
 
@@ -124,28 +130,35 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			NavigationView = (IStackNavigation)navigationView;
 			MauiContext = navigationView.Handler?.MauiContext;
+			_navigationRequests.Invalidate();
 		}
 
 		/// <summary>Disconnects this manager from its navigation view.</summary>
 		public virtual void Disconnect()
 		{
-			ResetNavigationState();
+			_navigationRequests.Invalidate();
 			NavigationView = null;
 			MauiContext = null;
+			if (_activeRequest is not null)
+				_resetPending = true;
+			else
+				ResetNavigationState();
 		}
 
 		/// <summary>Clears the managed and native page stack owned by this manager.</summary>
 		protected virtual void ResetNavigationState()
 		{
+			var cleanup = new List<Action>();
 			for (var index = _navigationStack.Count - 1; index >= 0; index--)
 			{
 				var page = _navigationStack[index];
 				if (_pageMap.TryGetValue(page, out var wrapper))
-					PlatformNavigation.Pop(wrapper);
-				ReleasePage(page);
+					cleanup.Add(() => PlatformNavigation.Pop(wrapper));
+				cleanup.Add(() => ReleasePage(page));
 			}
 
 			_navigationStack = new List<IView>();
+			TizenCleanup.Run(cleanup.ToArray());
 		}
 
 		/// <summary>Applies a navigation request to the platform stack.</summary>
@@ -153,31 +166,66 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public virtual async void RequestNavigation(NavigationRequest e)
 		{
 			ArgumentNullException.ThrowIfNull(e);
+			if (NavigationView is not { } navigationView)
+				return;
 
 			var newPageStack = new List<IView>(e.NavigationStack);
-			var previousStack = _navigationStack;
-			var previousCount = previousStack.Count;
-
-			if (previousCount == 0)
+			var request = _navigationRequests.Begin(navigationView);
+			await _navigationGate.WaitAsync().ConfigureAwait(true);
+			try
 			{
-				await InitializeStack(newPageStack, e.Animated).ConfigureAwait(true);
-				Finish(newPageStack);
-				return;
-			}
+				if (!_navigationRequests.IsCurrent(request, NavigationView))
+					return;
 
-			// Same top of stack: only the pages underneath changed, so reconcile without animating.
-			if (newPageStack.Count > 0 &&
-				newPageStack[^1] == previousStack[previousCount - 1])
+				_activeRequest = request;
+				var previousStack = _navigationStack;
+				var previousCount = previousStack.Count;
+
+				if (previousCount == 0)
+				{
+					await InitializeStack(newPageStack, e.Animated).ConfigureAwait(true);
+					if (IsCurrentNavigationRequest)
+						Finish(newPageStack);
+					else
+						ReleaseRealizedPages(newPageStack);
+					return;
+				}
+
+				// Same top of stack: only the pages underneath changed, so reconcile without animating.
+				if (newPageStack.Count > 0 &&
+					newPageStack[^1] == previousStack[previousCount - 1])
+				{
+					SyncBackStackToNavigationStack(newPageStack);
+					if (IsCurrentNavigationRequest)
+						Finish(newPageStack);
+					return;
+				}
+
+				await ReconcileStack(previousStack, newPageStack, e.Animated).ConfigureAwait(true);
+
+				if (IsCurrentNavigationRequest)
+					Finish(newPageStack);
+			}
+			finally
 			{
-				SyncBackStackToNavigationStack(newPageStack);
-				Finish(newPageStack);
-				return;
+				_activeRequest = null;
+				try
+				{
+					if (_resetPending)
+					{
+						_resetPending = false;
+						ResetNavigationState();
+					}
+				}
+				finally
+				{
+					_navigationGate.Release();
+				}
 			}
-
-			await ReconcileStack(previousStack, newPageStack, e.Animated).ConfigureAwait(true);
-
-			Finish(newPageStack);
 		}
+
+		protected bool IsCurrentNavigationRequest =>
+			_activeRequest is { } request && _navigationRequests.IsCurrent(request, NavigationView);
 
 		/// <summary>Pushes an entire stack, animating only the top page.</summary>
 		/// <param name="newStack">The stack to realise.</param>
@@ -192,7 +240,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			var top = newStack[^1];
 			foreach (var page in newStack)
+			{
+				if (!IsCurrentNavigationRequest)
+					return;
 				await PlatformNavigation.Push(GetNavigationItem(page), page == top && animated).ConfigureAwait(true);
+			}
 		}
 
 		/// <summary>
@@ -264,30 +316,20 @@ namespace Microsoft.Maui.Platforms.Tizen
 			// map, so every page leaving the stack leaked one.
 			// Absent from the map means the platform already disposed it - NavigationStack's
 			// animated Pop(bool) does exactly that - so there is nothing left to own here.
-			if (_pageMap.TryGetValue(page, out var naviPage))
-			{
-				naviPage.DetachContent();
-				naviPage.Dispose();
-				_pageMap.Remove(page);
-			}
-
-			if (_handlerMap.TryGetValue(page, out var handler))
-			{
-				(handler as ITizenPlatformViewHandler)?.Dispose();
-				_handlerMap.Remove(page);
-
-				// Detach the disposed handler from the page so the SAME page instance can be
-				// pushed again later - which MAUI allows, and applications do routinely by keeping
-				// a reference and navigating back to it.
-				//
-				// Without this, ToPlatformView would hand back the disposed handler's platform
-				// view on the next push. An earlier attempt to make that safe by refusing to
-				// recreate a released page was worse: it threw, and RequestNavigation is
-				// async void, so an ordinary re-push became an unhandled exception on the main
-				// loop rather than a working navigation.
-				if (ReferenceEquals(page.Handler, handler))
-					page.Handler = null;
-			}
+			_pageMap.Remove(page, out var naviPage);
+			_handlerMap.Remove(page, out var handler);
+			TizenCleanup.Run(
+				() => naviPage?.DetachContent(),
+				() => naviPage?.Dispose(),
+				() => (handler as ITizenPlatformViewHandler)?.Dispose(),
+				() =>
+				{
+					// Detach the disposed handler from the page so the SAME page instance can be
+					// pushed again later - which MAUI allows, and applications do routinely by
+					// keeping a reference and navigating back to it.
+					if (ReferenceEquals(page.Handler, handler))
+						page.Handler = null;
+				});
 		}
 
 		/// <summary>Gets the toolbar currently attached, if any.</summary>
@@ -298,8 +340,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			if (type == global::Tizen.NUI.DisposeTypes.Explicit)
 			{
-				ResetNavigationState();
-				ClearToolbar();
+				_navigationRequests.Invalidate();
+				_resetPending = false;
+				_isDisposed = true;
+				TizenCleanup.Run(
+					ResetNavigationState,
+					ClearToolbar,
+					() => base.Dispose(type));
+				return;
 			}
 
 			base.Dispose(type);
@@ -354,6 +402,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			for (var i = 0; i < plan.Pops.Count; i++)
 			{
+				if (!IsCurrentNavigationRequest)
+					return;
+
 				var page = plan.Pops[i];
 
 				// Pops are ordered top-most first, so only the first is the visible transition.
@@ -378,6 +429,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 					// Ownership was transferred to Pop(true); drop the mapping without touching
 					// the wrapper, which is already disposed at this point.
 					_pageMap.Remove(page);
+					ReleasePage(page);
+					if (!IsCurrentNavigationRequest)
+						return;
+					continue;
 				}
 				else
 				{
@@ -390,14 +445,44 @@ namespace Microsoft.Maui.Platforms.Tizen
 				ReleasePage(page);
 			}
 
+			var pushed = new List<IView>();
 			for (var i = 0; i < plan.Pushes.Count; i++)
 			{
+				if (!IsCurrentNavigationRequest)
+					return;
 				var isTop = i + 1 == plan.Pushes.Count;
-				await PlatformNavigation.Push(GetNavigationItem(plan.Pushes[i]), isTop && animated).ConfigureAwait(true);
+				var page = plan.Pushes[i];
+				await PlatformNavigation.Push(GetNavigationItem(page), isTop && animated).ConfigureAwait(true);
+				pushed.Add(page);
+				if (!IsCurrentNavigationRequest)
+				{
+					ReleaseRealizedPages(pushed);
+					return;
+				}
 			}
 		}
 
 		void ReleasePage(IView page) => OnPageRemoved(page);
+
+		void ReleaseRealizedPages(IReadOnlyList<IView> pages)
+		{
+			for (var index = pages.Count - 1; index >= 0; index--)
+			{
+				var page = pages[index];
+				if (!_pageMap.TryGetValue(page, out var wrapper))
+					continue;
+
+				if (!_isDisposed)
+				{
+					wrapper.DetachContent();
+					PlatformNavigation.Pop(wrapper);
+					ReleasePage(page);
+					continue;
+				}
+				_pageMap.Remove(page);
+				ReleasePage(page);
+			}
+		}
 
 		/// <summary>
 		/// Gets, creating and caching if needed, the platform wrapper for a page.

@@ -161,6 +161,17 @@ public class WaveCItemSelectionSynchronizerTests
 		Assert.Empty(native.SelectedIndexes);
 	}
 
+	[Fact]
+	public void StaleNativeIndexesAreExplicitlyClearedAfterTheSourceShrinks()
+	{
+		var native = new FakeNativeSelection(count: 3, initiallySelected: new[] { 4 });
+
+		new ItemSelectionSynchronizer().PushToNative(native, Array.Empty<int>());
+
+		Assert.Empty(native.SelectedIndexes);
+		Assert.Contains("unselect:4", native.Operations);
+	}
+
 	// -----------------------------------------------------------------
 	// Re-entrancy guards
 	// -----------------------------------------------------------------
@@ -200,6 +211,19 @@ public class WaveCItemSelectionSynchronizerTests
 		sync.PushToNative(native, new[] { 1 });
 
 		Assert.False(applied);
+	}
+
+	[Fact]
+	public void NativeFeedbackIsSuppressedWhileSelectionModeAndAdaptorAreConfigured()
+	{
+		var sync = new ItemSelectionSynchronizer();
+		var applied = true;
+
+		sync.SuppressNativeFeedback(() =>
+			applied = sync.ApplyFromNative(() => { }));
+
+		Assert.False(applied);
+		Assert.False(sync.IsPushingToNative);
 	}
 
 	/// <summary>

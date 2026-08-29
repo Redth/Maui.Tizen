@@ -128,6 +128,33 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Same(brush, handler.PlatformView.FlyoutBackground);
 		}
 
+		[Fact]
+		public void NavigationHandlerRebindsManagerAndSynchronizesTheNewStack()
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<TestApplication>()
+				.Build();
+			var firstRoot = new ContentPage();
+			var secondRoot = new ContentPage();
+			var first = new NavigationPage(firstRoot);
+			var second = new NavigationPage(secondRoot);
+			var handler = Assert.IsType<TizenNavigationViewHandler>(
+				app.Services.GetRequiredService<IMauiHandlersFactory>().GetHandler(typeof(NavigationPage)));
+			handler.SetMauiContext(new MauiContext(app.Services));
+			handler.SetVirtualView(first);
+			var platform = handler.PlatformView;
+			var disconnects = platform.DisconnectCount;
+
+			handler.SetVirtualView(second);
+
+			Assert.Same(platform, handler.PlatformView);
+			Assert.Same(second, platform.ConnectedView);
+			Assert.True(platform.DisconnectCount > disconnects);
+			Assert.Same(secondRoot, Assert.Single(platform.LastStack!));
+
+			((IElementHandler)handler).DisconnectHandler();
+		}
+
 		sealed class TestApplication : Application
 		{
 		}

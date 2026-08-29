@@ -1,3 +1,4 @@
+using Microsoft.Maui.Controls;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
 
 namespace Maui.Tizen.SourceTests;
@@ -57,28 +58,30 @@ public class WaveCSelectionProposalCoordinatorTests
 	[Fact]
 	public void GeneratedFlyoutSelectionPrefersTheMostSpecificActiveEntry()
 	{
-		var root = new object();
-		var section = new object();
-		var content = new object();
+		var root = new FlyoutItem();
+		var section = new ShellSection();
+		var content = new ShellContent { Content = new ContentPage() };
+		section.Items.Add(content);
+		root.Items.Add(section);
 
 		Assert.Same(
 			content,
-			HierarchySelectionResolver.Resolve(
-				new[] { root, section, content },
+			HierarchySelectionResolver.Resolve<Element>(
+				new Element[] { root, section, content },
 				root,
 				section,
 				content));
 		Assert.Same(
 			section,
-			HierarchySelectionResolver.Resolve(
-				new[] { root, section },
+			HierarchySelectionResolver.Resolve<Element>(
+				new Element[] { root, section },
 				root,
 				section,
 				content));
 		Assert.Same(
 			root,
-			HierarchySelectionResolver.Resolve(
-				new[] { root },
+			HierarchySelectionResolver.Resolve<Element>(
+				new Element[] { root },
 				root,
 				section,
 				content));
@@ -120,6 +123,22 @@ public class WaveCSelectionProposalCoordinatorTests
 	{
 		Assert.True(FlyoutContentMode.UsesGeneratedContent<object>(null));
 		Assert.False(FlyoutContentMode.UsesGeneratedContent(new object()));
+	}
+
+	[Theory]
+	[InlineData(true, true, true, false)]
+	[InlineData(false, true, false, true)]
+	[InlineData(true, false, false, true)]
+	[InlineData(false, false, false, true)]
+	public void FlyoutHeaderAlwaysHasExactlyOneOwner(
+		bool headerOnMenu,
+		bool generated,
+		bool scrolling,
+		bool fixedSlot)
+	{
+		Assert.Equal(scrolling, FlyoutHeaderOwnership.UseScrollingHeader(headerOnMenu, generated));
+		Assert.Equal(fixedSlot, FlyoutHeaderOwnership.UseFixedHeader(headerOnMenu, generated));
+		Assert.NotEqual(scrolling, fixedSlot);
 	}
 
 	[Fact]

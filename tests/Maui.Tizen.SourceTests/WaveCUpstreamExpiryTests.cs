@@ -82,8 +82,8 @@ public class WaveCUpstreamExpiryTests
 	/// <c>public static DataTemplate? Shell.ResolveFlyoutItemTemplate(Shell? shell, BindableObject
 	/// flyoutItem)</c>. <see cref="ExplicitlyRecognisesTheProposedResolverSymbol"/> pins that name so
 	/// it is unmistakably covered, but the broad match below is retained rather than replaced by it:
-	/// the PR is still open and re-reviewing, and narrowing to one name is what blinded this test
-	/// twice already.
+	/// the change is merged upstream but absent from the pinned package, and narrowing to one name
+	/// is what blinded this test twice already while the API shape was evolving.
 	/// </para>
 	/// <para>
 	/// Each time this test named members explicitly it silently stopped detecting anything, which is

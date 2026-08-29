@@ -31,6 +31,20 @@ public class WaveCShellWiringTests
 	}
 
 	[Fact]
+	public void NavigationHandlerRebindsAndResynchronizesItsStack()
+	{
+		var source = Read("TizenNavigationViewHandler.cs");
+		var start = source.IndexOf("public override void SetVirtualView", StringComparison.Ordinal);
+		var end = source.IndexOf("protected override TizenStackNavigationManager CreatePlatformView", start, StringComparison.Ordinal);
+		var body = source[start..end];
+
+		Assert.Contains("platformView.Disconnect()", body, StringComparison.Ordinal);
+		Assert.Contains("base.SetVirtualView(view)", body, StringComparison.Ordinal);
+		Assert.Contains("platformView.Connect(VirtualView)", body, StringComparison.Ordinal);
+		Assert.Contains("SyncNavigationStack(platformView)", body, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void ShellSearchViewOwnsQueryResultsAndCommandSubscriptions()
 	{
 		var source = Read("TizenShellSearchView.cs");
@@ -39,6 +53,13 @@ public class WaveCShellWiringTests
 		Assert.Contains("SearchButtonPressed += OnSearchButtonPressed", source, StringComparison.Ordinal);
 		Assert.Contains("ListProxyChanged += OnListProxyChanged", source, StringComparison.Ordinal);
 		Assert.Contains("PropertyChanged += OnSearchHandlerPropertyChanged", source, StringComparison.Ordinal);
+		Assert.Contains("FocusChangeRequested += OnFocusChangeRequested", source, StringComparison.Ordinal);
+		Assert.Contains("SetIsFocused(true)", source, StringComparison.Ordinal);
+		Assert.Contains("SearchHandler.ShowsResults", source, StringComparison.Ordinal);
+		Assert.Contains("IsSearchEnabled: true, ShowsResults: true", source, StringComparison.Ordinal);
+		Assert.Contains("SearchResultsLayout.IsCollapsed", source, StringComparison.Ordinal);
+		Assert.Contains("SetCollapsed(false)", source, StringComparison.Ordinal);
+		Assert.Contains("UnfocusEntry();", source, StringComparison.Ordinal);
 		Assert.Contains("ItemSelected", source, StringComparison.Ordinal);
 	}
 
@@ -51,6 +72,7 @@ public class WaveCShellWiringTests
 		Assert.Contains("ShellController.FlyoutHeader", shell, StringComparison.Ordinal);
 		Assert.Contains("ShellController.FlyoutFooter", shell, StringComparison.Ordinal);
 		Assert.Contains("ShellController.FlyoutContent", shell, StringComparison.Ordinal);
+		Assert.Contains("ItemSizingStrategy.MeasureAllItems", shell, StringComparison.Ordinal);
 		Assert.DoesNotContain("ResolveFlyoutItemTemplate", adaptor[..adaptor.IndexOf("CreateItemView", StringComparison.Ordinal)], StringComparison.Ordinal);
 	}
 
@@ -87,9 +109,8 @@ public class WaveCShellWiringTests
 		Assert.Contains(handler.PropertyMappers, mapper => mapper.Key == "FlyoutItems");
 		var start = source.IndexOf("public void UpdateFlyoutHeader", StringComparison.Ordinal);
 		var end = source.IndexOf("public void UpdateFlyoutFooter", start, StringComparison.Ordinal);
-		Assert.Equal(
-			2,
-			source[start..end].Split("FlyoutContentMode.UsesGeneratedContent(_customFlyoutContent)").Length - 1);
+		Assert.Contains("FlyoutHeaderOwnership.UseScrollingHeader", source[start..end], StringComparison.Ordinal);
+		Assert.Contains("FlyoutHeaderOwnership.UseFixedHeader", source[start..end], StringComparison.Ordinal);
 		Assert.Contains("ReleaseFlyoutAdaptor();", source, StringComparison.Ordinal);
 	}
 

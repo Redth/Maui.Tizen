@@ -81,6 +81,15 @@ public class WaveCItemsLifecycleSourceTests
 		Assert.Contains("carousel.Scrolled += OnCarouselScrolled", source, StringComparison.Ordinal);
 		Assert.Contains("CarouselFeedbackCoordinator", source, StringComparison.Ordinal);
 		Assert.Contains("ScrollEnabled = VirtualView.IsSwipeEnabled", source, StringComparison.Ordinal);
+		Assert.Contains("AnimatePositionChanges", source, StringComparison.Ordinal);
+		Assert.Contains("AnimateCurrentItemChanges", source, StringComparison.Ordinal);
+
+		var control = Read("TizenCarouselViewControl.cs");
+		Assert.Contains("CarouselVisualState.ForIndex", control, StringComparison.Ordinal);
+		Assert.Contains("Element.VisibleViews.Add", control, StringComparison.Ordinal);
+		Assert.Contains("Element.SetIsDragging", control, StringComparison.Ordinal);
+		Assert.Contains("ScrollAnimationEnded", control, StringComparison.Ordinal);
+		Assert.Contains("PrepareForAdaptorReplacement", control, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -90,8 +99,42 @@ public class WaveCItemsLifecycleSourceTests
 		var selectable = Read("TizenSelectableItemsViewHandler.cs");
 
 		Assert.Contains("OnAdaptorInstalled();", items, StringComparison.Ordinal);
+		Assert.Contains("newAdaptor is not null", items, StringComparison.Ordinal);
 		Assert.Contains("UpdateSelectedItem();", selectable, StringComparison.Ordinal);
 		Assert.Contains("UpdateSelectedItems();", selectable, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void AdaptorAndSelectionModeConfigurationSuppressNativeFeedback()
+	{
+		var items = Read("TizenItemsViewHandler.cs");
+		var selectable = Read("TizenSelectableItemsViewHandler.cs");
+
+		Assert.Contains("ConfigureNativeAdaptor(() =>", items, StringComparison.Ordinal);
+		Assert.Contains("_selection.SuppressNativeFeedback(configure)", selectable, StringComparison.Ordinal);
+		Assert.Contains("_selection.SuppressNativeFeedback(() => PlatformView?.UpdateSelectionMode())", selectable, StringComparison.Ordinal);
+		Assert.Contains("if (_selection.IsPushingToNative", selectable, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void PlatformViewRebindOnlyChangesItsElementBeforeMappersRun()
+	{
+		var collection = Read("TizenCollectionViewControl.cs");
+		var carousel = Read("TizenCarouselViewControl.cs");
+		var structuredStart = collection.IndexOf("public override void Rebind(TItemsView element)", StringComparison.Ordinal);
+		var structuredEnd = collection.IndexOf("protected override void Dispose", structuredStart, StringComparison.Ordinal);
+		var selectableClass = collection.IndexOf("public class TizenSelectableItemsViewControl", StringComparison.Ordinal);
+		var selectableStart = collection.IndexOf("public override void Rebind(TItemsView element)", selectableClass, StringComparison.Ordinal);
+		var selectableEnd = collection.IndexOf("}", selectableStart, StringComparison.Ordinal);
+		var carouselStart = carousel.IndexOf("public override void Rebind(CarouselView element)", StringComparison.Ordinal);
+		var carouselEnd = carousel.IndexOf("public event EventHandler<int>", carouselStart, StringComparison.Ordinal);
+
+		Assert.DoesNotContain("UpdateLayoutManager", collection[structuredStart..structuredEnd], StringComparison.Ordinal);
+		Assert.DoesNotContain("UpdateSelectionMode", collection[selectableStart..selectableEnd], StringComparison.Ordinal);
+		Assert.DoesNotContain("UpdateLayoutManager", carousel[carouselStart..carouselEnd], StringComparison.Ordinal);
+		Assert.True(
+			carousel[carouselStart..carouselEnd].IndexOf("base.Rebind(element)", StringComparison.Ordinal)
+				< carousel[carouselStart..carouselEnd].IndexOf("ClearVisibleViews(previous)", StringComparison.Ordinal));
 	}
 
 	[Fact]
@@ -105,6 +148,10 @@ public class WaveCItemsLifecycleSourceTests
 		Assert.Contains("platformView as TizenItemsViewControl", body, StringComparison.Ordinal);
 		Assert.Contains("notifyInstalled: false", body, StringComparison.Ordinal);
 		Assert.DoesNotContain("NativeCollectionView", body, StringComparison.Ordinal);
+		var detach = body.IndexOf("SetAdaptorCore(collectionView, null", StringComparison.Ordinal);
+		var unsubscribe = body.IndexOf("UnsubscribeFromCollectionChanges", StringComparison.Ordinal);
+		var baseCleanup = body.IndexOf("base.DisconnectHandler(platformView)", StringComparison.Ordinal);
+		Assert.True(detach >= 0 && unsubscribe > detach && baseCleanup > unsubscribe);
 	}
 
 	[Theory]
@@ -120,6 +167,9 @@ public class WaveCItemsLifecycleSourceTests
 		Assert.DoesNotContain("override NView CreateNativeView", source, StringComparison.Ordinal);
 		if (fileName == "TizenShellFlyoutItemAdaptor.cs")
 			Assert.Contains("return typeof(TizenShellFlyoutItemView);", source, StringComparison.Ordinal);
+
+		var shared = Read("TizenItemTemplateAdaptor.cs");
+		Assert.Contains("var view = CreateItemView(index);", shared, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -131,9 +181,10 @@ public class WaveCItemsLifecycleSourceTests
 		Assert.Contains("PropertyChanged += OnItemsLayoutPropertyChanged", collection, StringComparison.Ordinal);
 		Assert.Contains("SnapPointsType", collection, StringComparison.Ordinal);
 		Assert.Contains(
-			"CollectionView.SnapPointsAlignment = (TSnapPointsAlignment)layout.SnapPointsAlignment;",
+			"CollectionView.SnapPointsAlignment = (TSnapPointsAlignment)state.SnapPointsAlignment;",
 			collection,
 			StringComparison.Ordinal);
+		Assert.Contains("ItemsLayoutSnapshot.Capture(itemsLayout)", collection, StringComparison.Ordinal);
 		Assert.Contains("PropertyChanged -= OnItemsLayoutPropertyChanged", collection, StringComparison.Ordinal);
 		Assert.Contains("PropertyChanged += OnItemsLayoutPropertyChanged", carousel, StringComparison.Ordinal);
 		Assert.Contains("SnapPointsAlignment", carousel, StringComparison.Ordinal);

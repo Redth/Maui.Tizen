@@ -167,40 +167,48 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		void OnOuterCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
 		{
+			if (_disposed)
+				return;
+
 			var oldGroups = _groups.ToList();
 			var oldItems = _items.ToList();
 
 			RebuildSubscriptionsAndItems();
+			if (_disposed)
+				return;
 			RaiseTranslatedOuter(e, oldGroups, oldItems);
 		}
 
 		void OnInnerCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
 		{
+			if (_disposed)
+				return;
+
 			var groupIndex = _groups.FindIndex(group => ReferenceEquals(group, sender));
 			if (groupIndex < 0)
 			{
 				RebuildItems();
-				CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+				Raise(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
 				return;
 			}
 
 			var oldItems = _items.ToList();
 			var oldStart = GroupStart(_groups, groupIndex) + (_hasGroupHeader ? 1 : 0);
 			RebuildItems();
+			if (_disposed)
+				return;
 
 			switch (e.Action)
 			{
 				case NotifyCollectionChangedAction.Add when e.NewItems is not null && e.NewStartingIndex >= 0:
-					CollectionChanged?.Invoke(
-						this,
+					Raise(
 						new NotifyCollectionChangedEventArgs(
 							NotifyCollectionChangedAction.Add,
 							e.NewItems,
 							oldStart + e.NewStartingIndex));
 					break;
 				case NotifyCollectionChangedAction.Remove when e.OldItems is not null && e.OldStartingIndex >= 0:
-					CollectionChanged?.Invoke(
-						this,
+					Raise(
 						new NotifyCollectionChangedEventArgs(
 							NotifyCollectionChangedAction.Remove,
 							e.OldItems,
@@ -212,32 +220,25 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 						&& e.NewStartingIndex >= 0
 						&& e.OldStartingIndex >= 0
 						&& e.NewItems.Count == e.OldItems.Count:
-					CollectionChanged?.Invoke(
-						this,
-						new NotifyCollectionChangedEventArgs(
-							NotifyCollectionChangedAction.Replace,
-							e.NewItems,
-							e.OldItems,
-							oldStart + e.NewStartingIndex));
-					break;
-				case NotifyCollectionChangedAction.Move
-					when e.NewItems is not null
-						&& e.NewItems.Count == 1
-						&& e.NewStartingIndex >= 0
-						&& e.OldStartingIndex >= 0:
-					CollectionChanged?.Invoke(
-						this,
-						new NotifyCollectionChangedEventArgs(
-							NotifyCollectionChangedAction.Move,
-							e.NewItems,
-							oldStart + e.NewStartingIndex,
-							oldStart + e.OldStartingIndex));
+					if (e.NewItems.Count == 1)
+					{
+						Raise(
+							new NotifyCollectionChangedEventArgs(
+								NotifyCollectionChangedAction.Replace,
+								e.NewItems,
+								e.OldItems,
+								oldStart + e.NewStartingIndex));
+					}
+					else
+					{
+						Raise(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+					}
 					break;
 				case NotifyCollectionChangedAction.Move:
-					CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+					Raise(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
 					break;
 				default:
-					CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+					Raise(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
 					break;
 			}
 		}
@@ -253,8 +254,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 					{
 						var index = GroupStart(_groups, e.NewStartingIndex);
 						var added = FlattenGroups(e.NewItems.Cast<object>()).ToList();
-						CollectionChanged?.Invoke(
-							this,
+						Raise(
 							new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, added, index));
 						break;
 					}
@@ -265,8 +265,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 							.Skip(index)
 							.Take(e.OldItems.Cast<object>().Sum(FlattenedCount))
 							.ToList();
-						CollectionChanged?.Invoke(
-							this,
+						Raise(
 							new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, removed, index));
 						break;
 					}
@@ -275,28 +274,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 						&& e.NewStartingIndex >= 0
 						&& e.OldStartingIndex >= 0:
 					{
-						var oldIndex = GroupStart(oldGroups, e.OldStartingIndex);
-						var newIndex = GroupStart(_groups, e.NewStartingIndex);
-						var moved = oldItems
-							.Skip(oldIndex)
-							.Take(e.OldItems.Cast<object>().Sum(FlattenedCount))
-							.ToList();
-						if (moved.Count == 1)
-						{
-							CollectionChanged?.Invoke(
-								this,
-								new NotifyCollectionChangedEventArgs(
-									NotifyCollectionChangedAction.Move,
-									moved,
-									newIndex,
-									oldIndex));
-						}
-						else
-						{
-							CollectionChanged?.Invoke(
-								this,
-								new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
-						}
+						Raise(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
 						break;
 					}
 				case NotifyCollectionChangedAction.Replace
@@ -313,10 +291,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 							.ToList();
 						var added = FlattenGroups(e.NewItems.Cast<object>()).ToList();
 
-						if (oldIndex == newIndex && removed.Count == added.Count)
+						if (oldIndex == newIndex && removed.Count == 1 && added.Count == 1)
 						{
-							CollectionChanged?.Invoke(
-								this,
+							Raise(
 								new NotifyCollectionChangedEventArgs(
 									NotifyCollectionChangedAction.Replace,
 									added,
@@ -325,29 +302,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 						}
 						else
 						{
-							CollectionChanged?.Invoke(
-								this,
-								new NotifyCollectionChangedEventArgs(
-									NotifyCollectionChangedAction.Remove,
-									removed,
-									oldIndex));
-							CollectionChanged?.Invoke(
-								this,
-								new NotifyCollectionChangedEventArgs(
-									NotifyCollectionChangedAction.Add,
-									added,
-									newIndex));
+							Raise(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
 						}
 						break;
 					}
 				default:
-					CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+					Raise(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
 					break;
 			}
 		}
 
 		void RebuildSubscriptionsAndItems()
 		{
+			if (_disposed)
+				return;
+
 			if (_outerSubscription is not null)
 				_outerSubscription.CollectionChanged -= OnOuterCollectionChanged;
 
@@ -357,6 +326,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			_groups.Clear();
 			_groups.AddRange(_source.Cast<object>());
+			if (_disposed)
+				return;
 			foreach (var removed in _markers.Keys.Where(group => !_groups.Any(current => ReferenceEquals(current, group))).ToList())
 				_markers.Remove(removed);
 
@@ -366,6 +337,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 			foreach (var group in _groups.OfType<INotifyCollectionChanged>())
 			{
+				if (_disposed)
+					return;
 				group.CollectionChanged += OnInnerCollectionChanged;
 				_innerSubscriptions.Add(group);
 			}
@@ -375,9 +348,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		void RebuildItems()
 		{
-			_items.Clear();
+			if (_disposed)
+				return;
+
+			var rebuilt = new List<object>();
 			foreach (var group in _groups)
-				_items.AddRange(FlattenGroup(group));
+			{
+				if (_disposed)
+					return;
+				rebuilt.AddRange(FlattenGroup(group));
+			}
+
+			if (_disposed)
+				return;
+			_items.Clear();
+			_items.AddRange(rebuilt);
 		}
 
 		IEnumerable<object> FlattenGroups(IEnumerable<object> groups) =>
@@ -405,6 +390,20 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		int FlattenedCount(object group) =>
 			(_hasGroupHeader ? 1 : 0) + ItemCount(group) + (_hasGroupFooter ? 1 : 0);
 
+		void Raise(NotifyCollectionChangedEventArgs args)
+		{
+			var handlers = CollectionChanged;
+			if (_disposed || handlers is null)
+				return;
+
+			foreach (NotifyCollectionChangedEventHandler handler in handlers.GetInvocationList())
+			{
+				if (_disposed)
+					break;
+				handler(this, args);
+			}
+		}
+
 		int GroupStart(IReadOnlyList<object> groups, int groupIndex)
 		{
 			var start = 0;
@@ -431,6 +430,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			foreach (var subscription in _innerSubscriptions)
 				subscription.CollectionChanged -= OnInnerCollectionChanged;
 			_innerSubscriptions.Clear();
+			CollectionChanged = null;
 		}
 
 		readonly record struct GroupMarkers(GroupHeaderItem Header, GroupFooterItem Footer);

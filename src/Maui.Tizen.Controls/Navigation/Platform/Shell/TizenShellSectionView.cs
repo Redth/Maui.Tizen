@@ -183,7 +183,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 		/// <summary>
 		/// Updates the current item by mounting the ShellContent into the content area and syncing tab selection.
 		/// </summary>
-		public void UpdateCurrentItem(ShellContent content)
+		public void UpdateCurrentItem(ShellContent? content)
 		{
 			BuildTopTabBar();
 

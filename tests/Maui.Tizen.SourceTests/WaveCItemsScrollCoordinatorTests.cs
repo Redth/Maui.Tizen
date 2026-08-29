@@ -1,3 +1,4 @@
+using Microsoft.Maui.Controls;
 using Microsoft.Maui.Platforms.Tizen.Adapters;
 
 namespace Maui.Tizen.SourceTests;
@@ -63,15 +64,52 @@ public class WaveCItemsScrollCoordinatorTests
 	}
 
 	[Fact]
+	public void ManagedCurrentItemUpdatesItsCompanionPosition()
+	{
+		var coordinator = new CarouselFeedbackCoordinator();
+		var item = new object();
+		var position = -1;
+		var nativeUpdates = 0;
+
+		Assert.True(coordinator.ApplyManagedCurrentItem(
+			item,
+			3,
+			value => ReferenceEquals(value, item) ? 2 : -1,
+			value => position = value,
+			() => nativeUpdates++));
+
+		Assert.Equal(2, position);
+		Assert.Equal(1, nativeUpdates);
+		Assert.False(coordinator.ApplyNative(2, 3, _ => item, _ => { }, _ => { }));
+	}
+
+	[Fact]
+	public void ManagedPositionUpdatesItsCompanionCurrentItem()
+	{
+		var coordinator = new CarouselFeedbackCoordinator();
+		var items = new object[] { "a", "b" };
+		object? current = null;
+
+		Assert.True(coordinator.ApplyManagedPosition(
+			1,
+			items.Length,
+			index => items[index],
+			value => current = value,
+			() => { }));
+
+		Assert.Equal("b", current);
+	}
+
+	[Fact]
 	public void CarouselPositionWaitsForLayoutAndRetries()
 	{
 		var coordinator = new DeferredCarouselPosition();
 		var scrolled = new List<int>();
 		coordinator.SetPosition(2);
 
-		Assert.False(coordinator.TryApply(false, 4, _ => -1, scrolled.Add));
+		Assert.False(coordinator.TryApply(false, 4, _ => -1, (index, _) => scrolled.Add(index)));
 		Assert.Empty(scrolled);
-		Assert.True(coordinator.TryApply(true, 4, _ => -1, scrolled.Add));
+		Assert.True(coordinator.TryApply(true, 4, _ => -1, (index, _) => scrolled.Add(index)));
 		Assert.Equal([2], scrolled);
 	}
 
@@ -84,21 +122,110 @@ public class WaveCItemsScrollCoordinatorTests
 		coordinator.SetPosition(1);
 		coordinator.SetCurrentItem(item);
 
-		Assert.True(coordinator.TryApply(true, 4, value => ReferenceEquals(value, item) ? 3 : -1, scrolled.Add));
+		Assert.True(coordinator.TryApply(
+			true,
+			4,
+			value => ReferenceEquals(value, item) ? 3 : -1,
+			(index, _) => scrolled.Add(index)));
 		Assert.Equal([3], scrolled);
 	}
 
+	[Fact]
+	public void CarouselDeferredTargetsRetainTheirAnimationChoice()
+	{
+		var coordinator = new DeferredCarouselPosition();
+		var observed = (Index: -1, Animate: false);
+		coordinator.SetPosition(2, animate: true);
+
+		coordinator.TryApply(true, 3, _ => -1, (index, animate) => observed = (index, animate));
+
+		Assert.Equal((2, true), observed);
+	}
+
 	[Theory]
-	[InlineData("query", 1, false, true)]
-	[InlineData("", 1, false, false)]
-	[InlineData("query", 0, false, false)]
-	[InlineData("query", 1, true, false)]
+	[InlineData(2, 2, CarouselView.CurrentItemVisualState)]
+	[InlineData(1, 2, CarouselView.PreviousItemVisualState)]
+	[InlineData(3, 2, CarouselView.NextItemVisualState)]
+	[InlineData(0, 2, CarouselView.DefaultItemVisualState)]
+	public void CarouselVisualStateUsesCurrentAndAdjacentPositions(int index, int current, string expected) =>
+		Assert.Equal(expected, CarouselVisualState.ForIndex(index, current));
+
+	[Fact]
+	public void CarouselScrollingRemainsTrueBetweenDragEndAndAnimationEnd()
+	{
+		var state = new CarouselInteractionState();
+
+		state.BeginDrag();
+		Assert.True(state.IsDragging);
+		Assert.True(state.IsScrolling);
+
+		state.BeginAnimation();
+		state.EndDrag();
+		Assert.False(state.IsDragging);
+		Assert.True(state.IsScrolling);
+
+		state.EndAnimation();
+		Assert.False(state.IsScrolling);
+	}
+
+	[Fact]
+	public void CarouselRetriesItsTargetOnlyForValidOrChangedBounds()
+	{
+		var viewport = new CarouselViewportTracker();
+
+		Assert.False(viewport.Update(0, 100));
+		Assert.True(viewport.Update(100, 200));
+		Assert.False(viewport.Update(100, 200));
+		Assert.True(viewport.Update(200, 100));
+		viewport.Reset();
+		Assert.True(viewport.Update(200, 100));
+	}
+
+	[Fact]
+	public void ItemsLayoutSnapshotReflectsRuntimeSpanSpacingAndSnapChanges()
+	{
+		var layout = new GridItemsLayout(2, ItemsLayoutOrientation.Vertical)
+		{
+			HorizontalItemSpacing = 3,
+			VerticalItemSpacing = 4,
+			SnapPointsType = SnapPointsType.Mandatory,
+			SnapPointsAlignment = SnapPointsAlignment.Center,
+		};
+
+		var initial = ItemsLayoutSnapshot.Capture(layout);
+		layout.Span = 4;
+		layout.HorizontalItemSpacing = 7;
+		layout.VerticalItemSpacing = 8;
+		layout.SnapPointsType = SnapPointsType.MandatorySingle;
+		layout.SnapPointsAlignment = SnapPointsAlignment.End;
+		var updated = ItemsLayoutSnapshot.Capture(layout);
+
+		Assert.Equal(2, initial.Span);
+		Assert.Equal(3, initial.HorizontalItemSpacing);
+		Assert.Equal(4, initial.VerticalItemSpacing);
+		Assert.Equal(SnapPointsType.Mandatory, initial.SnapPointsType);
+		Assert.Equal(4, updated.Span);
+		Assert.Equal(7, updated.HorizontalItemSpacing);
+		Assert.Equal(8, updated.VerticalItemSpacing);
+		Assert.Equal(SnapPointsType.MandatorySingle, updated.SnapPointsType);
+		Assert.Equal(SnapPointsAlignment.End, updated.SnapPointsAlignment);
+	}
+
+	[Theory]
+	[InlineData("query", 1, true, true, false, true)]
+	[InlineData("", 1, true, true, false, false)]
+	[InlineData("query", 0, true, true, false, false)]
+	[InlineData("query", 1, false, true, false, false)]
+	[InlineData("query", 1, true, false, false, false)]
+	[InlineData("query", 1, true, true, true, false)]
 	public void SearchResultsRequireAnActiveQueryAndVisibleSearchBox(
 		string query,
 		int count,
+		bool enabled,
+		bool showsResults,
 		bool hidden,
 		bool expected) =>
-		Assert.Equal(expected, SearchResultsLayout.IsVisible(query, count, hidden));
+		Assert.Equal(expected, SearchResultsLayout.IsVisible(query, count, enabled, showsResults, hidden));
 
 	[Fact]
 	public void SearchResultsAreCappedAtHalfTheScreen()
@@ -106,4 +233,16 @@ public class WaveCItemsScrollCoordinatorTests
 		Assert.Equal(300, SearchResultsLayout.ConstrainHeight(500, 600));
 		Assert.Equal(200, SearchResultsLayout.ConstrainHeight(200, 600));
 	}
+
+	[Theory]
+	[InlineData(SearchBoxVisibility.Collapsible, false, "", true)]
+	[InlineData(SearchBoxVisibility.Collapsible, true, "", false)]
+	[InlineData(SearchBoxVisibility.Collapsible, false, "query", false)]
+	[InlineData(SearchBoxVisibility.Expanded, false, "", false)]
+	public void CollapsibleSearchExpandsForFocusOrAnActiveQuery(
+		SearchBoxVisibility visibility,
+		bool focused,
+		string query,
+		bool expected) =>
+		Assert.Equal(expected, SearchResultsLayout.IsCollapsed(visibility, focused, query));
 }

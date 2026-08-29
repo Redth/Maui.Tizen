@@ -37,6 +37,19 @@ public class WaveCShellRootMountCoordinatorTests
 	}
 
 	[Fact]
+	public void NullCurrentUnmountsTheExistingRootContent()
+	{
+		var coordinator = new ShellRootMountCoordinator<string, Root>();
+		var root = coordinator.GetOrCreate(() => new Root(), Update);
+		coordinator.SetCurrent("current", Update);
+
+		coordinator.SetCurrent(null, Update);
+
+		Assert.Null(root.Current);
+		Assert.Equal(3, root.Updates);
+	}
+
+	[Fact]
 	public void ClearDisposesRootAndDropsPendingContent()
 	{
 		var coordinator = new ShellRootMountCoordinator<string, Root>();
@@ -49,7 +62,7 @@ public class WaveCShellRootMountCoordinatorTests
 		Assert.Null(coordinator.Root);
 	}
 
-	static void Update(Root root, string current)
+	static void Update(Root root, string? current)
 	{
 		root.Current = current;
 		root.Updates++;

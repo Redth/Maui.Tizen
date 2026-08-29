@@ -148,4 +148,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 			where T : class =>
 			customContent is null;
 	}
+
+	internal static class FlyoutHeaderOwnership
+	{
+		public static bool UseScrollingHeader(bool headerOnMenu, bool usesGeneratedContent) =>
+			headerOnMenu && usesGeneratedContent;
+
+		public static bool UseFixedHeader(bool headerOnMenu, bool usesGeneratedContent) =>
+			!UseScrollingHeader(headerOnMenu, usesGeneratedContent);
+	}
 }

@@ -32,4 +32,27 @@ public class WaveCViewportConstraintTests
 		double allocated,
 		double expected) =>
 		Assert.Equal(expected, ViewportConstraint.ResolveWithin(constraint, allocated));
+
+	[Fact]
+	public void EmptyContentSpansTheGridCrossAxis()
+	{
+		Assert.Equal(300, ViewportConstraint.ResolveEmptyCell(100, 300, spanCrossAxis: true));
+		Assert.Equal(100, ViewportConstraint.ResolveEmptyCell(100, 300, spanCrossAxis: false));
+	}
+
+	[Theory]
+	[InlineData(false, false, false, false, false)]
+	[InlineData(true, false, false, false, true)]
+	[InlineData(false, true, false, false, true)]
+	[InlineData(false, false, true, false, true)]
+	[InlineData(false, false, false, true, true)]
+	public void HeaderOrFooterAloneKeepsAUsableEmptyExtent(
+		bool emptyView,
+		bool emptyTemplate,
+		bool header,
+		bool footer,
+		bool expected) =>
+		Assert.Equal(
+			expected,
+			ViewportConstraint.NeedsEmptyPlaceholder(emptyView, emptyTemplate, header, footer));
 }

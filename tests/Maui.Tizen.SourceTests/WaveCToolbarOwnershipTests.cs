@@ -281,5 +281,13 @@ public class WaveCToolbarOwnershipTests
 		Assert.Contains("button.IsEnabled = MenuItemActivation.CanActivate(item)", extensions, StringComparison.Ordinal);
 		Assert.Contains("item.Command.CanExecuteChanged += OnToolbarItemCanExecuteChanged", handler, StringComparison.Ordinal);
 		Assert.Contains("command.CanExecuteChanged -= OnToolbarItemCanExecuteChanged", handler, StringComparison.Ordinal);
+		Assert.Contains(
+			"TMaterialIconButton more = CreateIconButton",
+			extensions,
+			StringComparison.Ordinal);
+		Assert.Contains(
+			"CreateNavigationIconButton(platformToolbar",
+			extensions,
+			StringComparison.Ordinal);
 	}
 }

@@ -12,5 +12,15 @@ namespace Microsoft.Maui.Platforms.Tizen.Adapters
 
 		public static double ResolveWithin(double constraint, double allocated) =>
 			Math.Min(allocated, Resolve(constraint, allocated));
+
+		public static double ResolveEmptyCell(double constraint, double allocated, bool spanCrossAxis) =>
+			ResolveWithin(spanCrossAxis ? double.PositiveInfinity : constraint, allocated);
+
+		public static bool NeedsEmptyPlaceholder(
+			bool hasEmptyView,
+			bool hasEmptyViewTemplate,
+			bool hasHeader,
+			bool hasFooter) =>
+			hasEmptyView || hasEmptyViewTemplate || hasHeader || hasFooter;
 	}
 }

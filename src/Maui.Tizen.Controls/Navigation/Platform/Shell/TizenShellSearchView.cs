@@ -68,7 +68,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			}
 
 			_searchHandler.PropertyChanged += OnSearchHandlerPropertyChanged;
+			_searchHandler.FocusChangeRequested += OnFocusChangeRequested;
 			((ISearchHandlerController)_searchHandler).ListProxyChanged += OnListProxyChanged;
+			EntryFocused += OnEntryFocused;
+			EntryUnfocused += OnEntryUnfocused;
 			SubscribeItems(_searchHandler.ItemsSource);
 			Refresh();
 		}
@@ -90,6 +93,10 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			else
 				Show();
 			Entry.PlaceholderText = _searchHandler.Placeholder ?? string.Empty;
+			SetCollapsed(SearchResultsLayout.IsCollapsed(
+				_searchHandler.SearchBoxVisibility,
+				_searchHandler.IsFocused,
+				_searchHandler.Query));
 
 			if (!string.Equals(Entry.Text, _searchHandler.Query, StringComparison.Ordinal))
 			{
@@ -162,13 +169,23 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 
 		void OnSearchButtonPressed(object? sender, EventArgs e)
 		{
-			if (_searchHandler is not null)
-				((ISearchHandlerController)_searchHandler).QueryConfirmed();
+			if (_searchHandler is null || !_searchHandler.IsSearchEnabled)
+				return;
+
+			if (IsCollapsed)
+			{
+				SetCollapsed(false);
+				_ = FocusEntry();
+				return;
+			}
+
+			((ISearchHandlerController)_searchHandler).QueryConfirmed();
 		}
 
 		void OnSelectionChanged(object? sender, TizenCollectionViewSelectionChangedEventArgs e)
 		{
-			if (_searchHandler is not null && e.SelectedItems?.Count > 0)
+			if (_searchHandler is { IsSearchEnabled: true, ShowsResults: true }
+				&& e.SelectedItems?.Count > 0)
 			{
 				var handler = _searchHandler;
 				((ISearchHandlerController)handler).ItemSelected(e.SelectedItems[0]);
@@ -191,6 +208,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 						{
 							_updatingQuery = false;
 						}
+						UnfocusEntry();
 						UpdateResultsVisibility();
 					}
 
@@ -216,6 +234,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 				or nameof(SearchHandler.Placeholder)
 				or nameof(SearchHandler.IsSearchEnabled)
 				or nameof(SearchHandler.SearchBoxVisibility)
+				or nameof(SearchHandler.ShowsResults)
+				or nameof(SearchHandler.IsFocused)
 				or nameof(SearchHandler.Command)
 				or nameof(SearchHandler.CommandParameter))
 			{
@@ -250,12 +270,58 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			if (_searchHandler is not null)
 			{
 				_searchHandler.PropertyChanged -= OnSearchHandlerPropertyChanged;
+				_searchHandler.FocusChangeRequested -= OnFocusChangeRequested;
 				((ISearchHandlerController)_searchHandler).ListProxyChanged -= OnListProxyChanged;
 			}
+			EntryFocused -= OnEntryFocused;
+			EntryUnfocused -= OnEntryUnfocused;
 
 			_searchHandler = null;
 			_parentElement = null;
 			_mauiContext = null;
+		}
+
+		void OnFocusChangeRequested(object? sender, VisualElement.FocusRequestArgs e)
+		{
+			if (_searchHandler is null || !_searchHandler.IsSearchEnabled)
+			{
+				e.Result = false;
+				return;
+			}
+
+			if (e.Focus)
+			{
+				SetCollapsed(false);
+				e.Result = FocusEntry();
+			}
+			else
+			{
+				UnfocusEntry();
+				e.Result = true;
+			}
+		}
+
+		void OnEntryFocused(object? sender, EventArgs e)
+		{
+			if (_searchHandler is not { IsSearchEnabled: true })
+			{
+				_searchHandler?.SetIsFocused(false);
+				UnfocusEntry();
+				return;
+			}
+
+			_searchHandler.SetIsFocused(true);
+			SetCollapsed(false);
+		}
+
+		void OnEntryUnfocused(object? sender, EventArgs e)
+		{
+			_searchHandler?.SetIsFocused(false);
+			if (_searchHandler is not null)
+				SetCollapsed(SearchResultsLayout.IsCollapsed(
+					_searchHandler.SearchBoxVisibility,
+					isFocused: false,
+					_searchHandler.Query));
 		}
 
 		public override TSize Measure(double availableWidth, double availableHeight)
@@ -302,6 +368,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Platform
 			var visible = SearchResultsLayout.IsVisible(
 				_searchHandler?.Query,
 				_adaptor?.Count ?? 0,
+				_searchHandler?.IsSearchEnabled == true,
+				_searchHandler?.ShowsResults == true,
 				_searchHandler?.SearchBoxVisibility == SearchBoxVisibility.Hidden);
 			if (_resultsVisible == visible)
 				return;

@@ -97,19 +97,19 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			}
 			catch
 			{
-				try
-				{
-					UnsubscribeFromCollectionChanges();
-					if (collectionView is not null)
+				ExceptionSafeCleanup.Run(
+					() =>
 					{
-						collectionView.Scrolled -= OnCollectionViewScrolled;
-						SetAdaptorCore(collectionView, null, notifyInstalled: false);
-					}
-				}
-				finally
-				{
-					base.DisconnectHandler(platformView);
-				}
+						if (collectionView is not null)
+							SetAdaptorCore(collectionView, null, notifyInstalled: false);
+					},
+					UnsubscribeFromCollectionChanges,
+					() =>
+					{
+						if (collectionView is not null)
+							collectionView.Scrolled -= OnCollectionViewScrolled;
+					},
+					() => base.DisconnectHandler(platformView));
 				throw;
 			}
 		}
@@ -118,6 +118,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		{
 			var collectionView = (platformView as TizenItemsViewControl<TItemsView>)?.CollectionView;
 			ExceptionSafeCleanup.Run(
+				() =>
+				{
+					if (collectionView is not null)
+						SetAdaptorCore(collectionView, null, notifyInstalled: false);
+				},
 				UnsubscribeFromCollectionChanges,
 				() =>
 				{
@@ -126,8 +131,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				},
 				() =>
 				{
-					if (collectionView is not null)
-						SetAdaptorCore(collectionView, null, notifyInstalled: false);
+					if (platformView is TizenItemsViewControl<TItemsView> itemsView)
+						DisconnectPlatformEvents(itemsView);
 				},
 				() => base.DisconnectHandler(platformView));
 		}
@@ -228,33 +233,50 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			bool notifyInstalled)
 		{
 			_adaptorGeneration.Advance();
-			_adaptorOwnership.Replace(
-				newAdaptor,
-				() => collectionView.Adaptor = null,
-				adaptor =>
-				{
-					if (adaptor is ITizenItemTemplateAdaptor selectionAdaptor)
+			ConfigureNativeAdaptor(() =>
+				_adaptorOwnership.Replace(
+					newAdaptor,
+					() =>
 					{
-						selectionAdaptor.SelectionChanged -= OnAdaptorSelectionChanged;
-						selectionAdaptor.ItemsChanged -= OnAdaptorItemsChanged;
-					}
-				},
-				adaptor => (adaptor as IDisposable)?.Dispose(),
-				adaptor =>
-				{
-					if (adaptor is ITizenItemTemplateAdaptor selectionAdaptor)
+						collectionView.Adaptor = null;
+						OnAdaptorReplacing();
+					},
+					adaptor =>
 					{
-						selectionAdaptor.SelectionChanged += OnAdaptorSelectionChanged;
-						selectionAdaptor.ItemsChanged += OnAdaptorItemsChanged;
-					}
-				},
-				adaptor => collectionView.Adaptor = adaptor);
+						if (adaptor is ITizenItemTemplateAdaptor selectionAdaptor)
+						{
+							selectionAdaptor.SelectionChanged -= OnAdaptorSelectionChanged;
+							selectionAdaptor.ItemsChanged -= OnAdaptorItemsChanged;
+						}
+					},
+					adaptor => (adaptor as IDisposable)?.Dispose(),
+					adaptor =>
+					{
+						if (adaptor is ITizenItemTemplateAdaptor selectionAdaptor)
+						{
+							selectionAdaptor.SelectionChanged += OnAdaptorSelectionChanged;
+							selectionAdaptor.ItemsChanged += OnAdaptorItemsChanged;
+						}
+					},
+					adaptor => collectionView.Adaptor = adaptor));
 
-			if (notifyInstalled && ReferenceEquals(_adaptorOwnership.Current, newAdaptor))
+			if (notifyInstalled
+				&& newAdaptor is not null
+				&& ReferenceEquals(_adaptorOwnership.Current, newAdaptor))
 				OnAdaptorInstalled();
 		}
 
 		protected virtual void OnAdaptorInstalled()
+		{
+		}
+
+		private protected virtual void ConfigureNativeAdaptor(Action configure) => configure();
+
+		private protected virtual void OnAdaptorReplacing()
+		{
+		}
+
+		private protected virtual void DisconnectPlatformEvents(TizenItemsViewControl<TItemsView> platformView)
 		{
 		}
 
