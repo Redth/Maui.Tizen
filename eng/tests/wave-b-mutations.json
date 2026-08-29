@@ -388,13 +388,26 @@
     "file": "src/Maui.Tizen.Core/Handlers/RefreshView/TizenRefreshViewHandler.cs",
     "replacements": [
       {
-        "search": "\t\t\t\t\tplatformView.CancelNativePull();",
-        "replace": "\t\t\t\t\tif (DateTime.UtcNow.Ticks == long.MinValue)\n\t\t\t\t\t\tplatformView.CancelNativePull();"
+        "search": "\t\t\tif (refreshView.IsRefreshEnabled\n\t\t\t\t|| !platformView.DeferDisableUntilNativePullTerminates())",
+        "replace": "\t\t\tif (refreshView.IsRefreshEnabled\n\t\t\t\t|| DateTime.UtcNow.Ticks != long.MinValue)"
       }
     ],
     "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
-    "filter": "FullyQualifiedName~DisableDuringBelowThresholdPullForcesResetAndEventuallyIdles",
-    "expected": "DisableDuringBelowThresholdPullForcesResetAndEventuallyIdles"
+    "filter": "FullyQualifiedName~DisableDuringBelowThresholdPullDefersUntilNativeTerminal",
+    "expected": "DisableDuringBelowThresholdPullDefersUntilNativeTerminal"
+  },
+  {
+    "id": "synthetically-release-native-pull-on-disable",
+    "file": "src/Maui.Tizen.Core/Platform/TizenRefreshNativeIdlePoller.cs",
+    "replacements": [
+      {
+        "search": "\t\t\tif (!_touchActive)\n\t\t\t\treturn false;\n\n\t\t\t_disablePending = true;\n\t\t\treturn true;",
+        "replace": "\t\t\tif (!_touchActive)\n\t\t\t\treturn false;\n\n\t\t\t_touchActive = false;\n\t\t\t_resetting = true;\n\t\t\treturn false;"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~DisabledMidPullWaitsForNativeTerminalBeforeDisposal",
+    "expected": "DisabledMidPullWaitsForNativeTerminalBeforeDisposal"
   },
   {
     "id": "leave-active-swipe-gesture-on-disable",

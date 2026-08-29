@@ -579,8 +579,12 @@ layout disconnected, detaches content before child disposal, and retains a compl
 until bounded native-state polling observes it idle. A timeout retains the platform instead of
 disposing beneath UIExtensions' private continuation. The layout also tracks the full native touch
 pull/reset lifecycle; a below-threshold release requires a conservative quiet-frame interval before
-the retained platform is released. A successful pull clears that reset state immediately, while
-disable forces an active below-threshold pull into the same observed completion path.
+the retained platform is released. A successful pull clears that reset state immediately.
+UIExtensions ignores `IsRefreshing = false` while its private state is `Pulling`, so disabling during
+an active below-threshold pull does not synthesize release or native idle. The handler leaves the
+native gesture attached, records a deferred disable, and waits for the actual `Up`/`Interrupted`
+event before applying the stop and observing the reset window. Teardown retains the platform for as
+long as that terminal event is absent rather than disposing beneath a still-active gesture.
 Disabling an active swipe gesture likewise synthesizes terminal cancellation, restores position and
 clears gesture/animation state before re-enable.
 

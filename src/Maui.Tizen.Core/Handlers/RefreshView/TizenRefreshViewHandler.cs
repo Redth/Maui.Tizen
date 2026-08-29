@@ -71,7 +71,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				() => _refreshCoordinator?.Dispose(),
 				() => _refreshCoordinator = replacement,
 				() => base.ConnectHandler(platformView),
-				() => platformView.Refreshing += OnRefreshing);
+				() => platformView.Refreshing += OnRefreshing,
+				() => platformView.NativePullTerminated += OnNativePullTerminated);
 		}
 
 		TizenRefreshCoordinator? _refreshCoordinator;
@@ -85,6 +86,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				_disconnecting.BeginDisconnect,
 				platformView.MarkDisconnected,
 				() => platformView.Refreshing -= OnRefreshing,
+				() => platformView.NativePullTerminated -= OnNativePullTerminated,
 				() => coordinator?.Dispose(),
 				platformView.DisposeContentHandler,
 				() => base.DisconnectHandler(platformView));
@@ -145,9 +147,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 			VirtualView.IsRefreshing = true;
 		}
 
+		void OnNativePullTerminated(object? sender, EventArgs e)
+		{
+			if (sender is not TizenRefreshLayout platformView
+				|| !ReferenceEquals(Platform(this), platformView)
+				|| VirtualView.IsRefreshEnabled)
+				return;
+
+			_refreshCoordinator?.ObserveNativeStart();
+			RequestRefresh(desired: false, enabled: false);
+		}
+
 		public static void MapIsRefreshing(TizenRefreshViewHandler handler, IRefreshView refreshView)
 		{
-			if (Platform(handler) is null)
+			var platformView = Platform(handler);
+			if (platformView is null)
+				return;
+
+			if (DeferDisableWhilePulling(platformView, refreshView))
 				return;
 
 			// A refresh that was started before the view was disabled must be cancelled, not left
@@ -195,22 +212,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <remarks>
 		/// Tizen's <c>RefreshLayout</c> has no property to disable the pull gesture, so this cannot
 		/// be pushed to the native view directly. It is enforced instead at the two points that
-		/// matter: an incoming gesture is refused, and a refresh already running when the view is
-		/// disabled is cancelled. Previously this mapper was an empty body and the property had no
-		/// effect at all.
+		/// matter: an incoming refresh is refused, and a refresh already running when the view is
+		/// disabled is stopped. UIExtensions ignores <c>IsRefreshing = false</c> while its private
+		/// state is Pulling, so a below-threshold pull defers that stop until the real terminal touch
+		/// event arrives. Previously this mapper was an empty body and the property had no effect.
 		/// </remarks>
 		public static void MapIsRefreshEnabled(TizenRefreshViewHandler handler, IRefreshView refreshView)
 		{
-			if (Platform(handler) is null)
+			var platformView = Platform(handler);
+			if (platformView is null)
 				return;
 
 			if (!refreshView.IsRefreshEnabled)
 			{
-				if (Platform(handler) is { HasPendingNativeActivity: true } platformView)
-				{
-					platformView.CancelNativePull();
-					handler._refreshCoordinator?.ObserveNativeStart();
-				}
+				if (DeferDisableWhilePulling(platformView, refreshView))
+					return;
 
 				if (refreshView.IsRefreshing)
 					refreshView.IsRefreshing = false;
@@ -219,7 +235,22 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				return;
 			}
 
+			platformView.CancelDeferredNativeDisable();
 			handler.RequestRefresh(refreshView.IsRefreshing, enabled: true);
+		}
+
+		static bool DeferDisableWhilePulling(
+			TizenRefreshLayout platformView,
+			IRefreshView refreshView)
+		{
+			if (refreshView.IsRefreshEnabled
+				|| !platformView.DeferDisableUntilNativePullTerminates())
+				return false;
+
+			if (refreshView.IsRefreshing)
+				refreshView.IsRefreshing = false;
+
+			return true;
 		}
 
 		static TizenRefreshLayout? Platform(TizenRefreshViewHandler handler) =>

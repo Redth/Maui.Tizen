@@ -250,6 +250,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 		ITizenPlatformViewHandler? _contentHandler;
 		long _contentGeneration;
 		bool _disconnected;
+		bool _isRefreshing;
+		bool _nativePulling;
 		readonly TizenRefreshNativeActivity _nativeActivity = new();
 
 		public event EventHandler? Refreshing
@@ -258,12 +260,29 @@ namespace Microsoft.Maui.Platforms.Tizen
 			remove => _refreshing -= value;
 		}
 
-		public bool IsRefreshing { get; set; }
+		public event EventHandler? NativePullTerminated;
+
+		public bool IsRefreshing
+		{
+			get => _isRefreshing;
+			set
+			{
+				if (!value && _nativePulling)
+					NativeStopIgnoredWhilePullingCount++;
+				else
+					_isRefreshing = value;
+			}
+		}
+
 		public bool DelayNativeCompletion { get; set; }
 		public bool NativeIsRefreshing { get; private set; }
 		public int NativeStateReadAfterDisposeCount { get; private set; }
-		public int NativePullResetCount { get; private set; }
+		public int NativeStopApplyCount { get; private set; }
+		public int NativeStopIgnoredWhilePullingCount { get; private set; }
+		public int DeferredDisableCount { get; private set; }
+		public int DisposeCount { get; private set; }
 		public bool HasPendingNativeActivity => _nativeActivity.HasPendingActivity;
+		public bool IsNativePulling => _nativePulling;
 		public bool IsDisconnected => _disconnected;
 		public bool PollingStartedAfterDisconnect { get; private set; }
 		public TizenRefreshStateMachine RefreshState { get; } = new();
@@ -278,8 +297,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 
 			IsRefreshing = refreshing;
+			if (!refreshing && _nativePulling)
+				return;
+
 			if (refreshing)
 				_nativeActivity.ObserveRefreshStarted();
+			else
+				NativeStopApplyCount++;
 			if (refreshing || !DelayNativeCompletion)
 				NativeIsRefreshing = refreshing;
 		}
@@ -327,6 +351,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public void RaiseRefreshing()
 		{
+			_nativePulling = false;
 			IsRefreshing = true;
 			NativeIsRefreshing = true;
 			_refreshing?.Invoke(this, EventArgs.Empty);
@@ -334,18 +359,39 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public void NotifyNativeIdle() => NativeIsRefreshing = false;
 
-		public void BeginBelowThresholdPull() => _nativeActivity.BeginPull();
+		public void BeginBelowThresholdPull()
+		{
+			_nativePulling = true;
+			_nativeActivity.BeginPull();
+		}
 
-		public void ReleaseBelowThresholdPull() => _nativeActivity.ReleasePull();
+		public void ReleaseBelowThresholdPull() => TerminateNativePull();
+
+		public void InterruptBelowThresholdPull() => TerminateNativePull();
+
+		void TerminateNativePull()
+		{
+			_nativePulling = false;
+			if (_nativeActivity.ReleasePull())
+				NativePullTerminated?.Invoke(this, EventArgs.Empty);
+		}
 
 		public void ObserveNativeRefreshStarted() => _nativeActivity.ObserveRefreshStarted();
 
-		public void CancelNativePull()
+		public bool DeferDisableUntilNativePullTerminates()
 		{
-			NativePullResetCount++;
-			_nativeActivity.ReleasePull();
-			IsRefreshing = false;
-			NativeIsRefreshing = false;
+			var deferred = _nativeActivity.DeferDisable();
+			if (deferred)
+				DeferredDisableCount++;
+			return deferred;
+		}
+
+		public void CancelDeferredNativeDisable() => _nativeActivity.CancelDeferredDisable();
+
+		protected override void Dispose(bool disposing)
+		{
+			DisposeCount++;
+			base.Dispose(disposing);
 		}
 
 		public void UpdateContent(IView? content, IMauiContext? context) =>

@@ -34,6 +34,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 			TouchEvent += OnNativeTouch;
 		}
 
+		internal event EventHandler? NativePullTerminated;
+
 		public void UpdateContent(IView? content, IMauiContext? mauiContext) =>
 			UpdateContent(content, mauiContext, static () => true);
 
@@ -116,11 +118,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		internal void ObserveNativeRefreshStarted() => _nativeActivity.ObserveRefreshStarted();
 
-		internal void CancelNativePull()
-		{
-			_nativeActivity.ReleasePull();
-			IsRefreshing = false;
-		}
+		internal bool DeferDisableUntilNativePullTerminates() => _nativeActivity.DeferDisable();
+
+		internal void CancelDeferredNativeDisable() => _nativeActivity.CancelDeferredDisable();
 
 		internal Task<bool> WaitForNativeIdleAsync(
 			Func<Action, Task> dispatch,
@@ -143,7 +143,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 					break;
 				case global::Tizen.NUI.PointStateType.Up:
 				case global::Tizen.NUI.PointStateType.Interrupted:
-					_nativeActivity.ReleasePull();
+					if (_nativeActivity.ReleasePull())
+						NativePullTerminated?.Invoke(this, EventArgs.Empty);
 					break;
 			}
 

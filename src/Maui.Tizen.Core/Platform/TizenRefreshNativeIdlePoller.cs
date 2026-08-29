@@ -12,6 +12,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		bool _touchActive;
 		bool _resetting;
 		bool _refreshActive;
+		bool _disablePending;
 		int _quietFrames;
 
 		public bool HasPendingActivity => _touchActive || _resetting;
@@ -23,11 +24,26 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_quietFrames = 0;
 		}
 
-		public void ReleasePull()
+		public bool DeferDisable()
+		{
+			if (!_touchActive)
+				return false;
+
+			_disablePending = true;
+			return true;
+		}
+
+		public void CancelDeferredDisable() => _disablePending = false;
+
+		public bool ReleasePull()
 		{
 			_touchActive = false;
-			_resetting = true;
+			_resetting = !_refreshActive;
 			_quietFrames = 0;
+
+			var applyDisable = _disablePending;
+			_disablePending = false;
+			return applyDisable;
 		}
 
 		public void ObserveRefreshStarted()
@@ -35,6 +51,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_touchActive = false;
 			_resetting = false;
 			_refreshActive = true;
+			_disablePending = false;
 			_quietFrames = 0;
 		}
 
