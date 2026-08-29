@@ -28,6 +28,16 @@ namespace Microsoft.Maui.Platforms.Tizen
 		bool _created;
 		bool _active;
 
+		/// <summary>
+		/// Whether <see cref="IWindow.Stopped"/> has been raised and not yet answered by a
+		/// <see cref="IWindow.Resumed"/>.
+		/// </summary>
+		/// <remarks>
+		/// This is what distinguishes a cold start from a return to the foreground. Tizen delivers
+		/// OnResume in both cases and gives no hint which it is.
+		/// </remarks>
+		bool _stopped;
+
 		/// <summary>Gets the current window, if the application has created one.</summary>
 		/// <returns>The window, or <see langword="null"/>.</returns>
 		public static IWindow? GetCurrentWindow()
@@ -41,11 +51,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		/// <summary>Raises <see cref="IWindow.Created"/>.</summary>
 		/// <remarks>
-		/// <see cref="IWindow.Activated"/> is deliberately NOT raised here. Tizen always delivers
-		/// <c>OnResume</c> after <c>OnCreate</c>, and MAUI's contract on every other platform is
-		/// <c>Created</c> &#8594; <c>Resumed</c> &#8594; <c>Activated</c>. Activating from here
-		/// would both break that order and make the first activation unpaired with a later
-		/// <c>Resumed</c>.
+		/// <see cref="IWindow.Activated"/> is deliberately NOT raised here; it follows from the
+		/// OnResume that Tizen always delivers next. Raising it here would emit it before the
+		/// window is actually foregrounded, and would double up with that OnResume.
 		/// </remarks>
 		public void OnCreate()
 		{
@@ -60,18 +68,40 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_created = true;
 		}
 
-		/// <summary>Raises <see cref="IWindow.Resumed"/> and <see cref="IWindow.Activated"/>.</summary>
+		/// <summary>
+		/// Raises <see cref="IWindow.Resumed"/> when returning from the background, then
+		/// <see cref="IWindow.Activated"/>.
+		/// </summary>
+		/// <remarks>
+		/// A cold start is <c>Created</c> &#8594; <c>Activated</c>, with NO <c>Resumed</c>.
+		/// <c>Resumed</c> means "came back from being stopped", which is how MAUI defines it and
+		/// what Android does - it raises Resumed from OnRestart, not from the first OnStart. Tizen
+		/// delivers OnResume for both cases and does not say which, so the bridge has to remember.
+		///
+		/// Raising Resumed unconditionally made every cold start look like a return from the
+		/// background, so any app doing restore-state work in Resumed did it on first launch too.
+		/// </remarks>
 		public void OnResume()
 		{
 			var window = GetCurrentWindow();
 			if (window is null)
 				return;
 
-			window.Resumed();
+			if (_stopped)
+			{
+				window.Resumed();
+				_stopped = false;
+			}
+
 			Activate(window);
 		}
 
 		/// <summary>Raises <see cref="IWindow.Deactivated"/> and <see cref="IWindow.Stopped"/>.</summary>
+		/// <remarks>
+		/// Both are suppressed if already in that state. Tizen can deliver OnPause more than once
+		/// without an intervening OnResume, and a duplicate Stopped is observable to anything that
+		/// pairs it with Resumed.
+		/// </remarks>
 		public void OnPause()
 		{
 			var window = GetCurrentWindow();
@@ -79,7 +109,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 
 			Deactivate(window);
+
+			if (_stopped)
+				return;
+
 			window.Stopped();
+			_stopped = true;
 		}
 
 		/// <summary>Raises <see cref="IWindow.Destroying"/>.</summary>
@@ -91,7 +126,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			Deactivate(window);
 			window.Destroying();
+
 			_created = false;
+			_stopped = false;
 		}
 
 		void Activate(IWindow window)

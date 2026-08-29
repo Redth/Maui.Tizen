@@ -10,9 +10,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// <remarks>
 	/// <para>
 	/// Registration happens at host-build time, but a window's native navigation stack only exists
-	/// once the window handler runs. This holder is registered scoped so that dependents can be
-	/// resolved from the window scope immediately, and the Tizen window handler fills it in with
-	/// <see cref="Attach"/> when the window is created.
+	/// once Core creates the window context. This holder is registered scoped so dependents can be
+	/// resolved immediately, and the Controls scoped initializer fills it with <see cref="Attach"/>.
 	/// </para>
 	/// <para>
 	/// Calls made before attachment throw <see cref="InvalidOperationException"/> rather than
@@ -76,8 +75,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		ITizenNavigationStack Target =>
 			_target ?? throw new InvalidOperationException(
-				"No native navigation stack has been attached to this window scope. The Tizen window handler " +
-				"is expected to call TizenNuiHostingExtensions.AttachTizenWindow when the window is created.");
+				"No native navigation stack has been attached to this window scope. The Controls scoped " +
+				"initializer is expected to attach it after Core creates the window context.");
 	}
 
 	/// <summary>
@@ -108,8 +107,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_targetRegistration?.Dispose();
 			_targetRegistration = null;
 
-			// The modal navigation platform installs its handler on PageAttached, which can happen
-			// before the window handler attaches the native window.
+			// A modal navigation platform may install its handler before the scoped initializer
+			// attaches the native window.
 			if (_pendingHandler is not null)
 			{
 				_targetRegistration = _target.RegisterBackButtonPressedHandler(_pendingHandler);

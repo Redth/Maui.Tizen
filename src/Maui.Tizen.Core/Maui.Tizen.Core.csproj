@@ -1,7 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!--
+      Compiles explicit shipping sources and exports a public API, so it documents them.
+
+      Must be set BEFORE the import below, which reads it. Setting it after looked identical and
+      silently did nothing.
+    -->
+    <MauiTizenGeneratesDocumentation>true</MauiTizenGeneratesDocumentation>
+  </PropertyGroup>
+
   <Import Project="$(MSBuildThisFileDirectory)../../eng/targets/TizenPackage.props" />
-  <Import Project="$(RepositoryRoot)eng/Maui.props" />
   <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
 
   <PropertyGroup>
@@ -43,7 +52,7 @@
     everything-not-yet-ported, so each file appears exactly once.
   -->
   <ItemGroup>
-    <Compile Include="@(MauiTizenPortableCompile);@(MauiTizenHandlerCompile);@(MauiTizenPlatformCompile)" />
+    <Compile Include="@(MauiTizenPortableCompile);@(MauiTizenHandlerCompile);@(MauiTizenPlatformCompile);@(MauiTizenWaveBCompile)" />
     <None Remove="@(Compile)" />
   </ItemGroup>
 
@@ -70,15 +79,5 @@
     <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Shipped.txt" />
     <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Unshipped.txt" />
   </ItemGroup>
-
-  <!--
-    Tizen.UIExtensions.NUI 0.9.2 transitively declares Microsoft.Maui.Graphics 6.0.300-rc.3.1336.
-    Refuse to produce a package while that is true; see eng/Maui.props and docs/net11-status.md.
-  -->
-  <Target Name="BlockPackOnUnshippableUIExtensions" BeforeTargets="GenerateNuspec"
-          Condition="'$(TizenUIExtensionsIsShippable)' != 'true'">
-    <Error Code="MAUITIZEN0101"
-           Text="Refusing to pack $(MSBuildProjectName) against Tizen.UIExtensions.NUI $(TizenUIExtensionsPackageVersion), which transitively declares Microsoft.Maui.Graphics 6.0.300-rc.3.1336. Bump the Tizen.UIExtensions.NUI PackageVersion in Directory.Packages.props once Samsung republishes it, or pass -p:TizenUIExtensionsIsShippable=true if you have verified the resulting dependency graph." />
-  </Target>
 
 </Project>

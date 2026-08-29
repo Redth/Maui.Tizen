@@ -5,7 +5,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Internals;
 using Microsoft.Maui.Controls.Platform;
-using Microsoft.Maui.Hosting;
 
 namespace Microsoft.Maui.Platforms.Tizen
 {
@@ -64,6 +63,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public static IServiceCollection AddTizenAlerts(
 			this IServiceCollection services,
 			TizenAlertRegistrationMode mode = TizenAlertRegistrationMode.FullManager)
+			=> AddTizenAlerts(services, mode, replaceFrameworkServices: false);
+
+		internal static IServiceCollection AddTizenAlerts(
+			this IServiceCollection services,
+			TizenAlertRegistrationMode mode,
+			bool replaceFrameworkServices)
 		{
 			ArgumentNullException.ThrowIfNull(services);
 
@@ -72,10 +77,22 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			if (mode == TizenAlertRegistrationMode.FullManager)
 			{
+				if (replaceFrameworkServices)
+				{
+					// UseMauiApp registers MAUI's neutral manager first. The unified Controls
+					// startup path must replace it or the Tizen manager remains unreachable.
+					services.RemoveAll<IAlertManager>();
+				}
+
 				services.TryAddScoped<IAlertManager, TizenAlertManager>();
 			}
 			else
 			{
+				if (replaceFrameworkServices)
+				{
+					services.RemoveAll<IAlertManagerSubscription>();
+				}
+
 				services.TryAddScoped<IAlertManagerSubscription>(
 					static provider => CreateSubscriptionOnly(provider));
 			}
@@ -148,7 +165,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// display metrics.
 		/// </para>
 		/// </remarks>
-		public static IServiceCollection AddTizenGestures(this IServiceCollection services)
+		public static IServiceCollection AddTizenGestures(this IServiceCollection services) =>
+			AddTizenGestures(services, replaceFrameworkServices: false);
+
+		internal static IServiceCollection AddTizenGestures(
+			this IServiceCollection services,
+			bool replaceFrameworkServices)
 		{
 			ArgumentNullException.ThrowIfNull(services);
 
@@ -157,8 +179,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 			// always wins. It exists so host-side tests and 1x displays work with no extra
 			// configuration; it is NOT a sensible default for a device.
 			services.TryAddSingleton<ITizenPixelScaler>(static _ => new TizenPixelScaler());
+			services.TryAddSingleton<ITizenNativeGestureDetectorFactory, UnsupportedTizenNativeGestureDetectorFactory>();
 			services.TryAddSingleton<ITizenGestureDispatcher, TizenGestureDispatcher>();
 			services.TryAddSingleton<ITizenGestureHandlerFactory, TizenGestureHandlerFactory>();
+
+			if (replaceFrameworkServices)
+			{
+				services.RemoveAll<IGesturePlatformManagerFactory>();
+			}
+
 			services.TryAddSingleton<IGesturePlatformManagerFactory, TizenGesturePlatformManagerFactory>();
 
 			return services;
@@ -216,9 +245,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </para>
 		/// <para>
 		/// <see cref="ITizenNavigationStack"/> and <see cref="ITizenWindowBackButton"/> are scoped,
-		/// because both wrap objects the window owns. They are registered as holders that the Tizen
-		/// window handler fills in once the native window exists, so dependents can be resolved
-		/// from the window scope before the window is realized.
+		/// because both wrap objects the window owns. They are registered as holders that the
+		/// Controls scoped initializer fills once Core creates the window context, so dependents
+		/// can be resolved from the scope before the native presentation objects are attached.
 		/// </para>
 		/// <para>
 		/// Note that <see cref="IModalNavigationPlatformFactory"/> is currently the provisional
@@ -248,32 +277,16 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public static IServiceCollection AddTizenControlsPlatform(
 			this IServiceCollection services,
 			TizenAlertRegistrationMode mode = TizenAlertRegistrationMode.FullManager) =>
+			AddTizenControlsPlatform(services, mode, replaceFrameworkServices: false);
+
+		internal static IServiceCollection AddTizenControlsPlatform(
+			this IServiceCollection services,
+			TizenAlertRegistrationMode mode,
+			bool replaceFrameworkServices) =>
 			services
-				.AddTizenAlerts(mode)
+				.AddTizenAlerts(mode, replaceFrameworkServices)
 				.AddTizenModalNavigation()
-				.AddTizenGestures();
+				.AddTizenGestures(replaceFrameworkServices);
 	}
 
-	/// <summary>
-	/// <see cref="MauiAppBuilder"/> conveniences for the Tizen backend.
-	/// </summary>
-	public static class TizenControlsMauiAppBuilderExtensions
-	{
-		/// <summary>
-		/// Registers the Tizen alert, modal and gesture infrastructure.
-		/// </summary>
-		/// <param name="builder">The app builder to configure.</param>
-		/// <param name="mode">How the backend plugs into .NET MAUI's alert infrastructure.</param>
-		/// <returns>The same builder, for chaining.</returns>
-		public static MauiAppBuilder UseTizenControlsPlatform(
-			this MauiAppBuilder builder,
-			TizenAlertRegistrationMode mode = TizenAlertRegistrationMode.FullManager)
-		{
-			ArgumentNullException.ThrowIfNull(builder);
-
-			builder.Services.AddTizenControlsPlatform(mode);
-
-			return builder;
-		}
-	}
 }

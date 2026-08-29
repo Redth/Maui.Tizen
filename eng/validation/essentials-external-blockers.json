@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "blockers": [
+    {
+      "id": "maui-file-result-path-open",
+      "status": "active",
+      "contract": "IFilePicker/IMediaPicker",
+      "proofTest": "MauiPublicApiBlockerTests.FileResultHasNoPublicPathOpenOverrideSeam",
+      "reason": "Pinned MAUI FileResult exposes path constructors but no public stream-factory or protected PlatformOpenReadAsync override seam; FileBase wrapper constructors also call inaccessible platform initialization."
+    },
+    {
+      "id": "maui-passkey-response-factory",
+      "status": "active",
+      "contract": "IPasskeys",
+      "proofTest": "MauiPublicApiBlockerTests.PasskeyResponsesHaveNoPublicConstructionOrFactorySurface",
+      "reason": "Pinned MAUI seals both passkey response types and exposes only internal JSON constructors, despite API15 providing native WebAuthn."
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -29,8 +30,41 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	/// </remarks>
 	public static class MSBuildEvaluation
 	{
-		static readonly ConcurrentDictionary<string, string[]> ItemCache = new(StringComparer.Ordinal);
-		static readonly ConcurrentDictionary<string, string> PropertyCache = new(StringComparer.Ordinal);
+		/// <summary>
+		/// One cached evaluation per project, covering every item type and property the suite asks
+		/// for.
+		/// </summary>
+		/// <remarks>
+		/// Originally this cached per (project, item), which meant a separate `dotnet msbuild`
+		/// process for each question. These projects import the whole repository's build, so a
+		/// single evaluation costs tens of seconds, and the suite went from 3 seconds to over five
+		/// minutes - fast enough to pass, slow enough to be a CI timeout risk and a genuine
+		/// annoyance locally.
+		///
+		/// MSBuild accepts several -getItem/-getProperty arguments in one invocation and returns
+		/// them together, so everything is fetched at once and sliced up here.
+		/// </remarks>
+		static readonly ConcurrentDictionary<string, Evaluation> Cache = new(StringComparer.Ordinal);
+
+		static readonly string[] WantedItems = { "Compile", "AdditionalFiles", "ProjectReference", "PackageReference", "None" };
+		static readonly string[] WantedProperties =
+		{
+			"TargetFramework",
+			"IsTizenProject",
+			"AssemblyName",
+			"DefineConstants",
+			"TizenManifestFile",
+			"UseMaui",
+			"GenerateDocumentationFile",
+			"TizenUIExtensionsPackageVersion",
+			"TizenUIExtensionsIsShippable",
+			"TizenReferencePackId",
+			"TizenReferencePackVersion",
+		};
+
+		sealed record Evaluation(
+			IReadOnlyDictionary<string, string[]> Items,
+			IReadOnlyDictionary<string, string> Properties);
 
 		public static string RepositoryRoot { get; } = FindRepositoryRoot();
 
@@ -52,7 +86,52 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				? host
 				: "dotnet";
 
-		static string Run(string projectRelativePath, string argument)
+		static Evaluation Evaluate(string projectRelativePath) =>
+			Cache.GetOrAdd(projectRelativePath, path =>
+			{
+				var args = WantedItems.Select(i => $"-getItem:{i}")
+					.Concat(WantedProperties.Select(p => $"-getProperty:{p}"))
+					.ToArray();
+
+				var json = Run(path, args);
+
+				using var document = JsonDocument.Parse(json);
+				var root = document.RootElement;
+
+				var items = new Dictionary<string, string[]>(StringComparer.Ordinal);
+
+				if (root.TryGetProperty("Items", out var itemsElement))
+				{
+					foreach (var wanted in WantedItems)
+					{
+						items[wanted] = itemsElement.TryGetProperty(wanted, out var entries)
+							? entries.EnumerateArray()
+								.Select(e => e.TryGetProperty("FullPath", out var full)
+									? full.GetString()
+									: e.GetProperty("Identity").GetString())
+								.Where(v => !string.IsNullOrEmpty(v))
+								.Select(v => Path.GetFullPath(v!))
+								.ToArray()
+							: Array.Empty<string>();
+					}
+				}
+
+				var properties = new Dictionary<string, string>(StringComparer.Ordinal);
+
+				if (root.TryGetProperty("Properties", out var propertiesElement))
+				{
+					foreach (var wanted in WantedProperties)
+					{
+						properties[wanted] = propertiesElement.TryGetProperty(wanted, out var value)
+							? value.GetString() ?? string.Empty
+							: string.Empty;
+					}
+				}
+
+				return new Evaluation(items, properties);
+			});
+
+		static string Run(string projectRelativePath, params string[] arguments)
 		{
 			var psi = new ProcessStartInfo(DotNetHost)
 			{
@@ -63,7 +142,9 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			psi.ArgumentList.Add("msbuild");
 			psi.ArgumentList.Add(Path.Combine(RepositoryRoot, projectRelativePath));
-			psi.ArgumentList.Add(argument);
+			foreach (var argument in arguments)
+				psi.ArgumentList.Add(argument);
+
 			psi.ArgumentList.Add("-nologo");
 
 			// The Tizen projects refuse to evaluate without the workload (MAUITIZEN0001). The gate
@@ -79,38 +160,23 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			if (process.ExitCode != 0)
 				throw new InvalidOperationException(
-					$"MSBuild evaluation failed for {projectRelativePath} {argument}:{Environment.NewLine}{output}{error}");
+					$"MSBuild evaluation failed for {projectRelativePath}:{Environment.NewLine}{output}{error}");
 
 			return output;
 		}
 
 		/// <summary>Full paths of an evaluated item type, as MSBuild resolved them.</summary>
 		public static string[] GetItems(string projectRelativePath, string itemType) =>
-			ItemCache.GetOrAdd($"{projectRelativePath}|{itemType}", _ =>
-			{
-				var json = Run(projectRelativePath, $"-getItem:{itemType}");
-
-				using var document = JsonDocument.Parse(json);
-
-				if (!document.RootElement.TryGetProperty("Items", out var items) ||
-					!items.TryGetProperty(itemType, out var entries))
-				{
-					return Array.Empty<string>();
-				}
-
-				return entries
-					.EnumerateArray()
-					.Select(e => e.TryGetProperty("FullPath", out var full)
-						? full.GetString()
-						: e.GetProperty("Identity").GetString())
-					.Where(p => !string.IsNullOrEmpty(p))
-					.Select(p => Path.GetFullPath(p!))
-					.ToArray();
-			});
+			Evaluate(projectRelativePath).Items.TryGetValue(itemType, out var items)
+				? items
+				: throw new ArgumentException(
+					$"'{itemType}' is not fetched. Add it to {nameof(WantedItems)}.", nameof(itemType));
 
 		public static string GetProperty(string projectRelativePath, string property) =>
-			PropertyCache.GetOrAdd($"{projectRelativePath}|{property}", _ =>
-				Run(projectRelativePath, $"-getProperty:{property}").Trim());
+			Evaluate(projectRelativePath).Properties.TryGetValue(property, out var value)
+				? value
+				: throw new ArgumentException(
+					$"'{property}' is not fetched. Add it to {nameof(WantedProperties)}.", nameof(property));
 
 		/// <summary>File names of an evaluated item type, for readable assertions.</summary>
 		public static string[] GetItemFileNames(string projectRelativePath, string itemType) =>

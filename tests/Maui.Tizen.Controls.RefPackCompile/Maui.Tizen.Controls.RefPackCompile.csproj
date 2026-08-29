@@ -1,121 +1,85 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Compile-validation lane for the Controls platform layer.
+    Controls bridge compile-validation lane.
 
-    Sibling of tests/Maui.Tizen.Core.RefPackCompile, using the same mechanism and for the same
-    reason: Maui.Tizen.Controls targets net11.0-tizen11.0 and cannot be restored until Samsung
-    publishes the 11.0.100 workload manifest, which would otherwise leave every NUI-touching
-    source under Core/Platform/Nui unverified.
+    Maui.Tizen.Controls targets net11.0-tizen11.0 and cannot be restored until Samsung publishes the
+    11.0.100 workload manifest, so this lane type-checks the bridge against the real TizenFX
+    reference assemblies on a plain net11.0 host - the same arrangement Core and the sample use.
 
-    Why this is a SEPARATE project rather than more <Compile> items in the Core lane: these
-    sources need Microsoft.Maui.Controls (Page, VisualElement, IAlertManager,
-    IGesturePlatformManagerFactory), which the Core lane deliberately does not reference. Keeping
-    them apart also mirrors the product's own Core/Controls split, so a break points at the right
-    assembly.
-
-    This is NOT a neutral fallback for the product - it produces no shippable output
-    (IsPackable=false, never executed, reference-only assemblies). It exists purely so the NUI
-    sources are type-checked in CI instead of being taken on faith.
-
-    It has already earned its keep twice. It caught a call to
-    Tizen.NUI.LongPressGestureDetector.SetMinimumHoldingTime that dotnet/maui's net11.0 source
-    makes but that does not exist anywhere in TizenFX, and a back-button implementation reaching
-    for SetBackButtonPressedHandler, which is a MAUI Core Tizen extension rather than a NUI or
-    Tizen.UIExtensions API. Both would otherwise have surfaced only once the workload shipped.
-
-    The NUI-free half of this layer is EXECUTED by tests/Controls.UnitTests; this lane covers the
-    half that needs a device to run but not to type-check.
+    It is a separate assembly on purpose. Folding these sources into the Core lane would merge a
+    Controls-referencing assembly into one that must never reference Controls, and would hide
+    exactly the dependency-direction mistake this layer exists to avoid.
   -->
 
   <Import Project="$(RepositoryRoot)eng/Maui.props" />
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.WaveC.Sources.props" />
 
   <PropertyGroup>
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(RepositoryRoot)eng/targets/TizenPackage.props</MSBuildAllProjects>
     <TargetFramework>$(DotNetTfm)</TargetFramework>
     <IsTizenProject>false</IsTizenProject>
-    <AssemblyName>Maui.Tizen.Controls.RefPackCompile</AssemblyName>
-    <RootNamespace>Microsoft.Maui.Platforms.Tizen</RootNamespace>
+
+    <!-- The real product assembly name, so the reference graph matches what ships. -->
+    <AssemblyName>Maui.Tizen.Controls</AssemblyName>
+    <RootNamespace>Microsoft.Maui.Platforms.Tizen.Controls</RootNamespace>
 
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
-
-    <!--
-      CA1416 is expected here and is not a defect. TizenFX and Tizen.UIExtensions annotate their
-      surface with [SupportedOSPlatform("tizen...")], so calling it from this neutral host
-      compilation is "unsupported" by definition. The real project targets net11.0-tizen11.0
-      where the annotation is satisfied, and it never sees this file, so suppressing it here does
-      not weaken the product build.
-    -->
     <NoWarn>$(NoWarn);CS1591;NU1701;CA1416</NoWarn>
 
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
 
-    <!-- The whole point of this lane: exercise the Tizen-only sources. -->
-    <DefineConstants>$(DefineConstants);TIZEN;PLATFORM</DefineConstants>
+    <DefineConstants>$(DefineConstants);TIZEN</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Across the assembly boundary, exactly as the shipped package references Core. -->
+    <ProjectReference Include="$(RepositoryRoot)tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj" />
+    <ProjectReference Include="$(RepositoryRoot)tests/Maui.Tizen.Essentials.RefPackCompile/Maui.Tizen.Essentials.RefPackCompile.csproj" />
+
+    <!--
+      EXACTLY the product's package references, no more.
+
+      This lane previously referenced Microsoft.Maui.Controls - the XAML-inclusive package - while
+      the product references Microsoft.Maui.Controls.Core. A broader reference here means the lane
+      can compile code the product cannot, which is the one failure mode a verification lane must
+      not have: it would report green while the shipping assembly fails to build.
+    -->
     <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Microsoft.Maui.Controls.Core" />
     <PackageReference Include="Microsoft.Maui.Core" />
-    <PackageReference Include="Microsoft.Maui.Graphics" />
 
     <!--
-      PackageDownload rather than PackageReference: these packages publish no net11.0-compatible
-      assets, so a normal reference fails restore with NU1202. We only want the files on disk.
+      The product also references Tizen.UIExtensions.NUI, but it cannot be a PackageReference on a
+      net11.0 host - it publishes no compatible assets and restore fails with NU1202. The reference
+      assemblies come from TizenRefPack.targets via PackageDownload instead, which is the same
+      arrangement the Core and sample lanes use, so the compile surface still matches the product.
     -->
-    <PackageDownload Include="$(TizenReferencePackId)" Version="[$(TizenReferencePackVersion)]" />
-    <PackageDownload Include="Tizen.UIExtensions.NUI" Version="[$(TizenUIExtensionsPackageVersion)]" />
   </ItemGroup>
 
+  <!--
+    Runs the PublicAPI analyzer over the bridge with its OWN baseline. Maui.Tizen.Controls is a
+    shipping assembly with its own public surface, and without this it had no analyzer and no
+    baseline at all - so its API could change silently, which is exactly what the analyzer exists
+    to prevent for Core.
+  -->
   <ItemGroup>
-    <ProjectReference Include="../Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj" />
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+
+    <AdditionalFiles Include="$(RepositoryRoot)src/Maui.Tizen.Controls/PublicAPI/slice/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="$(RepositoryRoot)src/Maui.Tizen.Controls/PublicAPI/slice/PublicAPI.Unshipped.txt" />
   </ItemGroup>
 
-  <Target Name="_AddTizenReferenceAssemblies" BeforeTargets="ResolveAssemblyReferences">
-    <PropertyGroup>
-      <_TizenRefPackDir>$(NuGetPackageRoot)$(TizenReferencePackId.ToLowerInvariant())/$(TizenReferencePackVersion)/ref/net8.0/</_TizenRefPackDir>
-      <_TizenUIExtensionsDir>$(NuGetPackageRoot)tizen.uiextensions.nui/$(TizenUIExtensionsPackageVersion)/lib/tizen10.0/</_TizenUIExtensionsDir>
-    </PropertyGroup>
-
-    <Error Condition="!Exists('$(_TizenRefPackDir)Tizen.NUI.dll')"
-           Code="MAUITIZEN0102"
-           Text="Could not find Tizen.NUI.dll under '$(_TizenRefPackDir)'. Expected it from $(TizenReferencePackId) $(TizenReferencePackVersion); run 'dotnet restore' for this project first." />
-
-    <Error Condition="!Exists('$(_TizenUIExtensionsDir)Tizen.UIExtensions.NUI.dll')"
-           Code="MAUITIZEN0103"
-           Text="Could not find Tizen.UIExtensions.NUI.dll under '$(_TizenUIExtensionsDir)'. The alert dialogs and the navigation stack adapter cannot be type-checked without it; run 'dotnet restore' for this project first." />
-
-    <ItemGroup>
-      <Reference Include="$(_TizenRefPackDir)Tizen.NUI.dll" Private="false" />
-      <Reference Include="$(_TizenRefPackDir)Tizen.NUI.Components.dll" Private="false" />
-      <Reference Include="$(_TizenRefPackDir)Tizen.Applications.Common.dll" Private="false" />
-      <Reference Include="$(_TizenRefPackDir)Tizen.Log.dll" Private="false" />
-      <Reference Include="$(_TizenRefPackDir)Tizen.dll" Private="false" />
-      <Reference Include="$(_TizenUIExtensionsDir)Tizen.UIExtensions.NUI.dll" Private="false" />
-    </ItemGroup>
-  </Target>
+  <Import Project="$(RepositoryRoot)eng/targets/TizenRefPack.targets" />
 
   <ItemGroup>
-    <!--
-      Only the REWORKED sources, listed folder by folder rather than globbed.
-
-      Core/Platform also still holds raw imports from dotnet/maui (AlertManager.Tizen.cs,
-      ModalNavigationManager.Tizen.cs, Tizen/Extensions/...). Those are `partial` halves of types
-      that live in Microsoft.Maui.Controls and genuinely cannot compile from here - which is why
-      eng/targets/TizenPackage.props leaves EnableDefaultCompileItems off for the product project.
-      A `**/*.cs` glob pulls them in and buries this lane in errors that say nothing about the
-      code it is meant to check.
-
-      Keep this list in sync with the <Compile Include> list in
-      src/Maui.Tizen.Controls/Maui.Tizen.Controls.csproj: the point of this lane is to type-check
-      exactly what the product compiles.
-    -->
-    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Core/Platform/Alerts/*.cs" LinkBase="Controls/Alerts" />
-    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Core/Platform/Gestures/*.cs" LinkBase="Controls/Gestures" />
-    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Core/Platform/Modal/*.cs" LinkBase="Controls/Modal" />
-    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Core/Platform/Nui/*.cs" LinkBase="Controls/Nui" />
-    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Core/Platform/TizenControlsServiceCollectionExtensions.cs" LinkBase="Controls" />
+    <Compile Include="@(MauiTizenControlsCompile);@(MauiTizenControlsPresentationCompile);@(MauiTizenWaveBControlsCompile);@(MauiTizenWaveCAdapterCompile);@(MauiTizenWaveCPlatformCompile);@(MauiTizenWaveCCompile)" LinkBase="Controls" />
   </ItemGroup>
 
 </Project>

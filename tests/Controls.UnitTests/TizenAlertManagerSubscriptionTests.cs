@@ -299,47 +299,47 @@ public class TizenAlertManagerSubscriptionTests
 		switch (dialogKind)
 		{
 			case DialogKind.Alert:
-			{
-				var args = Alert();
-				fixture.Subscription.OnAlertRequested(fixture.Page, args);
-				var dialog = fixture.Dialogs.LastAlert!;
-				dialog.DisposeFailure = expected;
-				result = args.Result.Task;
-				assertDialogTeardown = () =>
 				{
-					Assert.True(dialog.Closed);
-					Assert.Equal(1, dialog.DisposeCount);
-				};
-				break;
-			}
+					var args = Alert();
+					fixture.Subscription.OnAlertRequested(fixture.Page, args);
+					var dialog = fixture.Dialogs.LastAlert!;
+					dialog.DisposeFailure = expected;
+					result = args.Result.Task;
+					assertDialogTeardown = () =>
+					{
+						Assert.True(dialog.Closed);
+						Assert.Equal(1, dialog.DisposeCount);
+					};
+					break;
+				}
 			case DialogKind.ActionSheet:
-			{
-				var args = ActionSheet();
-				fixture.Subscription.OnActionSheetRequested(fixture.Page, args);
-				var dialog = fixture.Dialogs.LastActionSheet!;
-				dialog.DisposeFailure = expected;
-				result = args.Result.Task;
-				assertDialogTeardown = () =>
 				{
-					Assert.True(dialog.Closed);
-					Assert.Equal(1, dialog.DisposeCount);
-				};
-				break;
-			}
+					var args = ActionSheet();
+					fixture.Subscription.OnActionSheetRequested(fixture.Page, args);
+					var dialog = fixture.Dialogs.LastActionSheet!;
+					dialog.DisposeFailure = expected;
+					result = args.Result.Task;
+					assertDialogTeardown = () =>
+					{
+						Assert.True(dialog.Closed);
+						Assert.Equal(1, dialog.DisposeCount);
+					};
+					break;
+				}
 			case DialogKind.Prompt:
-			{
-				var args = Prompt();
-				fixture.Subscription.OnPromptRequested(fixture.Page, args);
-				var dialog = fixture.Dialogs.LastPrompt!;
-				dialog.DisposeFailure = expected;
-				result = args.Result.Task;
-				assertDialogTeardown = () =>
 				{
-					Assert.True(dialog.Closed);
-					Assert.Equal(1, dialog.DisposeCount);
-				};
-				break;
-			}
+					var args = Prompt();
+					fixture.Subscription.OnPromptRequested(fixture.Page, args);
+					var dialog = fixture.Dialogs.LastPrompt!;
+					dialog.DisposeFailure = expected;
+					result = args.Result.Task;
+					assertDialogTeardown = () =>
+					{
+						Assert.True(dialog.Closed);
+						Assert.Equal(1, dialog.DisposeCount);
+					};
+					break;
+				}
 			default:
 				throw new ArgumentOutOfRangeException(nameof(dialogKind));
 		}

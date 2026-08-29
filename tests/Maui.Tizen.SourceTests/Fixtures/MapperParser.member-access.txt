@@ -1,0 +1,21 @@
+class TizenParserFixture
+{
+	const string LiteralKey = "Literal";
+
+	static object Mapper = new object
+	{
+		[nameof(IFoo.Name)] = MapName,
+		[LiteralKey] = MapLiteral,
+		[Shell.TabBarIsVisibleProperty.PropertyName] = MapTabBar,
+	};
+
+	static object CommandMapper = new object
+	{
+		[nameof(IFoo.DoThing)] = DoThing,
+	};
+
+	static void MapName() { }
+	static void MapLiteral() { }
+	static void MapTabBar() { }
+	static void DoThing() { }
+}

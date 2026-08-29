@@ -30,6 +30,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	/// would have dropped the call even once link 1 worked. Both fail silently - the visual order
 	/// simply never changes.
 	/// </remarks>
+	[Collection(StaticMapperCollection.Name)]
 	public class ZIndexCommandTests
 	{
 		[Fact]

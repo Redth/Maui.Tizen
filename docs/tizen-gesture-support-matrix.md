@@ -26,7 +26,7 @@ Measured against **MAUI 11.0.0-preview.7.26426.4**, which contains
 | `SwipeGestureRecognizer` | `PanGestureDetector` | `ISwipeGestureController` | ✅ Works |
 | `TapGestureRecognizer` | `TapGestureDetector` | `SendTapped` | ✅ Works |
 | `PointerGestureRecognizer` | `View.TouchEvent` + `View.HoverEvent` | `SendPointerEntered` / `Exited` / `Moved` / `Pressed` / `Released` | ✅ Works |
-| `LongPressGestureRecognizer` | `LongPressGestureDetector` | ❌ `SendLongPressed` / `SendLongPressing` still internal — [#37861](https://github.com/dotnet/maui/pull/37861) open | ⚠️ Blocked on MAUI |
+| `LongPressGestureRecognizer` | `LongPressGestureDetector` | ❌ `SendLongPressed` / `SendLongPressing` still internal in pinned package; [#37861](https://github.com/dotnet/maui/pull/37861) is merged upstream | ⚠️ Blocked on a published MAUI package containing #37861 |
 | `DragGestureRecognizer` | ❌ no view-level NUI equivalent | `SendDragStarting` / `SendDropCompleted` | ❌ Not supported (detection) |
 | `DropGestureRecognizer` | ❌ no view-level NUI equivalent | `SendDragOver` / `SendDragLeave` / `SendDrop` | ❌ Not supported (detection) |
 
@@ -53,7 +53,8 @@ DragGestureRecognizer.SendDragStarting/SendDropCompleted (new in #37420 / #37671
 DropGestureRecognizer.SendDragOver/SendDragLeave/SendDrop(new in #37420 / #37671)
 ```
 
-**Exactly two members are still internal**, and they are the only reason any ⚠️ row remains:
+**Exactly two members are still internal in the pinned package**, and they are the only reason any
+⚠️ row remains:
 
 ```text
 LongPressGestureRecognizer.SendLongPressed(View sender, Func<IElement?, Point?> getPosition)
@@ -76,10 +77,11 @@ Detection is implemented in full for every gesture. Dispatch goes through one se
   `LongPressGestureRecognizer` behaves exactly as if it had no gesture rather than crashing.
 - `ITizenGestureDispatcher.IsSupported(TizenGestureKind)` reports the matrix above.
 
-`LongPressCannotBeRaisedBecauseMauiKeepsTheApiInternal` asserts the recognizer's events do
-**not** fire, and `LongPressSendMembersAreStillInternalUpstream` asserts the two members are
-still non-public. Both fail once upstream opens the API, and the only change needed is to
-complete `TizenGestureDispatcher` — no handler, detector or lifecycle code has to move.
+`LongPressCannotBeRaisedByThePinnedMauiPackage` asserts the recognizer's events do **not** fire,
+and `LongPressSendMembersAreStillInternalInThePinnedPackage` asserts the two members are still
+non-public in the consumed binary. The upstream API is already merged; both tests fail when a
+package containing it is pinned, and the only change needed is to complete
+`TizenGestureDispatcher` — no handler, detector or lifecycle code has to move.
 
 ### Position resolution
 
@@ -192,9 +194,9 @@ non-matching counts are ignored, matching the original backend. Dispatched throu
 `LongPressGestureDetector` supports the touch count only.
 
 Detection is complete and the state machine is implemented and tested; only the final dispatch
-call is blocked. [dotnet/maui#37861](https://github.com/dotnet/maui/pull/37861) makes
-`SendLongPressed` and `SendLongPressing` public and is code/CI complete but **not yet merged**, so
-it is not in the pinned package.
+call is blocked. [dotnet/maui#37861](https://github.com/dotnet/maui/pull/37861) is merged and makes
+`SendLongPressed` and `SendLongPressing` public, but no package containing that change is pinned
+here yet.
 
 **The mapping is already specified, so adoption is a small change rather than a fresh
 translation.** It follows iOS, which is the reference behaviour:
@@ -294,7 +296,7 @@ TizenFX and are present on every profile.
 | IoT / headed | ✅ | ⚠️ | ✅ | ✅ | ⚠️ | ✅ | ❌ |
 
 Long press is marked "det." because detection works on every profile but dispatch is still gated
-on the two internal members above. Every other ✅ is end to end.
+on the two members remaining internal in the pinned package. Every other ✅ is end to end.
 
 Profile caveats:
 

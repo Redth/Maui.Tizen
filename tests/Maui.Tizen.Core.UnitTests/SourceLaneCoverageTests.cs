@@ -140,33 +140,58 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				.ToArray();
 		}
 
+		/// <summary>
+		/// Conditional-compilation symbols that belong to the project rather than to the SDK.
+		/// </summary>
+		/// <remarks>
+		/// The SDK contributes DEBUG/RELEASE/TRACE and a ladder of NET* symbols that differ
+		/// legitimately between a net11.0 host lane and a net11.0-tizen11.0 product, so comparing
+		/// raw DefineConstants would be noise. What must match is everything else.
+		/// </remarks>
+		static string[] ProjectSymbols(string project) => MSBuildEvaluation
+			.GetProperty(project, "DefineConstants")
+			.Split(';', StringSplitOptions.RemoveEmptyEntries)
+			.Select(x => x.Trim())
+			.Where(x => x.Length > 0)
+			.Where(x => x is not ("TRACE" or "DEBUG" or "RELEASE"))
+			.Where(x => !x.StartsWith("NET", StringComparison.Ordinal))
+			.Where(x => !x.StartsWith("TIZEN1", StringComparison.Ordinal))
+			.Distinct(StringComparer.Ordinal)
+			.OrderBy(x => x, StringComparer.Ordinal)
+			.ToArray();
+
 		[Fact]
 		public void RefPackLaneAndProductDefineTheSameSymbols()
 		{
 			// Drift here is invisible and expensive: a symbol defined only in the ref-pack lane
-			// makes code compile there and vanish from the shipping assembly. PLATFORM was defined
-			// in exactly that asymmetric way before this test existed.
-			var refPack = File.ReadAllText(Path.Combine(
-				RepositoryRoot, "tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj"));
+			// makes code compile in verification and vanish from the shipping assembly. PLATFORM
+			// was defined in exactly that asymmetric way.
+			//
+			// This compares the two projects' EVALUATED constants against each other. An earlier
+			// version asserted the lane's constants equalled a hard-coded { "TIZEN" }, which meant
+			// it could not see a symbol the PRODUCT gained and the lane did not - the drift in the
+			// other direction, and just as damaging. It also read the csproj text into a variable
+			// and discarded it.
+			var product = ProjectSymbols(ProductProject);
+			var lane = ProjectSymbols(CoreLane);
 
-			_ = refPack;
+			Assert.Equal(product, lane);
 
-			// Evaluated, so it accounts for anything the imports contribute rather than only what
-			// is spelled literally in the csproj.
-			var symbols = MSBuildEvaluation.GetProperty(CoreLane, "DefineConstants")
-				.Split(';', StringSplitOptions.RemoveEmptyEntries)
-				.Select(x => x.Trim())
-				.Where(x => x.Length > 0)
-				.Where(x => !string.Equals(x, "TRACE", StringComparison.Ordinal))
-				.Where(x => !string.Equals(x, "DEBUG", StringComparison.Ordinal))
-				.Where(x => !string.Equals(x, "RELEASE", StringComparison.Ordinal))
-				.Where(x => !x.StartsWith("NET", StringComparison.Ordinal))
-				.Distinct(StringComparer.Ordinal)
-				.ToArray();
-
-			// TIZEN is what the product's own TFM defines via Directory.Build.targets. Anything
-			// else added here would exist only in this lane.
-			Assert.Equal(new[] { "TIZEN" }, symbols);
+			// And neither may be empty, or the comparison above is vacuous: the whole point of the
+			// lane is that TIZEN is defined so the #if TIZEN branches are the ones type-checked.
+			Assert.Contains("TIZEN", product);
+			Assert.Contains("TIZEN", lane);
 		}
+
+		[Fact]
+		public void SampleLaneDefinesTheSameSymbolsAsTheRealSample()
+		{
+			// Same argument for the sample: its lane stands in for a project that cannot be built,
+			// and a symbol present in only one of them makes that substitution dishonest.
+			Assert.Equal(
+				ProjectSymbols("samples/Maui.Tizen.Sample/Maui.Tizen.Sample.csproj"),
+				ProjectSymbols(SampleLane));
+		}
+
 	}
 }

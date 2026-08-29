@@ -57,8 +57,8 @@ push or pop is delegated.
 
 ### ⚠️ Provisional status
 
-**dotnet/maui#37853 is still open.** Those interfaces are therefore not in the
-`11.0.0-preview.7` package this repository builds against and cannot be implemented yet.
+**dotnet/maui#37853 has not been adopted in a published MAUI package.** Those interfaces are not
+in the `11.0.0-preview.7` package this repository builds against and cannot be implemented yet.
 
 `Core/Platform/Modal/ProvisionalModalNavigationContracts.cs` carries copies of the three
 interfaces, with member shapes taken verbatim from the PR, so the Tizen implementation is written
@@ -74,11 +74,11 @@ that also references MAUI's own build once the PR lands.
 - the member shape of each provisional interface is asserted against the PR's shape, so a copy
   cannot silently drift;
 - the namespace rule is asserted, so a copy cannot silently become a collision;
-- `UpstreamHasNotShippedTheseTypesYet` **fails** the moment
+- `PinnedMauiPackageDoesNotContainTheProvisionalTypes` **fails** the moment
   `Microsoft.Maui.Controls.Platform.IModalNavigationPlatform` appears in the referenced assembly,
   with instructions to delete the provisional file.
 
-Until the PR merges, .NET MAUI will not resolve
+Until the seam is adopted and published, .NET MAUI will not resolve
 `IModalNavigationPlatformFactory` — the registration is real and tested, but it binds the
 provisional interface, not one the framework knows about.
 
@@ -165,11 +165,12 @@ was open — it is removed by identity rather than popped, matching the original
 
 `ITizenNavigationStack` and `ITizenWindowBackButton` wrap objects the window owns, but registration
 happens at host-build time, before any window exists. They are registered **scoped** as holders.
-Core creates the native `NavigationStack`, publishes it and the native window into the window
-`IMauiContext`, and the Controls scoped initializer fills the holders:
+Core publishes the native window into the window `IMauiContext`. The Controls scoped initializer
+creates its own navigation overlay, attaches it lazily on the first modal operation so it remains
+above Core's root content, and fills the holders:
 
 ```csharp
-TizenNuiHostingExtensions.AttachTizenWindow(mauiContext, nativeWindow, navigationStack);
+TizenNuiHostingExtensions.AttachTizenWindow(mauiContext, nativeWindow, controlsNavigationStack);
 ```
 
 The two holders behave differently on purpose:

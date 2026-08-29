@@ -1,0 +1,789 @@
+#nullable enable
+abstract Microsoft.Maui.Platforms.Tizen.TizenGestureHandler.OnGestureDetected(Microsoft.Maui.Controls.View! view, Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs! args) -> void
+Microsoft.Maui.Platforms.Tizen.Controls.TizenControlsMappings
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenBoxViewHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenBoxViewHandler.TizenBoxViewHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenBoxViewHandler.TizenBoxViewHandler(Microsoft.Maui.IPropertyMapper? mapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenBoxViewHandler.TizenBoxViewHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.PlatformView.get -> Microsoft.Maui.Platforms.Tizen.Platform.TizenCarouselViewControl?
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.TizenCarouselViewHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.TizenCarouselViewHandler(Microsoft.Maui.IPropertyMapper! mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenCollectionViewHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenCollectionViewHandler.TizenCollectionViewHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenCollectionViewHandler.TizenCollectionViewHandler(Microsoft.Maui.IPropertyMapper! mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler.TizenFlyoutViewHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler.TizenFlyoutViewHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenGroupableItemsViewHandler<TItemsView>
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenGroupableItemsViewHandler<TItemsView>.TizenGroupableItemsViewHandler(Microsoft.Maui.IPropertyMapper! mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.Adaptor.get -> Tizen.UIExtensions.NUI.ItemAdaptor?
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.NativeCollectionView.get -> Tizen.UIExtensions.NUI.CollectionView?
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.SetAdaptor(Tizen.UIExtensions.NUI.CollectionView! collectionView, Tizen.UIExtensions.NUI.ItemAdaptor? newAdaptor) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.TizenItemsViewHandler(Microsoft.Maui.IPropertyMapper! mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.UpdateScrollBarVisibility() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler.TizenLineHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler.TizenLineHandler(Microsoft.Maui.IPropertyMapper? mapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler.TizenLineHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarHandler.Add(Microsoft.Maui.IMenuBarItem! view) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarHandler.Clear() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarHandler.Insert(int index, Microsoft.Maui.IMenuBarItem! view) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarHandler.Remove(Microsoft.Maui.IMenuBarItem! view) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarHandler.TizenMenuBarHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarHandler.TizenMenuBarHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarItemHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarItemHandler.Add(Microsoft.Maui.IMenuElement! view) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarItemHandler.Clear() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarItemHandler.Insert(int index, Microsoft.Maui.IMenuElement! view) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarItemHandler.Remove(Microsoft.Maui.IMenuElement! view) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarItemHandler.TizenMenuBarItemHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarItemHandler.TizenMenuBarItemHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutHandler.Add(Microsoft.Maui.IMenuElement! view) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutHandler.Clear() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutHandler.Insert(int index, Microsoft.Maui.IMenuElement! view) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutHandler.Remove(Microsoft.Maui.IMenuElement! view) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutHandler.TizenMenuFlyoutHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutHandler.TizenMenuFlyoutHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutItemHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutItemHandler.TizenMenuFlyoutItemHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutItemHandler.TizenMenuFlyoutItemHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSeparatorHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSeparatorHandler.TizenMenuFlyoutSeparatorHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSeparatorHandler.TizenMenuFlyoutSeparatorHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSubItemHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSubItemHandler.Add(Microsoft.Maui.IMenuElement! view) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSubItemHandler.Clear() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSubItemHandler.Insert(int index, Microsoft.Maui.IMenuElement! view) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSubItemHandler.Remove(Microsoft.Maui.IMenuElement! view) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSubItemHandler.TizenMenuFlyoutSubItemHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSubItemHandler.TizenMenuFlyoutSubItemHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuSupport
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler.TizenNavigationViewHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler.TizenNavigationViewHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler.TizenPathHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler.TizenPathHandler(Microsoft.Maui.IPropertyMapper? mapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler.TizenPathHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.TizenPolygonHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.TizenPolygonHandler(Microsoft.Maui.IPropertyMapper? mapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.TizenPolygonHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.TizenPolylineHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.TizenPolylineHandler(Microsoft.Maui.IPropertyMapper? mapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.TizenPolylineHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler.TizenRectangleHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler.TizenRectangleHandler(Microsoft.Maui.IPropertyMapper? mapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler.TizenRectangleHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenReorderableItemsViewHandler<TItemsView>
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenReorderableItemsViewHandler<TItemsView>.TizenReorderableItemsViewHandler(Microsoft.Maui.IPropertyMapper! mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler.TizenRoundRectangleHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler.TizenRoundRectangleHandler(Microsoft.Maui.IPropertyMapper? mapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler.TizenRoundRectangleHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView>
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView>.PlatformView.get -> Microsoft.Maui.Platforms.Tizen.Platform.TizenSelectableItemsViewControl<TItemsView!>?
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView>.TizenSelectableItemsViewHandler(Microsoft.Maui.IPropertyMapper! mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.TizenShellHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.TizenShellHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellItemHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellItemHandler.Dispose() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellItemHandler.TizenShellItemHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellItemHandler.TizenShellItemHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellSectionHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellSectionHandler.Dispose() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellSectionHandler.TizenShellSectionHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellSectionHandler.TizenShellSectionHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellSectionHandler.~TizenShellSectionHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView>
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView>.PlatformView.get -> Microsoft.Maui.Platforms.Tizen.Platform.TizenStructuredItemsViewControl<TItemsView!>?
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView>.TizenStructuredItemsViewHandler(Microsoft.Maui.IPropertyMapper! mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.PlatformView.get -> Microsoft.Maui.Platforms.Tizen.Platform.TizenTabbedPageView?
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.TizenTabbedPageHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.TizenTabbedPageHandler(Microsoft.Maui.IPropertyMapper! mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.TizenToolbarHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.TizenToolbarHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.Hosting.TizenControlsMauiAppBuilderExtensions
+Microsoft.Maui.Platforms.Tizen.Hosting.TizenShapeHandlerCollectionExtensions
+Microsoft.Maui.Platforms.Tizen.IModalNavigationHost
+Microsoft.Maui.Platforms.Tizen.IModalNavigationHost.CurrentPage.get -> Microsoft.Maui.Controls.Page?
+Microsoft.Maui.Platforms.Tizen.IModalNavigationHost.CurrentPlatformPage.get -> Microsoft.Maui.Controls.Page!
+Microsoft.Maui.Platforms.Tizen.IModalNavigationHost.IsBatchPopping.get -> bool
+Microsoft.Maui.Platforms.Tizen.IModalNavigationHost.IsBatchPushing.get -> bool
+Microsoft.Maui.Platforms.Tizen.IModalNavigationHost.IsWindowReady.get -> bool
+Microsoft.Maui.Platforms.Tizen.IModalNavigationHost.MauiContext.get -> Microsoft.Maui.IMauiContext!
+Microsoft.Maui.Platforms.Tizen.IModalNavigationHost.PlatformModalStack.get -> System.Collections.Generic.IReadOnlyList<Microsoft.Maui.Controls.Page!>!
+Microsoft.Maui.Platforms.Tizen.IModalNavigationHost.RequestSync() -> void
+Microsoft.Maui.Platforms.Tizen.IModalNavigationHost.Window.get -> Microsoft.Maui.Controls.Window!
+Microsoft.Maui.Platforms.Tizen.IModalNavigationPlatform
+Microsoft.Maui.Platforms.Tizen.IModalNavigationPlatform.IsReady.get -> bool
+Microsoft.Maui.Platforms.Tizen.IModalNavigationPlatform.PageAttached() -> void
+Microsoft.Maui.Platforms.Tizen.IModalNavigationPlatform.PopModalAsync(Microsoft.Maui.Controls.Page! modal, bool animated) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.IModalNavigationPlatform.PushModalAsync(Microsoft.Maui.Controls.Page! modal, bool animated) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.IModalNavigationPlatformFactory
+Microsoft.Maui.Platforms.Tizen.IModalNavigationPlatformFactory.CreateModalNavigationPlatform(Microsoft.Maui.Platforms.Tizen.IModalNavigationHost! host) -> Microsoft.Maui.Platforms.Tizen.IModalNavigationPlatform?
+Microsoft.Maui.Platforms.Tizen.ITizenAlertDialog
+Microsoft.Maui.Platforms.Tizen.ITizenAlertDialog.Close() -> void
+Microsoft.Maui.Platforms.Tizen.ITizenAlertDialog<TResult>
+Microsoft.Maui.Platforms.Tizen.ITizenAlertDialog<TResult>.OpenAsync() -> System.Threading.Tasks.Task<TResult>!
+Microsoft.Maui.Platforms.Tizen.ITizenAlertDialogFactory
+Microsoft.Maui.Platforms.Tizen.ITizenAlertDialogFactory.CreateActionSheetDialog(Microsoft.Maui.Controls.Internals.ActionSheetArguments! arguments) -> Microsoft.Maui.Platforms.Tizen.ITizenAlertDialog<string?>!
+Microsoft.Maui.Platforms.Tizen.ITizenAlertDialogFactory.CreateAlertDialog(Microsoft.Maui.Controls.Internals.AlertArguments! arguments) -> Microsoft.Maui.Platforms.Tizen.ITizenAlertDialog<bool>!
+Microsoft.Maui.Platforms.Tizen.ITizenAlertDialogFactory.CreateBusyIndicator() -> Microsoft.Maui.Platforms.Tizen.ITizenBusyIndicator!
+Microsoft.Maui.Platforms.Tizen.ITizenAlertDialogFactory.CreatePromptDialog(Microsoft.Maui.Controls.Internals.PromptArguments! arguments) -> Microsoft.Maui.Platforms.Tizen.ITizenAlertDialog<string?>!
+Microsoft.Maui.Platforms.Tizen.ITizenBusyIndicator
+Microsoft.Maui.Platforms.Tizen.ITizenBusyIndicator.Close() -> void
+Microsoft.Maui.Platforms.Tizen.ITizenBusyIndicator.IsOpen.get -> bool
+Microsoft.Maui.Platforms.Tizen.ITizenBusyIndicator.Open() -> void
+Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher
+Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher.IsSupported(Microsoft.Maui.Platforms.Tizen.TizenGestureKind kind) -> bool
+Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher.SendLongPress(Microsoft.Maui.Controls.LongPressGestureRecognizer! recognizer, Microsoft.Maui.Controls.View! view, Microsoft.Maui.Platforms.Tizen.TizenGestureState state, Microsoft.Maui.Platforms.Tizen.TizenGesturePosition position) -> void
+Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher.SendPan(Microsoft.Maui.Controls.PanGestureRecognizer! recognizer, Microsoft.Maui.Controls.View! view, Microsoft.Maui.Platforms.Tizen.TizenGestureState state, double totalX, double totalY, int gestureId) -> void
+Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher.SendPinch(Microsoft.Maui.Controls.PinchGestureRecognizer! recognizer, Microsoft.Maui.Controls.View! view, Microsoft.Maui.Platforms.Tizen.TizenGestureState state, double scale, Microsoft.Maui.Graphics.Point origin) -> void
+Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher.SendPointer(Microsoft.Maui.Controls.PointerGestureRecognizer! recognizer, Microsoft.Maui.Controls.View! view, Microsoft.Maui.Platforms.Tizen.TizenPointerAction action, Microsoft.Maui.Platforms.Tizen.TizenGesturePosition position, Microsoft.Maui.Platforms.Tizen.TizenPointerButton button) -> void
+Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher.SendSwipe(Microsoft.Maui.Controls.SwipeGestureRecognizer! recognizer, Microsoft.Maui.Controls.View! view, Microsoft.Maui.Platforms.Tizen.TizenGestureState state, double totalX, double totalY) -> void
+Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher.SendTapped(Microsoft.Maui.Controls.TapGestureRecognizer! recognizer, Microsoft.Maui.Controls.View! view, Microsoft.Maui.Platforms.Tizen.TizenGesturePosition position, Microsoft.Maui.Platforms.Tizen.TizenPointerButton button) -> void
+Microsoft.Maui.Platforms.Tizen.ITizenGestureHandlerFactory
+Microsoft.Maui.Platforms.Tizen.ITizenGestureHandlerFactory.CreateHandler(Microsoft.Maui.Controls.IGestureRecognizer! recognizer) -> Microsoft.Maui.Platforms.Tizen.TizenGestureHandler?
+Microsoft.Maui.Platforms.Tizen.ITizenModalPageRealizer
+Microsoft.Maui.Platforms.Tizen.ITizenModalPageRealizer.Realize(Microsoft.Maui.Controls.Page! page, Microsoft.Maui.IMauiContext! mauiContext) -> object!
+Microsoft.Maui.Platforms.Tizen.ITizenModalPageRealizer.Release(Microsoft.Maui.Controls.Page! page, object! platformView, bool platformViewDisposed) -> void
+Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector
+Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector.Attach(object! platformView) -> void
+Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector.Detach() -> void
+Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector.Detected -> System.EventHandler<Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs!>?
+Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector.IsAttached.get -> bool
+Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetectorFactory
+Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetectorFactory.CreateDetector(Microsoft.Maui.Platforms.Tizen.TizenGestureKind kind, Microsoft.Maui.Controls.IGestureRecognizer! recognizer) -> Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector?
+Microsoft.Maui.Platforms.Tizen.ITizenNavigationStack
+Microsoft.Maui.Platforms.Tizen.ITizenNavigationStack.Contains(object! platformView) -> bool
+Microsoft.Maui.Platforms.Tizen.ITizenNavigationStack.Count.get -> int
+Microsoft.Maui.Platforms.Tizen.ITizenNavigationStack.CreatePlaceholder() -> object!
+Microsoft.Maui.Platforms.Tizen.ITizenNavigationStack.IsDisposed(object! platformView) -> bool
+Microsoft.Maui.Platforms.Tizen.ITizenNavigationStack.PopAsync(bool animated) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.ITizenNavigationStack.PushAsync(object! platformView, bool animated) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.ITizenNavigationStack.Remove(object! platformView) -> bool
+Microsoft.Maui.Platforms.Tizen.ITizenNavigationStack.ShownBehindPage.get -> bool
+Microsoft.Maui.Platforms.Tizen.ITizenNavigationStack.ShownBehindPage.set -> void
+Microsoft.Maui.Platforms.Tizen.ITizenNavigationStack.Top.get -> object?
+Microsoft.Maui.Platforms.Tizen.ITizenPixelScaler
+Microsoft.Maui.Platforms.Tizen.ITizenPixelScaler.ToScaledDp(double pixels) -> double
+Microsoft.Maui.Platforms.Tizen.ITizenPlatformWindowProvider
+Microsoft.Maui.Platforms.Tizen.ITizenPlatformWindowProvider.GetPlatformWindow(Microsoft.Maui.IMauiContext? context) -> object?
+Microsoft.Maui.Platforms.Tizen.ITizenWindowBackButton
+Microsoft.Maui.Platforms.Tizen.ITizenWindowBackButton.RegisterBackButtonPressedHandler(System.Func<bool>! handler) -> System.IDisposable!
+Microsoft.Maui.Platforms.Tizen.ITizenWindowContext
+Microsoft.Maui.Platforms.Tizen.ITizenWindowContext.MauiContext.get -> Microsoft.Maui.IMauiContext?
+Microsoft.Maui.Platforms.Tizen.ITizenWindowContext.PlatformWindow.get -> object?
+Microsoft.Maui.Platforms.Tizen.Nui.NuiAlertDialogFactory
+Microsoft.Maui.Platforms.Tizen.Nui.NuiAlertDialogFactory.CreateActionSheetDialog(Microsoft.Maui.Controls.Internals.ActionSheetArguments! arguments) -> Microsoft.Maui.Platforms.Tizen.ITizenAlertDialog<string?>!
+Microsoft.Maui.Platforms.Tizen.Nui.NuiAlertDialogFactory.CreateAlertDialog(Microsoft.Maui.Controls.Internals.AlertArguments! arguments) -> Microsoft.Maui.Platforms.Tizen.ITizenAlertDialog<bool>!
+Microsoft.Maui.Platforms.Tizen.Nui.NuiAlertDialogFactory.CreateBusyIndicator() -> Microsoft.Maui.Platforms.Tizen.ITizenBusyIndicator!
+Microsoft.Maui.Platforms.Tizen.Nui.NuiAlertDialogFactory.CreatePromptDialog(Microsoft.Maui.Controls.Internals.PromptArguments! arguments) -> Microsoft.Maui.Platforms.Tizen.ITizenAlertDialog<string?>!
+Microsoft.Maui.Platforms.Tizen.Nui.NuiAlertDialogFactory.NuiAlertDialogFactory() -> void
+Microsoft.Maui.Platforms.Tizen.Nui.NuiGestureDetectorFactory
+Microsoft.Maui.Platforms.Tizen.Nui.NuiGestureDetectorFactory.CreateDetector(Microsoft.Maui.Platforms.Tizen.TizenGestureKind kind, Microsoft.Maui.Controls.IGestureRecognizer! recognizer) -> Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector?
+Microsoft.Maui.Platforms.Tizen.Nui.NuiGestureDetectorFactory.NuiGestureDetectorFactory() -> void
+Microsoft.Maui.Platforms.Tizen.Nui.NuiNavigationStack
+Microsoft.Maui.Platforms.Tizen.Nui.NuiNavigationStack.Contains(object! platformView) -> bool
+Microsoft.Maui.Platforms.Tizen.Nui.NuiNavigationStack.Count.get -> int
+Microsoft.Maui.Platforms.Tizen.Nui.NuiNavigationStack.CreatePlaceholder() -> object!
+Microsoft.Maui.Platforms.Tizen.Nui.NuiNavigationStack.Dispose() -> void
+Microsoft.Maui.Platforms.Tizen.Nui.NuiNavigationStack.IsDisposed(object! platformView) -> bool
+Microsoft.Maui.Platforms.Tizen.Nui.NuiNavigationStack.NuiNavigationStack(Tizen.UIExtensions.NUI.NavigationStack! stack) -> void
+Microsoft.Maui.Platforms.Tizen.Nui.NuiNavigationStack.PopAsync(bool animated) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Nui.NuiNavigationStack.PushAsync(object! platformView, bool animated) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Nui.NuiNavigationStack.Remove(object! platformView) -> bool
+Microsoft.Maui.Platforms.Tizen.Nui.NuiNavigationStack.ShownBehindPage.get -> bool
+Microsoft.Maui.Platforms.Tizen.Nui.NuiNavigationStack.ShownBehindPage.set -> void
+Microsoft.Maui.Platforms.Tizen.Nui.NuiNavigationStack.Top.get -> object?
+Microsoft.Maui.Platforms.Tizen.Nui.NuiPlatformWindowProvider
+Microsoft.Maui.Platforms.Tizen.Nui.NuiPlatformWindowProvider.GetPlatformWindow(Microsoft.Maui.IMauiContext? context) -> object?
+Microsoft.Maui.Platforms.Tizen.Nui.NuiPlatformWindowProvider.NuiPlatformWindowProvider() -> void
+Microsoft.Maui.Platforms.Tizen.Nui.TizenNuiHostingExtensions
+Microsoft.Maui.Platforms.Tizen.Platform.ITizenNavigationContentView
+Microsoft.Maui.Platforms.Tizen.Platform.ITizenNavigationContentView.Content.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.Platform.ITizenNavigationContentView.Content.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.ITizenNavigationContentView.TargetView.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.Platform.ITizenNavigationContentView.TitleView.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.Platform.ITizenNavigationContentView.TitleView.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.ITizenNavigationView
+Microsoft.Maui.Platforms.Tizen.Platform.ITizenNavigationView.BackgroundColor.get -> Tizen.NUI.Color?
+Microsoft.Maui.Platforms.Tizen.Platform.ITizenNavigationView.BackgroundColor.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.ITizenNavigationView.Content.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.Platform.ITizenNavigationView.Content.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.ITizenNavigationView.Footer.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.Platform.ITizenNavigationView.Footer.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.ITizenNavigationView.Header.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.Platform.ITizenNavigationView.Header.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.ITizenNavigationView.TargetView.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.Platform.IToolbarSecondaryActionPresenter
+Microsoft.Maui.Platforms.Tizen.Platform.IToolbarSecondaryActionPresenter.PresentAsync(System.Collections.Generic.IReadOnlyList<string?>! actions, string! cancelLabel, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
+Microsoft.Maui.Platforms.Tizen.Platform.TizenCarouselViewControl
+Microsoft.Maui.Platforms.Tizen.Platform.TizenCarouselViewControl.Scrolled -> System.EventHandler<int>?
+Microsoft.Maui.Platforms.Tizen.Platform.TizenCarouselViewControl.TizenCarouselViewControl(Microsoft.Maui.Controls.CarouselView! element) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenCarouselViewControl.UpdateCurrentItem(object? currentItem) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenCarouselViewControl.UpdateLayoutManager() -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenCarouselViewControl.UpdateLoop() -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenCarouselViewControl.UpdatePosition(int position) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenCollectionViewControl
+Microsoft.Maui.Platforms.Tizen.Platform.TizenCollectionViewControl.TizenCollectionViewControl(Microsoft.Maui.Controls.CollectionView! element) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenCollectionViewSelectionChangedEventArgs
+Microsoft.Maui.Platforms.Tizen.Platform.TizenCollectionViewSelectionChangedEventArgs.SelectedIndexes.get -> System.Collections.Generic.IReadOnlyList<int>!
+Microsoft.Maui.Platforms.Tizen.Platform.TizenCollectionViewSelectionChangedEventArgs.SelectedIndexes.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenCollectionViewSelectionChangedEventArgs.SelectedItems.get -> System.Collections.Generic.IList<object!>?
+Microsoft.Maui.Platforms.Tizen.Platform.TizenCollectionViewSelectionChangedEventArgs.SelectedItems.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenCollectionViewSelectionChangedEventArgs.TizenCollectionViewSelectionChangedEventArgs() -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenGroupableItemsViewControl<TItemsView>
+Microsoft.Maui.Platforms.Tizen.Platform.TizenGroupableItemsViewControl<TItemsView>.TizenGroupableItemsViewControl(TItemsView! element) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl<TItemsView>
+Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl<TItemsView>.CollectionView.get -> Tizen.UIExtensions.NUI.CollectionView!
+Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl<TItemsView>.CollectionView.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl<TItemsView>.Element.get -> TItemsView!
+Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl<TItemsView>.Element.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl<TItemsView>.Measure(double availableWidth, double availableHeight) -> Tizen.UIExtensions.Common.Size
+Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl<TItemsView>.TizenItemsViewControl(TItemsView! element) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationContentView
+Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationContentView.Content.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationContentView.Content.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationContentView.TargetView.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationContentView.TitleView.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationContentView.TitleView.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationContentView.TizenNavigationContentView() -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationView
+Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationView.Content.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationView.Content.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationView.Footer.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationView.Footer.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationView.Header.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationView.Header.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationView.TargetView.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationView.TizenNavigationView() -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenSelectableItemsViewControl<TItemsView>
+Microsoft.Maui.Platforms.Tizen.Platform.TizenSelectableItemsViewControl<TItemsView>.TizenSelectableItemsViewControl(TItemsView! element) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenSelectableItemsViewControl<TItemsView>.UpdateSelectionMode() -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellItemView
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellItemView.Dispose() -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellItemView.MauiContext.get -> Microsoft.Maui.IMauiContext!
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellItemView.Rebind(Microsoft.Maui.Controls.ShellItem! shellItem) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellItemView.ShellItem.get -> Microsoft.Maui.Controls.ShellItem!
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellItemView.ShellItemController.get -> Microsoft.Maui.Controls.IShellItemController!
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellItemView.TizenShellItemView(Microsoft.Maui.Controls.ShellItem! shellItem, Microsoft.Maui.IMauiContext! context) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellItemView.UpdateBottomTabBarColors(Microsoft.Maui.Graphics.Color? backgroundColor, Microsoft.Maui.Graphics.Color? titleColor, Microsoft.Maui.Graphics.Color? unselectedColor) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellItemView.UpdateCurrentItem(Microsoft.Maui.Controls.ShellSection? section) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellItemView.UpdateTabBar(bool isVisible) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionStackManager
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionStackManager.Connect(Microsoft.Maui.IElement! navigationView) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionStackManager.ShellSection.get -> Microsoft.Maui.Controls.ShellSection?
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionStackManager.TizenShellSectionStackManager() -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionStackManager.UpdateCurrentItem(Microsoft.Maui.Controls.ShellContent? content) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionStackManager.UpdateTopTabBarColors(Microsoft.Maui.Graphics.Color! foregroundColor, Microsoft.Maui.Graphics.Color! backgroundColor, Microsoft.Maui.Graphics.Color! titleColor, Microsoft.Maui.Graphics.Color! unselectedColor) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionView
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionView.CurrentContent.get -> Tizen.NUI.BaseComponents.View?
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionView.CurrentContent.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionView.Dispose() -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionView.MauiContext.get -> Microsoft.Maui.IMauiContext!
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionView.ShellSection.get -> Microsoft.Maui.Controls.ShellSection!
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionView.TizenShellSectionView(Microsoft.Maui.Controls.ShellSection! shellSection, Microsoft.Maui.IMauiContext! context) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionView.UpdateAppearance(Microsoft.Maui.Controls.ShellAppearance! appearance) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionView.UpdateCurrentItem(Microsoft.Maui.Controls.ShellContent? content) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionView.UpdateTopTabBarColors(Microsoft.Maui.Graphics.Color! foregroundColor, Microsoft.Maui.Graphics.Color! backgroundColor, Microsoft.Maui.Graphics.Color! titleColor, Microsoft.Maui.Graphics.Color! unselectedColor) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.CurrentShellItemView.get -> Microsoft.Maui.Platforms.Tizen.Platform.TizenShellItemView?
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.CurrentShellItemView.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.DetachToolbar() -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.Dispose() -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.IsOpened.get -> bool
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.IsOpened.set -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.MauiContext.get -> Microsoft.Maui.IMauiContext?
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.SetElement(Microsoft.Maui.Controls.Shell! shell, Microsoft.Maui.IMauiContext! context) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.Shell.get -> Microsoft.Maui.Controls.Shell?
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.ShellController.get -> Microsoft.Maui.Controls.IShellController?
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.TizenShellView() -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.Toggled -> System.EventHandler?
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.UpdateBackgroundColor(Microsoft.Maui.Graphics.Color? color) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.UpdateCurrentItem(Microsoft.Maui.Controls.ShellItem? item) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.UpdateDrawerWidth(double width) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.UpdateFlyout(Microsoft.Maui.IView? flyout) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.UpdateFlyoutBackDrop(Microsoft.Maui.Controls.Brush? backdrop) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.UpdateFlyoutBehavior(Microsoft.Maui.FlyoutBehavior behavior) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.UpdateFlyoutContent() -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.UpdateFlyoutFooter(Microsoft.Maui.Controls.Shell! shell) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.UpdateFlyoutHeader(Microsoft.Maui.Controls.Shell! shell) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.UpdateFlyoutItems(Microsoft.Maui.Controls.Shell! shell) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.UpdateItems() -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.UpdateSearchHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.UpdateToolbar() -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.UpdateToolbarColors(Microsoft.Maui.Graphics.Color? foreground, Microsoft.Maui.Graphics.Color? background, Microsoft.Maui.Graphics.Color? title) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenStructuredItemsViewControl<TItemsView>
+Microsoft.Maui.Platforms.Tizen.Platform.TizenStructuredItemsViewControl<TItemsView>.TizenStructuredItemsViewControl(TItemsView! element) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenStructuredItemsViewControl<TItemsView>.UpdateLayoutManager(Microsoft.Maui.Controls.IItemsLayout! itemsLayout) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenTabbedPageView
+Microsoft.Maui.Platforms.Tizen.Platform.TizenTabbedPageView.ContentContainer.get -> Tizen.UIExtensions.NUI.ViewGroup!
+Microsoft.Maui.Platforms.Tizen.Platform.TizenTabbedPageView.DisconnectHandler() -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenTabbedPageView.Rebind(Microsoft.Maui.Controls.TabbedPage! tabbedPage) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenTabbedPageView.TizenTabbedPageView(Microsoft.Maui.Controls.TabbedPage! tabbedPage) -> void
+Microsoft.Maui.Platforms.Tizen.Platform.TizenTabbedPageView.UpdateCurrentPage() -> void
+Microsoft.Maui.Platforms.Tizen.TizenAlertManager
+Microsoft.Maui.Platforms.Tizen.TizenAlertManager.Dispose() -> void
+Microsoft.Maui.Platforms.Tizen.TizenAlertManager.RequestActionSheet(Microsoft.Maui.Controls.Page! page, Microsoft.Maui.Controls.Internals.ActionSheetArguments! arguments) -> void
+Microsoft.Maui.Platforms.Tizen.TizenAlertManager.RequestAlert(Microsoft.Maui.Controls.Page! page, Microsoft.Maui.Controls.Internals.AlertArguments! arguments) -> void
+Microsoft.Maui.Platforms.Tizen.TizenAlertManager.RequestPageBusy(Microsoft.Maui.Controls.Page! page, bool isBusy) -> void
+Microsoft.Maui.Platforms.Tizen.TizenAlertManager.RequestPrompt(Microsoft.Maui.Controls.Page! page, Microsoft.Maui.Controls.Internals.PromptArguments! arguments) -> void
+Microsoft.Maui.Platforms.Tizen.TizenAlertManager.Subscribe() -> void
+Microsoft.Maui.Platforms.Tizen.TizenAlertManager.Subscription.get -> Microsoft.Maui.Controls.Platform.IAlertManagerSubscription?
+Microsoft.Maui.Platforms.Tizen.TizenAlertManager.TizenAlertManager(Microsoft.Maui.Platforms.Tizen.ITizenWindowContext! windowContext, Microsoft.Maui.Platforms.Tizen.ITizenAlertDialogFactory! dialogs, Microsoft.Maui.Platforms.Tizen.ITizenModalHost! modalHost, Microsoft.Maui.Platforms.Tizen.ITizenPlatformWindowProvider! windowProvider, Microsoft.Extensions.Logging.ILogger<Microsoft.Maui.Platforms.Tizen.TizenAlertManager!>? logger = null) -> void
+Microsoft.Maui.Platforms.Tizen.TizenAlertManager.Unsubscribe() -> void
+Microsoft.Maui.Platforms.Tizen.TizenAlertManagerSubscription
+Microsoft.Maui.Platforms.Tizen.TizenAlertManagerSubscription.Dispose() -> void
+Microsoft.Maui.Platforms.Tizen.TizenAlertManagerSubscription.OnActionSheetRequested(Microsoft.Maui.Controls.Page! sender, Microsoft.Maui.Controls.Internals.ActionSheetArguments! arguments) -> void
+Microsoft.Maui.Platforms.Tizen.TizenAlertManagerSubscription.OnAlertRequested(Microsoft.Maui.Controls.Page! sender, Microsoft.Maui.Controls.Internals.AlertArguments! arguments) -> void
+Microsoft.Maui.Platforms.Tizen.TizenAlertManagerSubscription.OnPageBusy(Microsoft.Maui.Controls.Page! sender, bool enabled) -> void
+Microsoft.Maui.Platforms.Tizen.TizenAlertManagerSubscription.OnPromptRequested(Microsoft.Maui.Controls.Page! sender, Microsoft.Maui.Controls.Internals.PromptArguments! arguments) -> void
+Microsoft.Maui.Platforms.Tizen.TizenAlertManagerSubscription.PlatformWindow.get -> object?
+Microsoft.Maui.Platforms.Tizen.TizenAlertManagerSubscription.TizenAlertManagerSubscription(object? platformWindow, Microsoft.Maui.Platforms.Tizen.ITizenAlertDialogFactory! dialogs, Microsoft.Maui.Platforms.Tizen.ITizenModalHost! modalHost, Microsoft.Maui.Platforms.Tizen.ITizenPlatformWindowProvider! windowProvider) -> void
+Microsoft.Maui.Platforms.Tizen.TizenAlertManagerSubscription.TizenAlertManagerSubscription(System.Func<object?>! resolveWindow, Microsoft.Maui.Platforms.Tizen.ITizenAlertDialogFactory! dialogs, Microsoft.Maui.Platforms.Tizen.ITizenModalHost! modalHost, Microsoft.Maui.Platforms.Tizen.ITizenPlatformWindowProvider! windowProvider) -> void
+Microsoft.Maui.Platforms.Tizen.TizenAlertRegistrationMode
+Microsoft.Maui.Platforms.Tizen.TizenAlertRegistrationMode.FullManager = 0 -> Microsoft.Maui.Platforms.Tizen.TizenAlertRegistrationMode
+Microsoft.Maui.Platforms.Tizen.TizenAlertRegistrationMode.SubscriptionOnly = 1 -> Microsoft.Maui.Platforms.Tizen.TizenAlertRegistrationMode
+Microsoft.Maui.Platforms.Tizen.TizenControlsServiceCollectionExtensions
+Microsoft.Maui.Platforms.Tizen.TizenGestureDetector
+Microsoft.Maui.Platforms.Tizen.TizenGestureDetector.AddGestures(System.Collections.Generic.IEnumerable<Microsoft.Maui.Controls.IGestureRecognizer!>? gestures) -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureDetector.Clear() -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureDetector.Count.get -> int
+Microsoft.Maui.Platforms.Tizen.TizenGestureDetector.Dispose() -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureDetector.InputTransparent.get -> bool
+Microsoft.Maui.Platforms.Tizen.TizenGestureDetector.InputTransparent.set -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureDetector.IsEnabled.get -> bool
+Microsoft.Maui.Platforms.Tizen.TizenGestureDetector.IsEnabled.set -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureDetector.RemoveGestures(System.Collections.Generic.IEnumerable<Microsoft.Maui.Controls.IGestureRecognizer!>? gestures) -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureDetector.TizenGestureDetector(Microsoft.Maui.IViewHandler! handler, Microsoft.Maui.Platforms.Tizen.ITizenGestureHandlerFactory! handlerFactory) -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureDispatcher
+Microsoft.Maui.Platforms.Tizen.TizenGestureDispatcher.IsSupported(Microsoft.Maui.Platforms.Tizen.TizenGestureKind kind) -> bool
+Microsoft.Maui.Platforms.Tizen.TizenGestureDispatcher.SendLongPress(Microsoft.Maui.Controls.LongPressGestureRecognizer! recognizer, Microsoft.Maui.Controls.View! view, Microsoft.Maui.Platforms.Tizen.TizenGestureState state, Microsoft.Maui.Platforms.Tizen.TizenGesturePosition position) -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureDispatcher.SendPan(Microsoft.Maui.Controls.PanGestureRecognizer! recognizer, Microsoft.Maui.Controls.View! view, Microsoft.Maui.Platforms.Tizen.TizenGestureState state, double totalX, double totalY, int gestureId) -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureDispatcher.SendPinch(Microsoft.Maui.Controls.PinchGestureRecognizer! recognizer, Microsoft.Maui.Controls.View! view, Microsoft.Maui.Platforms.Tizen.TizenGestureState state, double scale, Microsoft.Maui.Graphics.Point origin) -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureDispatcher.SendPointer(Microsoft.Maui.Controls.PointerGestureRecognizer! recognizer, Microsoft.Maui.Controls.View! view, Microsoft.Maui.Platforms.Tizen.TizenPointerAction action, Microsoft.Maui.Platforms.Tizen.TizenGesturePosition position, Microsoft.Maui.Platforms.Tizen.TizenPointerButton button) -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureDispatcher.SendSwipe(Microsoft.Maui.Controls.SwipeGestureRecognizer! recognizer, Microsoft.Maui.Controls.View! view, Microsoft.Maui.Platforms.Tizen.TizenGestureState state, double totalX, double totalY) -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureDispatcher.SendTapped(Microsoft.Maui.Controls.TapGestureRecognizer! recognizer, Microsoft.Maui.Controls.View! view, Microsoft.Maui.Platforms.Tizen.TizenGesturePosition position, Microsoft.Maui.Platforms.Tizen.TizenPointerButton button) -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureDispatcher.TizenGestureDispatcher(Microsoft.Extensions.Logging.ILogger<Microsoft.Maui.Platforms.Tizen.TizenGestureDispatcher!>? logger = null) -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.Button.get -> Microsoft.Maui.Platforms.Tizen.TizenPointerButton
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.Button.init -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.Displacement.get -> Microsoft.Maui.Graphics.Point
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.Displacement.init -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.Handled.get -> bool
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.Handled.set -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.Kind.get -> Microsoft.Maui.Platforms.Tizen.TizenGestureKind
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.LocalPosition.get -> Microsoft.Maui.Graphics.Point
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.LocalPosition.init -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.PointerAction.get -> Microsoft.Maui.Platforms.Tizen.TizenPointerAction
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.PointerAction.init -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.Scale.get -> double
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.Scale.init -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.ScreenPosition.get -> Microsoft.Maui.Graphics.Point?
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.ScreenPosition.init -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.State.get -> Microsoft.Maui.Platforms.Tizen.TizenGestureState
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.TapCount.get -> int
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.TapCount.init -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.TizenGestureEventArgs(Microsoft.Maui.Platforms.Tizen.TizenGestureKind kind, Microsoft.Maui.Platforms.Tizen.TizenGestureState state) -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.TouchCount.get -> int
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.TouchCount.init -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.ViewSize.get -> Microsoft.Maui.Graphics.Size
+Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs.ViewSize.init -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureHandler
+Microsoft.Maui.Platforms.Tizen.TizenGestureHandler.Attach(Microsoft.Maui.IViewHandler! handler) -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureHandler.Detach() -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureHandler.Detector.get -> Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector!
+Microsoft.Maui.Platforms.Tizen.TizenGestureHandler.Dispatcher.get -> Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher!
+Microsoft.Maui.Platforms.Tizen.TizenGestureHandler.Dispose() -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureHandler.Recognizer.get -> Microsoft.Maui.Controls.IGestureRecognizer!
+Microsoft.Maui.Platforms.Tizen.TizenGestureHandler.Scaler.get -> Microsoft.Maui.Platforms.Tizen.ITizenPixelScaler!
+Microsoft.Maui.Platforms.Tizen.TizenGestureHandler.TizenGestureHandler(Microsoft.Maui.Controls.IGestureRecognizer! recognizer, Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector! detector, Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher! dispatcher, Microsoft.Maui.Platforms.Tizen.ITizenPixelScaler! scaler) -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureHandler.ToScaledDp(Microsoft.Maui.Graphics.Point point) -> Microsoft.Maui.Graphics.Point
+Microsoft.Maui.Platforms.Tizen.TizenGestureHandler.ToScaledDp(Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs! args) -> Microsoft.Maui.Platforms.Tizen.TizenGesturePosition
+Microsoft.Maui.Platforms.Tizen.TizenGestureHandler.View.get -> Microsoft.Maui.Controls.View?
+Microsoft.Maui.Platforms.Tizen.TizenGestureHandlerFactory
+Microsoft.Maui.Platforms.Tizen.TizenGestureHandlerFactory.CreateHandler(Microsoft.Maui.Controls.IGestureRecognizer! recognizer) -> Microsoft.Maui.Platforms.Tizen.TizenGestureHandler?
+Microsoft.Maui.Platforms.Tizen.TizenGestureHandlerFactory.TizenGestureHandlerFactory(Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetectorFactory! detectors, Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher! dispatcher, Microsoft.Maui.Platforms.Tizen.ITizenPixelScaler! scaler) -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureKind
+Microsoft.Maui.Platforms.Tizen.TizenGestureKind.LongPress = 4 -> Microsoft.Maui.Platforms.Tizen.TizenGestureKind
+Microsoft.Maui.Platforms.Tizen.TizenGestureKind.Pan = 1 -> Microsoft.Maui.Platforms.Tizen.TizenGestureKind
+Microsoft.Maui.Platforms.Tizen.TizenGestureKind.Pinch = 3 -> Microsoft.Maui.Platforms.Tizen.TizenGestureKind
+Microsoft.Maui.Platforms.Tizen.TizenGestureKind.Pointer = 5 -> Microsoft.Maui.Platforms.Tizen.TizenGestureKind
+Microsoft.Maui.Platforms.Tizen.TizenGestureKind.Swipe = 2 -> Microsoft.Maui.Platforms.Tizen.TizenGestureKind
+Microsoft.Maui.Platforms.Tizen.TizenGestureKind.Tap = 0 -> Microsoft.Maui.Platforms.Tizen.TizenGestureKind
+Microsoft.Maui.Platforms.Tizen.TizenGesturePlatformManager
+Microsoft.Maui.Platforms.Tizen.TizenGesturePlatformManager.Dispose() -> void
+Microsoft.Maui.Platforms.Tizen.TizenGesturePlatformManager.Element.get -> Microsoft.Maui.Controls.VisualElement?
+Microsoft.Maui.Platforms.Tizen.TizenGesturePlatformManager.GestureDetector.get -> Microsoft.Maui.Platforms.Tizen.TizenGestureDetector?
+Microsoft.Maui.Platforms.Tizen.TizenGesturePlatformManager.TizenGesturePlatformManager(Microsoft.Maui.IViewHandler! handler, Microsoft.Maui.Platforms.Tizen.ITizenGestureHandlerFactory! handlerFactory) -> void
+Microsoft.Maui.Platforms.Tizen.TizenGesturePlatformManagerFactory
+Microsoft.Maui.Platforms.Tizen.TizenGesturePlatformManagerFactory.CreateGesturePlatformManager(Microsoft.Maui.IViewHandler! handler) -> Microsoft.Maui.Controls.Platform.IGesturePlatformManager!
+Microsoft.Maui.Platforms.Tizen.TizenGesturePlatformManagerFactory.TizenGesturePlatformManagerFactory(Microsoft.Maui.Platforms.Tizen.ITizenGestureHandlerFactory! handlerFactory) -> void
+Microsoft.Maui.Platforms.Tizen.TizenGesturePosition
+Microsoft.Maui.Platforms.Tizen.TizenGesturePosition.Local.get -> Microsoft.Maui.Graphics.Point
+Microsoft.Maui.Platforms.Tizen.TizenGesturePosition.Local.init -> void
+Microsoft.Maui.Platforms.Tizen.TizenGesturePosition.Screen.get -> Microsoft.Maui.Graphics.Point?
+Microsoft.Maui.Platforms.Tizen.TizenGesturePosition.Screen.init -> void
+Microsoft.Maui.Platforms.Tizen.TizenGesturePosition.TizenGesturePosition() -> void
+Microsoft.Maui.Platforms.Tizen.TizenGesturePosition.TizenGesturePosition(Microsoft.Maui.Graphics.Point Local, Microsoft.Maui.Graphics.Point? Screen) -> void
+Microsoft.Maui.Platforms.Tizen.TizenGestureState
+Microsoft.Maui.Platforms.Tizen.TizenGestureState.Canceled = 4 -> Microsoft.Maui.Platforms.Tizen.TizenGestureState
+Microsoft.Maui.Platforms.Tizen.TizenGestureState.Continuing = 2 -> Microsoft.Maui.Platforms.Tizen.TizenGestureState
+Microsoft.Maui.Platforms.Tizen.TizenGestureState.Finished = 3 -> Microsoft.Maui.Platforms.Tizen.TizenGestureState
+Microsoft.Maui.Platforms.Tizen.TizenGestureState.Possible = 0 -> Microsoft.Maui.Platforms.Tizen.TizenGestureState
+Microsoft.Maui.Platforms.Tizen.TizenGestureState.Started = 1 -> Microsoft.Maui.Platforms.Tizen.TizenGestureState
+Microsoft.Maui.Platforms.Tizen.TizenLongPressGestureHandler
+Microsoft.Maui.Platforms.Tizen.TizenLongPressGestureHandler.TizenLongPressGestureHandler(Microsoft.Maui.Controls.LongPressGestureRecognizer! recognizer, Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector! detector, Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher! dispatcher, Microsoft.Maui.Platforms.Tizen.ITizenPixelScaler! scaler) -> void
+Microsoft.Maui.Platforms.Tizen.TizenModalHost
+Microsoft.Maui.Platforms.Tizen.TizenModalHost.RunModalAsync(System.Func<System.Threading.Tasks.Task!>! dialogOperation) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.TizenModalHost.TizenModalHost(Microsoft.Maui.Platforms.Tizen.ITizenNavigationStack! stack, Microsoft.Extensions.Logging.ILogger<Microsoft.Maui.Platforms.Tizen.TizenModalHost!>? logger = null) -> void
+Microsoft.Maui.Platforms.Tizen.TizenModalNavigationPlatform
+Microsoft.Maui.Platforms.Tizen.TizenModalNavigationPlatform.Dispose() -> void
+Microsoft.Maui.Platforms.Tizen.TizenModalNavigationPlatform.IsReady.get -> bool
+Microsoft.Maui.Platforms.Tizen.TizenModalNavigationPlatform.PageAttached() -> void
+Microsoft.Maui.Platforms.Tizen.TizenModalNavigationPlatform.PopModalAsync(Microsoft.Maui.Controls.Page! modal, bool animated) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.TizenModalNavigationPlatform.PushModalAsync(Microsoft.Maui.Controls.Page! modal, bool animated) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.TizenModalNavigationPlatform.TizenModalNavigationPlatform(Microsoft.Maui.Platforms.Tizen.IModalNavigationHost! host, Microsoft.Maui.Platforms.Tizen.ITizenNavigationStack! stack, Microsoft.Maui.Platforms.Tizen.ITizenModalPageRealizer! realizer, Microsoft.Maui.Platforms.Tizen.ITizenWindowBackButton? backButton = null, Microsoft.Extensions.Logging.ILogger<Microsoft.Maui.Platforms.Tizen.TizenModalNavigationPlatform!>? logger = null) -> void
+Microsoft.Maui.Platforms.Tizen.TizenModalNavigationPlatformFactory
+Microsoft.Maui.Platforms.Tizen.TizenModalNavigationPlatformFactory.CreateModalNavigationPlatform(Microsoft.Maui.Platforms.Tizen.IModalNavigationHost! host) -> Microsoft.Maui.Platforms.Tizen.IModalNavigationPlatform?
+Microsoft.Maui.Platforms.Tizen.TizenModalNavigationPlatformFactory.TizenModalNavigationPlatformFactory(Microsoft.Maui.Platforms.Tizen.ITizenModalPageRealizer! realizer, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) -> void
+Microsoft.Maui.Platforms.Tizen.TizenModalPageRealizer
+Microsoft.Maui.Platforms.Tizen.TizenModalPageRealizer.Realize(Microsoft.Maui.Controls.Page! page, Microsoft.Maui.IMauiContext! mauiContext) -> object!
+Microsoft.Maui.Platforms.Tizen.TizenModalPageRealizer.Release(Microsoft.Maui.Controls.Page! page, object! platformView, bool platformViewDisposed) -> void
+Microsoft.Maui.Platforms.Tizen.TizenModalPageRealizer.TizenModalPageRealizer() -> void
+Microsoft.Maui.Platforms.Tizen.TizenPanGestureHandler
+Microsoft.Maui.Platforms.Tizen.TizenPanGestureHandler.TizenPanGestureHandler(Microsoft.Maui.Controls.PanGestureRecognizer! recognizer, Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector! detector, Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher! dispatcher, Microsoft.Maui.Platforms.Tizen.ITizenPixelScaler! scaler) -> void
+Microsoft.Maui.Platforms.Tizen.TizenPinchGestureHandler
+Microsoft.Maui.Platforms.Tizen.TizenPinchGestureHandler.TizenPinchGestureHandler(Microsoft.Maui.Controls.PinchGestureRecognizer! recognizer, Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector! detector, Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher! dispatcher, Microsoft.Maui.Platforms.Tizen.ITizenPixelScaler! scaler) -> void
+Microsoft.Maui.Platforms.Tizen.TizenPixelScaler
+Microsoft.Maui.Platforms.Tizen.TizenPixelScaler.TizenPixelScaler(double scalingFactor = 1) -> void
+Microsoft.Maui.Platforms.Tizen.TizenPixelScaler.ToScaledDp(double pixels) -> double
+Microsoft.Maui.Platforms.Tizen.TizenPlatformWindowProvider
+Microsoft.Maui.Platforms.Tizen.TizenPlatformWindowProvider.GetPlatformWindow(Microsoft.Maui.IMauiContext? context) -> object?
+Microsoft.Maui.Platforms.Tizen.TizenPlatformWindowProvider.TizenPlatformWindowProvider() -> void
+Microsoft.Maui.Platforms.Tizen.TizenPointerAction
+Microsoft.Maui.Platforms.Tizen.TizenPointerAction.Entered = 0 -> Microsoft.Maui.Platforms.Tizen.TizenPointerAction
+Microsoft.Maui.Platforms.Tizen.TizenPointerAction.Exited = 4 -> Microsoft.Maui.Platforms.Tizen.TizenPointerAction
+Microsoft.Maui.Platforms.Tizen.TizenPointerAction.Moved = 1 -> Microsoft.Maui.Platforms.Tizen.TizenPointerAction
+Microsoft.Maui.Platforms.Tizen.TizenPointerAction.Pressed = 2 -> Microsoft.Maui.Platforms.Tizen.TizenPointerAction
+Microsoft.Maui.Platforms.Tizen.TizenPointerAction.Released = 3 -> Microsoft.Maui.Platforms.Tizen.TizenPointerAction
+Microsoft.Maui.Platforms.Tizen.TizenPointerButton
+Microsoft.Maui.Platforms.Tizen.TizenPointerButton.Primary = 1 -> Microsoft.Maui.Platforms.Tizen.TizenPointerButton
+Microsoft.Maui.Platforms.Tizen.TizenPointerButton.Secondary = 2 -> Microsoft.Maui.Platforms.Tizen.TizenPointerButton
+Microsoft.Maui.Platforms.Tizen.TizenPointerButton.Tertiary = 3 -> Microsoft.Maui.Platforms.Tizen.TizenPointerButton
+Microsoft.Maui.Platforms.Tizen.TizenPointerButton.Unknown = 0 -> Microsoft.Maui.Platforms.Tizen.TizenPointerButton
+Microsoft.Maui.Platforms.Tizen.TizenPointerGestureHandler
+Microsoft.Maui.Platforms.Tizen.TizenPointerGestureHandler.TizenPointerGestureHandler(Microsoft.Maui.Controls.PointerGestureRecognizer! recognizer, Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector! detector, Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher! dispatcher, Microsoft.Maui.Platforms.Tizen.ITizenPixelScaler! scaler) -> void
+Microsoft.Maui.Platforms.Tizen.TizenScopedNavigationStack
+Microsoft.Maui.Platforms.Tizen.TizenScopedNavigationStack.Attach(Microsoft.Maui.Platforms.Tizen.ITizenNavigationStack! target) -> void
+Microsoft.Maui.Platforms.Tizen.TizenScopedNavigationStack.Contains(object! platformView) -> bool
+Microsoft.Maui.Platforms.Tizen.TizenScopedNavigationStack.Count.get -> int
+Microsoft.Maui.Platforms.Tizen.TizenScopedNavigationStack.CreatePlaceholder() -> object!
+Microsoft.Maui.Platforms.Tizen.TizenScopedNavigationStack.Detach() -> void
+Microsoft.Maui.Platforms.Tizen.TizenScopedNavigationStack.IsAttached.get -> bool
+Microsoft.Maui.Platforms.Tizen.TizenScopedNavigationStack.IsDisposed(object! platformView) -> bool
+Microsoft.Maui.Platforms.Tizen.TizenScopedNavigationStack.PopAsync(bool animated) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.TizenScopedNavigationStack.PushAsync(object! platformView, bool animated) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.TizenScopedNavigationStack.Remove(object! platformView) -> bool
+Microsoft.Maui.Platforms.Tizen.TizenScopedNavigationStack.ShownBehindPage.get -> bool
+Microsoft.Maui.Platforms.Tizen.TizenScopedNavigationStack.ShownBehindPage.set -> void
+Microsoft.Maui.Platforms.Tizen.TizenScopedNavigationStack.TizenScopedNavigationStack() -> void
+Microsoft.Maui.Platforms.Tizen.TizenScopedNavigationStack.Top.get -> object?
+Microsoft.Maui.Platforms.Tizen.TizenScopedWindowBackButton
+Microsoft.Maui.Platforms.Tizen.TizenScopedWindowBackButton.Attach(Microsoft.Maui.Platforms.Tizen.ITizenWindowBackButton! target) -> void
+Microsoft.Maui.Platforms.Tizen.TizenScopedWindowBackButton.Detach() -> void
+Microsoft.Maui.Platforms.Tizen.TizenScopedWindowBackButton.IsAttached.get -> bool
+Microsoft.Maui.Platforms.Tizen.TizenScopedWindowBackButton.RegisterBackButtonPressedHandler(System.Func<bool>! handler) -> System.IDisposable!
+Microsoft.Maui.Platforms.Tizen.TizenScopedWindowBackButton.TizenScopedWindowBackButton() -> void
+Microsoft.Maui.Platforms.Tizen.TizenSwipeGestureHandler
+Microsoft.Maui.Platforms.Tizen.TizenSwipeGestureHandler.TizenSwipeGestureHandler(Microsoft.Maui.Controls.SwipeGestureRecognizer! recognizer, Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector! detector, Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher! dispatcher, Microsoft.Maui.Platforms.Tizen.ITizenPixelScaler! scaler) -> void
+Microsoft.Maui.Platforms.Tizen.TizenTapGestureHandler
+Microsoft.Maui.Platforms.Tizen.TizenTapGestureHandler.TizenTapGestureHandler(Microsoft.Maui.Controls.TapGestureRecognizer! recognizer, Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector! detector, Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher! dispatcher, Microsoft.Maui.Platforms.Tizen.ITizenPixelScaler! scaler) -> void
+Microsoft.Maui.Platforms.Tizen.TizenWindowContext
+Microsoft.Maui.Platforms.Tizen.TizenWindowContext.Attach(Microsoft.Maui.IMauiContext! mauiContext, object! platformWindow) -> void
+Microsoft.Maui.Platforms.Tizen.TizenWindowContext.Detach() -> void
+Microsoft.Maui.Platforms.Tizen.TizenWindowContext.MauiContext.get -> Microsoft.Maui.IMauiContext?
+Microsoft.Maui.Platforms.Tizen.TizenWindowContext.PlatformWindow.get -> object?
+Microsoft.Maui.Platforms.Tizen.TizenWindowContext.TizenWindowContext() -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.ConnectHandler(Tizen.NUI.BaseComponents.View! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.CreateAdaptor() -> Tizen.UIExtensions.NUI.ItemAdaptor!
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.CreatePlatformView() -> Tizen.NUI.BaseComponents.View!
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.OnAdaptorInstalled() -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.OnItemsChanged() -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenCollectionViewHandler.CreatePlatformView() -> Tizen.NUI.BaseComponents.View!
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler.ConnectHandler(Tizen.UIExtensions.NUI.DrawerView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler.CreatePlatformView() -> Tizen.UIExtensions.NUI.DrawerView!
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler.DisconnectHandler(Tizen.UIExtensions.NUI.DrawerView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenGroupableItemsViewHandler<TItemsView>.CreateAdaptor() -> Tizen.UIExtensions.NUI.ItemAdaptor!
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.ConnectHandler(Tizen.NUI.BaseComponents.View! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.DisconnectHandler(Tizen.NUI.BaseComponents.View! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.SetVirtualView(Microsoft.Maui.IView! view) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarHandler.CreatePlatformElement() -> Tizen.NUI.BaseComponents.View!
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarItemHandler.CreatePlatformElement() -> Tizen.NUI.BaseComponents.View!
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutHandler.CreatePlatformElement() -> Tizen.NUI.BaseComponents.View!
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutItemHandler.CreatePlatformElement() -> Tizen.NUI.BaseComponents.View!
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSeparatorHandler.CreatePlatformElement() -> Tizen.NUI.BaseComponents.View!
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSubItemHandler.CreatePlatformElement() -> Tizen.NUI.BaseComponents.View!
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler.CreatePlatformView() -> Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager!
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.TizenStackNavigationManager! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler.SetVirtualView(Microsoft.Maui.IView! view) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.TizenShapeView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.TizenShapeView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.TizenShapeView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.TizenShapeView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView>.ConnectHandler(Tizen.NUI.BaseComponents.View! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView>.OnAdaptorInstalled() -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView>.OnAdaptorSelectionChanged(object? sender, Microsoft.Maui.Platforms.Tizen.Platform.TizenCollectionViewSelectionChangedEventArgs! e) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView>.OnItemsChanged() -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.CreatePlatformView() -> Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView!
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.SetVirtualView(Microsoft.Maui.IView! view) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellItemHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.Platform.TizenShellItemView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellItemHandler.CreatePlatformElement() -> Microsoft.Maui.Platforms.Tizen.Platform.TizenShellItemView!
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellItemHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.Platform.TizenShellItemView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellItemHandler.SetVirtualView(Microsoft.Maui.IElement! view) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellSectionHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionStackManager! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellSectionHandler.CreatePlatformElement() -> Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionStackManager!
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellSectionHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionStackManager! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellSectionHandler.SetVirtualView(Microsoft.Maui.IElement! view) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView>.ConnectHandler(Tizen.NUI.BaseComponents.View! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.CreatePlatformView() -> Tizen.NUI.BaseComponents.View!
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.DisconnectHandler(Tizen.NUI.BaseComponents.View! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.SetVirtualView(Microsoft.Maui.IView! view) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.ConnectHandler(Microsoft.Maui.Platforms.Tizen.TizenToolbarView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.CreatePlatformElement() -> Microsoft.Maui.Platforms.Tizen.TizenToolbarView!
+override Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.DisconnectHandler(Microsoft.Maui.Platforms.Tizen.TizenToolbarView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.Platform.TizenCarouselViewControl.CreateCollectionView() -> Tizen.UIExtensions.NUI.CollectionView!
+override Microsoft.Maui.Platforms.Tizen.Platform.TizenCarouselViewControl.Dispose(bool disposing) -> void
+override Microsoft.Maui.Platforms.Tizen.Platform.TizenCarouselViewControl.Initialize() -> void
+override Microsoft.Maui.Platforms.Tizen.Platform.TizenCarouselViewControl.Rebind(Microsoft.Maui.Controls.CarouselView! element) -> void
+override Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl<TItemsView>.Dispose(bool disposing) -> void
+override Microsoft.Maui.Platforms.Tizen.Platform.TizenStructuredItemsViewControl<TItemsView>.Dispose(bool disposing) -> void
+override Microsoft.Maui.Platforms.Tizen.Platform.TizenStructuredItemsViewControl<TItemsView>.Rebind(TItemsView! element) -> void
+override Microsoft.Maui.Platforms.Tizen.Platform.TizenSelectableItemsViewControl<TItemsView>.Initialize() -> void
+override Microsoft.Maui.Platforms.Tizen.Platform.TizenSelectableItemsViewControl<TItemsView>.Rebind(TItemsView! element) -> void
+override Microsoft.Maui.Platforms.Tizen.Platform.TizenShellItemView.Dispose(Tizen.NUI.DisposeTypes type) -> void
+override Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionStackManager.Disconnect() -> void
+override Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionStackManager.InitializeStack(System.Collections.Generic.IReadOnlyList<Microsoft.Maui.IView!>! newStack, bool animated) -> System.Threading.Tasks.Task!
+override Microsoft.Maui.Platforms.Tizen.Platform.TizenShellSectionView.Dispose(Tizen.NUI.DisposeTypes type) -> void
+override Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.Dispose(Tizen.NUI.DisposeTypes type) -> void
+override Microsoft.Maui.Platforms.Tizen.Platform.TizenTabbedPageView.Dispose(bool disposing) -> void
+static Microsoft.Maui.Platforms.Tizen.Controls.TizenControlsMappings.MapAccessibility(Microsoft.Maui.IViewHandler! handler, Microsoft.Maui.IView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Controls.TizenControlsMappings.MapLineBreakMode(Microsoft.Maui.Handlers.ILabelHandler! handler, Microsoft.Maui.ILabel! label) -> void
+static Microsoft.Maui.Platforms.Tizen.Controls.TizenControlsMappings.Register() -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.CarouselViewCommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.CarouselView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.CarouselViewMapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.Controls.CarouselView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.MapCurrentItem(Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler! handler, Microsoft.Maui.Controls.CarouselView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.MapIsBounceEnabled(Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler! handler, Microsoft.Maui.Controls.CarouselView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.MapIsSwipeEnabled(Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler! handler, Microsoft.Maui.Controls.CarouselView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.MapItemsLayout(Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler! handler, Microsoft.Maui.Controls.CarouselView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.MapLoop(Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler! handler, Microsoft.Maui.Controls.CarouselView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.MapPeekAreaInsets(Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler! handler, Microsoft.Maui.Controls.CarouselView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.MapPosition(Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler! handler, Microsoft.Maui.Controls.CarouselView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenCollectionViewHandler.CollectionViewCommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.CollectionView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenCollectionViewHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenCollectionViewHandler.CollectionViewMapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.Controls.CollectionView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenCollectionViewHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.IFlyoutView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler.MapDetail(Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler! handler, Microsoft.Maui.IFlyoutView! flyoutView) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler.MapFlyout(Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler! handler, Microsoft.Maui.IFlyoutView! flyoutView) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler.MapFlyoutBehavior(Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler! handler, Microsoft.Maui.IFlyoutView! flyoutView) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler.MapFlyoutLayoutBehavior(Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler! handler, Microsoft.Maui.IFlyoutView! flyoutView) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler.MapFlyoutWidth(Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler! handler, Microsoft.Maui.IFlyoutView! flyoutView) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler.MapIsGestureEnabled(Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler! handler, Microsoft.Maui.IFlyoutView! flyoutView) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler.MapIsPresented(Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler! handler, Microsoft.Maui.IFlyoutView! flyoutView) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.IFlyoutView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler.MapToolbar(Microsoft.Maui.Platforms.Tizen.Handlers.TizenFlyoutViewHandler! handler, Microsoft.Maui.IFlyoutView! flyoutView) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenGroupableItemsViewHandler<TItemsView>.GroupableItemsViewCommandMapper -> Microsoft.Maui.CommandMapper<TItemsView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenGroupableItemsViewHandler<TItemsView!>!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenGroupableItemsViewHandler<TItemsView>.GroupableItemsViewMapper -> Microsoft.Maui.IPropertyMapper<TItemsView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenGroupableItemsViewHandler<TItemsView!>!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenGroupableItemsViewHandler<TItemsView>.MapGroupFooterTemplate(Microsoft.Maui.Platforms.Tizen.Handlers.TizenGroupableItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenGroupableItemsViewHandler<TItemsView>.MapGroupHeaderTemplate(Microsoft.Maui.Platforms.Tizen.Handlers.TizenGroupableItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenGroupableItemsViewHandler<TItemsView>.MapIsGrouped(Microsoft.Maui.Platforms.Tizen.Handlers.TizenGroupableItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.ItemsViewCommandMapper -> Microsoft.Maui.CommandMapper<TItemsView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView!>!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.ItemsViewMapper -> Microsoft.Maui.IPropertyMapper<TItemsView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView!>!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.MapEmptyView(Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.MapEmptyViewTemplate(Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.MapHorizontalScrollBarVisibility(Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.MapIsVisible(Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView!>! handler, TItemsView! itemsView) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.MapItemsSource(Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.MapItemsUpdatingScrollMode(Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.MapItemTemplate(Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.MapRemainingItemsThreshold(Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.MapScrollTo(Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView!>! handler, TItemsView! view, object? args) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.MapVerticalScrollBarVisibility(Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.Shapes.Line!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.Controls.Shapes.Line!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler.MapX1(Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler! handler, Microsoft.Maui.Controls.Shapes.Line! line) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler.MapX2(Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler! handler, Microsoft.Maui.Controls.Shapes.Line! line) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler.MapY1(Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler! handler, Microsoft.Maui.Controls.Shapes.Line! line) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler.MapY2(Microsoft.Maui.Platforms.Tizen.Handlers.TizenLineHandler! handler, Microsoft.Maui.Controls.Shapes.Line! line) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.IMenuBar!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarHandler.MapCollectionChange(Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarHandler! handler, Microsoft.Maui.IMenuBar! view, object? args) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarHandler.MapIsEnabled(Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarHandler! handler, Microsoft.Maui.IMenuBar! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.IMenuBar!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarItemHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.IMenuBarItem!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarItemHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarItemHandler.MapCollectionChange(Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarItemHandler! handler, Microsoft.Maui.IMenuBarItem! view, object? args) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarItemHandler.MapIsEnabled(Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarItemHandler! handler, Microsoft.Maui.IMenuBarItem! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarItemHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.IMenuBarItem!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarItemHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarItemHandler.MapText(Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuBarItemHandler! handler, Microsoft.Maui.IMenuBarItem! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.IMenuFlyout!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutHandler.MapCollectionChange(Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutHandler! handler, Microsoft.Maui.IMenuFlyout! view, object? args) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.IMenuFlyout!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutItemHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.IMenuFlyoutItem!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutItemHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutItemHandler.MapIsEnabled(Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutItemHandler! handler, Microsoft.Maui.IMenuFlyoutItem! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutItemHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.IMenuFlyoutItem!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutItemHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutItemHandler.MapText(Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutItemHandler! handler, Microsoft.Maui.IMenuFlyoutItem! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSeparatorHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.IMenuFlyoutSeparator!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSeparatorHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSeparatorHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.IMenuFlyoutSeparator!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSeparatorHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSubItemHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.IMenuFlyoutSubItem!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSubItemHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSubItemHandler.MapCollectionChange(Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSubItemHandler! handler, Microsoft.Maui.IMenuFlyoutSubItem! view, object? args) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSubItemHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.IMenuFlyoutSubItem!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSubItemHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSubItemHandler.MapText(Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuFlyoutSubItemHandler! handler, Microsoft.Maui.IMenuFlyoutSubItem! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuSupport.IsMenuBarSupported.get -> bool
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenMenuSupport.IsMenuFlyoutSupported.get -> bool
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.IStackNavigationView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.IStackNavigationView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler.MapToolbar(Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler! handler, Microsoft.Maui.IStackNavigationView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler.RequestNavigation(Microsoft.Maui.Platforms.Tizen.Handlers.TizenNavigationViewHandler! handler, Microsoft.Maui.IStackNavigation! view, object? args) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.Shapes.Path!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler.MapData(Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler! handler, Microsoft.Maui.Controls.Shapes.Path! path) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.Controls.Shapes.Path!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler.MapRenderTransform(Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler! handler, Microsoft.Maui.Controls.Shapes.Path! path) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler.MapShape(Microsoft.Maui.Platforms.Tizen.Handlers.TizenPathHandler! handler, Microsoft.Maui.Controls.Shapes.Path! path) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.Shapes.Polygon!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.MapFillRule(Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler! handler, Microsoft.Maui.Controls.Shapes.Polygon! polygon) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.Controls.Shapes.Polygon!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.MapPoints(Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler! handler, Microsoft.Maui.Controls.Shapes.Polygon! polygon) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler.MapShape(Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolygonHandler! handler, Microsoft.Maui.Controls.Shapes.Polygon! polygon) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.Shapes.Polyline!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.MapFillRule(Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler! handler, Microsoft.Maui.Controls.Shapes.Polyline! polyline) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.Controls.Shapes.Polyline!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.MapPoints(Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler! handler, Microsoft.Maui.Controls.Shapes.Polyline! polyline) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler.MapShape(Microsoft.Maui.Platforms.Tizen.Handlers.TizenPolylineHandler! handler, Microsoft.Maui.Controls.Shapes.Polyline! polyline) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.Shapes.Rectangle!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.Controls.Shapes.Rectangle!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler.MapRadiusX(Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler! handler, Microsoft.Maui.Controls.Shapes.Rectangle! rectangle) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler.MapRadiusY(Microsoft.Maui.Platforms.Tizen.Handlers.TizenRectangleHandler! handler, Microsoft.Maui.Controls.Shapes.Rectangle! rectangle) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenReorderableItemsViewHandler<TItemsView>.MapCanReorderItems(Microsoft.Maui.Platforms.Tizen.Handlers.TizenReorderableItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenReorderableItemsViewHandler<TItemsView>.ReorderableItemsViewCommandMapper -> Microsoft.Maui.CommandMapper<TItemsView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenReorderableItemsViewHandler<TItemsView!>!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenReorderableItemsViewHandler<TItemsView>.ReorderableItemsViewMapper -> Microsoft.Maui.IPropertyMapper<TItemsView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenReorderableItemsViewHandler<TItemsView!>!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.Shapes.RoundRectangle!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler.MapCornerRadius(Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler! handler, Microsoft.Maui.Controls.Shapes.RoundRectangle! roundRectangle) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.Controls.Shapes.RoundRectangle!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenRoundRectangleHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView>.MapSelectedItem(Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView>.MapSelectedItems(Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView>.MapSelectionMode(Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView>.SelectableItemsViewCommandMapper -> Microsoft.Maui.CommandMapper<TItemsView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView!>!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView>.SelectableItemsViewMapper -> Microsoft.Maui.IPropertyMapper<TItemsView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView!>!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.Shell!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.MapCurrentItem(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler! handler, Microsoft.Maui.Controls.Shell! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.MapFlyout(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler! handler, Microsoft.Maui.IFlyoutView! flyoutView) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.MapFlyoutBackdrop(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler! handler, Microsoft.Maui.Controls.Shell! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.MapFlyoutBackground(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler! handler, Microsoft.Maui.Controls.Shell! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.MapFlyoutBackgroundImage(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler! handler, Microsoft.Maui.Controls.Shell! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.MapFlyoutBackgroundImageAspect(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler! handler, Microsoft.Maui.Controls.Shell! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.MapFlyoutBehavior(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler! handler, Microsoft.Maui.IFlyoutView! flyoutView) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.MapFlyoutContent(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler! handler, Microsoft.Maui.Controls.Shell! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.MapFlyoutFooter(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler! handler, Microsoft.Maui.Controls.Shell! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.MapFlyoutHeader(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler! handler, Microsoft.Maui.Controls.Shell! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.MapFlyoutHeaderBehavior(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler! handler, Microsoft.Maui.Controls.Shell! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.MapFlyoutIcon(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler! handler, Microsoft.Maui.Controls.Shell! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.MapFlyoutVerticalScrollMode(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler! handler, Microsoft.Maui.Controls.Shell! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.MapFlyoutWidth(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler! handler, Microsoft.Maui.IFlyoutView! flyoutView) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.MapIsPresented(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler! handler, Microsoft.Maui.IFlyoutView! flyoutView) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.MapItems(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler! handler, Microsoft.Maui.IFlyoutView! flyoutView) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.Controls.Shell!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler.MapToolbar(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellHandler! handler, Microsoft.Maui.Controls.Shell! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellItemHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.ShellItem!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellItemHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellItemHandler.MapCurrentItem(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellItemHandler! handler, Microsoft.Maui.Controls.ShellItem! item) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellItemHandler.Mapper -> Microsoft.Maui.PropertyMapper<Microsoft.Maui.Controls.ShellItem!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellItemHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellItemHandler.MapTabBarIsVisible(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellItemHandler! handler, Microsoft.Maui.Controls.ShellItem! item) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellSectionHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.ShellSection!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellSectionHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellSectionHandler.MapCurrentItem(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellSectionHandler! handler, Microsoft.Maui.Controls.ShellSection! item) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellSectionHandler.Mapper -> Microsoft.Maui.PropertyMapper<Microsoft.Maui.Controls.ShellSection!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellSectionHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellSectionHandler.RequestNavigation(Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellSectionHandler! handler, Microsoft.Maui.IStackNavigation! view, object? arg3) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView>.MapFooter(Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView>.MapFooterTemplate(Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView>.MapHeader(Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView>.MapHeaderTemplate(Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView>.MapItemSizingStrategy(Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView>.MapItemsLayout(Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView!>! handler, TItemsView! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView>.StructuredItemsViewCommandMapper -> Microsoft.Maui.CommandMapper<TItemsView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView!>!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView>.StructuredItemsViewMapper -> Microsoft.Maui.IPropertyMapper<TItemsView!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView!>!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.MapBadgeColor(Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler! handler, Microsoft.Maui.Controls.TabbedPage! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.MapBadgeText(Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler! handler, Microsoft.Maui.Controls.TabbedPage! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.MapBadgeTextColor(Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler! handler, Microsoft.Maui.Controls.TabbedPage! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.MapBarBackground(Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler! handler, Microsoft.Maui.Controls.TabbedPage! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.MapBarBackgroundColor(Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler! handler, Microsoft.Maui.Controls.TabbedPage! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.MapBarTextColor(Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler! handler, Microsoft.Maui.Controls.TabbedPage! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.MapCurrentPage(Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler! handler, Microsoft.Maui.Controls.TabbedPage! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.MapItemsSource(Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler! handler, Microsoft.Maui.Controls.TabbedPage! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.MapItemTemplate(Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler! handler, Microsoft.Maui.Controls.TabbedPage! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.MapSelectedItem(Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler! handler, Microsoft.Maui.Controls.TabbedPage! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.MapSelectedTabColor(Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler! handler, Microsoft.Maui.Controls.TabbedPage! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.MapUnselectedTabColor(Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler! handler, Microsoft.Maui.Controls.TabbedPage! view) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.TabbedPageCommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.TabbedPage!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler.TabbedPageMapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.Controls.TabbedPage!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenTabbedPageHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.CommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.Maui.Controls.Toolbar!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.MapBackButtonEnabled(Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler! handler, Microsoft.Maui.Controls.Toolbar! toolbar) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.MapBackButtonTitle(Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler! handler, Microsoft.Maui.Controls.Toolbar! toolbar) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.MapBackButtonVisible(Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler! handler, Microsoft.Maui.Controls.Toolbar! toolbar) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.MapBarBackground(Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler! handler, Microsoft.Maui.Controls.Toolbar! toolbar) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.MapBarTextColor(Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler! handler, Microsoft.Maui.Controls.Toolbar! toolbar) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.MapDynamicOverflowEnabled(Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler! handler, Microsoft.Maui.Controls.Toolbar! toolbar) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.MapIconColor(Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler! handler, Microsoft.Maui.Controls.Toolbar! toolbar) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.MapIsVisible(Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler! handler, Microsoft.Maui.Controls.Toolbar! toolbar) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.Mapper -> Microsoft.Maui.IPropertyMapper<Microsoft.Maui.Controls.Toolbar!, Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler!>!
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.MapTitle(Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler! handler, Microsoft.Maui.Controls.Toolbar! toolbar) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.MapTitleIcon(Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler! handler, Microsoft.Maui.Controls.Toolbar! toolbar) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.MapTitleView(Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler! handler, Microsoft.Maui.Controls.Toolbar! toolbar) -> void
+static Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler.MapToolbarItems(Microsoft.Maui.Platforms.Tizen.Handlers.TizenToolbarHandler! handler, Microsoft.Maui.Controls.Toolbar! toolbar) -> void
+static Microsoft.Maui.Platforms.Tizen.Hosting.TizenControlsMauiAppBuilderExtensions.ConfigureTizenControls(this Microsoft.Maui.Hosting.MauiAppBuilder! builder) -> Microsoft.Maui.Hosting.MauiAppBuilder!
+static Microsoft.Maui.Platforms.Tizen.Hosting.TizenControlsMauiAppBuilderExtensions.UseMauiAppTizenControls<TApp>(this Microsoft.Maui.Hosting.MauiAppBuilder! builder) -> Microsoft.Maui.Hosting.MauiAppBuilder!
+static Microsoft.Maui.Platforms.Tizen.Hosting.TizenShapeHandlerCollectionExtensions.AddTizenShapeHandlers(this Microsoft.Maui.Hosting.IMauiHandlersCollection! handlers) -> Microsoft.Maui.Hosting.IMauiHandlersCollection!
+static Microsoft.Maui.Platforms.Tizen.Nui.TizenNuiHostingExtensions.AddTizenNuiControlsPlatform(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Maui.Platforms.Tizen.TizenAlertRegistrationMode mode = Microsoft.Maui.Platforms.Tizen.TizenAlertRegistrationMode.FullManager) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Maui.Platforms.Tizen.Nui.TizenNuiHostingExtensions.AttachTizenWindow(Microsoft.Maui.IMauiContext! mauiContext, Tizen.NUI.Window! window, Tizen.UIExtensions.NUI.NavigationStack! navigationStack, Microsoft.Maui.Platforms.Tizen.ITizenWindowBackButton? backButton = null) -> void
+static Microsoft.Maui.Platforms.Tizen.Nui.TizenNuiHostingExtensions.UseTizenNuiControlsPlatform(this Microsoft.Maui.Hosting.MauiAppBuilder! builder, Microsoft.Maui.Platforms.Tizen.TizenAlertRegistrationMode mode = Microsoft.Maui.Platforms.Tizen.TizenAlertRegistrationMode.FullManager) -> Microsoft.Maui.Hosting.MauiAppBuilder!
+static Microsoft.Maui.Platforms.Tizen.TizenControlsServiceCollectionExtensions.AddTizenAlerts(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Maui.Platforms.Tizen.TizenAlertRegistrationMode mode = Microsoft.Maui.Platforms.Tizen.TizenAlertRegistrationMode.FullManager) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Maui.Platforms.Tizen.TizenControlsServiceCollectionExtensions.AddTizenControlsPlatform(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Maui.Platforms.Tizen.TizenAlertRegistrationMode mode = Microsoft.Maui.Platforms.Tizen.TizenAlertRegistrationMode.FullManager) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Maui.Platforms.Tizen.TizenControlsServiceCollectionExtensions.AddTizenGestures(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Maui.Platforms.Tizen.TizenControlsServiceCollectionExtensions.AddTizenModalNavigation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Maui.Platforms.Tizen.TizenControlsServiceCollectionExtensions.AddTizenPixelScaler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<double>! scalingFactorProvider) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Maui.Platforms.Tizen.TizenGesturePosition.FromLocal(Microsoft.Maui.Graphics.Point local) -> Microsoft.Maui.Platforms.Tizen.TizenGesturePosition
+static Microsoft.Maui.Platforms.Tizen.TizenWindowContext.AttachTo(Microsoft.Maui.IMauiContext! mauiContext, object! platformWindow) -> void
+virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenCarouselViewHandler.UpdateItemsLayout() -> void
+virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.CreateAdaptor() -> Tizen.UIExtensions.NUI.ItemAdaptor!
+virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.OnAdaptorInstalled() -> void
+virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.OnAdaptorItemsChanged(object? sender, System.EventArgs! e) -> void
+virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.OnAdaptorSelectionChanged(object? sender, Microsoft.Maui.Platforms.Tizen.Platform.TizenCollectionViewSelectionChangedEventArgs! e) -> void
+virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.OnItemsChanged() -> void
+virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.TransitionToEmptyAdaptor() -> void
+virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.TransitionToRealAdaptor() -> void
+virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.UpdateEmptyView() -> void
+virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenItemsViewHandler<TItemsView>.UpdateItemsSource() -> void
+virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView>.UpdateSelectedItem() -> void
+virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView>.UpdateSelectedItems() -> void
+virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenSelectableItemsViewHandler<TItemsView>.UpdateSelectionMode() -> void
+virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellItemHandler.Dispose(bool disposing) -> void
+virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenShellSectionHandler.Dispose(bool disposing) -> void
+virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView>.UpdateFooter() -> void
+virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView>.UpdateHeader() -> void
+virtual Microsoft.Maui.Platforms.Tizen.Handlers.TizenStructuredItemsViewHandler<TItemsView>.UpdateItemsLayout() -> void
+virtual Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl<TItemsView>.CreateCollectionView() -> Tizen.UIExtensions.NUI.CollectionView!
+virtual Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl<TItemsView>.Initialize() -> void
+virtual Microsoft.Maui.Platforms.Tizen.Platform.TizenItemsViewControl<TItemsView>.Rebind(TItemsView! element) -> void
+virtual Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.CreateNavigationContentView() -> Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationContentView!
+virtual Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.CreateNavigationDrawer() -> Tizen.UIExtensions.NUI.INavigationDrawer!
+virtual Microsoft.Maui.Platforms.Tizen.Platform.TizenShellView.CreateNavigationView() -> Microsoft.Maui.Platforms.Tizen.Platform.TizenNavigationView!
+virtual Microsoft.Maui.Platforms.Tizen.TizenGestureHandler.Dispose(bool disposing) -> void

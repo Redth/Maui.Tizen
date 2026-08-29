@@ -25,6 +25,7 @@
   <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
 
   <PropertyGroup>
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(RepositoryRoot)eng/targets/TizenPackage.props</MSBuildAllProjects>
     <TargetFramework>$(DotNetTfm)</TargetFramework>
     <IsTizenProject>false</IsTizenProject>
     <OutputType>Library</OutputType>
@@ -66,8 +67,18 @@
     <!-- Across the assembly boundary, exactly as a consumer references the package. -->
     <ProjectReference Include="$(RepositoryRoot)tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj" />
 
+    <!--
+      The real sample references ONLY Maui.Tizen.Core (which brings Microsoft.Maui.Core and
+      Graphics transitively) - it is a Core-only app head and uses no Controls types.
+
+      This lane also referenced Microsoft.Maui.Controls, which is broader than the product. That
+      stayed invisible until the Controls bridge started being compiled elsewhere and
+      Microsoft.Maui.Controls.LayoutAlignment began colliding with
+      Microsoft.Maui.Primitives.LayoutAlignment in the sample's own stubs - a CS0104 the product
+      could never hit, produced entirely by the lane's extra reference. Exactly the failure mode a
+      verification lane must not have, in the other direction: red here, fine in the product.
+    -->
     <PackageReference Include="Microsoft.Maui.Core" />
-    <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Microsoft.Maui.Graphics" />
   </ItemGroup>
 

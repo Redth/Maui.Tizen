@@ -59,6 +59,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 		ITizenNativeGestureDetector? CreateDetector(TizenGestureKind kind, IGestureRecognizer recognizer);
 	}
 
+	internal sealed class UnsupportedTizenNativeGestureDetectorFactory : ITizenNativeGestureDetectorFactory
+	{
+		public ITizenNativeGestureDetector? CreateDetector(TizenGestureKind kind, IGestureRecognizer recognizer)
+		{
+			ArgumentNullException.ThrowIfNull(recognizer);
+			return null;
+		}
+	}
+
 	/// <summary>
 	/// Converts Tizen device pixels into device-independent units.
 	/// </summary>

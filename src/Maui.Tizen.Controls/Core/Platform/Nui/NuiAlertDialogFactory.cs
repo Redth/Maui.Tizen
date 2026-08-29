@@ -93,11 +93,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 		{
 			public BusyPopup()
 			{
-				BackgroundColor = new Color(0.1f, 0.1f, 0.1f, 0.5f);
+				BackgroundColor = new global::Tizen.NUI.Color(0.1f, 0.1f, 0.1f, 0.5f);
 				Layout = new LinearLayout
 				{
-					HorizontalAlignment = HorizontalAlignment.Center,
-					VerticalAlignment = VerticalAlignment.Center,
+					HorizontalAlignment = global::Tizen.NUI.HorizontalAlignment.Center,
+					VerticalAlignment = global::Tizen.NUI.VerticalAlignment.Center,
 				};
 				Content = new global::Tizen.UIExtensions.NUI.GraphicsView.ActivityIndicator
 				{
@@ -219,8 +219,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 	/// Resolves the native NUI window for a context.
 	/// </summary>
 	/// <remarks>
-	/// The Tizen window handler is expected to register the window's <see cref="Window"/> in the
-	/// window scope. Falling back to <see cref="ITizenWindowContext"/> keeps this working for
+	/// Core publishes the <see cref="Window"/> in the window-scoped <see cref="IMauiContext"/>.
+	/// Falling back to <see cref="ITizenWindowContext"/> keeps this working for
 	/// hosts that only call <c>TizenWindowContext.AttachTo</c>.
 	/// </remarks>
 	public sealed class NuiPlatformWindowProvider : ITizenPlatformWindowProvider

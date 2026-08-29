@@ -52,6 +52,7 @@
   </ItemGroup>
 
   <ItemGroup Label="Product sources under test (NUI-free by construction)">
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Core/Platform/Tizen/TizenModalHost.cs" LinkBase="Product/Core" />
     <Compile Include="$(TizenControlsPlatformDir)Alerts/*.cs" LinkBase="Product/Alerts" />
     <Compile Include="$(TizenControlsPlatformDir)Gestures/*.cs" LinkBase="Product/Gestures" />
     <Compile Include="$(TizenControlsPlatformDir)Modal/*.cs" LinkBase="Product/Modal" />

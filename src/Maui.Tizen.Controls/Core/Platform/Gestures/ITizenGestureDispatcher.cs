@@ -19,11 +19,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// dotnet/maui#37420 and #37671.
 	/// </para>
 	/// <para>
-	/// Long press is the one exception: <c>SendLongPressed</c> and <c>SendLongPressing</c> remain
-	/// internal to <c>Microsoft.Maui.Controls</c>, and this repository does not use private
-	/// reflection. Isolating dispatch behind this interface means the detection pipeline is
-	/// complete and tested today, and closing that last gap is a change to one implementation
-	/// rather than to every handler. See <c>docs/tizen-gesture-support-matrix.md</c>.
+	/// Long press is the one exception in the pinned 11.0.0-preview.7.26426.4 package:
+	/// <c>SendLongPressed</c> and <c>SendLongPressing</c> remain internal there. The API change has
+	/// merged upstream, but this repository cannot consume source-only availability and does not
+	/// use private reflection. Isolating dispatch behind this interface keeps the external package
+	/// blocker explicit. See <c>docs/tizen-gesture-support-matrix.md</c>.
 	/// </para>
 	/// </remarks>
 	public interface ITizenGestureDispatcher
@@ -103,9 +103,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 	public sealed class TizenGestureDispatcher : ITizenGestureDispatcher
 	{
 		internal const string UnsupportedGestureMessage =
-			"The Tizen backend detected a {0} gesture but .NET MAUI does not expose a public API to raise it. " +
-			"LongPressGestureRecognizer.SendLongPressed and SendLongPressing are still internal in " +
-			"Microsoft.Maui.Controls; every other gesture this backend detects is dispatched through public API. " +
+			"The Tizen backend detected a {0} gesture but the pinned .NET MAUI package does not expose a public API to raise it. " +
+			"LongPressGestureRecognizer.SendLongPressed and SendLongPressing are merged upstream but still internal in " +
+			"Microsoft.Maui.Controls 11.0.0-preview.7.26426.4; every other gesture this backend detects is dispatched through public API. " +
 			"See docs/tizen-gesture-support-matrix.md.";
 
 		readonly ILogger<TizenGestureDispatcher>? _logger;
@@ -123,8 +123,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <inheritdoc/>
 		public bool IsSupported(TizenGestureKind kind) => kind switch
 		{
-			// Long press is the only gesture this backend can detect but cannot raise:
-			// SendLongPressed / SendLongPressing remain internal to Microsoft.Maui.Controls.
+			// Long press is the only gesture this backend can detect but cannot raise with the
+			// pinned package. The public upstream API has not reached that package yet.
 			TizenGestureKind.LongPress => false,
 			_ => true,
 		};
@@ -215,11 +215,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		/// <inheritdoc/>
 		/// <remarks>
-		/// Long press is the one gesture the Tizen backend detects but cannot raise.
-		/// <c>LongPressGestureRecognizer.SendLongPressed</c> and <c>SendLongPressing</c> are still
-		/// internal to <c>Microsoft.Maui.Controls</c> as of 11.0.0-preview.7.26426.4, and this
-		/// repository does not use private reflection. Detection is wired up so behaviour is
-		/// identical the moment those members become public.
+		/// Long press is the one gesture the Tizen backend detects but cannot raise with
+		/// 11.0.0-preview.7.26426.4. The send members have merged as public API upstream but remain
+		/// internal in the pinned package, and this repository does not use private reflection.
 		/// </remarks>
 		public void SendLongPress(LongPressGestureRecognizer recognizer, View view, TizenGestureState state, TizenGesturePosition position) =>
 			ReportUnsupported(TizenGestureKind.LongPress);
@@ -250,8 +248,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </para>
 		/// <para>
 		/// The mapping is defined and tested ahead of the dispatch itself so that adopting
-		/// dotnet/maui#37861 - which makes <c>SendLongPressed</c> and <c>SendLongPressing</c>
-		/// public - is a small, already-specified change rather than a fresh translation.
+		/// the published package containing dotnet/maui#37861 is a small, already-specified change
+		/// rather than a fresh translation.
 		/// </para>
 		/// </remarks>
 		internal static GestureStatus? ToLongPressStatus(TizenGestureState state) => state switch

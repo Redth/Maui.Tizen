@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -27,8 +28,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 		/// them rather than to a placeholder.
 		/// </para>
 		/// <para>
-		/// <see cref="ITizenModalHost"/> is scoped because it drives the window's navigation stack,
-		/// which is itself registered scoped and filled in by <see cref="AttachTizenWindow"/>.
+		/// <see cref="ITizenModalHost"/> is scoped because it drives the Controls-owned navigation
+		/// overlay that the scoped initializer attaches to that window.
 		/// </para>
 		/// </remarks>
 		public static IServiceCollection AddTizenNuiControlsPlatform(
@@ -49,13 +50,22 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 			// The factor is read lazily, because DeviceInfo is not usable until the Tizen
 			// application has initialised.
 			services.AddTizenPixelScaler(static () => global::Tizen.UIExtensions.Common.DeviceInfo.ScalingFactor);
+			// Core installs TizenDirectModalHost as a non-navigation fallback. Replace that known
+			// fallback, but preserve an application-supplied host registered before startup.
+			var modalHost = services.LastOrDefault(
+				static service => service.ServiceType == typeof(ITizenModalHost));
+			if (modalHost?.ImplementationType == typeof(TizenDirectModalHost))
+			{
+				services.RemoveAll<ITizenModalHost>();
+			}
+
 			services.TryAddScoped<ITizenModalHost>(static provider => new TizenModalHost(
-				provider.GetRequiredService<ITizenNavigationStack>(),
-				provider.GetService<ILogger<TizenModalHost>>()));
+					provider.GetRequiredService<ITizenNavigationStack>(),
+					provider.GetService<ILogger<TizenModalHost>>()));
 			services.TryAddSingleton<ITizenPlatformWindowProvider, NuiPlatformWindowProvider>();
 			services.TryAddSingleton<ITizenNativeGestureDetectorFactory, NuiGestureDetectorFactory>();
 
-			return services.AddTizenControlsPlatform(mode);
+			return services.AddTizenControlsPlatform(mode, replaceFrameworkServices: true);
 		}
 
 		/// <summary>
@@ -87,8 +97,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 		/// </param>
 		/// <remarks>
 		/// <para>
-		/// The Core layer publishes the native window and navigation stack into the window context,
-		/// and this package's scoped initializer calls this method so window-affine alert routing,
+		/// Core publishes the native window into the window context. This method associates a
+		/// Controls-owned navigation stack with that context so window-affine alert routing,
 		/// dialog modal coordination and modal page navigation all resolve the right window. The
 		/// window scope must already contain the scoped registrations added by
 		/// <see cref="AddTizenNuiControlsPlatform"/>; when it does not, this is a no-op rather than
@@ -125,38 +135,52 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 			}
 		}
 
-		internal sealed class NuiWindowScopeInitializer : IMauiInitializeScopedService
+		internal sealed class NuiWindowScopeInitializer : IMauiInitializeScopedService, IDisposable
 		{
+			TizenScopedNavigationStack? _stackHolder;
+			TizenScopedWindowBackButton? _backButtonHolder;
+			TizenWindowContext? _windowContext;
+			NuiNavigationStack? _navigationStack;
+
 			public void Initialize(IServiceProvider services)
 			{
 				ArgumentNullException.ThrowIfNull(services);
 
-				var mauiContext = services.GetService<IMauiContext>();
-				var window = services.GetService<TWindow>();
-				var navigationStack = services.GetService<NavigationStack>();
+				// TizenMauiContext is itself the provider passed to scoped initializers. Core keeps
+				// that lifecycle authoritative and does not register a second IMauiContext service.
+				var mauiContext = services as IMauiContext;
+				var window = mauiContext?.GetPlatformWindowOrDefault();
 
-				if (mauiContext is null || window is null || navigationStack is null)
+				if (mauiContext is null || window is null)
 				{
 					return;
 				}
 
-				TizenNuiHostingExtensions.AttachTizenWindow(
-					mauiContext,
-					window,
-					navigationStack,
-					new NuiWindowBackButton(window));
+				var navigationStack = new NavigationStack
+				{
+					HeightSpecification = global::Tizen.NUI.BaseComponents.LayoutParamPolicies.MatchParent,
+					WidthSpecification = global::Tizen.NUI.BaseComponents.LayoutParamPolicies.MatchParent,
+					WidthResizePolicy = global::Tizen.NUI.ResizePolicyType.FillToParent,
+					HeightResizePolicy = global::Tizen.NUI.ResizePolicyType.FillToParent,
+				};
+
+				_navigationStack = new NuiNavigationStack(navigationStack, window);
+				_stackHolder = services.GetService<ITizenNavigationStack>() as TizenScopedNavigationStack;
+				_backButtonHolder = services.GetService<ITizenWindowBackButton>() as TizenScopedWindowBackButton;
+				_windowContext = services.GetService<ITizenWindowContext>() as TizenWindowContext;
+
+				_windowContext?.Attach(mauiContext, window);
+				_stackHolder?.Attach(_navigationStack);
 			}
-		}
 
-		internal sealed class NuiWindowBackButton : ITizenWindowBackButton
-		{
-			readonly TWindow _window;
-
-			public NuiWindowBackButton(TWindow window) =>
-				_window = window ?? throw new ArgumentNullException(nameof(window));
-
-			public IDisposable RegisterBackButtonPressedHandler(Func<bool> handler) =>
-				_window.RegisterBackButtonPressedHandler(handler);
+			public void Dispose()
+			{
+				_backButtonHolder?.Detach();
+				_stackHolder?.Detach();
+				_windowContext?.Detach();
+				_navigationStack?.Dispose();
+				_navigationStack = null;
+			}
 		}
 	}
 }

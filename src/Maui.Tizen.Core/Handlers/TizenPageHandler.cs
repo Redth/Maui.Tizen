@@ -65,28 +65,90 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <summary>Maps <see cref="IView.Background"/> for a page.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="page">The page.</param>
+		/// <summary>
+		/// Tracks whether an explicit background has ever been applied to this page.
+		/// </summary>
+		/// <remarks>
+		/// A page has two different "no background" states that must not be treated alike, and the
+		/// difference is only visible over time:
+		/// <list type="bullet">
+		/// <item><description>
+		/// Never set. The page keeps the opaque white it was created with. Clearing here would
+		/// repaint every page transparent at launch, because this mapper runs immediately.
+		/// </description></item>
+		/// <item><description>
+		/// Set to a colour and then cleared. The page must go back to opaque white. Leaving the old
+		/// colour is what previously happened, so a page could never lose a background once given
+		/// one - and clearing to transparent would be wrong too, since white is the page default.
+		/// </description></item>
+		/// </list>
+		/// </remarks>
+		/// <remarks>
+		/// Keyed off the handler rather than held as an instance field so it works for ANY
+		/// <see cref="IPageHandler"/> - including a subclass, or a test double - since the mapper
+		/// is static and only ever sees the interface. A weak table also means a discarded handler
+		/// takes its entry with it.
+		/// </remarks>
+		static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IPageHandler, StrongBoolean>
+			ExplicitBackgroundState = new();
+
+		sealed class StrongBoolean
+		{
+			public bool Value;
+		}
+
+		/// <summary>Maps <see cref="IView.Background"/> for a page.</summary>
+		/// <param name="handler">The handler.</param>
+		/// <param name="page">The page.</param>
 		public static void MapPageBackground(IPageHandler handler, IContentView page)
 		{
-			RecordDecision(handler);
+			var state = ExplicitBackgroundState.GetOrCreateValue(handler);
+			var hadExplicitBackground = state.Value;
+
+			if (page.Background is not null)
+				state.Value = true;
+
+			RecordDecision(handler, page.Background is null && hadExplicitBackground);
 
 #if TIZEN
-			if (page.Background is not null &&
-				((TizenContentViewGroup)handler.PlatformView).BackgroundColor != global::Tizen.NUI.Color.Transparent)
+			var platformView = (TizenContentViewGroup?)handler.PlatformView;
+
+			if (platformView is null)
+				return;
+
+			if (page.Background is null)
 			{
-				((TizenContentViewGroup)handler.PlatformView).UpdateBackgroundColor(TColor.Transparent);
+				// Restore the page default, but only if something replaced it. An initial null
+				// leaves the white the page was created with.
+				if (hadExplicitBackground)
+				{
+					platformView.UpdateBackgroundColor(TColor.White);
+					state.Value = false;
+				}
+
+				return;
 			}
 
-			// clearWhenNull:false on purpose - a page is created opaque white and this mapper runs
-			// immediately, so clearing on a null background would repaint every page transparent.
-			((TizenContentViewGroup?)handler.PlatformView)?.UpdateBackground(page, clearWhenNull: false);
+			if (platformView.BackgroundColor != global::Tizen.NUI.Color.Transparent)
+				platformView.UpdateBackgroundColor(TColor.Transparent);
+
+			// clearWhenNull:false - the null case is handled above, with the page default rather
+			// than transparent.
+			platformView.UpdateBackground(page, clearWhenNull: false);
 #endif
 		}
 
-		static void RecordDecision(IPageHandler handler)
+		static void RecordDecision(IPageHandler handler, bool restoringDefault)
 		{
 #if !TIZEN
 			(((IElementHandler)handler).PlatformView as TizenPlatformView)?
 				.Record($"{nameof(IContentView.Background)}:clearWhenNull=False");
+
+			if (restoringDefault)
+			{
+				(((IElementHandler)handler).PlatformView as TizenPlatformView)?
+					.Record($"{nameof(IContentView.Background)}:restoreDefault=True");
+			}
 #endif
 		}
 

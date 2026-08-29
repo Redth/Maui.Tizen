@@ -9,10 +9,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 	// PROVISIONAL CONTRACTS - delete this file when dotnet/maui#37853 ships.
 	//
 	// dotnet/maui#37853 ("Add public modal navigation extensibility seam for external platform
-	// backends") adds IModalNavigationPlatform, IModalNavigationPlatformFactory and
-	// IModalNavigationHost to Microsoft.Maui.Controls.Platform. It is still OPEN, so those types
-	// are not in the 11.0.0-preview.7 package this repository builds against and cannot be
-	// implemented yet.
+	// backends") proposes IModalNavigationPlatform, IModalNavigationPlatformFactory and
+	// IModalNavigationHost in Microsoft.Maui.Controls.Platform. That seam has not been adopted in
+	// a published package, so those types are not in the 11.0.0-preview.7 package this repository
+	// builds against and cannot be implemented yet.
 	//
 	// The member shapes below are copied verbatim from that PR so the Tizen implementation is
 	// written against the final contract today. Adopting the real interfaces is then a namespace

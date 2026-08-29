@@ -15,9 +15,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 	/// modal page presentation in <see cref="TizenModalNavigationPlatform"/> - works through the
 	/// contract and is unit tested on the host.
 	/// </remarks>
-	public sealed class NuiNavigationStack : ITizenNavigationStack
+	public sealed class NuiNavigationStack : ITizenNavigationStack, IDisposable
 	{
 		readonly NavigationStack _stack;
+		readonly global::Tizen.NUI.Window? _window;
+		bool _attached;
+		bool _disposed;
 
 		/// <summary>
 		/// Initializes a new instance of the <see cref="NuiNavigationStack"/> class.
@@ -25,6 +28,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 		/// <param name="stack">The window's navigation stack.</param>
 		public NuiNavigationStack(NavigationStack stack) =>
 			_stack = stack ?? throw new ArgumentNullException(nameof(stack));
+
+		internal NuiNavigationStack(NavigationStack stack, global::Tizen.NUI.Window window)
+		{
+			_stack = stack ?? throw new ArgumentNullException(nameof(stack));
+			_window = window ?? throw new ArgumentNullException(nameof(window));
+		}
 
 		/// <inheritdoc/>
 		public int Count => _stack.Stack.Count;
@@ -51,8 +60,12 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 		public object CreatePlaceholder() => new NView();
 
 		/// <inheritdoc/>
-		public Task PushAsync(object platformView, bool animated) =>
-			_stack.Push(AsView(platformView, nameof(platformView)), animated);
+		public Task PushAsync(object platformView, bool animated)
+		{
+			ObjectDisposedException.ThrowIf(_disposed, this);
+			EnsureAttached();
+			return _stack.Push(AsView(platformView, nameof(platformView)), animated);
+		}
 
 		/// <inheritdoc/>
 		public Task PopAsync(bool animated) => _stack.Pop(animated);
@@ -72,6 +85,38 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 
 			_stack.Pop(view);
 			return false;
+		}
+
+		/// <inheritdoc/>
+		public void Dispose()
+		{
+			if (_disposed)
+			{
+				return;
+			}
+
+			_disposed = true;
+
+			if (_attached && _window is not null)
+			{
+				_window.GetDefaultLayer().Remove(_stack);
+			}
+
+			_stack.Dispose();
+		}
+
+		void EnsureAttached()
+		{
+			if (_attached || _window is null)
+			{
+				return;
+			}
+
+			// Attach lazily on the first modal operation. Core owns root-content startup and adds
+			// that content after scoped services initialize; attaching here keeps this Controls
+			// overlay above the root without changing Core's lifecycle or disposal path.
+			_window.GetDefaultLayer().Add(_stack);
+			_attached = true;
 		}
 
 		static NView AsView(object platformView, string parameterName)

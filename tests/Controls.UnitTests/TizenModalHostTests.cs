@@ -333,7 +333,7 @@ public class TizenScopedWindowServiceTests
 
 		// A modal that reports success without appearing is worse than a clear failure.
 		var exception = Assert.Throws<InvalidOperationException>(() => stack.CreatePlaceholder());
-		Assert.Contains("AttachTizenWindow", exception.Message);
+		Assert.Contains("Controls scoped initializer", exception.Message);
 	}
 
 	[Fact]
@@ -444,7 +444,7 @@ public class ProvisionalModalNavigationContractTests
 	}
 
 	[Fact]
-	public void UpstreamHasNotShippedTheseTypesYet()
+	public void PinnedMauiPackageDoesNotContainTheProvisionalTypes()
 	{
 		var mauiControls = typeof(Page).Assembly;
 
@@ -457,7 +457,7 @@ public class ProvisionalModalNavigationContractTests
 
 		Assert.True(
 			landed.Length == 0,
-			"dotnet/maui#37853 has shipped: " + string.Join(", ", landed) + ". "
+			"The pinned MAUI package now contains the dotnet/maui#37853 contracts: " + string.Join(", ", landed) + ". "
 				+ "Delete Core/Platform/Modal/ProvisionalModalNavigationContracts.cs, point "
 				+ "TizenModalNavigationPlatform and TizenModalNavigationPlatformFactory at "
 				+ "Microsoft.Maui.Controls.Platform, and delete this test.");

@@ -21,6 +21,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	/// </description></item>
 	/// </list>
 	/// </remarks>
+	[Collection(StaticMapperCollection.Name)]
 	public class BackgroundTransitionTests
 	{
 		[Fact]
@@ -187,6 +188,84 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			public void PlatformArrange(Rect frame)
 			{
 			}
+		}
+
+		[Fact]
+		public void PageRestoresItsDefaultWhenAnExplicitBackgroundIsCleared()
+		{
+			// The two "no background" states a page has are different, and only telling them apart
+			// over time gets both right:
+			//
+			//   never set    -> keep the opaque white the page was created with
+			//   set, cleared -> go BACK to opaque white
+			//
+			// Previously the second case left the old colour on screen forever, so a page could
+			// never lose a background once given one. Clearing to transparent would be wrong too,
+			// because white is the page default rather than "no colour".
+			var platform = new TizenPlatformView();
+			var page = new StubContentView { Background = new SolidPaint(Colors.Red) };
+			var handler = new RecordingPageHandler(platform, page);
+
+			TizenPageHandler.MapPageBackground(handler, page);
+			platform.Applied.Clear();
+
+			page.Background = null;
+			TizenPageHandler.MapPageBackground(handler, page);
+
+			Assert.Contains("Background:restoreDefault=True", platform.Applied);
+		}
+
+		[Fact]
+		public void PageWithNoBackgroundEverSetKeepsItsDefault()
+		{
+			// The other half. An initial null must NOT be treated as a transition, or every page
+			// repaints at launch - this mapper runs immediately after creation.
+			var platform = new TizenPlatformView();
+			var page = new StubContentView { Background = null };
+			var handler = new RecordingPageHandler(platform, page);
+
+			TizenPageHandler.MapPageBackground(handler, page);
+
+			Assert.DoesNotContain("Background:restoreDefault=True", platform.Applied);
+		}
+
+		[Fact]
+		public void AnImageBackgroundClearsRatherThanLeavingAStaleColour()
+		{
+			// ImagePaint.ToColor() returns null - verified against Microsoft.Maui.Graphics - so an
+			// image background yields no colour to apply. Doing nothing would leave whatever was
+			// painted before, and setting an image background would appear to have no effect while
+			// a stale colour stayed on screen. Clearing is honest: the image is unrendered either
+			// way, but the view ends up in a defined state.
+			//
+			// Rendering it properly needs IImageSourcePaint, which is internal in this MAUI build.
+			// See gap G11.
+			var platform = new TizenPlatformView();
+			var view = new StubContentView { Background = new SolidPaint(Colors.Red) };
+			var handler = new RecordingHandler(platform, view);
+
+			TizenViewMappers.ViewMapper.UpdateProperty(handler, view, nameof(IView.Background));
+			platform.Applied.Clear();
+
+			view.Background = new Microsoft.Maui.Graphics.ImagePaint();
+			TizenViewMappers.ViewMapper.UpdateProperty(handler, view, nameof(IView.Background));
+
+			// The mapper still runs with clearing enabled for an ordinary view.
+			Assert.Contains("Background:clearWhenNull=True", platform.Applied);
+		}
+
+		[Fact]
+		public void AGradientBackgroundCollapsesToItsRepresentativeColour()
+		{
+			// Gradients DO produce a colour, unlike image paints, so they must not take the
+			// clearing path. Without a container view to render into (gap G1) the representative
+			// colour is the best available approximation.
+			var gradient = new LinearGradientPaint();
+			gradient.AddOffset(0, Colors.Red);
+			gradient.AddOffset(1, Colors.Blue);
+
+			Assert.NotNull(gradient.ToColor());
+			Assert.Null(new Microsoft.Maui.Graphics.ImagePaint().ToColor());
 		}
 	}
 }

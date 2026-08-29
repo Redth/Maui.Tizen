@@ -344,12 +344,12 @@ public class TizenGestureDispatcherTests
 		Assert.Equal(action, Assert.Single(fired));
 	}
 
-	// Long press is the ONE gesture this backend detects but cannot raise:
-	// LongPressGestureRecognizer.SendLongPressed and SendLongPressing are still internal in
-	// 11.0.0-preview.7.26426.4. This test pins that, and fails once they go public.
+	// Long press is the ONE gesture this backend detects but cannot raise with the pinned package.
+	// The public API is merged upstream, but SendLongPressed and SendLongPressing remain internal
+	// in 11.0.0-preview.7.26426.4. This test pins package availability rather than source status.
 
 	[Fact]
-	public void LongPressCannotBeRaisedBecauseMauiKeepsTheApiInternal()
+	public void LongPressCannotBeRaisedByThePinnedMauiPackage()
 	{
 		var dispatcher = new TizenGestureDispatcher();
 		var recognizer = new LongPressGestureRecognizer();
@@ -405,11 +405,10 @@ public class TizenGestureDispatcherTests
 	}
 
 	[Fact]
-	public void LongPressSendMembersAreStillInternalUpstream()
+	public void LongPressSendMembersAreStillInternalInThePinnedPackage()
 	{
-		// The support matrix claims exactly two members are missing. Assert that rather than
-		// trusting the claim: when upstream makes them public this fails and points at the
-		// dispatcher, the matrix and the test above.
+		// The support matrix claims exactly two members are missing from the consumed package.
+		// Assert that rather than treating a merged source API as published availability.
 		var type = typeof(LongPressGestureRecognizer);
 
 		foreach (var name in new[] { "SendLongPressed", "SendLongPressing" })

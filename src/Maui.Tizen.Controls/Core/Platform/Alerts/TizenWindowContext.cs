@@ -8,8 +8,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// </summary>
 	/// <remarks>
 	/// .NET MAUI creates a scoped <see cref="IMauiContext"/> per window, so a service registered
-	/// with a scoped lifetime is inherently per window. The Tizen window handler attaches the
-	/// native window to that scope, which lets window-affine services such as the alert
+	/// with a scoped lifetime is inherently per window. The Controls scoped initializer attaches
+	/// Core's native window to that scope, which lets window-affine services such as the alert
 	/// infrastructure discover which window they belong to without taking a dependency on NUI.
 	/// </remarks>
 	public interface ITizenWindowContext
@@ -69,8 +69,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <param name="mauiContext">The window's context.</param>
 		/// <param name="platformWindow">The native window.</param>
 		/// <remarks>
-		/// This is the single call the Tizen window handler needs to make for window-affine
-		/// services to work. It is a no-op when the application did not register the Tizen
+		/// This is the single association window-affine services need. It is a no-op when the
+		/// application did not register the Tizen
 		/// services, so a partially configured host degrades instead of throwing.
 		/// </remarks>
 		public static void AttachTo(IMauiContext mauiContext, object platformWindow)
