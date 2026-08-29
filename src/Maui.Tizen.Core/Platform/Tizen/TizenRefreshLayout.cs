@@ -48,6 +48,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		readonly RefreshIcon _refreshIcon;
 		readonly PanGestureDetector _panGestureDetector;
 		readonly TizenRefreshNativeActivity _nativeActivity = new();
+		readonly TizenRefreshQueuedStart _queuedStart = new();
 		readonly TizenRefreshTeardownObserver _teardownObserver = new();
 		ITizenPlatformViewHandler? _contentHandler;
 		TizenNativeView? _contentView;
@@ -60,6 +61,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		int _nativeResourcesDisposed;
 		float _iconDistance;
 		bool _disconnected;
+		Func<bool>? _canReplayQueuedStart;
 
 		public TizenRefreshLayout()
 		{
@@ -220,10 +222,30 @@ namespace Microsoft.Maui.Platforms.Tizen
 			IsRefreshing = isRefreshing;
 		}
 
-		internal void MarkDisconnected() => _disconnected = true;
+		internal void SetQueuedRefreshGuard(Func<bool> canReplay) =>
+			_canReplayQueuedStart = canReplay ?? throw new ArgumentNullException(nameof(canReplay));
 
-		internal void BeginTeardownObservation() =>
-			_teardownObserver.Begin(_nativeState == NativeRefreshState.Pulling);
+		internal void ClearQueuedRefreshGuard()
+		{
+			_queuedStart.Cancel();
+			_canReplayQueuedStart = null;
+		}
+
+		internal void MarkDisconnected()
+		{
+			_disconnected = true;
+			ClearQueuedRefreshGuard();
+		}
+
+		internal void BeginTeardownObservation()
+		{
+			var completeRefresh = _teardownObserver.Begin(
+				_nativeState == NativeRefreshState.Pulling,
+				_nativeState == NativeRefreshState.Refresh);
+			_queuedStart.Cancel();
+			if (completeRefresh)
+				CompleteRefresh();
+		}
 
 		internal bool HasPendingNativeActivity =>
 			_nativeActivity.HasPendingActivity ||
@@ -386,11 +408,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 				case NativeRefreshState.Pulling:
 					StartRefresh();
 					break;
+				case NativeRefreshState.Resetting:
+					_queuedStart.Queue();
+					break;
 			}
 		}
 
 		void StartRefresh(bool trackPosition = true)
 		{
+			_queuedStart.Cancel();
 			_transitionGeneration++;
 			_nativeState = NativeRefreshState.Refresh;
 			_nativeActivity.ObserveRefreshStarted();
@@ -409,6 +435,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		void CompleteRefresh()
 		{
+			_queuedStart.Cancel();
 			if (_nativeState != NativeRefreshState.Refresh)
 				return;
 
@@ -465,6 +492,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_nativeState = NativeRefreshState.Idle;
 			_nativeActivity.CompleteReset();
 			IconDistance = 0;
+			_nativeTransition = Task.CompletedTask;
+
+			if (_queuedStart.TryConsume(() =>
+				!_disconnected &&
+				!_teardownObserver.IsActive &&
+				(_canReplayQueuedStart?.Invoke() ?? true)))
+			{
+				StartRefresh();
+			}
 		}
 
 		void TrackTransition(Task transition)

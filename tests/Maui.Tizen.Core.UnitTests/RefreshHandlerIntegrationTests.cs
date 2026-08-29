@@ -122,31 +122,6 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			elementHandler.DisconnectHandler();
 		}
 
-		[Fact]
-		public void ProgrammaticRefreshClearsBelowThresholdResetWithoutQuietFrames()
-		{
-			using var app = MauiApp.CreateBuilder()
-				.UseMauiAppTizenControls<ControlsApp>()
-				.Build();
-			var view = new RefreshView { IsRefreshEnabled = true };
-			var handler = Assert.IsType<TizenRefreshViewHandler>(
-				app.Services.GetRequiredService<IMauiHandlersFactory>().GetHandler(typeof(RefreshView)));
-			var elementHandler = (IElementHandler)handler;
-			elementHandler.SetMauiContext(new MauiContext(app.Services));
-			elementHandler.SetVirtualView(view);
-			var platform = Assert.IsType<TizenRefreshLayout>(elementHandler.PlatformView);
-
-			platform.BeginBelowThresholdPull();
-			platform.ReleaseBelowThresholdPull();
-			Assert.True(platform.HasPendingNativeActivity);
-
-			view.IsRefreshing = true;
-			elementHandler.UpdateValue(nameof(IRefreshView.IsRefreshing));
-
-			Assert.False(platform.HasPendingPullReset);
-			elementHandler.DisconnectHandler();
-		}
-
 		[Theory]
 		[InlineData(false)]
 		[InlineData(true)]
@@ -363,6 +338,125 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.Equal(1, platform.RejectedStartedGestureCount);
 			Assert.Equal(0, platform.AtomicDisposalDeferralCount);
 			Assert.False(platform.HasPendingNativeActivity);
+			Assert.Equal(1, platform.DisposeCount);
+			Assert.Equal(0, platform.NativeStateReadAfterDisposeCount);
+		}
+
+		[Fact]
+		public void StartRequestedDuringResetReplaysExactlyOnceAfterResetCompletes()
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<ControlsApp>()
+				.Build();
+			var view = new RefreshView { IsRefreshEnabled = true };
+			var handler = Assert.IsType<TizenRefreshViewHandler>(
+				app.Services.GetRequiredService<IMauiHandlersFactory>().GetHandler(typeof(RefreshView)));
+			var elementHandler = (IElementHandler)handler;
+			elementHandler.SetMauiContext(new MauiContext(app.Services));
+			elementHandler.SetVirtualView(view);
+			var platform = Assert.IsType<TizenRefreshLayout>(elementHandler.PlatformView);
+			platform.DelayPullResetCompletion = true;
+
+			platform.BeginBelowThresholdPull();
+			platform.ReleaseBelowThresholdPull();
+			view.IsRefreshing = true;
+
+			Assert.True(platform.HasQueuedStart);
+			Assert.Equal(0, platform.NativeRefreshStartCount);
+
+			platform.CompletePullReset();
+
+			Assert.True(platform.IsRefreshing);
+			Assert.False(platform.HasQueuedStart);
+			Assert.Equal(1, platform.NativeRefreshStartCount);
+			Thread.Sleep(50);
+			Assert.Equal(1, platform.NativeRefreshStartCount);
+
+			view.IsRefreshing = false;
+			Assert.True(SpinWait.SpinUntil(
+				() => !platform.HasPendingNativeActivity,
+				TimeSpan.FromSeconds(1)));
+			elementHandler.DisconnectHandler();
+		}
+
+		[Theory]
+		[InlineData("false")]
+		[InlineData("disable")]
+		[InlineData("disconnect")]
+		public void QueuedResetStartIsCancelledByLaterIntent(string cancellation)
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<ControlsApp>()
+				.Build();
+			var view = new RefreshView { IsRefreshEnabled = true };
+			var handler = Assert.IsType<TizenRefreshViewHandler>(
+				app.Services.GetRequiredService<IMauiHandlersFactory>().GetHandler(typeof(RefreshView)));
+			var elementHandler = (IElementHandler)handler;
+			elementHandler.SetMauiContext(new MauiContext(app.Services));
+			elementHandler.SetVirtualView(view);
+			var platform = Assert.IsType<TizenRefreshLayout>(elementHandler.PlatformView);
+			platform.DelayPullResetCompletion = true;
+
+			platform.BeginBelowThresholdPull();
+			platform.ReleaseBelowThresholdPull();
+			view.IsRefreshing = true;
+			Assert.True(platform.HasQueuedStart);
+
+			switch (cancellation)
+			{
+				case "false":
+					view.IsRefreshing = false;
+					break;
+				case "disable":
+					view.IsRefreshEnabled = false;
+					break;
+				default:
+					elementHandler.DisconnectHandler();
+					break;
+			}
+
+			Assert.False(platform.HasQueuedStart);
+			platform.CompletePullReset();
+			Assert.Equal(0, platform.NativeRefreshStartCount);
+
+			if (cancellation != "disconnect")
+				elementHandler.DisconnectHandler();
+			else
+				Assert.True(platform.TryDisposeNativeResources());
+		}
+
+		[Fact]
+		public void DisposeDuringActiveRefreshImmediatelyStartsOwnedCompletion()
+		{
+			using var app = MauiApp.CreateBuilder()
+				.UseMauiAppTizenControls<ControlsApp>()
+				.Build();
+			var view = new RefreshView { IsRefreshEnabled = true };
+			var handler = Assert.IsType<TizenRefreshViewHandler>(
+				app.Services.GetRequiredService<IMauiHandlersFactory>().GetHandler(typeof(RefreshView)));
+			var elementHandler = (IElementHandler)handler;
+			elementHandler.SetMauiContext(new MauiContext(app.Services));
+			elementHandler.SetVirtualView(view);
+			var platform = Assert.IsType<TizenRefreshLayout>(elementHandler.PlatformView);
+			platform.DelayNativeCompletion = true;
+
+			view.IsRefreshing = true;
+			Assert.True(platform.IsRefreshing);
+			Assert.Equal(1, platform.NativeRefreshStartCount);
+
+			handler.Dispose();
+
+			Assert.Equal(1, platform.TeardownActiveRefreshCompletionCount);
+			Assert.False(platform.IsRefreshing);
+			Assert.True(platform.HasPendingNativeActivity);
+			Assert.False(platform.IsDisposed);
+
+			platform.NotifyNativeIdle();
+
+			Assert.True(SpinWait.SpinUntil(
+				() => platform.IsDisposed,
+				TimeSpan.FromSeconds(1)));
+			Assert.Equal(1, platform.NativeRefreshStartCount);
 			Assert.Equal(1, platform.DisposeCount);
 			Assert.Equal(0, platform.NativeStateReadAfterDisposeCount);
 		}

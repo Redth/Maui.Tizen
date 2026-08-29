@@ -594,6 +594,11 @@ a pull was already active, rejects every later `Started`/`Continuing` pan, and a
 `Finished`/`Cancelled` terminal only for that captured pull. Final idle authorization and resource
 disposal happen in one dispatcher callback; the callback rechecks activity and re-arms polling if
 anything resumed, closing the idle-observed-before-dispose race.
+Starts requested while the wrapper's reset animation is active are coalesced into one queued intent.
+The completed reset rechecks the live handler, enabled state and coordinator desire before starting;
+a later stop, disable or disconnect cancels the queue. If teardown begins while already refreshing,
+the layout-owned observer starts completion before handler callbacks are detached, so disposal waits
+for the same causal reset-to-idle transition instead of leaking a permanently refreshing layout.
 Disabling an active swipe gesture likewise synthesizes terminal cancellation, restores position and
 clears gesture/animation state before re-enable.
 

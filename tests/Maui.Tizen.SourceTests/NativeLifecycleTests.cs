@@ -112,6 +112,18 @@ public class NativeLifecycleTests
 		Assert.True(start >= 0 && observe > start && observe < refreshing);
 	}
 
+	[Fact]
+	public void RefreshLayoutWiresQueuedResetStartAndActiveTeardownCompletion()
+	{
+		var source = ReadCode(
+			"src", "Maui.Tizen.Core", "Platform", "Tizen", "TizenRefreshLayout.cs");
+
+		Assert.Contains("case NativeRefreshState.Resetting:", source, StringComparison.Ordinal);
+		Assert.Contains("_queuedStart.Queue();", source, StringComparison.Ordinal);
+		Assert.Contains("if (completeRefresh)\n\t\t\t\tCompleteRefresh();", source, StringComparison.Ordinal);
+		Assert.Contains("_queuedStart.TryConsume(() =>", source, StringComparison.Ordinal);
+	}
+
 	/// <summary>Every image call site captures Core's finalized commit dispatcher.</summary>
 	[Theory]
 	[InlineData("Image/TizenImageHandler.cs")]

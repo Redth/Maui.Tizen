@@ -263,7 +263,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 		int _disposeStarted;
 		bool _disconnected;
 		readonly TizenRefreshNativeActivity _nativeActivity = new();
+		readonly TizenRefreshQueuedStart _queuedStart = new();
 		readonly TizenRefreshTeardownObserver _teardownObserver = new();
+		Func<bool>? _canReplayQueuedStart;
 
 		public event EventHandler? Refreshing
 		{
@@ -284,6 +286,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public int DeferredDisableCount { get; private set; }
 		public int DisposeCount { get; private set; }
 		public int TeardownForcedCompletionCount { get; private set; }
+		public int TeardownActiveRefreshCompletionCount { get; private set; }
+		public int NativeRefreshStartCount { get; private set; }
 		public int ExplicitCancellationResetCount { get; private set; }
 		public int UiExtensionsCancelledWithoutResetCount { get; private set; }
 		public int RejectedStartedGestureCount { get; private set; }
@@ -296,6 +300,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public bool HasPendingPullReset => _nativeActivity.IsResetPending;
 		public bool IsNativePulling => _nativeState == NativeRefreshState.Pulling;
 		public bool IsTeardownObserverActive => _teardownObserver.IsActive;
+		public bool HasQueuedStart => _queuedStart.IsPending;
 		public bool IsDisconnected => _disconnected;
 		public bool PollingStartedAfterDisconnect { get; private set; }
 		public TizenRefreshStateMachine RefreshState { get; } = new();
@@ -308,6 +313,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			if (_disconnected)
 				return;
+
+			if (refreshing && _nativeState == NativeRefreshState.Resetting)
+			{
+				_queuedStart.Queue();
+				return;
+			}
+
+			if (!refreshing)
+				_queuedStart.Cancel();
 
 			if (!refreshing && _nativeState == NativeRefreshState.Pulling)
 			{
@@ -344,10 +358,29 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public void MarkDisconnected()
 		{
 			_disconnected = true;
+			ClearQueuedRefreshGuard();
 		}
 
-		public void BeginTeardownObservation() =>
-			_teardownObserver.Begin(_nativeState == NativeRefreshState.Pulling);
+		public void SetQueuedRefreshGuard(Func<bool> canReplay) => _canReplayQueuedStart = canReplay;
+
+		public void ClearQueuedRefreshGuard()
+		{
+			_queuedStart.Cancel();
+			_canReplayQueuedStart = null;
+		}
+
+		public void BeginTeardownObservation()
+		{
+			var completeRefresh = _teardownObserver.Begin(
+				_nativeState == NativeRefreshState.Pulling,
+				_nativeState == NativeRefreshState.Refresh);
+			_queuedStart.Cancel();
+			if (completeRefresh)
+			{
+				TeardownActiveRefreshCompletionCount++;
+				BeginRefreshCompletion();
+			}
+		}
 
 		public Task<bool> WaitForNativeIdleAsync(
 			Func<Action, Task> dispatch,
@@ -433,9 +466,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		void StartRefresh()
 		{
+			_queuedStart.Cancel();
 			_transitionGeneration++;
 			_nativeTransition = Task.CompletedTask;
 			_nativeState = NativeRefreshState.Refresh;
+			NativeRefreshStartCount++;
 			NativeIsRefreshing = true;
 			_nativeActivity.ObserveRefreshStarted();
 			_refreshing?.Invoke(this, EventArgs.Empty);
@@ -485,6 +520,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 			NativeIsRefreshing = false;
 			_nativeActivity.CompleteReset();
 			_nativeTransition = Task.CompletedTask;
+
+			if (_queuedStart.TryConsume(() =>
+				!_disconnected &&
+				!_teardownObserver.IsActive &&
+				(_canReplayQueuedStart?.Invoke() ?? true)))
+			{
+				StartRefresh();
+			}
 		}
 
 		public void ObserveNativeRefreshStarted() => _nativeActivity.ObserveRefreshStarted();

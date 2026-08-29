@@ -44,6 +44,21 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 		}
 
+		public bool CanApplyQueuedStart
+		{
+			get
+			{
+				lock (_gate)
+				{
+					return !_disposed &&
+						_enabled &&
+						_desired &&
+						_state.IsRefreshing &&
+						!_state.IsCompleting;
+				}
+			}
+		}
+
 		public Task? Request(bool desired, bool enabled)
 		{
 			bool? apply = null;

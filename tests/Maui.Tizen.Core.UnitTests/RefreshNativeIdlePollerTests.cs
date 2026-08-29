@@ -94,5 +94,20 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.False(activity.HasPendingActivity);
 			Assert.False(activity.IsResetPending);
 		}
+
+		[Fact]
+		public void ActualRefreshStartClearsPendingPullReset()
+		{
+			var activity = new TizenRefreshNativeActivity();
+
+			activity.BeginPull();
+			activity.ReleasePull();
+			activity.BeginReset();
+			Assert.True(activity.IsResetPending);
+
+			activity.ObserveRefreshStarted();
+
+			Assert.False(activity.IsResetPending);
+		}
 	}
 }

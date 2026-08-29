@@ -71,6 +71,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 				() => _refreshCoordinator?.Dispose(),
 				() => _refreshCoordinator = replacement,
 				() => base.ConnectHandler(platformView),
+				() => platformView.SetQueuedRefreshGuard(() =>
+					replacement.CanApplyQueuedStart &&
+					ReferenceEquals(((IElementHandler)this).PlatformView, platformView) &&
+					VirtualView is { } virtualView &&
+					ReferenceEquals(virtualView.Handler, this) &&
+					virtualView.IsRefreshEnabled &&
+					virtualView.IsRefreshing),
 				() => platformView.Refreshing += OnRefreshing,
 				() => platformView.NativePullTerminated += OnNativePullTerminated);
 		}

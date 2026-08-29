@@ -116,10 +116,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		public bool IsActive => _active;
 
-		public void Begin(bool pullActive)
+		public bool Begin(bool pullActive, bool refreshActive)
 		{
 			_active = true;
 			_acceptTerminal = pullActive;
+			return refreshActive;
 		}
 
 		public bool ShouldForceCompletion() => _active;
@@ -134,6 +135,28 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			_active = false;
 			_acceptTerminal = false;
+		}
+	}
+
+	internal sealed class TizenRefreshQueuedStart
+	{
+		bool _pending;
+
+		public bool IsPending => _pending;
+
+		public void Queue() => _pending = true;
+
+		public void Cancel() => _pending = false;
+
+		public bool TryConsume(Func<bool> canStart)
+		{
+			ArgumentNullException.ThrowIfNull(canStart);
+
+			if (!_pending)
+				return false;
+
+			_pending = false;
+			return canStart();
 		}
 	}
 

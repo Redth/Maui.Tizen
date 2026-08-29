@@ -367,8 +367,8 @@
       }
     ],
     "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
-    "filter": "FullyQualifiedName~ProgrammaticRefreshClearsBelowThresholdResetWithoutQuietFrames",
-    "expected": "ProgrammaticRefreshClearsBelowThresholdResetWithoutQuietFrames"
+    "filter": "FullyQualifiedName~ActualRefreshStartClearsPendingPullReset",
+    "expected": "ActualRefreshStartClearsPendingPullReset"
   },
   {
     "id": "drop-refresh-layout-start-observation",
@@ -447,6 +447,32 @@
     "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
     "filter": "FullyQualifiedName~DisposalRechecksActivityInsideTheDispatchedCallback",
     "expected": "DisposalRechecksActivityInsideTheDispatchedCallback"
+  },
+  {
+    "id": "drop-start-queued-during-native-reset",
+    "file": "src/Maui.Tizen.Core/Platform/TizenRefreshNativeIdlePoller.cs",
+    "replacements": [
+      {
+        "search": "\t\tpublic void Queue() => _pending = true;",
+        "replace": "\t\tpublic void Queue() { }"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~StartRequestedDuringResetReplaysExactlyOnceAfterResetCompletes",
+    "expected": "StartRequestedDuringResetReplaysExactlyOnceAfterResetCompletes"
+  },
+  {
+    "id": "skip-active-refresh-completion-at-teardown",
+    "file": "src/Maui.Tizen.Core/Platform/TizenRefreshNativeIdlePoller.cs",
+    "replacements": [
+      {
+        "search": "\t\t\treturn refreshActive;",
+        "replace": "\t\t\treturn false;"
+      }
+    ],
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "filter": "FullyQualifiedName~DisposeDuringActiveRefreshImmediatelyStartsOwnedCompletion",
+    "expected": "DisposeDuringActiveRefreshImmediatelyStartsOwnedCompletion"
   },
   {
     "id": "drop-cancelled-pull-reset-ownership",
