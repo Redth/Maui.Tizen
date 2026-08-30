@@ -37,6 +37,7 @@ PLACEHOLDER = re.compile(r"\b(?:TBD|TODO|PLACEHOLDER|NOT[- ]READY)\b", re.IGNORE
 SYMBOLS_OPTIONAL_PACKAGE_IDS = frozenset(
     {"Maui.Tizen.Build.Tasks", "Maui.Tizen.Templates"}
 )
+AUTHENTICODE_OPTIONAL_PACKAGE_IDS = frozenset({"Maui.Tizen.Templates"})
 
 
 class ContractError(RuntimeError):
@@ -411,7 +412,8 @@ def load_signature_report(
             fail(f"Authenticode report is missing {package_path.name}")
         if package_report.get("sha256") != sha256_file(package_path):
             fail(f"Authenticode report hash mismatch for {package_path.name}")
-        expected_binaries = set(read_package(package_path)["binaries"])
+        package_info = read_package(package_path)
+        expected_binaries = set(package_info["binaries"])
         actual_binaries = {
             item.get("path") for item in package_report.get("binaries", [])
         }
@@ -419,7 +421,10 @@ def load_signature_report(
             fail(
                 f"Authenticode report binary set mismatch for {package_path.name}"
             )
-        if not expected_binaries:
+        if (
+            not expected_binaries
+            and package_info["id"] not in AUTHENTICODE_OPTIONAL_PACKAGE_IDS
+        ):
             fail(f"Shipping package {package_path.name} contains no managed binaries")
         for binary in package_report.get("binaries", []):
             if binary.get("status") != "Valid":

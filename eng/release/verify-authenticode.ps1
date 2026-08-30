@@ -11,6 +11,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $approved = ($CertificateSha256 -replace '[^0-9A-Fa-f]', '').ToUpperInvariant()
+$authenticodeOptionalPackageIds = @('Maui.Tizen.Templates')
 if ($approved -notmatch '^[0-9A-F]{64}$') {
     throw 'CertificateSha256 must be a 64-character SHA-256 certificate fingerprint.'
 }
@@ -62,7 +63,7 @@ try {
             }
         }
 
-        if ($binaries.Count -eq 0) {
+        if ($binaries.Count -eq 0 -and $packageId -notin $authenticodeOptionalPackageIds) {
             throw "Shipping package $($package.Name) contains no managed binaries to verify."
         }
 

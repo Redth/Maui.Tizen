@@ -101,6 +101,7 @@ make_unsigned_set() {
     make_package "$directory" "$id" "$version" package false
     make_package "$directory" "$id" "$version" symbols false
   done
+  make_package "$directory" Maui.Tizen.Templates "$version" package false
 }
 
 create_unsigned() {
@@ -133,7 +134,7 @@ verify_unsigned() {
     --artifact-name "$UNSIGNED_NAME"
 }
 
-printf '%s\n' Maui.Tizen.Build.Tasks Maui.Tizen.Core > "$TEMP_ROOT/package-ids.txt"
+printf '%s\n' Maui.Tizen.Build.Tasks Maui.Tizen.Core Maui.Tizen.Templates > "$TEMP_ROOT/package-ids.txt"
 
 UNSIGNED="$TEMP_ROOT/unsigned"
 make_unsigned_set "$UNSIGNED"
@@ -146,24 +147,11 @@ rm "$TASKS_WITHOUT_SYMBOLS/Maui.Tizen.Build.Tasks.${VERSION}.snupkg"
 expect_success "Build.Tasks ships without a runtime symbol package" \
   create_unsigned "$TASKS_WITHOUT_SYMBOLS"
 
-TEMPLATE_IDS="$TEMP_ROOT/template-package-ids.txt"
-printf '%s\n' Maui.Tizen.Build.Tasks Maui.Tizen.Core Maui.Tizen.Templates > "$TEMPLATE_IDS"
 TEMPLATES_WITHOUT_SYMBOLS="$TEMP_ROOT/templates-without-symbols"
 make_unsigned_set "$TEMPLATES_WITHOUT_SYMBOLS"
 rm "$TEMPLATES_WITHOUT_SYMBOLS/Maui.Tizen.Build.Tasks.${VERSION}.snupkg"
-make_package "$TEMPLATES_WITHOUT_SYMBOLS" Maui.Tizen.Templates "$VERSION" package false
 expect_success "Templates ships without a runtime symbol package" \
-  python3 "$CONTRACT" create-unsigned-manifest \
-    --packages-dir "$TEMPLATES_WITHOUT_SYMBOLS" \
-    --output "$TEMPLATES_WITHOUT_SYMBOLS/release-manifest.json" \
-    --expected-package-ids-file "$TEMPLATE_IDS" \
-    --repository "$REPOSITORY" \
-    --version "$VERSION" \
-    --source-commit "$SOURCE_SHA" \
-    --source-ref "$SOURCE_REF" \
-    --run-id "$RUN_ID" \
-    --run-attempt "$RUN_ATTEMPT" \
-    --artifact-name "$UNSIGNED_NAME"
+  create_unsigned "$TEMPLATES_WITHOUT_SYMBOLS"
 
 WRONG_VERSION="$TEMP_ROOT/wrong-version"
 make_unsigned_set "$WRONG_VERSION" "11.0.0-alpha"
@@ -345,6 +333,7 @@ for id in Maui.Tizen.Core Maui.Tizen.Build.Tasks; do
   make_package "$SIGNED" "$id" "$VERSION" package true
   make_package "$SIGNED" "$id" "$VERSION" symbols true
 done
+make_package "$SIGNED" Maui.Tizen.Templates "$VERSION" package true
 
 AUTH_REPORT="$SIGNED/authenticode-report.json"
 python3 - "$AUTH_REPORT" "$SIGNED" "$FINGERPRINT" <<'PY'
@@ -1048,7 +1037,7 @@ expect_success "partial retry accepts repository-signature transformation only" 
 python3 - "$PLAN" <<'PY' || fail "partial retry plans primary and symbol packages independently"
 import json, sys
 actions=sorted(item["action"] for item in json.load(open(sys.argv[1]))["packages"])
-raise SystemExit(0 if actions == ["publish", "publish", "publish", "skip"] else 1)
+raise SystemExit(0 if actions == ["publish", "publish", "publish", "publish", "skip"] else 1)
 PY
 pass "partial retry plans primary and symbol packages independently"
 
@@ -1063,10 +1052,11 @@ expect_success "partial retry executes only missing publication" \
       --source https://api.nuget.org/v3/index.json \
       --certificate-sha256 "$FINGERPRINT" \
       --dotnet "$FAKE_PUSH"
-if [[ "$(wc -l < "$PUSH_LOG" | tr -d ' ')" == "3" ]] \
+if [[ "$(wc -l < "$PUSH_LOG" | tr -d ' ')" == "4" ]] \
     && grep -Fq "Maui.Tizen.Build.Tasks.${VERSION}.nupkg" "$PUSH_LOG" \
     && grep -Fq "Maui.Tizen.Build.Tasks.${VERSION}.snupkg" "$PUSH_LOG" \
     && grep -Fq "Maui.Tizen.Core.${VERSION}.snupkg" "$PUSH_LOG" \
+    && grep -Fq "Maui.Tizen.Templates.${VERSION}.nupkg" "$PUSH_LOG" \
     && ! grep -Fq "Maui.Tizen.Core.${VERSION}.nupkg" "$PUSH_LOG"; then
   pass "partial retry pushes only missing primary and symbol packages"
 else

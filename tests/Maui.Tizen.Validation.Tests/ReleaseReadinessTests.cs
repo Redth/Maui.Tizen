@@ -367,6 +367,10 @@ public class ReleaseWorkflowSecurityTests
             "$relative -ieq \"buildTransitive/$packageId.dll\"",
             authenticode,
             StringComparison.Ordinal);
+        Assert.Contains(
+            "$authenticodeOptionalPackageIds = @('Maui.Tizen.Templates')",
+            authenticode,
+            StringComparison.Ordinal);
     }
 
     [Fact]
