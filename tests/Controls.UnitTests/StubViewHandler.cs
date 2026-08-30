@@ -1,5 +1,6 @@
 using System;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
 
 namespace Microsoft.Maui.Platforms.Tizen.UnitTests;
@@ -194,6 +195,14 @@ internal sealed class NativeFaithfulDisposableContainerHandler :
 
 	public int DisposeAfterPlatformViewDisposedCount { get; private set; }
 
+	public int DisposeAfterPlatformViewDisposedAttemptCount { get; private set; }
+
+	public Action? BeforeDisposeAfterPlatformViewDisposed { get; set; }
+
+	public Exception? DisposeAfterPlatformViewDisposedFailure { get; set; }
+
+	public bool PreservePageAssociationAfterPlatformViewDisposed { get; set; }
+
 	public void DisconnectHandler()
 	{
 		DisconnectCount++;
@@ -212,10 +221,21 @@ internal sealed class NativeFaithfulDisposableContainerHandler :
 		DisconnectHandler();
 	}
 
-	public void DisposeAfterPlatformViewDisposed(object platformView)
+	public void DisposeAfterPlatformViewDisposed(Page page, object platformView)
 	{
+		DisposeAfterPlatformViewDisposedAttemptCount++;
+		BeforeDisposeAfterPlatformViewDisposed?.Invoke();
+
 		if (_disposed)
+		{
+			if (!PreservePageAssociationAfterPlatformViewDisposed
+				&& ReferenceEquals(page.Handler, this))
+			{
+				((Element)page).Handler = null;
+			}
+
 			return;
+		}
 
 		if (!ReferenceEquals(ContainerView, platformView))
 			throw new InvalidOperationException("The externally disposed view is not this handler's container.");
@@ -223,8 +243,19 @@ internal sealed class NativeFaithfulDisposableContainerHandler :
 		_disposed = true;
 		DisposeCount++;
 		DisposeAfterPlatformViewDisposedCount++;
+		if (!PreservePageAssociationAfterPlatformViewDisposed
+			&& ReferenceEquals(page.Handler, this))
+		{
+			((Element)page).Handler = null;
+		}
+		else if (!ReferenceEquals(page.Handler, this))
+		{
+			DisconnectHandler();
+		}
 		_platformResource.Dispose();
-		DisconnectHandler();
+
+		if (DisposeAfterPlatformViewDisposedFailure is not null)
+			throw DisposeAfterPlatformViewDisposedFailure;
 	}
 
 	public Size GetDesiredSize(double widthConstraint, double heightConstraint) => Size.Zero;

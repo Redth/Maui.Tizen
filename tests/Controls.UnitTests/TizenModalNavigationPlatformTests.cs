@@ -440,6 +440,66 @@ public class TizenModalNavigationPlatformTests
 	}
 
 	[Fact]
+	public async Task HandlerReleaseFailureKeepsTheModalTrackedForRetry()
+	{
+		var host = new FakeModalNavigationHost(StubMauiContext.Empty()) { CurrentPage = new ContentPage() };
+		var stack = new FakeNavigationStack();
+		var realizer = new FakeModalPageRealizer();
+		var platform = new TizenModalNavigationPlatform(host, stack, realizer);
+		var modal = new ContentPage();
+		host.RecordPush(modal);
+		await platform.PushModalAsync(modal, false);
+		var platformView = realizer.PlatformViewFor(modal);
+		var cleanupFailure = new InvalidOperationException("handler cleanup failed");
+		realizer.ReleaseFailures.Add(modal, cleanupFailure);
+		host.RecordPop(modal);
+
+		var failure = await Assert.ThrowsAsync<InvalidOperationException>(
+			() => platform.PopModalAsync(modal, false));
+
+		Assert.Same(cleanupFailure, failure);
+		Assert.False(stack.Contains(platformView));
+		Assert.Empty(realizer.Released);
+		Assert.Single(realizer.ReleaseAttempts);
+		Assert.Equal(1, realizer.DisposeCountFor(modal));
+
+		realizer.ReleaseFailures.Clear();
+		await platform.PopModalAsync(modal, false);
+
+		Assert.Equal(2, realizer.ReleaseAttempts.Count);
+		Assert.Equal(modal, Assert.Single(realizer.Released));
+		Assert.Equal(1, realizer.DisposeCountFor(modal));
+	}
+
+	[Fact]
+	public async Task ReentrantFrameworkDisposeDoesNotReleaseTrackedModalTwice()
+	{
+		var host = new FakeModalNavigationHost(StubMauiContext.Empty()) { CurrentPage = new ContentPage() };
+		var stack = new FakeNavigationStack();
+		var realizer = new FakeModalPageRealizer();
+		var platform = new TizenModalNavigationPlatform(host, stack, realizer);
+		var modal = new ContentPage();
+		host.RecordPush(modal);
+		await platform.PushModalAsync(modal, false);
+		var reentered = false;
+		realizer.BeforeRelease = (_, _, _) =>
+		{
+			if (reentered)
+				return;
+
+			reentered = true;
+			platform.Dispose();
+		};
+
+		platform.Dispose();
+
+		Assert.True(reentered);
+		Assert.Single(realizer.ReleaseAttempts);
+		Assert.Equal(modal, Assert.Single(realizer.Released));
+		Assert.Equal(1, realizer.DisposeCountFor(modal));
+	}
+
+	[Fact]
 	public async Task FrameworkDisposeAttemptsEveryCleanupLogsFailuresAndReturns()
 	{
 		var host = new FakeModalNavigationHost(StubMauiContext.Empty()) { CurrentPage = new ContentPage() };
@@ -790,6 +850,29 @@ public class TizenModalNavigationPlatformTests
 	}
 
 	[Fact]
+	public void NonDisposableDistinctContainerRequiresStackDisposedLifetimeOwnership()
+	{
+		var platformView = new FakeModalPageRealizer.FakePlatformView();
+		var containerView = new FakeModalPageRealizer.FakePlatformView();
+		var handler = new DisconnectClearsPlatformViewHandler(platformView)
+		{
+			ContainerView = containerView,
+			HasContainer = true,
+		};
+		var target = StubMauiContext.WithHandlers(new StubHandlersFactory(() => handler));
+		var page = new ContentPage();
+		var realizer = new TizenModalPageRealizer();
+
+		var failure = Assert.Throws<InvalidOperationException>(() => realizer.Realize(page, target));
+
+		Assert.Contains(nameof(ITizenModalHandlerLifetime), failure.Message);
+		Assert.Equal(1, handler.DisconnectCount);
+		Assert.Equal(1, platformView.DisposeCount);
+		Assert.Equal(1, containerView.DisposeCount);
+		Assert.Null(((Element)page).Handler);
+	}
+
+	[Fact]
 	public void ReplacedDisposableContainerHandlerReleasesOrphanedCaptureAndPreservesNewerHandler()
 	{
 		var platformView = new FakeModalPageRealizer.FakePlatformView();
@@ -847,6 +930,109 @@ public class TizenModalNavigationPlatformTests
 			Assert.Null(((Element)page).Handler);
 		else
 			Assert.Same(replacement, ((Element)page).Handler);
+	}
+
+	[Fact]
+	public void StackDisposedContainerCleanupFailureRetainsOwnershipForRetry()
+	{
+		var platformView = new FakeModalPageRealizer.FakePlatformView();
+		var containerView = new FakeModalPageRealizer.FakePlatformView();
+		var handler = new NativeFaithfulDisposableContainerHandler(platformView, containerView);
+		var cleanupFailure = new InvalidOperationException("lifetime cleanup failed");
+		handler.DisposeAfterPlatformViewDisposedFailure = cleanupFailure;
+		var target = StubMauiContext.WithHandlers(new StubHandlersFactory(() => handler));
+		var page = new ContentPage();
+		var realizer = new TizenModalPageRealizer();
+		var captured = realizer.Realize(page, target);
+		containerView.Dispose();
+
+		var failure = Assert.Throws<InvalidOperationException>(
+			() => realizer.Release(page, captured, platformViewDisposed: true));
+
+		Assert.Same(cleanupFailure, failure);
+		Assert.Equal(1, handler.DisposeAfterPlatformViewDisposedAttemptCount);
+		Assert.Equal(1, handler.DisposeAfterPlatformViewDisposedCount);
+		Assert.Equal(1, handler.DisposeCount);
+		Assert.Equal(1, platformView.DisposeCount);
+		Assert.Equal(1, containerView.DisposeCount);
+
+		handler.DisposeAfterPlatformViewDisposedFailure = null;
+		realizer.Release(page, captured, platformViewDisposed: true);
+
+		Assert.Equal(2, handler.DisposeAfterPlatformViewDisposedAttemptCount);
+		Assert.Equal(1, handler.DisposeAfterPlatformViewDisposedCount);
+		Assert.Equal(1, handler.DisposeCount);
+		Assert.Equal(1, platformView.DisposeCount);
+		Assert.Equal(1, containerView.DisposeCount);
+		Assert.Null(((Element)page).Handler);
+	}
+
+	[Fact]
+	public void StackDisposedContainerLifetimeMustDetachThePageBeforeReleaseCommits()
+	{
+		var platformView = new FakeModalPageRealizer.FakePlatformView();
+		var containerView = new FakeModalPageRealizer.FakePlatformView();
+		var handler = new NativeFaithfulDisposableContainerHandler(platformView, containerView)
+		{
+			PreservePageAssociationAfterPlatformViewDisposed = true,
+		};
+		var target = StubMauiContext.WithHandlers(new StubHandlersFactory(() => handler));
+		var page = new ContentPage();
+		var realizer = new TizenModalPageRealizer();
+		var captured = realizer.Realize(page, target);
+		containerView.Dispose();
+
+		var failure = Assert.Throws<InvalidOperationException>(
+			() => realizer.Release(page, captured, platformViewDisposed: true));
+
+		Assert.Contains("did not detach", failure.Message);
+		Assert.Same(handler, ((Element)page).Handler);
+		Assert.Equal(1, handler.DisposeAfterPlatformViewDisposedAttemptCount);
+		Assert.Equal(1, handler.DisposeCount);
+		Assert.Equal(1, platformView.DisposeCount);
+		Assert.Equal(1, containerView.DisposeCount);
+
+		handler.PreservePageAssociationAfterPlatformViewDisposed = false;
+		realizer.Release(page, captured, platformViewDisposed: true);
+
+		Assert.Equal(2, handler.DisposeAfterPlatformViewDisposedAttemptCount);
+		Assert.Equal(1, handler.DisposeCount);
+		Assert.Equal(1, platformView.DisposeCount);
+		Assert.Equal(1, containerView.DisposeCount);
+		Assert.Null(((Element)page).Handler);
+	}
+
+	[Fact]
+	public void ReentrantStackDisposedContainerReleaseRunsLifetimeCleanupOnce()
+	{
+		var platformView = new FakeModalPageRealizer.FakePlatformView();
+		var containerView = new FakeModalPageRealizer.FakePlatformView();
+		var handler = new NativeFaithfulDisposableContainerHandler(platformView, containerView);
+		var target = StubMauiContext.WithHandlers(new StubHandlersFactory(() => handler));
+		var page = new ContentPage();
+		var realizer = new TizenModalPageRealizer();
+		var captured = realizer.Realize(page, target);
+		var reentered = false;
+		handler.BeforeDisposeAfterPlatformViewDisposed = () =>
+		{
+			if (reentered)
+				return;
+
+			reentered = true;
+			realizer.Release(page, captured, platformViewDisposed: true);
+		};
+		containerView.Dispose();
+
+		realizer.Release(page, captured, platformViewDisposed: true);
+
+		Assert.True(reentered);
+		Assert.Equal(1, handler.DisposeAfterPlatformViewDisposedAttemptCount);
+		Assert.Equal(1, handler.DisposeAfterPlatformViewDisposedCount);
+		Assert.Equal(1, handler.DisposeCount);
+		Assert.Equal(1, handler.DisconnectCount);
+		Assert.Equal(1, platformView.DisposeCount);
+		Assert.Equal(1, containerView.DisposeCount);
+		Assert.Null(((Element)page).Handler);
 	}
 
 	[Fact]

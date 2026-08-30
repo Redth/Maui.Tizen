@@ -132,12 +132,18 @@ That ownership is recorded when realization chooses either `IViewHandler.Contain
 still owned by a disposable handler is left to that handler, while a disconnected handler that no
 longer references the capture cannot leak it.
 
-A disposable handler that exposes a distinct container must implement
-`ITizenModalHandlerLifetime`. If the native stack has already disposed that captured container, the
-realizer invokes `DisposeAfterPlatformViewDisposed` so the handler can release subscriptions and
-its other native resources without disposing the container twice. Realization rejects a disposable
-distinct-container handler without this contract before the native stack takes ownership.
-  Keeping them would fire the page lifecycle events twice.
+Every handler that exposes a distinct container must implement `ITizenModalHandlerLifetime`. If the
+native stack has already disposed that captured container, the realizer invokes
+`DisposeAfterPlatformViewDisposed` so the handler can detach the page association and release
+subscriptions and its other native resources without disposing the container twice. The callback
+must be idempotent because a partial failure remains owned and can be retried. Realization rejects
+an unsupported distinct-container handler before the native stack takes ownership.
+
+Both ownership layers commit release only after cleanup succeeds. The realizer retains an
+`Owned`/`Releasing`/`Released` tombstone for the captured view, and the modal platform retains its
+tracked page until the realizer returns successfully. Reentrant release is a no-op while cleanup is
+active; a failure returns ownership to the retryable state rather than forgetting the handler.
+
 - `_platformModalPages.Add/Remove` — the framework owns the platform stack and updates it *before*
   awaiting the platform, which is why `PushModalAsync` receives a page that is already on
   `IModalNavigationHost.PlatformModalStack`.

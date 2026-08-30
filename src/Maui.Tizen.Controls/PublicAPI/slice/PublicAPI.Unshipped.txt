@@ -155,7 +155,7 @@ Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher.SendTapped(Microsoft.Maui
 Microsoft.Maui.Platforms.Tizen.ITizenGestureHandlerFactory
 Microsoft.Maui.Platforms.Tizen.ITizenGestureHandlerFactory.CreateHandler(Microsoft.Maui.Controls.IGestureRecognizer! recognizer) -> Microsoft.Maui.Platforms.Tizen.TizenGestureHandler?
 Microsoft.Maui.Platforms.Tizen.ITizenModalHandlerLifetime
-Microsoft.Maui.Platforms.Tizen.ITizenModalHandlerLifetime.DisposeAfterPlatformViewDisposed(object! platformView) -> void
+Microsoft.Maui.Platforms.Tizen.ITizenModalHandlerLifetime.DisposeAfterPlatformViewDisposed(Microsoft.Maui.Controls.Page! page, object! platformView) -> void
 Microsoft.Maui.Platforms.Tizen.ITizenModalPageRealizer
 Microsoft.Maui.Platforms.Tizen.ITizenModalPageRealizer.Realize(Microsoft.Maui.Controls.Page! page, Microsoft.Maui.IMauiContext! mauiContext) -> object!
 Microsoft.Maui.Platforms.Tizen.ITizenModalPageRealizer.Release(Microsoft.Maui.Controls.Page! page, object! platformView, bool platformViewDisposed) -> void

@@ -274,7 +274,9 @@ internal sealed class FakeModalPageRealizer : ITizenModalPageRealizer
 
 	public List<Page> Released { get; } = new();
 	public List<(Page Page, bool PlatformViewDisposed)> Releases { get; } = new();
+	public List<(Page Page, bool PlatformViewDisposed)> ReleaseAttempts { get; } = new();
 	public Dictionary<Page, Exception> ReleaseFailures { get; } = new();
+	public Action<Page, object, bool>? BeforeRelease { get; set; }
 
 	public object Realize(Page page, IMauiContext mauiContext)
 	{
@@ -286,13 +288,16 @@ internal sealed class FakeModalPageRealizer : ITizenModalPageRealizer
 
 	public void Release(Page page, object platformView, bool platformViewDisposed)
 	{
-		Released.Add(page);
-		Releases.Add((page, platformViewDisposed));
+		ReleaseAttempts.Add((page, platformViewDisposed));
+		BeforeRelease?.Invoke(page, platformView, platformViewDisposed);
 
 		if (ReleaseFailures.TryGetValue(page, out var failure))
 		{
 			throw failure;
 		}
+
+		Released.Add(page);
+		Releases.Add((page, platformViewDisposed));
 
 		if (!platformViewDisposed)
 		{

@@ -22,14 +22,23 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// </remarks>
 	public sealed class TizenModalPageRealizer : ITizenModalPageRealizer
 	{
+		enum HandlerReleaseState
+		{
+			Owned,
+			Releasing,
+			Released,
+		}
+
 		sealed class HandlerOwnership
 		{
 			public required IElementHandler Handler { get; init; }
 			public bool CapturedFromContainer { get; init; }
 			public bool CapturedFromPlatformView { get; init; }
+			public HandlerReleaseState State { get; set; }
 		}
 
 		readonly ConditionalWeakTable<object, HandlerOwnership> _owners = new();
+		readonly object _ownersGate = new();
 
 		/// <inheritdoc/>
 		public object Realize(Page page, IMauiContext mauiContext)
@@ -94,21 +103,24 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 				if (containerView is not null
 					&& !ReferenceEquals(containerView, handlerPlatformView)
-					&& handler is IDisposable
 					&& handler is not ITizenModalHandlerLifetime)
 				{
 					throw new InvalidOperationException(
-						$"The disposable handler for '{page.GetType()}' exposes a distinct container view and must " +
+						$"The handler for '{page.GetType()}' exposes a distinct container view and must " +
 						$"implement '{nameof(ITizenModalHandlerLifetime)}' before it can be presented modally.");
 				}
 
-				_owners.Remove(platformView);
-				_owners.Add(platformView, new HandlerOwnership
+				lock (_ownersGate)
 				{
-					Handler = handler,
-					CapturedFromContainer = ReferenceEquals(containerView, platformView),
-					CapturedFromPlatformView = ReferenceEquals(handlerPlatformView, platformView),
-				});
+					_owners.Remove(platformView);
+					_owners.Add(platformView, new HandlerOwnership
+					{
+						Handler = handler,
+						CapturedFromContainer = ReferenceEquals(containerView, platformView),
+						CapturedFromPlatformView = ReferenceEquals(handlerPlatformView, platformView),
+					});
+				}
+
 				return platformView;
 			}
 			catch (Exception realizationFailure) when (handler is not null && ownsHandler)
@@ -133,13 +145,31 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ArgumentNullException.ThrowIfNull(page);
 			ArgumentNullException.ThrowIfNull(platformView);
 
-			var ownership = _owners.TryGetValue(platformView, out var storedOwnership)
-				? storedOwnership
-				: null;
+			if (!TryBeginRelease(platformView, out var ownership))
+				return;
+
+			try
+			{
+				ReleaseCore(page, platformView, platformViewDisposed, ownership);
+			}
+			catch
+			{
+				SetReleaseState(platformView, ownership, HandlerReleaseState.Owned);
+				throw;
+			}
+
+			SetReleaseState(platformView, ownership, HandlerReleaseState.Released);
+		}
+
+		void ReleaseCore(
+			Page page,
+			object platformView,
+			bool platformViewDisposed,
+			HandlerOwnership? ownership)
+		{
 			var handler = ownership is not null
 				? ownership.Handler
 				: page.Handler;
-			_owners.Remove(platformView);
 
 			if (handler is null)
 			{
@@ -152,6 +182,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 
 			List<Exception>? failures = null;
+			var lifetimeOwnsPageAssociation = false;
 			var handlerOwnsCapturedView = ownership is null
 				|| ownership.CapturedFromContainer
 				|| ownership.CapturedFromPlatformView;
@@ -176,9 +207,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 				{
 					if (handler is ITizenModalHandlerLifetime lifetime)
 					{
+						lifetimeOwnsPageAssociation = true;
 						try
 						{
-							lifetime.DisposeAfterPlatformViewDisposed(platformView);
+							lifetime.DisposeAfterPlatformViewDisposed(page, platformView);
 						}
 						catch (Exception ex)
 						{
@@ -259,7 +291,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 					}
 				}
 
-				if (ReferenceEquals(page.Handler, handler))
+				if (lifetimeOwnsPageAssociation && ReferenceEquals(page.Handler, handler))
+				{
+					(failures ??= new()).Add(new InvalidOperationException(
+						$"'{nameof(ITizenModalHandlerLifetime)}' did not detach the handler for '{page.GetType()}'."));
+				}
+
+				if (!lifetimeOwnsPageAssociation && ReferenceEquals(page.Handler, handler))
 				{
 					try
 					{
@@ -339,14 +377,57 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 		}
 
+		bool TryBeginRelease(object platformView, out HandlerOwnership? ownership)
+		{
+			lock (_ownersGate)
+			{
+				if (!_owners.TryGetValue(platformView, out ownership))
+					return true;
+
+				if (ownership.State != HandlerReleaseState.Owned)
+					return false;
+
+				ownership.State = HandlerReleaseState.Releasing;
+				return true;
+			}
+		}
+
+		void SetReleaseState(
+			object platformView,
+			HandlerOwnership? ownership,
+			HandlerReleaseState state)
+		{
+			if (ownership is null)
+				return;
+
+			lock (_ownersGate)
+			{
+				if (_owners.TryGetValue(platformView, out var current)
+					&& ReferenceEquals(current, ownership))
+				{
+					ownership.State = state;
+				}
+			}
+		}
+
 		static Exception? ReleaseHandlerOwnership(Element element, IElementHandler handler)
 		{
 			List<Exception>? failures = null;
 			object? platformView = null;
+			object? containerView = null;
 
 			try
 			{
 				platformView = handler.PlatformView;
+			}
+			catch (Exception ex)
+			{
+				(failures ??= new()).Add(ex);
+			}
+
+			try
+			{
+				containerView = (handler as IViewHandler)?.ContainerView;
 			}
 			catch (Exception ex)
 			{
@@ -378,20 +459,33 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 			else
 			{
-				try
-				{
-					handler.DisconnectHandler();
-				}
-				catch (Exception ex)
-				{
-					(failures ??= new()).Add(ex);
-				}
-
+				var disconnectRequired = true;
 				if (ReferenceEquals(element.Handler, handler))
 				{
 					try
 					{
 						element.Handler = null;
+					}
+					catch (Exception ex)
+					{
+						(failures ??= new()).Add(ex);
+					}
+
+					try
+					{
+						disconnectRequired = ReferenceEquals(handler.PlatformView, platformView);
+					}
+					catch (Exception ex)
+					{
+						(failures ??= new()).Add(ex);
+					}
+				}
+
+				if (disconnectRequired)
+				{
+					try
+					{
+						handler.DisconnectHandler();
 					}
 					catch (Exception ex)
 					{
@@ -406,6 +500,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 				catch (Exception ex)
 				{
 					(failures ??= new()).Add(ex);
+				}
+
+				if (!ReferenceEquals(containerView, platformView))
+				{
+					try
+					{
+						(containerView as IDisposable)?.Dispose();
+					}
+					catch (Exception ex)
+					{
+						(failures ??= new()).Add(ex);
+					}
 				}
 			}
 
@@ -445,6 +551,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			public required object PlatformView { get; init; }
 			public long Generation { get; set; }
 			public bool OperationOwned { get; set; }
+			public bool Releasing { get; set; }
 			public bool Released { get; set; }
 		}
 
@@ -581,7 +688,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
-			if (tracked.OperationOwned)
+			if (tracked.OperationOwned || tracked.Releasing)
 			{
 				throw new InvalidOperationException("The modal page already has an active native transition.");
 			}
@@ -812,25 +919,30 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		Exception? ReleaseTrackedModal(TrackedModal tracked, bool platformViewDisposed)
 		{
-			if (tracked.Released)
+			if (tracked.Released || tracked.Releasing)
 			{
 				return null;
 			}
 
-			tracked.Released = true;
-			tracked.OperationOwned = false;
-			_platformViews.Remove(tracked.Page);
-			_presentationOrder.Remove(tracked.Page);
+			tracked.Releasing = true;
 
 			try
 			{
 				_realizer.Release(tracked.Page, tracked.PlatformView, platformViewDisposed);
-				return null;
 			}
 			catch (Exception ex)
 			{
+				tracked.Releasing = false;
+				tracked.OperationOwned = false;
 				return ex;
 			}
+
+			tracked.Released = true;
+			tracked.Releasing = false;
+			tracked.OperationOwned = false;
+			_platformViews.Remove(tracked.Page);
+			_presentationOrder.Remove(tracked.Page);
+			return null;
 		}
 
 		void ReportTeardownFailure(Exception failure, Page page)
