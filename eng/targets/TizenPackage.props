@@ -56,7 +56,18 @@
       Imported from the project body, this file is evaluated before Sdk.targets, so
       inference sees the real value.
     -->
-    <TargetFramework Condition="'$(TargetFramework)' == ''">$(MauiTizenTargetFramework)</TargetFramework>
+    <!--
+      A whitespace-only value is treated as absent. An empty environment variable, or an
+      import that assigns TargetFramework conditionally and produces "", would otherwise
+      satisfy this condition's plain-equality form and leave the project with no target
+      framework at all - which the SDK reports much later as a project that simply produces
+      no inner build.
+
+      An override that IS a real value is honoured here and then rejected by the
+      ValidateTizenTargetFramework gate in Directory.Build.targets, so a Tizen project can
+      never quietly become a neutral one.
+    -->
+    <TargetFramework Condition="'$(TargetFramework.Trim())' == ''">$(MauiTizenTargetFramework)</TargetFramework>
     <SupportedOSPlatformVersion Condition="'$(SupportedOSPlatformVersion)' == ''">$(TizenPlatformVersion)</SupportedOSPlatformVersion>
     <TargetPlatformMinVersion Condition="'$(TargetPlatformMinVersion)' == ''">$(TizenPlatformVersion)</TargetPlatformMinVersion>
 

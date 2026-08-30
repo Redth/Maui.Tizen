@@ -1,0 +1,981 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Reflection.Metadata;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using Xunit;
+
+using Maui.Tizen.Build.Tasks;
+
+namespace Maui.Tizen.UnitTests;
+
+/// <summary>
+/// Asserts the shipped shape of the two packable projects.
+/// </summary>
+/// <remarks>
+/// Package layout is easy to break silently: a task assembly that lands in lib/ instead of
+/// buildTransitive/, or a missing native SkiaSharp binary, produces a package that restores
+/// cleanly and then fails at build time on someone else's machine. These tests pack for real
+/// and read the resulting archives.
+/// </remarks>
+[Trait("Category", "Packaging")]
+public class PackageContentTests : TestBase
+{
+	private static IReadOnlyList<string> EntriesOf(string packageId)
+		=> ProducedPackages.EntryNames(ProducedPackages.PathOf(packageId));
+
+	[Fact]
+	public void BuildTasksPackageShipsItsMSBuildEntryPoints()
+	{
+		var entries = EntriesOf("Maui.Tizen.Build.Tasks");
+
+		Assert.Contains("buildTransitive/Maui.Tizen.Build.Tasks.props", entries);
+		Assert.Contains("buildTransitive/Maui.Tizen.Build.Tasks.targets", entries);
+		Assert.Contains("buildTransitive/Maui.Tizen.Build.Tasks.dll", entries);
+	}
+
+	/// <summary>
+	/// A tasks package must not ship a lib/ folder: consumers would pick the task assembly up as
+	/// a compile time reference.
+	/// </summary>
+	[Fact]
+	public void BuildTasksPackageHasNoLibFolder()
+	{
+		Assert.DoesNotContain(EntriesOf("Maui.Tizen.Build.Tasks"), e => e.StartsWith("lib/", StringComparison.Ordinal));
+	}
+
+	/// <summary>
+	/// SkiaSharp resolves its native library by probing beside the managed assembly and in
+	/// architecture sub-folders. The layout mirrors Microsoft.Maui.Resizetizer's own package.
+	/// </summary>
+	[Theory]
+	[InlineData("buildTransitive/SkiaSharp.dll")]
+	[InlineData("buildTransitive/libSkiaSharp.dylib")]
+	[InlineData("buildTransitive/x64/libSkiaSharp.dll")]
+	[InlineData("buildTransitive/x86/libSkiaSharp.dll")]
+	[InlineData("buildTransitive/arm64/libSkiaSharp.dll")]
+	[InlineData("buildTransitive/x64/libSkiaSharp.so")]
+	[InlineData("buildTransitive/arm64/libSkiaSharp.so")]
+	[InlineData("buildTransitive/musl-x64/libSkiaSharp.so")]
+	public void BuildTasksPackageShipsNativeSkiaSharpFor(string entry)
+	{
+		Assert.Contains(entry, EntriesOf("Maui.Tizen.Build.Tasks"));
+	}
+
+	/// <summary>
+	/// Every operating system the tasks can run on must have a loadable binary in the package, in
+	/// a location <see cref="SkiaSharpHost"/> actually probes. A gap here is invisible until a
+	/// build runs on that OS and fails inside SkiaSharp's static initializer.
+	/// </summary>
+	[Theory]
+	[InlineData("libSkiaSharp.dylib", "macOS")]
+	[InlineData("libSkiaSharp.so", "Linux")]
+	[InlineData("libSkiaSharp.dll", "Windows")]
+	public void BuildTasksPackageCanResolveNativeSkiaSharpOn(string fileName, string operatingSystem)
+	{
+		var entries = EntriesOf("Maui.Tizen.Build.Tasks");
+
+		var probed = entries.Where(e =>
+		{
+			var name = e.Substring(e.LastIndexOf('/') + 1);
+			if (name != fileName)
+				return false;
+
+			var relative = e.Substring("buildTransitive/".Length);
+
+			// Flat beside the managed assembly, or exactly one architecture folder deep - the two
+			// layouts SkiaSharpHost probes inside a package.
+			return relative.Count(c => c == '/') <= 1;
+		}).ToList();
+
+		Assert.True(
+			probed.Count > 0,
+			$"The package ships no native SkiaSharp for {operatingSystem} in a probed location. Entries: {string.Join(", ", entries)}");
+	}
+
+	/// <summary>
+	/// Architecture coverage, asserted separately from presence so a package that silently drops
+	/// (say) arm64 Linux is caught rather than passing on the x64 entry alone.
+	/// </summary>
+	[Theory]
+	[InlineData("x64/libSkiaSharp.so")]
+	[InlineData("arm64/libSkiaSharp.so")]
+	[InlineData("musl-x64/libSkiaSharp.so")]
+	[InlineData("arm/libSkiaSharp.so")]
+	[InlineData("x64/libSkiaSharp.dll")]
+	[InlineData("x86/libSkiaSharp.dll")]
+	[InlineData("arm64/libSkiaSharp.dll")]
+	public void BuildTasksPackageShipsArchitectureSpecificNative(string relativePath)
+	{
+		Assert.Contains("buildTransitive/" + relativePath, EntriesOf("Maui.Tizen.Build.Tasks"));
+	}
+
+	[Fact]
+	public void MuslHostsDoNotFallBackToAGlibcNative()
+	{
+		var targets = ExtractedPackageFiles("Maui.Tizen.Build.Tasks")
+			.Single(file => file.Name == "Maui.Tizen.Build.Tasks.targets");
+		var project = File.ReadAllText(targets.Path);
+
+		Assert.Contains("'$(_MauiTizenPackagedHostIsMusl)' != 'true'", project, StringComparison.Ordinal);
+		Assert.Contains("Code=\"MAUITIZEN1010\"", project, StringComparison.Ordinal);
+		Assert.Contains("Code=\"MAUITIZEN1011\"", project, StringComparison.Ordinal);
+		Assert.Contains("Code=\"MAUITIZEN1012\"", project, StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// The macOS binary is a universal build, so it ships once, flat.
+	/// </summary>
+	[Fact]
+	public void BuildTasksPackageShipsTheMacOSNativeFlat()
+	{
+		Assert.Contains("buildTransitive/libSkiaSharp.dylib", EntriesOf("Maui.Tizen.Build.Tasks"));
+	}
+
+	/// <summary>
+	/// The managed task assembly and the natives must sit in the same folder, because that folder
+	/// is what <c>UsingTask AssemblyFile</c> resolves against and what the resolver probes from.
+	/// </summary>
+	[Fact]
+	public void BuildTasksPackagePlacesManagedTaskAlongsideItsNativeAssets()
+	{
+		var entries = EntriesOf("Maui.Tizen.Build.Tasks");
+
+		Assert.Contains("buildTransitive/Maui.Tizen.Build.Tasks.dll", entries);
+		Assert.Contains("buildTransitive/SkiaSharp.dll", entries);
+		Assert.Contains("buildTransitive/libSkiaSharp.dylib", entries);
+	}
+
+	/// <summary>
+	/// These are host build-time binaries. They must never be advertised as package content that a
+	/// Tizen application would carry, which is what suppressed dependencies plus the
+	/// developmentDependency flag guarantee.
+	/// </summary>
+	[Fact]
+	public void BuildTasksPackageDoesNotShipNativeAssetsAsApplicationContent()
+	{
+		var entries = EntriesOf("Maui.Tizen.Build.Tasks");
+
+		Assert.DoesNotContain(entries, e => e.StartsWith("runtimes/", StringComparison.Ordinal));
+		Assert.DoesNotContain(entries, e => e.StartsWith("contentFiles/", StringComparison.Ordinal));
+		Assert.DoesNotContain(entries, e => e.StartsWith("content/", StringComparison.Ordinal));
+
+		// Every shipped file lives under buildTransitive, i.e. is MSBuild-only.
+		Assert.All(
+			entries.Where(e => !e.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase) && e != "README.md"),
+			e => Assert.StartsWith("buildTransitive/", e));
+	}
+
+	/// <summary>
+	/// The shipped Linux binaries must not require libfontconfig.
+	/// </summary>
+	/// <remarks>
+	/// This is the regression that broke CI. The default SkiaSharp.NativeAssets.Linux build links
+	/// against libfontconfig.so.1, which is absent from the dotnet/sdk container images and is not
+	/// guaranteed on a build agent. When it is missing the failure surfaces as a bare
+	/// "The type initializer for 'SkiaSharp.SKData' threw an exception" from whichever MSBuild
+	/// target happened to rasterize first - no mention of fontconfig, no mention of Skia's native
+	/// library. Reading the ELF dependencies directly means a future package bump that quietly
+	/// reintroduces the dependency fails here instead, on any developer machine.
+	/// </remarks>
+	[Fact]
+	public void ShippedLinuxNativesDoNotRequireFontconfig()
+	{
+		var natives = ExtractedPackageFiles("Maui.Tizen.Build.Tasks")
+			.Where(f => f.Name.EndsWith(".so", StringComparison.Ordinal))
+			.ToList();
+
+		Assert.NotEmpty(natives);
+
+		foreach (var native in natives)
+		{
+			Assert.True(ElfReader.IsElf(native.Path), $"'{native.Name}' is not a valid ELF binary.");
+
+			var needed = ElfReader.GetNeededLibraries(native.Path);
+
+			Assert.DoesNotContain(
+				needed,
+				n => n.StartsWith("libfontconfig", StringComparison.OrdinalIgnoreCase));
+
+			// Sanity check that the dependency list was really parsed rather than coming back
+			// empty, which would make the assertion above vacuous.
+			Assert.Contains(needed, n => n.StartsWith("libc", StringComparison.OrdinalIgnoreCase)
+				|| n.StartsWith("ld-", StringComparison.OrdinalIgnoreCase));
+		}
+	}
+
+	/// <summary>
+	/// Every packable project declares <c>PackageReadmeFile</c>, so the readme must actually be in
+	/// the package or pack fails with NU5039.
+	/// </summary>
+	/// <remarks>
+	/// The readme is contributed by a shared <c>ItemGroup</c> in Directory.Build.props whose
+	/// condition reads <c>$(IsPackable)</c>, a property each project sets in its own body - which
+	/// looks like it should not work, because Directory.Build.props is imported first.
+	///
+	/// It does work: MSBuild evaluates ALL properties, across the project body and every import,
+	/// before it evaluates ANY items. A property assigned inside Directory.Build.props sees the
+	/// pre-body value, but an item condition in that same file sees the final one.
+	///
+	/// This test deliberately asserts the OUTCOME rather than where the item is declared, so it
+	/// keeps protecting against NU5039 if that ItemGroup is ever moved to Directory.Build.targets
+	/// or restructured.
+	/// </remarks>
+	[Theory]
+	[InlineData("Maui.Tizen.Build.Tasks")]
+	[InlineData("Maui.Tizen.Templates")]
+	public void PackageShipsTheReadmeItDeclares(string packageId)
+	{
+		var nuspec = ReadNuspec(packageId);
+
+		var declared = System.Text.RegularExpressions.Regex.Match(nuspec, "<readme>([^<]+)</readme>");
+		Assert.True(declared.Success, $"'{packageId}' does not declare a <readme> element.");
+
+		var readmePath = declared.Groups[1].Value.Replace('\\', '/');
+
+		Assert.Contains(
+			readmePath,
+			EntriesOf(packageId));
+	}
+
+	[Fact]
+	public void BuildTasksPackageIsMarkedAsADevelopmentDependency()
+	{
+		var nuspec = ReadNuspec("Maui.Tizen.Build.Tasks");
+		Assert.Contains("<developmentDependency>true</developmentDependency>", nuspec);
+	}
+
+	[Fact]
+	public void TemplatePackageShipsTheTizenTemplate()
+	{
+		var entries = EntriesOf("Maui.Tizen.Templates");
+
+		Assert.Contains("content/templates/maui-tizen/.template.config/template.json", entries);
+		Assert.Contains("content/templates/maui-tizen/MauiTizenApp.csproj", entries);
+		Assert.Contains("content/templates/maui-tizen/MauiProgram.cs", entries);
+		Assert.Contains("content/templates/maui-tizen/Platforms/Tizen/Main.cs", entries);
+		Assert.Contains("content/templates/maui-tizen/Platforms/Tizen/tizen-manifest.xml", entries);
+	}
+
+	/// <summary>
+	/// Every template file must land under the directory that holds <c>.template.config</c>, with
+	/// its tree intact.
+	/// </summary>
+	/// <remarks>
+	/// A template package is only a template package if the tree survives. Flattened into
+	/// <c>content/</c>, the package still installs and <c>dotnet new</c> still "succeeds" - it
+	/// just writes package internals into the user's folder instead of a project, which is a
+	/// failure nobody attributes to packing. Asserting the shape here, and instantiating for real
+	/// below, means neither half can regress unnoticed.
+	/// </remarks>
+	[Fact]
+	public void TemplatePackageKeepsTheTemplateDirectoryTree()
+	{
+		var entries = EntriesOf("Maui.Tizen.Templates");
+
+		var templateRoot = "content/templates/maui-tizen/";
+		var templateEntries = entries.Where(e => e.StartsWith("content/", StringComparison.Ordinal)).ToList();
+
+		Assert.NotEmpty(templateEntries);
+		Assert.All(templateEntries, e => Assert.StartsWith(templateRoot, e, StringComparison.Ordinal));
+
+		// Nothing flattened: the deepest authored file must still be nested.
+		Assert.Contains(templateEntries, e => e.EndsWith("/Resources/AppIcon/appicon.svg", StringComparison.Ordinal));
+
+		// And the source tree and the package tree agree file for file.
+		var sourceRoot = Path.Combine(RepositoryRoot, "src", "Maui.Tizen.Templates", "templates", "maui-tizen");
+		var expected = Directory
+			.GetFiles(sourceRoot, "*", SearchOption.AllDirectories)
+			.Select(p => templateRoot + Path.GetRelativePath(sourceRoot, p).Replace('\\', '/'))
+			.OrderBy(p => p, StringComparer.Ordinal)
+			.ToList();
+
+		Assert.Equal(expected, templateEntries.OrderBy(p => p, StringComparer.Ordinal).ToList());
+	}
+
+	[Fact]
+	public void TemplatePackageIsMarkedAsATemplatePackage()
+	{
+		Assert.Contains("<packageTypes>", ReadNuspec("Maui.Tizen.Templates"));
+	}
+
+	/// <summary>
+	/// Two packs of identical sources must ship identical content.
+	/// </summary>
+	/// <remarks>
+	/// This compares the packages by NORMALIZED ENTRIES - the shipped entry names plus a hash of
+	/// each entry's bytes - rather than by comparing archives byte for byte or by comparing zip
+	/// entry timestamps. Those differ between two packs by design: NuGet stamps the .nuspec and
+	/// the OPC bookkeeping per pack, and zip entries carry the local file's modification time.
+	/// A byte or timestamp comparison would therefore either fail always or, if narrowed to a
+	/// single archive read twice, assert nothing at all - which is what the previous version of
+	/// this test did: it called the same accessor twice on the same file.
+	/// </remarks>
+	[Fact]
+	public void PackingTheSameSourcesTwiceProducesTheSameContent()
+	{
+		var second = ProducedPackages.PackAgain();
+
+		foreach (var packageId in new[] { "Maui.Tizen.Build.Tasks", "Maui.Tizen.Templates" })
+		{
+			var first = NormalizedContent(ProducedPackages.PathOf(packageId));
+			var repeat = NormalizedContent(ProducedPackages.PathOf(packageId, second));
+
+			Assert.Equal(first, repeat);
+		}
+	}
+
+	/// <summary>
+	/// Entry name to content hash, for every shipped entry. The .nuspec is compared by name only:
+	/// it legitimately carries per-pack metadata.
+	/// </summary>
+	private static IReadOnlyList<string> NormalizedContent(string packagePath)
+	{
+		using var archive = ZipFile.OpenRead(packagePath);
+
+		return archive.Entries
+			.Select(e => e.FullName.Replace('\\', '/'))
+			.Where(ProducedPackages.IsMeaningfulEntry)
+			.OrderBy(n => n, StringComparer.Ordinal)
+			.Select(name =>
+			{
+				if (name.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase))
+					return name + " (metadata)";
+
+				using var stream = archive.GetEntry(name)!.Open();
+				using var sha = System.Security.Cryptography.SHA256.Create();
+				return name + " " + Convert.ToHexString(sha.ComputeHash(stream));
+			})
+			.ToList();
+	}
+
+	/// <summary>
+	/// Extracts the package once and returns its files on disk, for assertions that need to read
+	/// binary content rather than just entry names.
+	/// </summary>
+	private static IReadOnlyList<(string Name, string Path)> ExtractedPackageFiles(string packageId)
+	{
+		var source = ProducedPackages.PathOf(packageId);
+
+		var destination = Path.Combine(ProducedPackages.Directory, "extracted", packageId);
+
+		if (!Directory.Exists(destination))
+		{
+			Directory.CreateDirectory(destination);
+			ZipFile.ExtractToDirectory(source, destination, overwriteFiles: true);
+		}
+
+		return Directory
+			.GetFiles(destination, "*", SearchOption.AllDirectories)
+			.Select(p => (Name: Path.GetFileName(p), Path: p))
+			.ToList();
+	}
+
+	/// <summary>
+	/// The task assembly's full managed dependency closure must ship beside it.
+	/// </summary>
+	/// <remarks>
+	/// These four are SkiaSharp's netstandard2.0 dependencies. They are present in the .NET Core
+	/// MSBuild's shared framework, so <c>dotnet build</c> loads the task with or without them -
+	/// which is exactly why their absence was invisible here. On .NET Framework msbuild.exe, the
+	/// host Visual Studio uses, nothing guarantees them next to a task assembly loaded from a
+	/// package folder, and the task fails to load.
+	/// </remarks>
+	[Theory]
+	[InlineData("buildTransitive/System.Memory.dll")]
+	[InlineData("buildTransitive/System.Buffers.dll")]
+	[InlineData("buildTransitive/System.Numerics.Vectors.dll")]
+	[InlineData("buildTransitive/System.Runtime.CompilerServices.Unsafe.dll")]
+	public void BuildTasksPackageShipsTheManagedDependencyClosure(string entry)
+	{
+		Assert.Contains(entry, EntriesOf("Maui.Tizen.Build.Tasks"));
+	}
+
+	/// <summary>
+	/// Assemblies the MSBuild host is guaranteed to provide on BOTH .NET Core MSBuild and .NET
+	/// Framework msbuild.exe. Anything else a shipped assembly references has to be in the package.
+	/// </summary>
+	private static readonly HashSet<string> HostProvidedAssemblies = new(StringComparer.OrdinalIgnoreCase)
+	{
+		// The netstandard2.0 facade and the .NET Framework core, both present in either host.
+		"netstandard",
+		"mscorlib",
+		"System",
+		"System.Core",
+
+		// MSBuild's own contract, which is by definition loaded by whatever is running the task.
+		"Microsoft.Build.Framework",
+		"Microsoft.Build.Utilities.Core",
+		"Microsoft.Build.Tasks.Core",
+	};
+
+	/// <summary>
+	/// Every assembly reference of every managed assembly in the package must resolve, either
+	/// inside the package or from the MSBuild host.
+	/// </summary>
+	/// <remarks>
+	/// The named-entry assertions above pin today's closure; this one pins the RULE, so the next
+	/// SkiaSharp bump that introduces a new dependency fails here instead of on a consumer's
+	/// machine. It reads the shipped assemblies' metadata rather than the project file, so it
+	/// cannot be satisfied by a packing declaration that did not actually take effect.
+	/// </remarks>
+	[Fact]
+	public void EveryShippedAssemblyCanResolveItsReferences()
+	{
+		// Flat, beside the task assembly: that is the folder MSBuild probes for a task's
+		// dependencies. Architecture sub-folders hold natives, which have no managed references.
+		var managed = ExtractedPackageFiles("Maui.Tizen.Build.Tasks")
+			.Where(f => f.Name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+			.Where(f => string.Equals(Path.GetFileName(Path.GetDirectoryName(f.Path)), "buildTransitive", StringComparison.Ordinal))
+			.ToList();
+
+		Assert.NotEmpty(managed);
+
+		var shipped = new HashSet<string>(
+			managed.Select(f => Path.GetFileNameWithoutExtension(f.Name)),
+			StringComparer.OrdinalIgnoreCase);
+
+		// The task assembly itself must be one of them, otherwise this test is asserting nothing.
+		Assert.Contains("Maui.Tizen.Build.Tasks", shipped);
+
+		var unsatisfied = new List<string>();
+
+		foreach (var (name, path) in managed)
+		{
+			foreach (var reference in AssemblyReferencesOf(path))
+			{
+				if (!shipped.Contains(reference) && !HostProvidedAssemblies.Contains(reference))
+					unsatisfied.Add($"{name} -> {reference}");
+			}
+		}
+
+		Assert.True(
+			unsatisfied.Count == 0,
+			"The package does not ship the full managed dependency closure of its MSBuild task. "
+				+ "These references resolve on .NET Core MSBuild only by accident of the shared framework "
+				+ "and would fail to load under .NET Framework msbuild.exe: "
+				+ string.Join(", ", unsatisfied));
+	}
+
+	/// <summary>Assembly reference names of a managed assembly; empty for a native binary.</summary>
+	private static IReadOnlyList<string> AssemblyReferencesOf(string path)
+	{
+		using var stream = File.OpenRead(path);
+		using var peReader = new System.Reflection.PortableExecutable.PEReader(stream);
+
+		if (!peReader.HasMetadata)
+			return Array.Empty<string>();
+
+		var reader = peReader.GetMetadataReader();
+
+		return reader.AssemblyReferences
+			.Select(handle => reader.GetString(reader.GetAssemblyReference(handle).Name))
+			.ToList();
+	}
+
+	/// <summary>
+	/// The documented build host matrix and the shipped natives must agree, in both directions.
+	/// </summary>
+	/// <remarks>
+	/// A host matrix is only useful if it is true, and a table in a markdown file rots silently.
+	/// Asserting it both ways means a native that is dropped from the package fails here, and so
+	/// does one that is added without being written down - which is the case that matters for
+	/// musl ARM64, where the honest answer is "no binary exists upstream" and the build has to
+	/// fail with MAUITIZEN1012 rather than load a glibc binary.
+	/// </remarks>
+	[Fact]
+	public void TheDocumentedHostMatrixMatchesTheShippedNatives()
+	{
+		var architecture = File.ReadAllText(Path.Combine(RepositoryRoot, "docs", "architecture.md"));
+
+		var matrix = Regex.Match(
+			architecture,
+			@"## Build host matrix(?<body>.*?)^## ",
+			RegexOptions.Singleline | RegexOptions.Multiline);
+
+		Assert.True(matrix.Success, "docs/architecture.md no longer documents a build host matrix.");
+
+		var body = matrix.Groups["body"].Value;
+
+		// The unsupported host is named, with the diagnostic a developer will actually see.
+		Assert.Contains("linux-musl-arm64", body, StringComparison.Ordinal);
+		Assert.Contains("MAUITIZEN1012", body, StringComparison.Ordinal);
+
+		var documented = Regex
+			.Matches(body, @"`(buildTransitive/[^`]+)`")
+			.Select(m => m.Groups[1].Value)
+			.ToHashSet(StringComparer.Ordinal);
+
+		Assert.NotEmpty(documented);
+
+		var shippedNatives = EntriesOf("Maui.Tizen.Build.Tasks")
+			.Where(e => Path.GetFileName(e).StartsWith("libSkiaSharp", StringComparison.Ordinal))
+			.ToList();
+
+		Assert.NotEmpty(shippedNatives);
+
+		// Everything the matrix promises is in the package...
+		foreach (var entry in documented.Where(d => Path.GetFileName(d).StartsWith("libSkiaSharp", StringComparison.Ordinal)))
+			Assert.Contains(entry, shippedNatives);
+
+		// ...and the package ships no native the matrix does not mention.
+		foreach (var entry in shippedNatives)
+		{
+			Assert.True(
+				documented.Contains(entry),
+				$"'{entry}' ships but is absent from the build host matrix in docs/architecture.md.");
+		}
+	}
+
+	/// <summary>
+	/// Every shipped managed assembly must be REACHABLE from the task assembly.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The test above pins that the closure is complete. This one pins that it is nothing more.
+	/// The two failures are different and only one of them is loud: a missing dependency breaks
+	/// the task on a consumer's machine, whereas an extra assembly ships silently and is then
+	/// loaded from beside the task by MSBuild's probing - a stale copy of something the consumer
+	/// also references, resolved from the package rather than from their own graph.
+	/// </para>
+	/// <para>
+	/// The package used to be assembled by globbing the build output directory, which is a claim
+	/// that everything in an output folder belongs to this project. It does not: an output folder
+	/// accumulates renamed experiments, files copied in by hand, and dependencies left over from
+	/// before a package downgrade, and every one of them was packed. Enumerating the resolved
+	/// copy-local closure instead is what makes this assertion possible at all, and asserting it
+	/// here is what stops the glob coming back.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void EveryShippedAssemblyIsReachableFromTheTaskAssembly()
+	{
+		var managed = ExtractedPackageFiles("Maui.Tizen.Build.Tasks")
+			.Where(f => f.Name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+			.Where(f => string.Equals(Path.GetFileName(Path.GetDirectoryName(f.Path)), "buildTransitive", StringComparison.Ordinal))
+			.ToDictionary(f => Path.GetFileNameWithoutExtension(f.Name), f => f.Path, StringComparer.OrdinalIgnoreCase);
+
+		Assert.Contains("Maui.Tizen.Build.Tasks", (IReadOnlyCollection<string>)managed.Keys);
+
+		var reached = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		var queue = new Queue<string>();
+		queue.Enqueue("Maui.Tizen.Build.Tasks");
+		reached.Add("Maui.Tizen.Build.Tasks");
+
+		while (queue.Count > 0)
+		{
+			var current = queue.Dequeue();
+
+			foreach (var reference in AssemblyReferencesOf(managed[current]))
+			{
+				if (managed.ContainsKey(reference) && reached.Add(reference))
+					queue.Enqueue(reference);
+			}
+		}
+
+		var unreachable = managed.Keys.Where(name => !reached.Contains(name)).OrderBy(n => n, StringComparer.Ordinal).ToList();
+
+		Assert.True(
+			unreachable.Count == 0,
+			"These assemblies ship in buildTransitive/ but nothing in the package references them, so they are "
+				+ "not part of the task's dependency closure and must not be there: "
+				+ string.Join(", ", unreachable));
+	}
+
+	/// <summary>
+	/// An unrelated assembly sitting in the build output directory must not be packaged.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is the defect the reachability test above describes, exercised end to end rather than
+	/// argued about: the package contents used to be a wildcard over $(TargetDir), so anything
+	/// that happened to be in the output folder shipped inside buildTransitive/ and would be
+	/// loaded from beside the task assembly on a consumer's machine.
+	/// </para>
+	/// <para>
+	/// The stale file here is a real, loadable managed assembly - a copy of one the build genuinely
+	/// produced - because that is the case a filter on extension or on validity cannot catch, and
+	/// it is the realistic one: a renamed experiment, a dependency left over from before a package
+	/// downgrade, output from a project that once wrote to the same folder.
+	/// </para>
+	/// <para>
+	/// It runs in an ISOLATED output directory so the repository's own artifacts/ tree is never
+	/// polluted with a file that would then be picked up by every other pack in the run.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void AStaleAssemblyInTheOutputDirectoryIsNotPackaged()
+	{
+		var workspace = CreateTempDirectory("maui-tizen-stale-output");
+
+		var binaries = Path.Combine(workspace, "bin") + Path.DirectorySeparatorChar;
+		var intermediate = Path.Combine(workspace, "obj") + Path.DirectorySeparatorChar;
+		var packages = Path.Combine(workspace, "pkg");
+
+		var project = Path.Combine(RepositoryRoot, "src", "Maui.Tizen.Build.Tasks", "Maui.Tizen.Build.Tasks.csproj");
+
+		var isolation = new[]
+		{
+			"-p:BaseOutputPath=" + binaries,
+			"-p:BaseIntermediateOutputPath=" + intermediate,
+			"-c", "Release",
+		};
+
+		RunDotnet(new[] { "build", project }.Concat(isolation).ToArray());
+
+		var outputDirectory = Path.Combine(binaries, "Release", "netstandard2.0");
+		Assert.True(Directory.Exists(outputDirectory), $"The isolated build produced no output at '{outputDirectory}'.");
+
+		// A valid managed assembly that this build did not produce.
+		var stale = Path.Combine(outputDirectory, "MauiTizenStaleLeftover.dll");
+		File.Copy(Path.Combine(outputDirectory, "SkiaSharp.dll"), stale, overwrite: true);
+		Assert.NotEmpty(AssemblyReferencesOf(stale));
+
+		RunDotnet(new[] { "pack", project, "--no-build", "-p:PackageOutputPath=" + packages }.Concat(isolation).ToArray());
+
+		var produced = Directory.GetFiles(packages, "Maui.Tizen.Build.Tasks.*.nupkg").Single();
+		var entries = ProducedPackages.EntryNames(produced);
+
+		// The stale file was there to be found...
+		Assert.True(File.Exists(stale), "The stale assembly disappeared before packing, so this test proved nothing.");
+
+		// ...and it is not in the package.
+		Assert.DoesNotContain("buildTransitive/MauiTizenStaleLeftover.dll", entries);
+		Assert.DoesNotContain(entries, e => e.Contains("StaleLeftover", StringComparison.OrdinalIgnoreCase));
+
+		// The owned closure is still complete, so this did not pass by packaging nothing.
+		foreach (var expected in new[]
+		{
+			"buildTransitive/Maui.Tizen.Build.Tasks.dll",
+			"buildTransitive/SkiaSharp.dll",
+			"buildTransitive/System.Memory.dll",
+			"buildTransitive/System.Buffers.dll",
+			"buildTransitive/System.Numerics.Vectors.dll",
+			"buildTransitive/System.Runtime.CompilerServices.Unsafe.dll",
+		})
+		{
+			Assert.Contains(expected, entries);
+		}
+	}
+
+	private static void RunDotnet(params string[] arguments)
+	{
+		var startInfo = new ProcessStartInfo("dotnet")
+		{
+			WorkingDirectory = RepositoryRoot,
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			UseShellExecute = false,
+		};
+
+		foreach (var argument in arguments)
+			startInfo.ArgumentList.Add(argument);
+
+		startInfo.ArgumentList.Add("--nologo");
+		startInfo.ArgumentList.Add("-v:q");
+
+		foreach (var isolation in ConfigureIsolatedMSBuild(startInfo))
+			startInfo.ArgumentList.Add(isolation);
+
+		using var process = Process.Start(startInfo)!;
+		var log = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
+		process.WaitForExit();
+
+		Assert.True(process.ExitCode == 0, $"'dotnet {string.Join(' ', arguments)}' failed:{Environment.NewLine}{log}");
+	}
+
+	private static string ReadNuspec(string packageId)
+	{
+		using var archive = ZipFile.OpenRead(ProducedPackages.PathOf(packageId));
+		var entry = archive.Entries.Single(e => e.FullName.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase));
+		using var reader = new StreamReader(entry.Open());
+		return reader.ReadToEnd();
+	}
+}
+
+/// <summary>
+/// Keeps the emitted template aligned with the repository's frozen target framework contract.
+/// </summary>
+public class TemplateContentTests : TestBase
+{
+	private static string TemplateDirectory =>
+		Path.Combine(RepositoryRoot, "src", "Maui.Tizen.Templates", "templates", "maui-tizen");
+
+	private static string ReadRepositoryProperty(string name)
+	{
+		var props = File.ReadAllText(Path.Combine(RepositoryRoot, "Directory.Build.props"));
+		var match = Regex.Match(props, $"<{name}>([^<]+)</{name}>");
+		Assert.True(match.Success, $"Directory.Build.props does not declare <{name}>.");
+		return match.Groups[1].Value;
+	}
+
+	[Fact]
+	public void TemplateTargetsTheRepositoryTargetFramework()
+	{
+		var dotnetVersion = ReadRepositoryProperty("DotNetVersion");
+		var platformVersion = ReadRepositoryProperty("TizenPlatformVersion");
+
+		var csproj = File.ReadAllText(Path.Combine(TemplateDirectory, "MauiTizenApp.csproj"));
+		var template = JsonDocument.Parse(File.ReadAllText(Path.Combine(TemplateDirectory, ".template.config", "template.json")));
+
+		var placeholder = template.RootElement
+			.GetProperty("symbols").GetProperty("TizenPlatformVersion");
+
+		Assert.Equal(platformVersion, placeholder.GetProperty("defaultValue").GetString());
+
+		// The TFM is versioned, never a bare net11.0-tizen.
+		Assert.Contains($"<TargetFramework>net{dotnetVersion}-tizenTIZEN_PLATFORM_VERSION</TargetFramework>", csproj);
+	}
+
+	[Fact]
+	public void TemplateManifestApiVersionMatchesTheRepositoryContract()
+	{
+		var expected = ReadRepositoryProperty("TizenManifestApiVersion");
+
+		var template = JsonDocument.Parse(File.ReadAllText(Path.Combine(TemplateDirectory, ".template.config", "template.json")));
+		var symbol = template.RootElement.GetProperty("symbols").GetProperty("TizenApiVersion");
+
+		Assert.Equal(expected, symbol.GetProperty("defaultValue").GetString());
+
+		var manifest = File.ReadAllText(Path.Combine(TemplateDirectory, "Platforms", "Tizen", "tizen-manifest.xml"));
+		Assert.Contains("api-version=\"TIZEN_API_VERSION\"", manifest);
+	}
+
+	private static string ReadTemplateProjectWithoutComments()
+		=> Regex.Replace(
+			File.ReadAllText(Path.Combine(TemplateDirectory, "MauiTizenApp.csproj")),
+			"<!--.*?-->",
+			string.Empty,
+			RegexOptions.Singleline);
+
+	/// <summary>
+	/// The TizenFX reference pack must be declared once, in eng/Maui.props, and must NEVER be a
+	/// PackageReference in the emitted project.
+	/// </summary>
+	/// <remarks>
+	/// Samsung.Tizen.Ref.API15 has the <c>DotnetPlatform</c> package type, which NuGet refuses to
+	/// install through PackageReference (NU1213). The Samsung workload supplies it as a reference
+	/// pack, resolved from the tizen platform version in the target framework. The template used
+	/// to reference it explicitly, which meant the one configuration the template exists to serve
+	/// - a machine with the workload installed - was the configuration it broke.
+	///
+	/// Comments are stripped before matching: the template file explains this rule in prose, and
+	/// the prose names the very reference it forbids.
+	/// </remarks>
+	[Fact]
+	public void TemplateNeverPackageReferencesTheTizenReferencePack()
+	{
+		var mauiProps = File.ReadAllText(Path.Combine(RepositoryRoot, "eng", "Maui.props"));
+		var expectedId = Regex.Match(mauiProps, "<TizenReferencePackId[^>]*>([^<]+)</TizenReferencePackId>").Groups[1].Value;
+		Assert.False(string.IsNullOrEmpty(expectedId), "eng/Maui.props does not declare <TizenReferencePackId>.");
+
+		var csproj = ReadTemplateProjectWithoutComments();
+
+		Assert.DoesNotMatch(new Regex($@"<PackageReference\s+Include=""{Regex.Escape(expectedId)}"""), csproj);
+
+		var template = JsonDocument.Parse(File.ReadAllText(Path.Combine(TemplateDirectory, ".template.config", "template.json")));
+
+		// The symbol that fed the reference is gone too, so nothing can quietly re-add it.
+		Assert.False(
+			template.RootElement.GetProperty("symbols").TryGetProperty("TizenRefPackVersion", out _),
+			"The template still declares a TizenFX reference pack version symbol.");
+	}
+
+	/// <summary>
+	/// The MAUI packages are on their own version line and must be pinned to the repository's
+	/// declared development baseline, not to the Maui.Tizen version.
+	/// </summary>
+	[Fact]
+	public void TemplatePinsTheMauiPackagesToTheDevelopmentBaseline()
+	{
+		var packages = File.ReadAllText(Path.Combine(RepositoryRoot, "Directory.Packages.props"));
+		var expected = Regex
+			.Match(packages, @"<PackageVersion\s+Include=""Microsoft\.Maui\.Controls""\s+Version=""([^""]+)""")
+			.Groups[1].Value;
+
+		Assert.False(string.IsNullOrEmpty(expected), "Directory.Packages.props does not pin Microsoft.Maui.Controls.");
+
+		var template = JsonDocument.Parse(File.ReadAllText(Path.Combine(TemplateDirectory, ".template.config", "template.json")));
+		var symbol = template.RootElement.GetProperty("symbols").GetProperty("MauiVersion");
+
+		Assert.Equal(expected, symbol.GetProperty("defaultValue").GetString());
+
+		var csproj = File.ReadAllText(Path.Combine(TemplateDirectory, "MauiTizenApp.csproj"));
+		Assert.Contains(@"<PackageReference Include=""Microsoft.Maui.Controls"" Version=""MAUI_VERSION"" />", csproj);
+	}
+
+	/// <summary>
+	/// The Tizen references must be conditioned so the generated project can grow other target
+	/// frameworks without dragging the Tizen backend into them.
+	/// </summary>
+	[Fact]
+	public void TizenPackageReferencesAreConditioned()
+	{
+		var csproj = File.ReadAllText(Path.Combine(TemplateDirectory, "MauiTizenApp.csproj"));
+
+		// The identifier must be computed, not read from $(TargetPlatformIdentifier): the SDK does
+		// not set that until after the project body is evaluated, so the references would be
+		// dropped from every generated project.
+		Assert.DoesNotContain("Condition=\"'$(TargetPlatformIdentifier)' == 'tizen'\"", csproj);
+		Assert.Contains("GetTargetPlatformIdentifier('$(TargetFramework)')", csproj);
+		Assert.Contains("<ItemGroup Condition=\"'$(_MauiTizenPlatform)' == 'tizen'\">", csproj);
+		Assert.Contains("Maui.Tizen.Build.Tasks", csproj);
+	}
+
+	/// <summary>
+	/// Every Maui.Tizen package the template references must be one this repository declares.
+	/// </summary>
+	/// <remarks>
+	/// The template referenced an umbrella <c>Maui.Tizen</c> package that no project produces and
+	/// that has never existed. Package IDs in this repository follow the project name, so the
+	/// check is simply that the project is there.
+	/// </remarks>
+	[Fact]
+	public void TemplateReferencesOnlyPackageIdsThisRepositoryDeclares()
+	{
+		var csproj = ReadTemplateProjectWithoutComments();
+
+		var owned = Regex
+			.Matches(csproj, @"<PackageReference\s+Include=""(Maui\.Tizen[^""]*)""")
+			.Select(m => m.Groups[1].Value)
+			.Distinct(StringComparer.Ordinal)
+			.ToList();
+
+		Assert.NotEmpty(owned);
+
+		foreach (var id in owned)
+		{
+			Assert.True(
+				File.Exists(Path.Combine(RepositoryRoot, "src", id, id + ".csproj")),
+				$"The template references '{id}', but src/{id}/{id}.csproj does not exist, so no project "
+					+ "declares that package ID.");
+		}
+
+		// The hosting entry point and the Controls handlers both have to be there for the emitted
+		// MauiProgram.cs and App.cs to compile once the gate lifts.
+		Assert.Contains("Maui.Tizen.Core", owned);
+		Assert.Contains("Maui.Tizen.Controls", owned);
+	}
+
+	[Fact]
+	public void TemplateRegistersTheTizenHostBuilderExtension()
+	{
+		var mauiProgram = File.ReadAllText(Path.Combine(TemplateDirectory, "MauiProgram.cs"));
+
+		Assert.Contains("UseMauiAppTizenControls<App>()", mauiProgram);
+		Assert.Contains("using Microsoft.Maui.Platforms.Tizen.Hosting;", mauiProgram);
+
+		// The umbrella namespace the old conditional imported does not exist.
+		Assert.DoesNotContain("using Maui.Tizen;", mauiProgram);
+	}
+
+	/// <summary>
+	/// No file under templates/ may contain a C# preprocessor directive, commented out or not.
+	/// </summary>
+	/// <remarks>
+	/// The Template Engine parses <c>#if</c> / <c>#else</c> / <c>#endif</c> in template content as
+	/// TEMPLATE conditionals, including the commented-out form. That is what silently rewrote the
+	/// generated host builder, and a commented example of the same directives made
+	/// <c>dotnet new</c> fail outright after writing a partial project. This is asserted on the
+	/// SOURCE as well as on the instantiated output (see
+	/// <c>TemplateInstantiationTests.GeneratedSourcesContainNoPreprocessorDirectives</c>), because
+	/// the source check names the rule while the instantiation check proves the consequence.
+	/// </remarks>
+	[Fact]
+	public void TemplateContentContainsNoPreprocessorDirectives()
+	{
+		foreach (var file in Directory.EnumerateFiles(TemplateDirectory, "*.cs", SearchOption.AllDirectories))
+		{
+			foreach (var line in File.ReadAllLines(file))
+			{
+				var trimmed = line.TrimStart();
+				if (trimmed.StartsWith("//", StringComparison.Ordinal))
+					trimmed = trimmed.Substring(2).TrimStart();
+
+				Assert.False(
+					trimmed.StartsWith("#if", StringComparison.Ordinal)
+						|| trimmed.StartsWith("#else", StringComparison.Ordinal)
+						|| trimmed.StartsWith("#endif", StringComparison.Ordinal),
+					$"'{Path.GetRelativePath(RepositoryRoot, file)}' contains a preprocessor directive. "
+						+ "The Template Engine consumes these as template conditionals; explain the rule in "
+						+ "Maui.Tizen.Templates.csproj instead, which is not template content.");
+			}
+		}
+	}
+
+	/// <summary>
+	/// The Tizen entry point must derive from this backend's application class, not from MAUI's.
+	/// </summary>
+	[Fact]
+	public void TemplateEntryPointDerivesFromTizenMauiApplication()
+	{
+		var main = File.ReadAllText(Path.Combine(TemplateDirectory, "Platforms", "Tizen", "Main.cs"));
+
+		Assert.Contains("using Microsoft.Maui.Platforms.Tizen;", main);
+		Assert.Contains(": TizenMauiApplication", main);
+	}
+
+	/// <summary>
+	/// The template must not register a font it does not ship, and must not hand a non-font to
+	/// the font pipeline.
+	/// </summary>
+	/// <remarks>
+	/// MauiProgram.cs registered <c>OpenSans-Regular.ttf</c> while Resources/Fonts contained only
+	/// an instructions file. A missing font is not a build error - the font loader fails to
+	/// resolve the name at runtime - so nothing in the pipeline noticed, in either direction: the
+	/// bare <c>Resources\Fonts\*</c> glob simultaneously fed that instructions .txt to the font
+	/// pipeline, which copies it into the TPK's res/fonts.
+	/// </remarks>
+	[Fact]
+	public void TemplateRegistersNoFontItDoesNotShip()
+	{
+		var mauiProgram = File.ReadAllText(Path.Combine(TemplateDirectory, "MauiProgram.cs"));
+		var fonts = Path.Combine(TemplateDirectory, "Resources", "Fonts");
+
+		foreach (Match match in Regex.Matches(mauiProgram, @"^\s*fonts\.AddFont\(""([^""]+)""", RegexOptions.Multiline))
+		{
+			Assert.True(
+				File.Exists(Path.Combine(fonts, match.Groups[1].Value)),
+				$"MauiProgram.cs registers '{match.Groups[1].Value}' but the template does not ship it.");
+		}
+
+		var csproj = ReadTemplateProjectWithoutComments();
+
+		Assert.DoesNotContain(@"<MauiFont Include=""Resources\Fonts\*"" />", csproj);
+		Assert.Contains(@"<MauiFont Include=""Resources\Fonts\*.ttf"" />", csproj);
+	}
+
+	/// <summary>
+	/// Packing must not depend on NuGet inferring the template's directory structure.
+	/// </summary>
+	/// <remarks>
+	/// $(ContentTargetFolders) makes the packed layout an inference from each item's identity.
+	/// Any Content item NuGet cannot relate back to the project directory is written flat into
+	/// the target folder, which turns a template package into a package that installs and then
+	/// emits its own internals instead of a project. The destination is therefore written out.
+	/// </remarks>
+	[Fact]
+	public void TemplateContentDeclaresItsPackagePathExplicitly()
+	{
+		var project = File.ReadAllText(Path.Combine(RepositoryRoot, "src", "Maui.Tizen.Templates", "Maui.Tizen.Templates.csproj"));
+
+		Assert.DoesNotContain("<ContentTargetFolders>", project);
+		Assert.Contains(@"PackagePath=""content/templates/%(RecursiveDir)%(Filename)%(Extension)""", project);
+	}
+
+	[Fact]
+	public void TemplateManifestUsesTheGeneratorPlaceholders()
+	{
+		var manifest = File.ReadAllText(Path.Combine(TemplateDirectory, "Platforms", "Tizen", "tizen-manifest.xml"));
+
+		// These are the tokens GenerateTizenManifest replaces; if they drift the generated
+		// manifest silently keeps the placeholder text.
+		Assert.Contains("maui-application-id-placeholder", manifest);
+		Assert.Contains("maui-application-title-placeholder", manifest);
+		Assert.Contains("maui-appicon-placeholder", manifest);
+	}
+}

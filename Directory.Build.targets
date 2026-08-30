@@ -97,6 +97,35 @@
            Text="The Samsung Tizen workload for .NET $(DotNetVersion) is not installed, so '$(MSBuildProjectName)' cannot target $(MauiTizenTargetFramework).%0A%0AThis is an external workload gate, not a repository defect and not a typo in the target framework. CI probes the manifest IDs derived from eng/baselines.json and installs through Samsung's supported workload installer as soon as either is published. See docs/migration.md.%0A%0ATo build the parts of this repository that do not need the workload, run: eng/build-workload-free.sh%0ATo override detection only for evaluation/tests, pass -p:TizenWorkloadAvailable=true." />
   </Target>
   <!--
+    The neutral-fallback gate.
+
+    The TFM assignment in eng/targets/TizenPackage.props is conditional, so ANY earlier source
+    of a $(TargetFramework) value wins: an environment variable, a Directory.Build.props above
+    the repository root, an IDE or tool passing -p:TargetFramework, or a copy-pasted project that
+    sets it in its own body. Every one of those silently converts a Tizen project into a neutral
+    one - and a neutral build is GREEN. It compiles, it packs, and it produces assemblies that
+    cannot run on Tizen.
+
+    That is precisely the failure this repository refuses to accept anywhere else (see the
+    "Never fix a red build by adding a neutral fallback" note in Directory.Build.props), and it
+    was the one place where it could happen by accident rather than by decision. It is a target
+    rather than an evaluation-time error so that IDE load and property-only tooling keep working.
+
+    MauiTizenAllowNonTizenTargetFramework exists for the deliberate case (a probe or verification
+    lane that compiles Tizen sources against reference assemblies). Those projects set
+    IsTizenProject=false instead, which is why nothing in this repository needs the escape hatch;
+    it is there so the answer to "I really do mean this" is a visible opt-in rather than deleting
+    the check.
+  -->
+  <Target Name="ValidateTizenTargetFramework"
+          BeforeTargets="_CheckForUnsupportedTargetFramework;_CheckForUnsupportedTargetPlatformIdentifier;Restore;Build;Pack"
+          Condition="'$(IsTizenProject)' == 'true' AND '$(MauiTizenAllowNonTizenTargetFramework)' != 'true' AND '$(TargetFramework)' != ''">
+    <Error Condition="'$(TargetFramework)' != '$(MauiTizenTargetFramework)'"
+           Code="MAUITIZEN0002"
+           Text="'$(MSBuildProjectName)' is a Tizen project but its TargetFramework is '$(TargetFramework)' rather than '$(MauiTizenTargetFramework)'.%0A%0AA neutral or otherwise overridden target framework produces a build that succeeds and assemblies that cannot run on Tizen, so it is rejected rather than accepted silently. The override reached this project from an environment variable, a global property, an outer Directory.Build.props, or the project body itself.%0A%0AIf the project genuinely is not a Tizen artifact (a test host, a probe, a reference-assembly compile lane), set IsTizenProject=false. If you deliberately want a Tizen project on another target framework, set MauiTizenAllowNonTizenTargetFramework=true." />
+  </Target>
+
+  <!--
     README packing.
 
     Declared here, in .targets, rather than in Directory.Build.props, so that it is

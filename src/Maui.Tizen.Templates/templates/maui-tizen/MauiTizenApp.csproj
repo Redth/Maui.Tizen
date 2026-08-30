@@ -1,0 +1,100 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      Maui.Tizen requires .NET 11 or later and a versioned Tizen target framework.
+      The platform version component is supplied by the template.
+    -->
+    <TargetFramework>net11.0-tizenTIZEN_PLATFORM_VERSION</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <UseMauiTizen>true</UseMauiTizen>
+
+    <ApplicationTitle>MauiTizenApp</ApplicationTitle>
+    <!--
+      The Tizen package id. Generated from the project name so two applications created from this
+      template do not collide on a device; pass -ApplicationId to override it.
+    -->
+    <ApplicationId>com.companyname.mauitizenapp</ApplicationId>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- App icon -->
+    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
+
+    <!-- Splash screen -->
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
+
+    <!-- Images -->
+    <MauiImage Include="Resources\Images\*" />
+
+    <!--
+      Custom fonts.
+
+      Restricted to font extensions rather than a bare Resources\Fonts\* glob: the folder also
+      carries the instructions file, and a bare glob hands that .txt to the font pipeline, which
+      then copies it into the TPK's res/fonts as though it were a typeface.
+    -->
+    <MauiFont Include="Resources\Fonts\*.ttf" />
+    <MauiFont Include="Resources\Fonts\*.otf" />
+
+    <!-- Raw assets (also remove the "Resources\Raw" prefix) -->
+    <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      .NET MAUI itself. This rides the published Microsoft.Maui.* version line, which is NOT
+      the Maui.Tizen version line: the Tizen backend is versioned and shipped independently.
+      Using the backend's version here resolves to nothing at all.
+    -->
+    <PackageReference Include="Microsoft.Maui.Controls" Version="MAUI_VERSION" />
+    <PackageReference Include="Microsoft.Maui.Resizetizer" Version="MAUI_VERSION" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!--
+    Tizen specific references. These are conditioned on the Tizen target platform so that the
+    project can grow additional target frameworks without dragging the Tizen backend into them.
+
+    The identifier is computed here rather than read from $(TargetPlatformIdentifier): the SDK
+    sets that property from Microsoft.NET.TargetFrameworkInference.targets, which is imported
+    AFTER the project body, so during evaluation of this ItemGroup it is still empty and every
+    reference below would be silently dropped. It is assigned to a property first because MSBuild
+    cannot parse a nested property reference inside a property function in a Condition.
+  -->
+  <PropertyGroup>
+    <_MauiTizenPlatform>$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)'))</_MauiTizenPlatform>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(_MauiTizenPlatform)' == 'tizen'">
+    <!--
+      The backend, by the package IDs this repository actually declares.
+
+      There is no umbrella "Maui.Tizen" package and there never was: Maui.Tizen.Core carries
+      the hosting entry point (UseMauiAppTizen) and TizenMauiApplication, Maui.Tizen.Controls
+      carries the Microsoft.Maui.Controls handlers. Both are still gated on the Samsung .NET 11
+      workload, so they are declared here but not yet published; that is the same external gate
+      every Tizen project in this repository hits, and it is deliberately visible rather than
+      papered over.
+    -->
+    <PackageReference Include="Maui.Tizen.Core" Version="MAUI_TIZEN_VERSION" />
+    <PackageReference Include="Maui.Tizen.Controls" Version="MAUI_TIZEN_VERSION" />
+    <PackageReference Include="Maui.Tizen.Build.Tasks" Version="MAUI_TIZEN_VERSION" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!--
+    DO NOT add <PackageReference Include="Samsung.Tizen.Ref.API15" />.
+
+    TizenFX is delivered as a reference pack by the Samsung workload, and the package carries
+    the "DotnetPlatform" package type. Referencing it as an ordinary PackageReference fails
+    restore with NU1213 ("has the package type DotnetPlatform that is incompatible with this
+    project") - so the template used to emit a project that could not restore even with the
+    workload installed. The workload resolves the correct reference pack from the tizen target
+    platform version in $(TargetFramework); nothing needs to be referenced here.
+  -->
+
+</Project>

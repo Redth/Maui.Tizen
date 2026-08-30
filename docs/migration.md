@@ -10,12 +10,37 @@ Extracting the .NET MAUI Tizen backend from `dotnet/maui` into this repository.
 | **1** | History-preserving import; repository scaffolding; docs; CI | **Complete** |
 | **2** | Handler implementation (`Maui.Tizen.Core`, `Maui.Tizen.Controls`) | **Core and Waves A/B/C merged** |
 | **3** | Essentials implementation | **Implemented and host/API15 tested; two external MAUI API blockers remain** |
-| 4 | BlazorWebView, Maps, Build.Tasks, Templates | Maps disposition complete (no API15 implementation); remaining packages in progress |
-| 5 | Device tests, samples, packaging and publishing | Not started |
+| **4a** | **Build pipeline: `Maui.Tizen.Build.Tasks`, `Maui.Tizen.Templates`** | **Implemented, packed and validated** — see below |
+| **4b** | BlazorWebView, Maps | **BlazorWebView merged; Maps disposition complete with no API15 implementation** |
+| 5 | Device tests, packaging and publishing | Not started |
 
-The Samsung workload blocks real Tizen-TFM builds, packaging and device execution. It does not
-block implementation: host-executable coordinators, API15 ref-pack builds, source/convention
-guards, mutation tests and the merged handler stack all run without it.
+The Samsung workload blocks real Tizen-TFM builds, TPK packaging and device execution. It does not
+block implementation or the workload-free Build.Tasks/Templates packages: host-executable
+coordinators, API15 ref-pack builds, source/convention guards, mutation tests and package transport
+all run without it.
+
+### Phase 4a — what is actually done
+
+- `Maui.Tizen.Build.Tasks` generates `tizen-manifest.xml`, the Tizen splash screens and
+  `res.xml`, and hands them to the Samsung workload as TPK packaging inputs. It is driven
+  entirely through the **public** Resizetizer external-backend contract from dotnet/maui
+  PR 36653 (`ResizetizerPlatformType`, `MauiProcessedImage` / `MauiProcessedFont` /
+  `MauiProcessedAsset`, the `ResizetizerAfter*ProcessingTargets` hooks), so nothing upstream is
+  forked here.
+- Both packages are packed on every run of the workload-free lane, and their contents are
+  asserted from the produced `.nupkg` — layout, the task assembly's managed dependency closure,
+  the per-architecture native SkiaSharp binaries, the template tree, and the fact that no
+  unowned file rides along.
+- The backend is additionally exercised **as a package**: a generated application takes a plain
+  `PackageReference` and relies on NuGet's automatic `buildTransitive` import, and the produced
+  template package is installed into an isolated template hive and instantiated.
+- Incremental behaviour is covered rather than assumed: the manifest, the splash screens and
+  `res.xml` each have recorded non-file state, and same-intermediate-directory mutation tests
+  assert both that a no-op build changes nothing and that changing a property or an item's
+  metadata regenerates what depends on it.
+
+What Phase 4a does **not** cover is TPK assembly, signing, deployment and launching. Those are
+owned by the Samsung workload and sit behind the external gate below.
 
 ## The external gate
 
@@ -47,16 +72,20 @@ The lane in `eng/build-workload-free.sh` (required in CI) genuinely exercises:
 - central package management and package source mapping
 - MSBuild conventions and the workload gate itself
 - consistency between `Directory.Build.props`, `global.json` and `eng/baselines.json`
-- the complete Core/Waves host suites and Core/Controls/Sample/Essentials API15 ref-pack lanes
-- the implemented Essentials DI, storage, permission, AppControl, dispatcher and lifecycle tests
+- the complete Core/Waves, Essentials and BlazorWebView host suites plus API15 ref-pack lanes
 - package/source/PublicAPI/analyzer closure checks and locked Essentials/Wave B/Wave C mutations
-- migration tooling, package graph, consumer compile and repository invariant suites
+- the repository invariant, build-pipeline, migration-tooling and consumer suites
+- the packable projects' shape: the produced template nupkg is installed into an isolated
+  template hive and instantiated, and the generated project's package references are restored
+  cold against the approved feeds
+- package provenance: every produced package must carry a `<repository commit="...">` stamp
+  naming the revision being built, and the lane refuses to make that claim unless the package
+  inputs are committed and match it ([`eng/check-package-inputs-clean.sh`](../eng/check-package-inputs-clean.sh))
 - integrity of the imported history and the import tooling
 
-At this integration head the principal executable inventories are 1,248 Core/Waves tests, 449
-Essentials tests in both Debug and Release, and 579 source/closure/parity tests. The canonical
-script also executes the repository, tooling, negative-control and hosted suites rather than
-inferring their result from a successful build.
+The same lane runs on Linux in a container through
+[`eng/run-linux-checks.sh`](../eng/run-linux-checks.sh), which is what covers SkiaSharp's
+platform-specific native resolution before CI does.
 
 Hosted validation also runs validation, build, convention, DevFlow and consumer suites. Device
 behaviour, shipping packages and visual baselines remain explicitly gated rather than inferred.
@@ -233,7 +262,6 @@ The 87 files that exist only at `9.0.120` break down as:
 |---|---|
 | **Compatibility layer** | .NET MAUI 11 drops it. Audit each of the 70 files; `move` only what net11 Tizen handlers genuinely require, `exclude` the rest. Expected outcome: the package is deleted entirely. |
 | **Graphics** | `Microsoft.Maui.Graphics` is upstreamed from its own repository and carries one Tizen view here. Likely `keep-upstream` — contribute the view back rather than shipping a package. |
-| **Build.Tasks** | The imported Tizen tasks depend on shared Resizetizer types (`ILogger`, `ResizeImageInfo`, `ResizedImageInfo`) whose filenames contain no "tizen" and were therefore correctly excluded by the import filter. Either vendor them here, or ship these tasks inside `Microsoft.Maui.Resizetizer` upstream. **Also unresolved:** these tasks use SkiaSharp for splash/icon generation, so enabling them raises real runtime and native-asset packaging questions (which SkiaSharp native assets ship, and how they reach a Tizen build). That is deliberately *not* papered over in the foundation — it is part of enabling the project, not of scaffolding it. |
 | **Documentation warnings** | Shipping Core, Controls and Essentials explicitly opt into XML documentation before importing `TizenPackage.props`; projects that still compile nothing retain the no-documentation default. `CS1591` remains suppressed until package-by-package documentation completion. |
 | **`Tizen.UIExtensions`** | Needs republishing to drop its .NET 6-era `Microsoft.Maui.Graphics` dependencies. No API surface change expected. |
 
@@ -254,18 +282,20 @@ diffing the import commit alone. Full detail in [`../PROVENANCE.md`](../PROVENAN
 ```mermaid
 graph LR
     F["Phase 0-1<br/>Foundation<br/><b>done</b>"] --> I["Inventory + API baselines"]
+    F --> B["Phase 4a<br/>Build.Tasks, Templates<br/><b>done</b>"]
     F --> G{{"Samsung workload<br/><b>external gate</b>"}}
     I --> H["Phase 2<br/>Handlers<br/><b>merged</b>"]
     I --> E["Phase 3<br/>Essentials<br/><b>implemented</b>"]
     G --> D["Real Tizen build/device/package gates"]
-    H --> X["Phase 4<br/>BlazorWebView, Maps,<br/>Build.Tasks, Templates"]
+    H --> X["Phase 4b<br/>BlazorWebView merged,<br/>Maps disposition done"]
     E --> X
+    B --> D
     X --> D
     D --> P["Phase 5<br/>publish and transfer"]
 ```
 
-Implementation and hosted verification proceed now. Only Tizen workload, device and publishing
-evidence remain downstream of the Samsung gate.
+Implementation, package transport and hosted verification proceed now. Only Tizen workload,
+device/visual evidence, shipping package closure and publishing remain downstream of the gate.
 
 ## See also
 

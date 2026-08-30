@@ -72,6 +72,7 @@
 
   <ItemGroup>
     <ProjectReference Include="$(RepositoryRoot)src/Maui.Tizen.Core/Maui.Tizen.Core.csproj" />
+    <PackageReference Include="Microsoft.Maui.Resizetizer" PrivateAssets="all" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -86,13 +87,37 @@
 
   <ItemGroup>
     <None Include="Platforms/Tizen/tizen-manifest.xml" />
-
-    <!--
-      The manifest declares <icon>appicon.png</icon>, but no such file existed and nothing checked -
-      an unresolvable icon reference is not a build error, so the .tpk would simply have shipped
-      without one. Copied next to the manifest, where Samsung's packaging step looks for it.
-    -->
-    <None Include="Platforms/Tizen/appicon.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <!--
+    Single project resources. These exercise the whole build pipeline: the Resizetizer
+    processes them through the public external-backend contract, and Maui.Tizen.Build.Tasks
+    turns the results into a generated tizen-manifest.xml, res.xml, splash screens and the
+    TizenTpkUserIncludeFiles / TizenResource items the Samsung workload packs into the TPK.
+  -->
+  <ItemGroup>
+    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
+    <MauiImage Include="Resources\Images\*" />
+    <MauiFont Include="Resources\Fonts\*" />
+    <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!--
+    Consume the build tasks straight out of this repository rather than from a package, so the
+    sample always exercises the sources in this tree. A shipping app gets the same props and
+    targets automatically from the Maui.Tizen.Build.Tasks package's buildTransitive folder.
+  -->
+  <PropertyGroup>
+    <_MauiTizenBuildTasksAssembly>$(ArtifactsDir)bin/Maui.Tizen.Build.Tasks/$(Configuration)/netstandard2.0/Maui.Tizen.Build.Tasks.dll</_MauiTizenBuildTasksAssembly>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(RepositoryRoot)src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Import Project="$(RepositoryRoot)src/Maui.Tizen.Build.Tasks/buildTransitive/Maui.Tizen.Build.Tasks.props" />
+  <Import Project="$(RepositoryRoot)src/Maui.Tizen.Build.Tasks/buildTransitive/Maui.Tizen.Build.Tasks.targets" />
 
 </Project>

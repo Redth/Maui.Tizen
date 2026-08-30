@@ -46,7 +46,15 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		/// </remarks>
 		static readonly ConcurrentDictionary<string, Evaluation> Cache = new(StringComparer.Ordinal);
 
-		static readonly string[] WantedItems = { "Compile", "AdditionalFiles", "ProjectReference", "PackageReference", "None" };
+		static readonly string[] WantedItems =
+		{
+			"Compile",
+			"AdditionalFiles",
+			"ProjectReference",
+			"PackageReference",
+			"None",
+			"MauiIcon",
+		};
 		static readonly string[] WantedProperties =
 		{
 			"TargetFramework",

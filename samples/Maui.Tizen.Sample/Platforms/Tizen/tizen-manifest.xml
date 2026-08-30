@@ -4,6 +4,11 @@
   eng/baselines.json > target.tizenManifestApiVersion (TizenFX API15 / Samsung.Tizen.Ref.API15).
 
   dotnet/maui still emits api-version 7 for its Tizen heads; do not copy that value back in.
+
+  The icon elements are left as maui-appicon-placeholder so GenerateTizenManifest resolves them
+  to the icon names the Resizetizer actually produced (appicon.xhigh.png / appicon.high.png).
+  The package id, version and label are authored explicitly here and are therefore preserved:
+  the generator only fills placeholders and empty values, it never overwrites a real one.
 -->
 <manifest package="org.tizen.example.MauiTizenSample" version="1.0.0" api-version="11" xmlns="http://tizen.org/ns/packages">
   <profile name="common" />
@@ -15,7 +20,9 @@
                   launch_mode="single"
                   hw-acceleration="on">
     <label>Maui.Tizen Sample</label>
-    <icon>appicon.png</icon>
+    <icon>maui-appicon-placeholder</icon>
+    <icon dpi="xhdpi">maui-appicon-placeholder</icon>
+    <icon dpi="hdpi">maui-appicon-placeholder</icon>
     <metadata key="http://tizen.org/metadata/prefer_dotnet_aot" value="true" />
   </ui-application>
   <shortcut-list />
