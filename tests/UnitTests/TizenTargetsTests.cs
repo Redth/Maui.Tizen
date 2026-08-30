@@ -927,6 +927,23 @@ public class TizenTargetsTests : TestBase
 		Assert.Contains("shared/conflict.txt", result.Output, StringComparison.Ordinal);
 	}
 
+	[Fact]
+	public void AssetsCannotCollideWithAnotherTpkResourceKind()
+	{
+		var app = CreateApp();
+		var conflict = app.WriteText("generated/not-the-font.txt", "different source");
+		app.WithItem("MauiAsset", conflict, ("Link", "fonts/TestFont.ttf"));
+		app.Generate();
+
+		var result = app.Build();
+
+		Assert.False(result.Success);
+		Assert.Contains("MAUITIZEN1021", result.Output, StringComparison.Ordinal);
+		Assert.Contains(conflict, result.Output, StringComparison.Ordinal);
+		Assert.Contains("TestFont.ttf", result.Output, StringComparison.Ordinal);
+		Assert.Contains("res/fonts/TestFont.ttf", result.Output.Replace('\\', '/'), StringComparison.Ordinal);
+	}
+
 	// =====================================================================================
 	// Manifest incrementality
 	// =====================================================================================

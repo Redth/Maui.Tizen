@@ -72,12 +72,14 @@ public class SelectDistinctTizenResourcesTests : TestBase
 			Item("a.js", ("TizenTpkFileName", "wwwroot/foo.js"), ("SourcePath", "/first/foo.js")),
 			Item("b.js", ("TizenTpkFileName", "wwwroot/foo.js"), ("SourcePath", "/second/foo.js")));
 		var engine = (RecordingBuildEngine)task.BuildEngine;
+		var firstSource = System.IO.Path.GetFullPath("/first/foo.js");
+		var secondSource = System.IO.Path.GetFullPath("/second/foo.js");
 
 		Assert.False(task.Execute());
 		Assert.Contains("MAUITIZEN1021", engine.ErrorCodes);
 		Assert.Contains(engine.Errors, error =>
-			error.Contains("/first/foo.js", StringComparison.Ordinal)
-			&& error.Contains("/second/foo.js", StringComparison.Ordinal)
+			error.Contains(firstSource, StringComparison.Ordinal)
+			&& error.Contains(secondSource, StringComparison.Ordinal)
 			&& error.Contains("wwwroot/foo.js", StringComparison.Ordinal));
 	}
 

@@ -38,6 +38,7 @@
 
   <UsingTask AssemblyFile="$(_MauiTizenBuildTasksAssembly)" TaskName="Maui.Tizen.Build.Tasks.GenerateTizenManifest" />
   <UsingTask AssemblyFile="$(_MauiTizenBuildTasksAssembly)" TaskName="Maui.Tizen.Build.Tasks.GenerateTizenSplashScreens" />
+  <UsingTask AssemblyFile="$(_MauiTizenBuildTasksAssembly)" TaskName="Maui.Tizen.Build.Tasks.DeleteTizenSplashOutputs" />
   <UsingTask AssemblyFile="$(_MauiTizenBuildTasksAssembly)" TaskName="Maui.Tizen.Build.Tasks.GenerateTizenResourceXml" />
   <UsingTask AssemblyFile="$(_MauiTizenBuildTasksAssembly)" TaskName="Maui.Tizen.Build.Tasks.ComputeTizenResourceLayout" />
   <UsingTask AssemblyFile="$(_MauiTizenBuildTasksAssembly)" TaskName="Maui.Tizen.Build.Tasks.SelectDistinctTizenResources" />
@@ -129,7 +130,7 @@
   -->
   <Target Name="MauiTizenPrepareResources"
           BeforeTargets="PrepareResources"
-          DependsOnTargets="ResizetizeImages;ProcessMauiAssets;ProcessMauiFonts;MauiTizenGenerateManifest"
+          DependsOnTargets="ResizetizeImages;ProcessMauiAssets;ProcessMauiFonts;MauiTizenGenerateManifest;MauiTizenValidateResourceDestinations"
           Condition=" '$(ResizetizerPlatformType)' == 'tizen' And '$(DisableResizetizer)' != 'true' " />
 
   <!-- ============================ Target framework validation ============================ -->
@@ -415,17 +416,10 @@
              Importance="Normal"
              Text="Maui.Tizen: removing stale splash screen artifacts; no splash screen is expected for this build." />
 
-    <ReadLinesFromFile File="$(_MauiTizenSplashMapFile)" Condition=" Exists('$(_MauiTizenSplashMapFile)') ">
-      <Output TaskParameter="Lines" ItemName="_MauiTizenStaleSplashMapLine" />
-    </ReadLinesFromFile>
-    <ItemGroup>
-      <_MauiTizenStaleSplashMapLine>
-        <RelativePath>$([System.Text.RegularExpressions.Regex]::Replace('%(_MauiTizenStaleSplashMapLine.Identity)', '^[^|]*\|[^|]*\|', ''))</RelativePath>
-      </_MauiTizenStaleSplashMapLine>
-      <_MauiTizenStaleOwnedSplash Include="$(MauiTizenIntermediateOutputPath)%(_MauiTizenStaleSplashMapLine.RelativePath)"
-                                  Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('%(_MauiTizenStaleSplashMapLine.Identity)', '^[^|]*\|[^|]*\|splash/[^/\\]+$'))" />
-    </ItemGroup>
-    <Delete Files="@(_MauiTizenStaleOwnedSplash)" />
+    <Maui.Tizen.Build.Tasks.DeleteTizenSplashOutputs
+        Condition=" Exists('$(_MauiTizenSplashMapFile)') "
+        SplashScreenMapFile="$(_MauiTizenSplashMapFile)"
+        IntermediateOutputPath="$(MauiTizenIntermediateOutputPath)" />
     <Delete Files="$(_MauiTizenSplashMapFile)" Condition=" Exists('$(_MauiTizenSplashMapFile)') " />
     <!--
       The recorded metadata state goes too. Leaving it behind would make the FIRST build after
@@ -1043,6 +1037,31 @@
     <ItemGroup Condition=" '$(_MauiTizenGenerateResources)' == 'true' And '@(_MauiTizenDistinctAsset)' != '' ">
       <TizenResource Include="@(_MauiTizenDistinctAsset->'%(SourcePath)')" />
     </ItemGroup>
+  </Target>
+
+  <!--
+    Validate the complete package namespace, not each resource kind in isolation. TizenResource
+    paths are rooted below res/, while TizenTpkUserIncludeFiles already carry their complete
+    destination directory. Identical source/destination contributions are harmless and collapse;
+    different sources claiming one path fail with MAUITIZEN1021 before Samsung's packaging graph
+    can pick an order-dependent winner.
+  -->
+  <Target Name="MauiTizenValidateResourceDestinations"
+          Condition=" '$(_MauiTizenGenerateResources)' == 'true' ">
+    <ItemGroup>
+      <_MauiTizenPackageDestination Include="@(TizenTpkUserIncludeFiles)"
+                                    TizenPackagePath="%(TizenTpkUserIncludeFiles.TizenTpkSubDir)%(TizenTpkUserIncludeFiles.Filename)%(TizenTpkUserIncludeFiles.Extension)"
+                                    SourcePath="%(TizenTpkUserIncludeFiles.FullPath)" />
+      <_MauiTizenPackageDestination Include="@(TizenResource)"
+                                    Condition=" '%(TizenResource.TizenTpkFileName)' != '' "
+                                    TizenPackagePath="res\%(TizenResource.TizenTpkFileName)"
+                                    SourcePath="%(TizenResource.FullPath)" />
+    </ItemGroup>
+
+    <Maui.Tizen.Build.Tasks.SelectDistinctTizenResources
+        Condition=" '@(_MauiTizenPackageDestination)' != '' "
+        Inputs="@(_MauiTizenPackageDestination)"
+        KeyMetadata="TizenPackagePath" />
   </Target>
 
   <!-- ================================= Signing inputs =================================== -->

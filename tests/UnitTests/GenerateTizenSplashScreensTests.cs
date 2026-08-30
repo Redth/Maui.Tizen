@@ -203,6 +203,50 @@ public class GenerateTizenSplashScreensTests : TestBase
 	}
 
 	[Fact]
+	public void RefusesToDeleteThroughALinkedSplashDirectory()
+	{
+		var (task, engine, intermediate) = CreateTask("splash.png", "#512BD4", "MDPI");
+		var external = CreateTempDirectory();
+		var externalOutput = Path.Combine(external, "splash.mdpi.portrait.png");
+		File.WriteAllText(externalOutput, "must survive");
+
+		var splashDirectory = Path.Combine(intermediate, GenerateTizenSplashScreens.SplashDirectoryName);
+		try
+		{
+			Directory.CreateSymbolicLink(splashDirectory, external);
+		}
+		catch (UnauthorizedAccessException)
+		{
+			// Windows agents without Developer Mode cannot create an unprivileged directory link.
+			return;
+		}
+		catch (IOException)
+		{
+			// Some filesystems do not support symbolic links.
+			return;
+		}
+
+		File.WriteAllText(
+			Path.Combine(intermediate, GenerateTizenSplashScreens.SplashMapFileName),
+			"mdpi|portrait|splash/splash.mdpi.portrait.png");
+
+		Assert.False(task.Execute());
+		Assert.Contains("symbolic link or reparse point", engine.AllErrors(), StringComparison.Ordinal);
+		Assert.Equal("must survive", File.ReadAllText(externalOutput));
+
+		var cleanup = new DeleteTizenSplashOutputs
+		{
+			SplashScreenMapFile = Path.Combine(intermediate, GenerateTizenSplashScreens.SplashMapFileName),
+			IntermediateOutputPath = intermediate,
+		};
+		var cleanupEngine = cleanup.UseRecordingEngine();
+
+		Assert.False(cleanup.Execute());
+		Assert.Contains("symbolic link or reparse point", cleanupEngine.AllErrors(), StringComparison.Ordinal);
+		Assert.Equal("must survive", File.ReadAllText(externalOutput));
+	}
+
+	[Fact]
 	public void HonoursTheLinkAliasWhenNamingOutputs()
 	{
 		var sourceRoot = CreateTempDirectory();
