@@ -1,8 +1,8 @@
 using System;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Controls;
 using Xunit;
 
@@ -768,6 +768,28 @@ public class TizenModalNavigationPlatformTests
 	}
 
 	[Fact]
+	public void DisposableDistinctContainerRequiresStackDisposedLifetimeOwnership()
+	{
+		var platformView = new FakeModalPageRealizer.FakePlatformView();
+		var containerView = new FakeModalPageRealizer.FakePlatformView();
+		var handler = new StubViewHandler(platformView: platformView, containerView: containerView)
+		{
+			HasContainer = true,
+		};
+		var target = StubMauiContext.WithHandlers(new StubHandlersFactory(() => handler));
+		var page = new ContentPage();
+		var realizer = new TizenModalPageRealizer();
+
+		var failure = Assert.Throws<InvalidOperationException>(() => realizer.Realize(page, target));
+
+		Assert.Contains(nameof(ITizenModalHandlerLifetime), failure.Message);
+		Assert.Equal(1, handler.DisposeCount);
+		Assert.Equal(1, platformView.DisposeCount);
+		Assert.Equal(1, containerView.DisposeCount);
+		Assert.Null(((Element)page).Handler);
+	}
+
+	[Fact]
 	public void ReplacedDisposableContainerHandlerReleasesOrphanedCaptureAndPreservesNewerHandler()
 	{
 		var platformView = new FakeModalPageRealizer.FakePlatformView();
@@ -790,8 +812,11 @@ public class TizenModalNavigationPlatformTests
 		Assert.Same(replacement, ((Element)page).Handler);
 	}
 
-	[Fact]
-	public void StackDisposedContainerIsNotDisposedAgainWhileOtherHandlerResourcesAreReleased()
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void StackDisposedContainerIsNotDisposedAgainWhileOtherHandlerResourcesAreReleased(
+		bool replaceHandler)
 	{
 		var platformView = new FakeModalPageRealizer.FakePlatformView();
 		var containerView = new FakeModalPageRealizer.FakePlatformView();
@@ -800,14 +825,28 @@ public class TizenModalNavigationPlatformTests
 		var page = new ContentPage();
 		var realizer = new TizenModalPageRealizer();
 		var captured = realizer.Realize(page, target);
+		var replacement = replaceHandler
+			? new StubViewHandler(page, mauiContext: target)
+			: null;
+		if (replacement is not null)
+		{
+			handler.DisconnectHandler();
+			((Element)page).Handler = replacement;
+		}
+
 		containerView.Dispose();
 
 		realizer.Release(page, captured, platformViewDisposed: true);
 
 		Assert.Equal(1, handler.DisposeCount);
+		Assert.Equal(1, handler.DisposeAfterPlatformViewDisposedCount);
+		Assert.True(handler.DisconnectCount >= 1);
 		Assert.Equal(1, platformView.DisposeCount);
 		Assert.Equal(1, containerView.DisposeCount);
-		Assert.Null(((Element)page).Handler);
+		if (replacement is null)
+			Assert.Null(((Element)page).Handler);
+		else
+			Assert.Same(replacement, ((Element)page).Handler);
 	}
 
 	[Fact]

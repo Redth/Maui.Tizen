@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.ExceptionServices;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Controls;
@@ -83,13 +83,23 @@ namespace Microsoft.Maui.Platforms.Tizen
 				}
 
 				var containerView = (handler as IViewHandler)?.ContainerView;
-				var handlerPlatformView = containerView is null ? handler.PlatformView : null;
+				var handlerPlatformView = handler.PlatformView;
 				var platformView = containerView ?? handlerPlatformView;
 
 				if (platformView is null)
 				{
 					throw new InvalidOperationException(
 						$"The handler for '{page.GetType()}' produced no platform view, so it cannot be presented modally.");
+				}
+
+				if (containerView is not null
+					&& !ReferenceEquals(containerView, handlerPlatformView)
+					&& handler is IDisposable
+					&& handler is not ITizenModalHandlerLifetime)
+				{
+					throw new InvalidOperationException(
+						$"The disposable handler for '{page.GetType()}' exposes a distinct container view and must " +
+						$"implement '{nameof(ITizenModalHandlerLifetime)}' before it can be presented modally.");
 				}
 
 				_owners.Remove(platformView);
@@ -164,41 +174,60 @@ namespace Microsoft.Maui.Platforms.Tizen
 			{
 				if (platformViewDisposed && handlerOwnsCapturedView)
 				{
-					try
-					{
-						// The native stack already disposed this view. Disconnect rather than
-						// asking IDisposable.Dispose to release the same native owner again.
-						handler.DisconnectHandler();
-					}
-					catch (Exception ex)
-					{
-						(failures ??= new()).Add(ex);
-					}
-
-					var stillOwnsDisposedView = true;
-					try
-					{
-						stillOwnsDisposedView =
-							ReferenceEquals(handler.PlatformView, platformView)
-							|| (handler is IViewHandler viewHandler
-								&& ReferenceEquals(viewHandler.ContainerView, platformView));
-					}
-					catch (Exception ex)
-					{
-						(failures ??= new()).Add(ex);
-					}
-
-					if (!stillOwnsDisposedView)
+					if (handler is ITizenModalHandlerLifetime lifetime)
 					{
 						try
 						{
-							// Disconnect released the stack-owned capture. Dispose can now release
-							// the handler's remaining resources without touching it twice.
-							disposableHandler.Dispose();
+							lifetime.DisposeAfterPlatformViewDisposed(platformView);
 						}
 						catch (Exception ex)
 						{
 							(failures ??= new()).Add(ex);
+						}
+					}
+					else
+					{
+						try
+						{
+							// Standard MAUI handlers clear PlatformView while disconnecting. Once
+							// the externally disposed capture is no longer owned, Dispose can safely
+							// release the handler's remaining resources.
+							handler.DisconnectHandler();
+						}
+						catch (Exception ex)
+						{
+							(failures ??= new()).Add(ex);
+						}
+
+						var stillOwnsDisposedView = true;
+						try
+						{
+							stillOwnsDisposedView =
+								ReferenceEquals(handler.PlatformView, platformView)
+								|| (handler is IViewHandler viewHandler
+									&& ReferenceEquals(viewHandler.ContainerView, platformView));
+						}
+						catch (Exception ex)
+						{
+							(failures ??= new()).Add(ex);
+						}
+
+						if (stillOwnsDisposedView)
+						{
+							(failures ??= new()).Add(new InvalidOperationException(
+								$"The handler for '{page.GetType()}' retained an externally disposed modal view. " +
+								$"Implement '{nameof(ITizenModalHandlerLifetime)}' to release it safely."));
+						}
+						else
+						{
+							try
+							{
+								disposableHandler.Dispose();
+							}
+							catch (Exception ex)
+							{
+								(failures ??= new()).Add(ex);
+							}
 						}
 					}
 				}

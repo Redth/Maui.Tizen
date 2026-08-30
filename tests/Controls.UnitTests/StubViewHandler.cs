@@ -47,6 +47,7 @@ internal class StubViewHandler : IViewHandler, IDisposable
 		DisposeCount++;
 		DisconnectHandler();
 		(PlatformView as IDisposable)?.Dispose();
+		(ContainerView as IDisposable)?.Dispose();
 	}
 
 	public Size GetDesiredSize(double widthConstraint, double heightConstraint) => Size.Zero;
@@ -158,9 +159,13 @@ internal sealed class DisposableDisconnectClearsPlatformViewHandler
 	}
 }
 
-internal sealed class NativeFaithfulDisposableContainerHandler : IViewHandler, IDisposable
+internal sealed class NativeFaithfulDisposableContainerHandler :
+	IViewHandler,
+	IDisposable,
+	ITizenModalHandlerLifetime
 {
 	readonly IDisposable _platformResource;
+	bool _disposed;
 
 	public NativeFaithfulDisposableContainerHandler(
 		IDisposable platformView,
@@ -187,18 +192,38 @@ internal sealed class NativeFaithfulDisposableContainerHandler : IViewHandler, I
 
 	public int DisposeCount { get; private set; }
 
+	public int DisposeAfterPlatformViewDisposedCount { get; private set; }
+
 	public void DisconnectHandler()
 	{
 		DisconnectCount++;
 		PlatformView = null;
-		ContainerView = null;
 	}
 
 	public void Dispose()
 	{
+		if (_disposed)
+			return;
+
+		_disposed = true;
 		DisposeCount++;
 		_platformResource.Dispose();
 		(ContainerView as IDisposable)?.Dispose();
+		DisconnectHandler();
+	}
+
+	public void DisposeAfterPlatformViewDisposed(object platformView)
+	{
+		if (_disposed)
+			return;
+
+		if (!ReferenceEquals(ContainerView, platformView))
+			throw new InvalidOperationException("The externally disposed view is not this handler's container.");
+
+		_disposed = true;
+		DisposeCount++;
+		DisposeAfterPlatformViewDisposedCount++;
+		_platformResource.Dispose();
 		DisconnectHandler();
 	}
 

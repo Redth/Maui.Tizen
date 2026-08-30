@@ -78,6 +78,27 @@ namespace Microsoft.Maui.Platforms.Tizen
 	}
 
 	/// <summary>
+	/// Releases a disposable modal-page handler after the native navigation stack has already
+	/// disposed the captured platform or container view.
+	/// </summary>
+	/// <remarks>
+	/// A handler that exposes a distinct disposable <see cref="IViewHandler.ContainerView"/> must
+	/// implement this contract before that container can be presented modally. The implementation
+	/// must release all remaining handler resources without disposing
+	/// the captured platform view again.
+	/// </remarks>
+	public interface ITizenModalHandlerLifetime
+	{
+		/// <summary>
+		/// Disposes the handler while preserving the already-disposed captured view.
+		/// </summary>
+		/// <param name="platformView">
+		/// The platform or container view that the native navigation stack already disposed.
+		/// </param>
+		void DisposeAfterPlatformViewDisposed(object platformView);
+	}
+
+	/// <summary>
 	/// Turns a modal <see cref="Page"/> into the native view that represents it, and releases it
 	/// again once the modal is dismissed.
 	/// </summary>

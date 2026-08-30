@@ -131,6 +131,12 @@ That ownership is recorded when realization chooses either `IViewHandler.Contain
 `IElementHandler.PlatformView`. Release checks both live handler properties: a distinct container
 still owned by a disposable handler is left to that handler, while a disconnected handler that no
 longer references the capture cannot leak it.
+
+A disposable handler that exposes a distinct container must implement
+`ITizenModalHandlerLifetime`. If the native stack has already disposed that captured container, the
+realizer invokes `DisposeAfterPlatformViewDisposed` so the handler can release subscriptions and
+its other native resources without disposing the container twice. Realization rejects a disposable
+distinct-container handler without this contract before the native stack takes ownership.
   Keeping them would fire the page lifecycle events twice.
 - `_platformModalPages.Add/Remove` — the framework owns the platform stack and updates it *before*
   awaiting the platform, which is why `PushModalAsync` receives a page that is already on

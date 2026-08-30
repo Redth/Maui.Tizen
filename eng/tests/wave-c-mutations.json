@@ -1367,5 +1367,31 @@
         "replace": "handlerOwnsCapturedView =\n\t\t\t\t\tReferenceEquals(handler.PlatformView, platformView);"
       }
     ]
+  },
+  {
+    "id": "modal-container-handler-lifetime-required",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Modal/TizenModalNavigationPlatform.cs",
+    "filter": "FullyQualifiedName~DisposableDistinctContainerRequiresStackDisposedLifetimeOwnership",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "DisposableDistinctContainerRequiresStackDisposedLifetimeOwnership",
+    "replacements": [
+      {
+        "search": "&& handler is not ITizenModalHandlerLifetime)",
+        "replace": "&& false)"
+      }
+    ]
+  },
+  {
+    "id": "modal-stack-disposed-container-handler-lifetime",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Modal/TizenModalNavigationPlatform.cs",
+    "filter": "FullyQualifiedName~StackDisposedContainerIsNotDisposedAgainWhileOtherHandlerResourcesAreReleased",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "StackDisposedContainerIsNotDisposedAgainWhileOtherHandlerResourcesAreReleased",
+    "replacements": [
+      {
+        "search": "if (handler is ITizenModalHandlerLifetime lifetime)",
+        "replace": "if (false && handler is ITizenModalHandlerLifetime lifetime)"
+      }
+    ]
   }
 ]
