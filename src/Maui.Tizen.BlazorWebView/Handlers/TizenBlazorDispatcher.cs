@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Maui.Dispatching;
+using Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal;
 
 namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 {
@@ -174,6 +175,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 		}
 
 		private readonly IDispatcher _dispatcher;
+		private readonly AsyncOperationLifetime _lateOperations = new();
 		private readonly AsyncLocal<OperationCapture?> _operationCapture = new();
 
 		public TizenBlazorDispatcher(IDispatcher dispatcher)
@@ -202,12 +204,14 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			return capture;
 		}
 
+		internal Task RetireAsync() => _lateOperations.RetireAsync();
+
 		private Task Track(Func<Task> dispatch)
 		{
 			var capture = _operationCapture.Value;
 			var reservation = capture?.Reserve();
 			if (capture is not null && reservation is null)
-				return Task.FromCanceled(new CancellationToken(canceled: true));
+				return _lateOperations.RunAsync(dispatch);
 
 			try
 			{
@@ -227,7 +231,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			var capture = _operationCapture.Value;
 			var reservation = capture?.Reserve();
 			if (capture is not null && reservation is null)
-				return Task.FromCanceled<TResult>(new CancellationToken(canceled: true));
+				return _lateOperations.RunAsync(dispatch);
 
 			try
 			{

@@ -80,7 +80,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		}
 
 		[Fact]
-		public async Task RegistrationFromAStaleCapturedContextIsRejectedAfterDrainSeals()
+		public async Task DelayedCapturedContextRunsWhileTheConnectionIsActive()
 		{
 			var dispatcher = new TizenBlazorDispatcher(new InlineDispatcher());
 			var capture = dispatcher.BeginOperationCapture();
@@ -103,8 +103,71 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 				null);
 
 			Assert.NotNull(lateOperation);
+			await lateOperation!;
+			Assert.True(invoked);
+		}
+
+		[Fact]
+		public async Task DelayedCapturedContextIsRejectedAfterTheConnectionRetires()
+		{
+			var dispatcher = new TizenBlazorDispatcher(new InlineDispatcher());
+			var capture = dispatcher.BeginOperationCapture();
+			var capturedContext = ExecutionContext.Capture();
+			capture.Dispose();
+			await capture.DrainAsync();
+			await dispatcher.RetireAsync();
+			var invoked = false;
+			Task? lateOperation = null;
+
+			ExecutionContext.Run(
+				capturedContext!,
+				_ =>
+				{
+					lateOperation = dispatcher.InvokeAsync(() =>
+					{
+						invoked = true;
+						return Task.CompletedTask;
+					});
+				},
+				null);
+
+			Assert.NotNull(lateOperation);
 			await Assert.ThrowsAnyAsync<OperationCanceledException>(() => lateOperation!);
 			Assert.False(invoked);
+		}
+
+		[Fact]
+		public async Task RetirementWaitsForAnAcceptedDelayedCompletion()
+		{
+			var dispatcher = new TizenBlazorDispatcher(new InlineDispatcher());
+			var capture = dispatcher.BeginOperationCapture();
+			var capturedContext = ExecutionContext.Capture();
+			capture.Dispose();
+			await capture.DrainAsync();
+			var started = new TaskCompletionSource<object?>(
+				TaskCreationOptions.RunContinuationsAsynchronously);
+			var release = new TaskCompletionSource<object?>(
+				TaskCreationOptions.RunContinuationsAsynchronously);
+			Task? delayed = null;
+
+			ExecutionContext.Run(
+				capturedContext!,
+				_ =>
+				{
+					delayed = dispatcher.InvokeAsync(async () =>
+					{
+						started.TrySetResult(null);
+						await release.Task;
+					});
+				},
+				null);
+			await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+			var retirement = dispatcher.RetireAsync();
+			Assert.False(retirement.IsCompleted);
+			release.TrySetResult(null);
+
+			await Task.WhenAll(delayed!, retirement).WaitAsync(TimeSpan.FromSeconds(10));
 		}
 
 		private sealed class InlineDispatcher : IDispatcher

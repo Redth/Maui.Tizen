@@ -71,6 +71,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			public required NWebView PlatformView { get; init; }
 			public required IBlazorWebView VirtualView { get; init; }
 			public required string HostPage { get; init; }
+			public required TizenBlazorDispatcher Dispatcher { get; init; }
 			public required TizenWebViewManager Manager { get; init; }
 			public required string RoutingKey { get; init; }
 			public required ConnectionRequestRouter RequestRouter { get; init; }
@@ -87,7 +88,8 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 					RootComponents.RetireAsync(),
 					Requests.RetireAsync(),
 					Dispatches.RetireAsync(),
-					Messages.DrainAsync());
+					Messages.DrainAsync(),
+					Dispatcher.RetireAsync());
 		}
 
 		private const string JavaScriptMessageHandlerName = "BlazorHandler";
@@ -704,11 +706,12 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			var virtualView = VirtualView;
 			var fileProvider = virtualView.CreateFileProvider(contentRootDir);
 
+			var dispatcher = new TizenBlazorDispatcher(services.GetRequiredService<IDispatcher>());
 			var webviewManager = new TizenWebViewManager(
 				this,
 				PlatformView,
 				services,
-				new TizenBlazorDispatcher(services.GetRequiredService<IDispatcher>()),
+				dispatcher,
 				fileProvider,
 				virtualView.JSComponents,
 				contentRootDir,
@@ -738,6 +741,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 				PlatformView = PlatformView,
 				VirtualView = virtualView,
 				HostPage = _hostPage!,
+				Dispatcher = dispatcher,
 				Manager = webviewManager,
 				RoutingKey = routingKey,
 				RequestRouter = requestRouter,

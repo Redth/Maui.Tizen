@@ -128,7 +128,9 @@ Everything above the native boundary was ported as-is from `dotnet/maui` `net11.
   public-dispatch work remains leased until that task completes ahead of manager disposal. Message
   retirement is two-phase: generation-matched completion messages remain admissible while the
   pre-retirement IPC cohort is active; admission then seals atomically while already-admitted follow-up
-  work finishes.
+  work finishes. Delayed JSInterop continuations that outlive one message capture transfer to a
+  connection-level dispatcher lifetime, so `EndInvokeDotNet` still reaches JavaScript while connected
+  but is rejected once that connection retires.
 - **`WebResourceRequested` is not raised.** `IBlazorWebView` inherits it from
   `IWebRequestInterceptingWebView`, but `WebResourceRequestedEventArgs` has only `internal` constructors
   and no Tizen shape, so a third-party backend cannot construct the argument. Static content is still
