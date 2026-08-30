@@ -4,6 +4,7 @@
 # contents are synthetic; this test never signs, publishes, or contacts a device.
 
 set -euo pipefail
+export PYTHONDONTWRITEBYTECODE=1
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
