@@ -86,13 +86,6 @@
 
   <ItemGroup>
     <None Include="Platforms/Tizen/tizen-manifest.xml" />
-
-    <!--
-      The manifest declares <icon>appicon.png</icon>, but no such file existed and nothing checked -
-      an unresolvable icon reference is not a build error, so the .tpk would simply have shipped
-      without one. Copied next to the manifest, where Samsung's packaging step looks for it.
-    -->
-    <None Include="Platforms/Tizen/appicon.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!--
