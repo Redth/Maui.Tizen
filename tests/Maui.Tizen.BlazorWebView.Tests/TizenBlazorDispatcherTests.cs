@@ -171,7 +171,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		}
 
 		[Fact]
-		public async Task TrustedLifecycleCleanupBypassesASealedRetiredCapture()
+		public async Task TrustedCleanupAuthorityExpiresForDelayedDescendants()
 		{
 			var dispatcher = new TizenBlazorDispatcher(new InlineDispatcher());
 			var capture = dispatcher.BeginOperationCapture();
@@ -181,6 +181,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			await dispatcher.RetireAsync();
 			var invoked = false;
 			Task? cleanup = null;
+			ExecutionContext? delayedContext = null;
 
 			ExecutionContext.Run(
 				capturedContext!,
@@ -193,6 +194,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 							invoked = true;
 							return Task.CompletedTask;
 						});
+						delayedContext = ExecutionContext.Capture();
 					}
 				},
 				null);
@@ -200,6 +202,24 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			Assert.NotNull(cleanup);
 			await cleanup!;
 			Assert.True(invoked);
+
+			var delayedInvoked = false;
+			Task? delayed = null;
+			ExecutionContext.Run(
+				delayedContext!,
+				_ =>
+				{
+					delayed = dispatcher.InvokeAsync(() =>
+					{
+						delayedInvoked = true;
+						return Task.CompletedTask;
+					});
+				},
+				null);
+
+			Assert.NotNull(delayed);
+			await Assert.ThrowsAnyAsync<OperationCanceledException>(() => delayed!);
+			Assert.False(delayedInvoked);
 		}
 
 		private sealed class InlineDispatcher : IDispatcher

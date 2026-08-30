@@ -22,17 +22,27 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 		private sealed class OperationCaptureSuppression : IDisposable
 		{
 			private readonly TizenBlazorDispatcher _owner;
-			private readonly OperationCapture? _previous;
+			private readonly OperationCaptureSuppression? _previous;
+			private int _active = 1;
 
 			public OperationCaptureSuppression(
 				TizenBlazorDispatcher owner,
-				OperationCapture? previous)
+				OperationCaptureSuppression? previous)
 			{
 				_owner = owner;
 				_previous = previous;
 			}
 
-			public void Dispose() => _owner._operationCapture.Value = _previous;
+			public bool IsActive =>
+				Volatile.Read(ref _active) != 0
+				|| _previous?.IsActive == true;
+
+			public void Dispose()
+			{
+				Interlocked.Exchange(ref _active, 0);
+				if (ReferenceEquals(_owner._operationCaptureSuppression.Value, this))
+					_owner._operationCaptureSuppression.Value = _previous;
+			}
 		}
 
 		internal sealed class OperationCapture : IDisposable
@@ -193,6 +203,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 		private readonly IDispatcher _dispatcher;
 		private readonly AsyncOperationLifetime _lateOperations = new();
 		private readonly AsyncLocal<OperationCapture?> _operationCapture = new();
+		private readonly AsyncLocal<OperationCaptureSuppression?> _operationCaptureSuppression = new();
 
 		public TizenBlazorDispatcher(IDispatcher dispatcher)
 		{
@@ -224,13 +235,18 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 		internal IDisposable SuppressOperationCapture()
 		{
-			var suppression = new OperationCaptureSuppression(this, _operationCapture.Value);
-			_operationCapture.Value = null;
+			var suppression = new OperationCaptureSuppression(
+				this,
+				_operationCaptureSuppression.Value);
+			_operationCaptureSuppression.Value = suppression;
 			return suppression;
 		}
 
 		private Task Track(Func<Task> dispatch)
 		{
+			if (_operationCaptureSuppression.Value?.IsActive == true)
+				return dispatch();
+
 			var capture = _operationCapture.Value;
 			var reservation = capture?.Reserve();
 			if (capture is not null && reservation is null)
@@ -251,6 +267,9 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 		private Task<TResult> Track<TResult>(Func<Task<TResult>> dispatch)
 		{
+			if (_operationCaptureSuppression.Value?.IsActive == true)
+				return dispatch();
+
 			var capture = _operationCapture.Value;
 			var reservation = capture?.Reserve();
 			if (capture is not null && reservation is null)

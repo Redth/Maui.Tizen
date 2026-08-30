@@ -132,7 +132,9 @@ Everything above the native boundary was ported as-is from `dotnet/maui` `net11.
   connection-level dispatcher lifetime, so `EndInvokeDotNet` still reaches JavaScript while connected
   but is rejected once that connection retires. Manager disposal enters a narrow trusted lifecycle
   scope that bypasses the retired capture, so a callback that disconnects or replaces its own view can
-  still dispose renderer, component and scoped-service state exactly once.
+  still dispose renderer, component and scoped-service state exactly once. The scope uses a shared
+  expiring token rather than clearing `AsyncLocal`; delayed descendants lose that authority as soon as
+  cleanup exits and resolve through the retired capture normally.
 - **`WebResourceRequested` is not raised.** `IBlazorWebView` inherits it from
   `IWebRequestInterceptingWebView`, but `WebResourceRequestedEventArgs` has only `internal` constructors
   and no Tizen shape, so a third-party backend cannot construct the argument. Static content is still
