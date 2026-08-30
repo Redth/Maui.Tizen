@@ -32,15 +32,30 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// </remarks>
 	public sealed class TizenModalHost : ITizenModalHost, IDisposable
 	{
+		sealed class PlaceholderState
+		{
+			public required object Placeholder { get; init; }
+			public long Generation { get; set; }
+			public bool OperationOwned { get; set; }
+			public bool DialogActive { get; set; }
+			public bool Released { get; set; }
+		}
+
 		readonly record struct RemovalResult(
 			bool IsAbsent,
 			bool PlaceholderDisposed,
 			Exception? Failure);
 
+		static readonly SharedBooleanPropertyLease<ITizenNavigationStack> s_shownBehindPage = new(
+			static stack => stack.ShownBehindPage,
+			static (stack, value) => stack.ShownBehindPage = value);
+
 		readonly ITizenNavigationStack _stack;
 		readonly ILogger<TizenModalHost>? _logger;
-		readonly HashSet<object> _activePlaceholders = new();
-		readonly HashSet<object> _pendingPlaceholders = new();
+		readonly Dictionary<object, PlaceholderState> _placeholders = new(ReferenceEqualityComparer.Instance);
+
+		long _nextGeneration;
+		bool _disposed;
 
 		/// <summary>
 		/// Initializes a new instance of the <see cref="TizenModalHost"/> class.
@@ -57,80 +72,76 @@ namespace Microsoft.Maui.Platforms.Tizen
 		public async Task RunModalAsync(Func<Task> dialogOperation)
 		{
 			ArgumentNullException.ThrowIfNull(dialogOperation);
+			ObjectDisposedException.ThrowIf(_disposed, this);
 
 			await RetryPendingPlaceholdersAsync().ConfigureAwait(true);
 
 			var placeholder = _stack.CreatePlaceholder();
-			_activePlaceholders.Add(placeholder);
+			var generation = ++_nextGeneration;
+			var state = new PlaceholderState
+			{
+				Placeholder = placeholder,
+				Generation = generation,
+				OperationOwned = true,
+			};
+			_placeholders.Add(placeholder, state);
 
-			// ShownBehindPage is stack-wide state that belongs to whatever is already presented,
-			// not to this dialog. It is set so the placeholder does not hide the page underneath -
-			// a dialog floats above it - and then RESTORED rather than forced to false, because
-			// forcing false silently reconfigures how every later push renders for the lifetime of
-			// the window.
-			var shownBehindPage = _stack.ShownBehindPage;
-			_stack.ShownBehindPage = true;
+			Exception? pushFailure = null;
+			IDisposable? shownBehindLease = null;
 
 			try
 			{
+				// Multiple/nested dialogs can push concurrently. A shared lease keeps the property
+				// true until the final in-flight push finishes, then restores the first owner's
+				// original value exactly once.
+				shownBehindLease = s_shownBehindPage.Acquire(_stack);
+
 				// Awaited, not fire-and-forget. A discarded task swallows the fault and lets the
 				// dialog open over a stack that never actually took the placeholder, which then
 				// unbalances the pop.
 				await _stack.PushAsync(placeholder, false).ConfigureAwait(true);
 			}
-			catch (Exception pushFailure)
+			catch (Exception ex)
 			{
-				// Some native stacks mutate before completing their transition task. Remove by
-				// identity even though PushAsync faulted so a half-completed push cannot wedge the
-				// stack.
-				var pushRemoval = await RemovePlaceholderAsync(placeholder).ConfigureAwait(true);
-				Exception? releaseFailure = null;
-				if (pushRemoval.IsAbsent)
-				{
-					_activePlaceholders.Remove(placeholder);
-					_pendingPlaceholders.Remove(placeholder);
-
-					try
-					{
-						if (!pushRemoval.PlaceholderDisposed)
-						{
-							DisposePlaceholder(placeholder);
-						}
-					}
-					catch (Exception ex)
-					{
-						releaseFailure = ex;
-					}
-				}
-				else
-				{
-					_activePlaceholders.Remove(placeholder);
-					_pendingPlaceholders.Add(placeholder);
-				}
-
-				var pushCleanupFailure = CombineFailures(
-					"The dialog placeholder push rollback failed.",
-					pushRemoval.Failure,
-					pushRemoval.IsAbsent
-						? null
-						: new InvalidOperationException(
-							"The placeholder remained in the native stack after its push failed."),
-					releaseFailure);
-				if (pushCleanupFailure is not null)
-				{
-					throw new AggregateException(
-						"The dialog placeholder push and its rollback both failed.",
-						pushFailure,
-						pushCleanupFailure);
-				}
-
-				ExceptionDispatchInfo.Capture(pushFailure).Throw();
-				throw new InvalidOperationException("Unreachable.");
+				pushFailure = ex;
 			}
 			finally
 			{
-				_stack.ShownBehindPage = shownBehindPage;
+				try
+				{
+					shownBehindLease?.Dispose();
+				}
+				catch (Exception ex)
+				{
+					pushFailure = CombineFailures(
+						"The placeholder push and ShownBehindPage restoration both failed.",
+						pushFailure,
+						ex);
+				}
 			}
+
+			Exception? invalidationFailure = null;
+			if (_disposed || state.Generation != generation)
+			{
+				invalidationFailure = new ObjectDisposedException(nameof(TizenModalHost));
+			}
+
+			if (pushFailure is not null || invalidationFailure is not null)
+			{
+				// PushAsync may have failed before insertion, after insertion, or completed after
+				// Dispose invalidated the operation. Only the operation owns cleanup until this
+				// post-await point.
+				var cleanupFailure = await CleanupPlaceholderAsync(state).ConfigureAwait(true);
+				var failure = CombineFailures(
+					"The dialog placeholder push, invalidation, and rollback failed.",
+					pushFailure,
+					invalidationFailure,
+					cleanupFailure);
+				ExceptionDispatchInfo.Capture(failure!).Throw();
+			}
+
+			state.OperationOwned = false;
+			state.DialogActive = true;
 
 			Exception? dialogFailure = null;
 
@@ -142,67 +153,55 @@ namespace Microsoft.Maui.Platforms.Tizen
 			{
 				dialogFailure = ex;
 			}
-
-			RemovalResult removal;
-			if (ReferenceEquals(_stack.Top, placeholder))
+			finally
 			{
-				removal = await RemovePlaceholderAsync(placeholder).ConfigureAwait(true);
-			}
-			else
-			{
-				_logger?.LogDebug(
-					"The dialog placeholder was no longer on top of the navigation stack; removing it by identity instead of popping.");
-				removal = await RemovePlaceholderAsync(placeholder).ConfigureAwait(true);
+				state.DialogActive = false;
 			}
 
-			Exception? cleanupFailure = removal.Failure;
+			if (state.Released)
+			{
+				if (dialogFailure is not null)
+				{
+					ExceptionDispatchInfo.Capture(dialogFailure).Throw();
+				}
+
+				return;
+			}
+
+			generation = ++_nextGeneration;
+			state.Generation = generation;
+			state.OperationOwned = true;
+
+			var removal = await RemovePlaceholderAsync(placeholder).ConfigureAwait(true);
+			invalidationFailure = null;
+			if (_disposed || state.Generation != generation)
+			{
+				invalidationFailure = new ObjectDisposedException(nameof(TizenModalHost));
+			}
+
+			Exception? releaseFailure = null;
 			if (removal.IsAbsent)
 			{
-				_activePlaceholders.Remove(placeholder);
-				_pendingPlaceholders.Remove(placeholder);
-
-				try
-				{
-					if (!removal.PlaceholderDisposed)
-					{
-						DisposePlaceholder(placeholder);
-					}
-				}
-				catch (Exception ex)
-				{
-					cleanupFailure = CombineFailures(
-						"The placeholder removal and disposal both failed.",
-						cleanupFailure,
-						ex);
-				}
+				releaseFailure = ReleasePlaceholder(state, removal.PlaceholderDisposed);
 			}
 			else
 			{
-				_activePlaceholders.Remove(placeholder);
-				_pendingPlaceholders.Add(placeholder);
-				cleanupFailure = CombineFailures(
-					"The placeholder remained live after cleanup.",
-					cleanupFailure,
-					new InvalidOperationException(
-						"The dialog placeholder remains in the native stack and was kept alive for retry."));
+				state.OperationOwned = false;
 			}
 
-			if (dialogFailure is not null && cleanupFailure is not null)
+			var finalFailure = CombineFailures(
+				"The dialog operation and placeholder cleanup failed.",
+				dialogFailure,
+				removal.Failure,
+				removal.IsAbsent
+					? null
+					: new InvalidOperationException(
+						"The dialog placeholder remains in the native stack and was kept alive for retry."),
+				invalidationFailure,
+				releaseFailure);
+			if (finalFailure is not null)
 			{
-				throw new AggregateException(
-					"The dialog operation and placeholder cleanup both failed.",
-					dialogFailure,
-					cleanupFailure);
-			}
-
-			if (cleanupFailure is not null)
-			{
-				ExceptionDispatchInfo.Capture(cleanupFailure).Throw();
-			}
-
-			if (dialogFailure is not null)
-			{
-				ExceptionDispatchInfo.Capture(dialogFailure).Throw();
+				ExceptionDispatchInfo.Capture(finalFailure).Throw();
 			}
 		}
 
@@ -212,16 +211,27 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <inheritdoc/>
 		public void Dispose()
 		{
-			foreach (var placeholder in _activePlaceholders.Concat(_pendingPlaceholders).Distinct().ToArray())
+			_disposed = true;
+
+			foreach (var state in _placeholders.Values.ToArray())
 			{
+				state.Generation = ++_nextGeneration;
+
+				// The pending PushAsync/removal operation still owns the placeholder and its
+				// ShownBehindPage lease. It must perform post-await cleanup.
+				if (state.OperationOwned || state.Released)
+				{
+					continue;
+				}
+
 				try
 				{
-					if (_stack.Contains(placeholder))
+					if (_stack.Contains(state.Placeholder))
 					{
-						_stack.Remove(placeholder);
+						_stack.Remove(state.Placeholder);
 					}
 
-					if (_stack.Contains(placeholder))
+					if (_stack.Contains(state.Placeholder))
 					{
 						ReportTeardownFailure(
 							new InvalidOperationException(
@@ -229,12 +239,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 						continue;
 					}
 
-					var disposed = _stack.IsDisposed(placeholder);
-					_activePlaceholders.Remove(placeholder);
-					_pendingPlaceholders.Remove(placeholder);
-					if (!disposed)
+					var disposed = _stack.IsDisposed(state.Placeholder);
+					var releaseFailure = ReleasePlaceholder(state, disposed);
+					if (releaseFailure is not null)
 					{
-						DisposePlaceholder(placeholder);
+						ReportTeardownFailure(releaseFailure);
 					}
 				}
 				catch (Exception ex)
@@ -269,26 +278,82 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 		async Task RetryPendingPlaceholdersAsync()
 		{
-			foreach (var placeholder in _pendingPlaceholders.ToArray())
+			foreach (var state in _placeholders.Values
+				.Where(static state => !state.OperationOwned && !state.DialogActive && !state.Released)
+				.ToArray())
 			{
-				var removal = await RemovePlaceholderAsync(placeholder).ConfigureAwait(true);
+				var generation = ++_nextGeneration;
+				state.Generation = generation;
+				state.OperationOwned = true;
+				var removal = await RemovePlaceholderAsync(state.Placeholder).ConfigureAwait(true);
 				if (!removal.IsAbsent)
 				{
+					state.OperationOwned = false;
 					ExceptionDispatchInfo.Capture(
 						removal.Failure ?? new InvalidOperationException(
 							"A previous dialog placeholder remains in the native stack.")).Throw();
 				}
 
-				_pendingPlaceholders.Remove(placeholder);
-				if (!removal.PlaceholderDisposed)
+				var releaseFailure = ReleasePlaceholder(state, removal.PlaceholderDisposed);
+				var failure = CombineFailures(
+					"Retrying a previous dialog placeholder cleanup failed.",
+					removal.Failure,
+					releaseFailure,
+					state.Generation != generation
+						? new ObjectDisposedException(nameof(TizenModalHost))
+						: null);
+				if (failure is not null)
 				{
-					DisposePlaceholder(placeholder);
+					ExceptionDispatchInfo.Capture(failure).Throw();
 				}
+			}
+		}
 
-				if (removal.Failure is not null)
-				{
-					ExceptionDispatchInfo.Capture(removal.Failure).Throw();
-				}
+		async Task<Exception?> CleanupPlaceholderAsync(PlaceholderState state)
+		{
+			var removal = await RemovePlaceholderAsync(state.Placeholder).ConfigureAwait(true);
+
+			if (!removal.IsAbsent)
+			{
+				state.OperationOwned = false;
+				return CombineFailures(
+					"The placeholder could not be confirmed absent.",
+					removal.Failure,
+					new InvalidOperationException(
+						"The placeholder remains live in the native stack for teardown retry."));
+			}
+
+			return CombineFailures(
+				"The placeholder removal and release failed.",
+				removal.Failure,
+				ReleasePlaceholder(state, removal.PlaceholderDisposed));
+		}
+
+		Exception? ReleasePlaceholder(PlaceholderState state, bool placeholderDisposed)
+		{
+			if (state.Released)
+			{
+				return null;
+			}
+
+			state.Released = true;
+			state.OperationOwned = false;
+			state.DialogActive = false;
+			_placeholders.Remove(state.Placeholder);
+
+			if (placeholderDisposed)
+			{
+				return null;
+			}
+
+			try
+			{
+				DisposePlaceholder(state.Placeholder);
+				return null;
+			}
+			catch (Exception ex)
+			{
+				return ex;
 			}
 		}
 

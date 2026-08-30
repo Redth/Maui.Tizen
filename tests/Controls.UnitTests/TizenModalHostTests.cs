@@ -17,6 +17,16 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests;
 /// </remarks>
 public class TizenModalHostTests
 {
+	static async Task WaitForAsync(Func<bool> condition)
+	{
+		for (var i = 0; i < 1000 && !condition(); i++)
+		{
+			await Task.Yield();
+		}
+
+		Assert.True(condition());
+	}
+
 	[Fact]
 	public async Task APlaceholderIsPushedForTheDurationOfTheDialog()
 	{
@@ -237,6 +247,181 @@ public class TizenModalHostTests
 
 		Assert.False(stack.Contains(first));
 		Assert.Equal(1, first.DisposeCount);
+	}
+
+	[Fact]
+	public async Task DisposeBeforeBlockedPushInsertionLeavesCleanupToTheOperation()
+	{
+		var blocker = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var stack = new FakeNavigationStack { PushBlocker = blocker };
+		var host = new TizenModalHost(stack);
+		var run = host.RunModalAsync(() => Task.CompletedTask);
+		await stack.PushStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		var placeholder = Assert.Single(stack.Placeholders);
+
+		host.Dispose();
+
+		Assert.False(stack.Contains(placeholder));
+		Assert.Equal(0, placeholder.DisposeCount);
+
+		blocker.SetResult(null);
+		await Assert.ThrowsAsync<ObjectDisposedException>(() => run);
+
+		Assert.False(stack.InsertedDisposedPlaceholder);
+		Assert.False(stack.Contains(placeholder));
+		Assert.Equal(1, placeholder.DisposeCount);
+
+		host.Dispose();
+		Assert.Equal(1, placeholder.DisposeCount);
+	}
+
+	[Fact]
+	public async Task DisposeAfterBlockedPushInsertionDoesNotStealOperationOwnership()
+	{
+		var blocker = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var stack = new FakeNavigationStack { PushAfterInsertionBlocker = blocker };
+		var host = new TizenModalHost(stack);
+		var run = host.RunModalAsync(() => Task.CompletedTask);
+		await stack.PushInserted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		var placeholder = Assert.Single(stack.Placeholders);
+
+		host.Dispose();
+
+		Assert.True(stack.Contains(placeholder));
+		Assert.Equal(0, placeholder.DisposeCount);
+
+		blocker.SetResult(null);
+		await Assert.ThrowsAsync<ObjectDisposedException>(() => run);
+
+		Assert.False(stack.Contains(placeholder));
+		Assert.Equal(1, placeholder.DisposeCount);
+	}
+
+	[Fact]
+	public async Task LatePushRemovalFailureKeepsTheLivePlaceholderForDisposeRetry()
+	{
+		var blocker = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var stack = new FakeNavigationStack { PushAfterInsertionBlocker = blocker };
+		var host = new TizenModalHost(stack);
+		var run = host.RunModalAsync(() => Task.CompletedTask);
+		await stack.PushInserted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		var placeholder = Assert.Single(stack.Placeholders);
+		stack.PopFailure = new InvalidOperationException("pop failed");
+		stack.RemoveFailures.Add(placeholder);
+
+		host.Dispose();
+		blocker.SetResult(null);
+
+		await Assert.ThrowsAsync<AggregateException>(() => run);
+		Assert.True(stack.Contains(placeholder));
+		Assert.Equal(0, placeholder.DisposeCount);
+
+		stack.PopFailure = null;
+		stack.RemoveFailures.Clear();
+		host.Dispose();
+
+		Assert.False(stack.Contains(placeholder));
+		Assert.Equal(1, placeholder.DisposeCount);
+	}
+
+	[Theory]
+	[InlineData(false, false)]
+	[InlineData(false, true)]
+	[InlineData(true, false)]
+	[InlineData(true, true)]
+	public async Task OverlappingPushesShareShownBehindPageLease(
+		bool originalValue,
+		bool completeSecondFirst)
+	{
+		var firstPush = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var secondPush = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var firstDialog = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var secondDialog = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var firstDialogEntered = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var secondDialogEntered = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var stack = new FakeNavigationStack { ShownBehindPage = originalValue };
+		stack.ShownBehindPageWrites.Clear();
+		stack.PushBlockers.Enqueue(firstPush);
+		stack.PushBlockers.Enqueue(secondPush);
+		var host = new TizenModalHost(stack);
+
+		var first = host.RunModalAsync(async () =>
+		{
+			firstDialogEntered.SetResult(null);
+			await firstDialog.Task;
+		});
+		await WaitForAsync(() => stack.PushStartedCount == 1);
+		var second = host.RunModalAsync(async () =>
+		{
+			secondDialogEntered.SetResult(null);
+			await secondDialog.Task;
+		});
+		await WaitForAsync(() => stack.PushStartedCount == 2);
+
+		Assert.True(stack.ShownBehindPage);
+		Assert.Equal(new[] { true }, stack.ShownBehindPageWrites);
+
+		if (completeSecondFirst)
+		{
+			secondPush.SetResult(null);
+			await secondDialogEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			Assert.True(stack.ShownBehindPage);
+			firstPush.SetResult(null);
+			await firstDialogEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		}
+		else
+		{
+			firstPush.SetResult(null);
+			await firstDialogEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			Assert.True(stack.ShownBehindPage);
+			secondPush.SetResult(null);
+			await secondDialogEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		}
+
+		Assert.Equal(originalValue, stack.ShownBehindPage);
+		Assert.Equal(new[] { true, originalValue }, stack.ShownBehindPageWrites);
+
+		firstDialog.SetResult(null);
+		secondDialog.SetResult(null);
+		await Task.WhenAll(first, second);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public async Task FailedOverlappingPushReleasesOnlyItsShownBehindLease(bool originalValue)
+	{
+		var firstPush = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var secondPush = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var firstDialog = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var firstDialogEntered = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var stack = new FakeNavigationStack { ShownBehindPage = originalValue };
+		stack.ShownBehindPageWrites.Clear();
+		stack.PushBlockers.Enqueue(firstPush);
+		stack.PushBlockers.Enqueue(secondPush);
+		stack.PushFailures.Enqueue(null);
+		stack.PushFailures.Enqueue(new InvalidOperationException("second push failed"));
+		var host = new TizenModalHost(stack);
+
+		var first = host.RunModalAsync(async () =>
+		{
+			firstDialogEntered.SetResult(null);
+			await firstDialog.Task;
+		});
+		await WaitForAsync(() => stack.PushStartedCount == 1);
+		var second = host.RunModalAsync(() => Task.CompletedTask);
+		await WaitForAsync(() => stack.PushStartedCount == 2);
+
+		secondPush.SetResult(null);
+		await Assert.ThrowsAsync<InvalidOperationException>(() => second);
+		Assert.True(stack.ShownBehindPage);
+
+		firstPush.SetResult(null);
+		await firstDialogEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		Assert.Equal(originalValue, stack.ShownBehindPage);
+
+		firstDialog.SetResult(null);
+		await first;
 	}
 
 	[Fact]

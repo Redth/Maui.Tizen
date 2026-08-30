@@ -111,6 +111,12 @@ the completing operation observes invalidation, confirms native removal, and rel
 once. Failed identity removal leaves the live entry tracked for reconciliation or a later
 best-effort teardown retry.
 
+Dialog placeholders use the same rule. A pending `PushAsync` owns its placeholder until its
+post-await generation check, so window disposal cannot free a view that native code may still
+insert. Concurrent placeholder pushes also share a reference-counted `ShownBehindPage` lease: the
+first push captures the original value and the final push restores it once, including failure and
+out-of-order completion paths.
+
 Framework-owned `Dispose` attempts every tracked cleanup and reports failures through the
 configured logger (or diagnostics fallback) without throwing into `Window.Destroying` or handler
 replacement. Caller-owned push/pop operations still surface their own transition and cleanup

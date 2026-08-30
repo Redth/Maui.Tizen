@@ -12,6 +12,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests;
 internal sealed class FakeNavigationStack : ITizenNavigationStack
 {
 	readonly List<object> _entries = new();
+	bool _shownBehindPage;
 
 	public List<string> Operations { get; } = new();
 
@@ -35,7 +36,15 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 			_ => false,
 		};
 
-	public bool ShownBehindPage { get; set; }
+	public bool ShownBehindPage
+	{
+		get => _shownBehindPage;
+		set
+		{
+			_shownBehindPage = value;
+			ShownBehindPageWrites.Add(value);
+		}
+	}
 
 	public List<bool> ShownBehindPageWrites { get; } = new();
 
@@ -57,11 +66,27 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 
 	public TaskCompletionSource<object?>? PushBlocker { get; set; }
 
+	public TaskCompletionSource<object?>? PushAfterInsertionBlocker { get; set; }
+
 	public TaskCompletionSource<object?>? PopBlocker { get; set; }
 
 	public TaskCompletionSource<object?> PushStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+	public TaskCompletionSource<object?> PushInserted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
 	public TaskCompletionSource<object?> PopStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+	public Queue<TaskCompletionSource<object?>> PushBlockers { get; } = new();
+
+	public Queue<TaskCompletionSource<object?>> PushAfterInsertionBlockers { get; } = new();
+
+	public Queue<Exception?> PushFailures { get; } = new();
+
+	public int PushStartedCount { get; private set; }
+
+	public int PushInsertedCount { get; private set; }
+
+	public bool InsertedDisposedPlaceholder { get; private set; }
 
 	public List<FakePlaceholder> Placeholders { get; } = new();
 
@@ -88,28 +113,42 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 		Operations.Add($"Push({animated})");
 		PushAnimations.Add(animated);
 		ShownBehindPageDuringPush.Add(ShownBehindPage);
+		PushStartedCount++;
+		PushStarted.TrySetResult(null);
+		var pushFailure = PushFailures.Count > 0 ? PushFailures.Dequeue() : PushFailure;
 
 		if (CompleteAsynchronously)
 		{
 			await Task.Yield();
 		}
 
-		if (PushBlocker is not null)
+		var pushBlocker = PushBlockers.Count > 0 ? PushBlockers.Dequeue() : PushBlocker;
+		if (pushBlocker is not null)
 		{
-			PushStarted.TrySetResult(null);
-			await PushBlocker.Task;
+			await pushBlocker.Task;
 		}
 
-		if (PushFailure is not null && !MutateBeforePushFailure)
+		if (pushFailure is not null && !MutateBeforePushFailure)
 		{
-			throw PushFailure;
+			throw pushFailure;
 		}
 
+		InsertedDisposedPlaceholder |= platformView is FakePlaceholder placeholder && placeholder.Disposed;
 		_entries.Add(platformView);
+		PushInsertedCount++;
+		PushInserted.TrySetResult(null);
 
-		if (PushFailure is not null)
+		var insertionBlocker = PushAfterInsertionBlockers.Count > 0
+			? PushAfterInsertionBlockers.Dequeue()
+			: PushAfterInsertionBlocker;
+		if (insertionBlocker is not null)
 		{
-			throw PushFailure;
+			await insertionBlocker.Task;
+		}
+
+		if (pushFailure is not null)
+		{
+			throw pushFailure;
 		}
 	}
 

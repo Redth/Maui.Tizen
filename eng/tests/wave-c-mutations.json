@@ -1190,8 +1190,8 @@
     "expected": "FailedIdentityRemovalKeepsThePlaceholderLiveForTheNextRetry",
     "replacements": [
       {
-        "search": "\t\t\tif (removal.IsAbsent)\n\t\t\t{\n\t\t\t\t_activePlaceholders.Remove",
-        "replace": "\t\t\tif (removal.IsAbsent || !removal.IsAbsent)\n\t\t\t{\n\t\t\t\t_activePlaceholders.Remove"
+        "search": "\t\t\tif (removal.IsAbsent)\n\t\t\t{\n\t\t\t\treleaseFailure = ReleasePlaceholder",
+        "replace": "\t\t\tif (removal.IsAbsent || !removal.IsAbsent)\n\t\t\t{\n\t\t\t\treleaseFailure = ReleasePlaceholder"
       }
     ]
   },
@@ -1216,8 +1216,8 @@
     "expected": "FailedPushRollbackKeepsTheLivePlaceholderForTheNextRetry",
     "replacements": [
       {
-        "search": "\t\t\t\telse\n\t\t\t\t{\n\t\t\t\t\t_activePlaceholders.Remove(placeholder);\n\t\t\t\t\t_pendingPlaceholders.Add(placeholder);\n\t\t\t\t}\n\n\t\t\t\tvar pushCleanupFailure",
-        "replace": "\t\t\t\telse\n\t\t\t\t{\n\t\t\t\t\t_activePlaceholders.Remove(placeholder);\n\t\t\t\t}\n\n\t\t\t\tvar pushCleanupFailure"
+        "search": "\t\t\tif (!removal.IsAbsent)\n\t\t\t{\n\t\t\t\tstate.OperationOwned = false;\n\t\t\t\treturn CombineFailures(",
+        "replace": "\t\t\tif (!removal.IsAbsent)\n\t\t\t{\n\t\t\t\treturn CombineFailures("
       }
     ]
   },
@@ -1298,8 +1298,8 @@
     "expected": "ReleaseDisposesTheCapturedLiveViewBeforeClearingThePageHandler",
     "replacements": [
       {
-        "search": "\t\t\t\ttry\n\t\t\t\t{\n\t\t\t\t\t// Use the captured view before clearing Handler. Clearing can invoke\n\t\t\t\t\t// DisconnectHandler, and MAUI handlers commonly null PlatformView there.\n\t\t\t\t\t(platformView as IDisposable)?.Dispose();",
-        "replace": "\t\t\t\ttry\n\t\t\t\t{\n\t\t\t\t\tif (ReferenceEquals(page.Handler, handler))\n\t\t\t\t\t\t((Element)page).Handler = null;\n\t\t\t\t\t(platformView as IDisposable)?.Dispose();"
+        "search": "\t\t\t\ttry\n\t\t\t\t{\n\t\t\t\t\t// Disconnect while the captured native view is still alive. MAUI handlers\n\t\t\t\t\t// commonly null PlatformView here, so disposal must use the captured value.\n\t\t\t\t\thandler.DisconnectHandler();",
+        "replace": "\t\t\t\ttry\n\t\t\t\t{\n\t\t\t\t\t(platformView as IDisposable)?.Dispose();\n\t\t\t\t\thandler.DisconnectHandler();"
       }
     ]
   },
@@ -1326,6 +1326,32 @@
       {
         "search": "\t\t\tif (failures is not null)\n\t\t\t{\n\t\t\t\tReportFrameworkTeardownFailure(",
         "replace": "\t\t\tif (failures is not null || failures is null)\n\t\t\t{\n\t\t\t\tthrow new AggregateException(failures!);\n#pragma warning disable CS0162\n\t\t\t\tReportFrameworkTeardownFailure("
+      }
+    ]
+  },
+  {
+    "id": "modal-placeholder-push-operation-ownership",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Modal/TizenModalHost.cs",
+    "filter": "FullyQualifiedName~DisposeBeforeBlockedPushInsertionLeavesCleanupToTheOperation",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "DisposeBeforeBlockedPushInsertionLeavesCleanupToTheOperation",
+    "replacements": [
+      {
+        "search": "if (state.OperationOwned || state.Released)",
+        "replace": "if (state.Released)"
+      }
+    ]
+  },
+  {
+    "id": "modal-placeholder-shown-behind-shared-lease",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Modal/TizenModalHost.cs",
+    "filter": "FullyQualifiedName~OverlappingPushesShareShownBehindPageLease",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "OverlappingPushesShareShownBehindPageLease",
+    "replacements": [
+      {
+        "search": "shownBehindLease = s_shownBehindPage.Acquire(_stack);",
+        "replace": "shownBehindLease = s_shownBehindPage.Acquire(_stack);\n\t\t\t\tshownBehindLease.Dispose();"
       }
     ]
   }

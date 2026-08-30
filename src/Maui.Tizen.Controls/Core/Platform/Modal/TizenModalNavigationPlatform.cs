@@ -181,9 +181,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 			{
 				try
 				{
-					// Use the captured view before clearing Handler. Clearing can invoke
-					// DisconnectHandler, and MAUI handlers commonly null PlatformView there.
-					(platformView as IDisposable)?.Dispose();
+					// Disconnect while the captured native view is still alive. MAUI handlers
+					// commonly null PlatformView here, so disposal must use the captured value.
+					handler.DisconnectHandler();
 				}
 				catch (Exception ex)
 				{
@@ -201,16 +201,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 						(failures ??= new()).Add(ex);
 					}
 				}
-				else
+
+				try
 				{
-					try
-					{
-						handler.DisconnectHandler();
-					}
-					catch (Exception ex)
-					{
-						(failures ??= new()).Add(ex);
-					}
+					(platformView as IDisposable)?.Dispose();
+				}
+				catch (Exception ex)
+				{
+					(failures ??= new()).Add(ex);
 				}
 			}
 
@@ -246,24 +244,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 				{
 					(failures ??= new()).Add(ex);
 				}
-			}
-			else
-			{
-				try
-				{
-					(platformView as IDisposable)?.Dispose();
-				}
-				catch (Exception ex)
-				{
-					(failures ??= new()).Add(ex);
-				}
 
-				if (!ReferenceEquals(element.Handler, handler)
-					|| !ReferenceEquals(handler.VirtualView, element))
+				if (ReferenceEquals(element.Handler, handler))
 				{
 					try
 					{
-						handler.DisconnectHandler();
+						element.Handler = null;
 					}
 					catch (Exception ex)
 					{
@@ -271,12 +257,32 @@ namespace Microsoft.Maui.Platforms.Tizen
 					}
 				}
 			}
-
-			if (ReferenceEquals(element.Handler, handler))
+			else
 			{
 				try
 				{
-					element.Handler = null;
+					handler.DisconnectHandler();
+				}
+				catch (Exception ex)
+				{
+					(failures ??= new()).Add(ex);
+				}
+
+				if (ReferenceEquals(element.Handler, handler))
+				{
+					try
+					{
+						element.Handler = null;
+					}
+					catch (Exception ex)
+					{
+						(failures ??= new()).Add(ex);
+					}
+				}
+
+				try
+				{
+					(platformView as IDisposable)?.Dispose();
 				}
 				catch (Exception ex)
 				{
