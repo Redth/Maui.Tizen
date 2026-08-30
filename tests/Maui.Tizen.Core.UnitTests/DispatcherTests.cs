@@ -795,5 +795,172 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			Assert.NotNull(b);
 			Assert.NotSame(a, b);
 		}
+
+		[Fact]
+		public void ATickQueuedBeforeStopIsRejectedAfterRestart()
+		{
+			// The ordering that IsRunning alone cannot catch. Ticks are POSTED to the main loop, so
+			// one can sit in the queue across Stop and a subsequent Start. By the time it is
+			// delivered IsRunning is true again, so it passes that check and raises a Tick
+			// belonging to the previous run - and for a one-shot it then disarms the NEW run.
+			var context = new LoopContext();
+			var time = new ManualTimeProvider();
+			using var timer = new TizenDispatcherTimer(context, time)
+			{
+				Interval = TimeSpan.FromMilliseconds(10),
+			};
+
+			var ticks = 0;
+			timer.Tick += (_, _) => ticks++;
+
+			timer.Start();
+
+			// Queue a tick without pumping.
+			time.Advance(TimeSpan.FromMilliseconds(10));
+
+			timer.Stop();
+			timer.Start();
+
+			// The stale callback is delivered now; it belongs to the previous arming.
+			context.DrainAvailable();
+
+			Assert.Equal(0, ticks);
+
+			// And the new run still works - the stale tick must not have consumed it.
+			time.Advance(TimeSpan.FromMilliseconds(10));
+			context.DrainAvailable();
+
+			Assert.Equal(1, ticks);
+		}
+
+		[Fact]
+		public void AStaleTickCannotDisarmARepeatingTimer()
+		{
+			var context = new LoopContext();
+			var time = new ManualTimeProvider();
+			using var timer = new TizenDispatcherTimer(context, time)
+			{
+				Interval = TimeSpan.FromMilliseconds(10),
+				IsRepeating = true,
+			};
+
+			var ticks = 0;
+			timer.Tick += (_, _) => ticks++;
+
+			timer.Start();
+			time.Advance(TimeSpan.FromMilliseconds(10));
+			timer.Stop();
+			timer.Start();
+
+			context.DrainAvailable();
+			Assert.Equal(0, ticks);
+
+			// Three fresh intervals under the new arming.
+			time.Advance(TimeSpan.FromMilliseconds(30));
+			context.DrainAvailable();
+
+			Assert.Equal(3, ticks);
+			Assert.True(timer.IsRunning);
+		}
+
+		[Fact]
+		public void ATickQueuedBeforeAPlainStopStaysRejected()
+		{
+			var context = new LoopContext();
+			var time = new ManualTimeProvider();
+			using var timer = new TizenDispatcherTimer(context, time)
+			{
+				Interval = TimeSpan.FromMilliseconds(10),
+				IsRepeating = true,
+			};
+
+			var ticks = 0;
+			timer.Tick += (_, _) => ticks++;
+
+			timer.Start();
+			time.Advance(TimeSpan.FromMilliseconds(10));
+			timer.Stop();
+
+			context.DrainAvailable();
+
+			Assert.Equal(0, ticks);
+			Assert.False(timer.IsRunning);
+		}
+
+		[Fact]
+		public void AnUnderlyingCallbackHeldAcrossRestartCannotConsumeTheNewArming()
+		{
+			// The ordering a synchronous fake clock cannot produce, and the reason the generation
+			// must be captured per-arming rather than read from a field.
+			//
+			// The underlying timer callback is held BEFORE it reaches the synchronization context,
+			// then released after Stop and Start. If the arming identity were read when the
+			// callback finally runs, the stale callback would see the NEW generation, be honoured,
+			// and - for a one-shot - disarm the run that had just started.
+			var context = new LoopContext();
+			var time = new ManualTimeProvider { HoldCallbacks = true };
+			using var timer = new TizenDispatcherTimer(context, time)
+			{
+				Interval = TimeSpan.FromMilliseconds(10),
+			};
+
+			var ticks = 0;
+			timer.Tick += (_, _) => ticks++;
+
+			timer.Start();
+
+			// Fires the underlying callback, which is captured rather than delivered.
+			time.Advance(TimeSpan.FromMilliseconds(10));
+
+			timer.Stop();
+			timer.Start();
+
+			// Release the held callback only now: it belongs to the FIRST arming.
+			time.HoldCallbacks = false;
+			Assert.Equal(1, time.ReleaseHeldCallbacks());
+			context.DrainAvailable();
+
+			Assert.Equal(0, ticks);
+
+			// And the second arming is untouched - the stale callback must not have consumed it.
+			time.Advance(TimeSpan.FromMilliseconds(10));
+			context.DrainAvailable();
+
+			Assert.Equal(1, ticks);
+			Assert.False(timer.IsRunning);
+		}
+
+		[Fact]
+		public void AHeldCallbackCannotDisarmARestartedRepeatingTimer()
+		{
+			var context = new LoopContext();
+			var time = new ManualTimeProvider { HoldCallbacks = true };
+			using var timer = new TizenDispatcherTimer(context, time)
+			{
+				Interval = TimeSpan.FromMilliseconds(10),
+				IsRepeating = true,
+			};
+
+			var ticks = 0;
+			timer.Tick += (_, _) => ticks++;
+
+			timer.Start();
+			time.Advance(TimeSpan.FromMilliseconds(10));
+
+			timer.Stop();
+			timer.Start();
+
+			time.HoldCallbacks = false;
+			time.ReleaseHeldCallbacks();
+			context.DrainAvailable();
+
+			Assert.Equal(0, ticks);
+
+			time.Advance(TimeSpan.FromMilliseconds(20));
+			context.DrainAvailable();
+
+			Assert.Equal(2, ticks);
+			Assert.True(timer.IsRunning);
+		}
 	}
 }

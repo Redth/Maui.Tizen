@@ -1,0 +1,67 @@
+<Project>
+
+  <!--
+    The shipping Essentials source closure, shared by the product, API15 ref-pack lane,
+    and host-executable verification lane. Keep this list explicit: src/Maui.Tizen.Essentials
+    also contains imported provenance files, and a recursive Compile glob can silently add a
+    stale upstream partial implementation to all three assemblies.
+  -->
+
+  <PropertyGroup>
+    <MauiTizenEssentialsDir Condition="'$(MauiTizenEssentialsDir)' == ''">$(MSBuildThisFileDirectory)../src/Maui.Tizen.Essentials/</MauiTizenEssentialsDir>
+  </PropertyGroup>
+
+  <ItemGroup Label="Essentials shipping sources">
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Accelerometer/TizenAccelerometer.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Accelerometer/TizenAccelerometerQueue.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)AppActions/TizenAppActions.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)AppInfo/TizenAppInfo.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Barometer/TizenBarometer.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Battery/TizenBattery.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Browser/TizenBrowser.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Clipboard/TizenClipboard.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Compass/TizenCompass.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Connectivity/TizenConnectivity.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Contacts/TizenContacts.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)DeviceDisplay/TizenDeviceDisplay.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)DeviceInfo/TizenDeviceInfo.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Email/TizenEmail.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)FilePicker/TizenFilePicker.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)FileSystem/TizenFileSystem.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Flashlight/TizenFlashlight.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Geocoding/TizenGeocoding.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Geolocation/TizenGeolocation.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Gyroscope/TizenGyroscope.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)HapticFeedback/TizenHapticFeedback.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Hosting/TizenEssentialsMauiAppBuilderExtensions.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Launcher/TizenLauncher.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Magnetometer/TizenMagnetometer.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Map/TizenMap.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)MediaPicker/TizenMediaPicker.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)OrientationSensor/TizenOrientationSensor.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Passkeys/TizenPasskeys.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Permissions/TizenPermissions.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Permissions/TizenPermissionRequestCoordinator.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)PhoneDialer/TizenPhoneDialer.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Platform/TizenEssentialsSupport.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Platform/TizenAppControlReply.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Platform/TizenEventSubscriptionCoordinator.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Platform/TizenNativeCallbackCoordinator.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Platform/TizenPlatform.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Platform/TizenSystemInformation.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Preferences/TizenPreferences.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Screenshot/TizenScreenshot.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)SecureStorage/TizenSecureStorage.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)SemanticScreenReader/TizenSemanticScreenReader.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Share/TizenShare.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Sms/TizenSms.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)TextToSpeech/TizenTextToSpeech.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Types/TizenFileMimeTypes.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Types/TizenSensorBase.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Types/TizenSensors.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Types/TizenStorageKeyEncoding.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)Vibration/TizenVibration.cs" />
+    <MauiTizenEssentialsCompile Include="$(MauiTizenEssentialsDir)WebAuthenticator/TizenWebAuthenticator.cs" />
+  </ItemGroup>
+
+</Project>

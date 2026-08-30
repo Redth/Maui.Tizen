@@ -62,9 +62,22 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 					// Handler contract: MAUI Core ships no IApplicationHandler to implement.
 					"ITizenApplicationHandler",
 
+					// Supplies writable Tizen font-cache locations to the embedded font loader.
+					"ITizenFontDirectoryProvider",
+
+					// Service contract for resolving Tizen font families and registered aliases.
+					"ITizenFontManager",
+
+					// Service contract for loading image sources into Tizen-native image values.
+					"ITizenImageSourceService",
+
 					// Lifecycle builder, so ConfigureLifecycleEvents(e => e.AddTizen(...)) has a
 					// Tizen-specific builder to hang platform events off.
 					"ITizenLifecycleBuilder",
+
+					// Service seam used by picker controls until the navigation wave supplies the
+					// real modal stack.
+					"ITizenModalHost",
 
 					// Handler contract: MAUI's IPlatformViewHandler exists only inside the
 					// net*-tizen build, where re-declaring the name would be CS0433.
@@ -72,13 +85,6 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 					// Native container contract consumed by the Wave C toolbar work.
 					"ITizenToolbarContainer",
-
-					// Wave A adds ITizenFontManager and ITizenModalHost here when it lands. Both
-					// are SERVICE interfaces, so neither derives from IElementHandler and neither
-					// shadows a MAUI handler interface - verified by temporarily declaring both and
-					// confirming NoParallelTizenHandlerInterfacesRemain and
-					// NoTizenPrefixedInterfaceShadowsAMauiHandlerInterface still pass. Adding them
-					// is a one-line change here and nothing else.
 				},
 				ExportedTizenInterfaces);
 		}

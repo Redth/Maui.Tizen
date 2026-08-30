@@ -46,6 +46,77 @@ jobs:
           ContinuousIntegrationBuild: true
 
   # ---------------------------------------------------------------------------
+  # Hosted validation lane.
+  #
+  # Everything the validation harness can prove without a Tizen workload or a device:
+  # repository contract consistency, packaging and package-content contracts, dependency
+  # policy, MSBuild/buildTransitive behaviour, handler/DI/Essentials convention engines,
+  # the DevFlow API contract, and consumer restore.
+  #
+  # Suites here skip individual tests when their subject does not exist yet, and every skip
+  # carries a reason naming what is missing and which lane covers it. The run summary lists
+  # them, because a suite that quietly skips everything is the failure mode this lane exists
+  # to prevent.
+  # ---------------------------------------------------------------------------
+  hosted-validation:
+    name: Hosted validation (no Tizen workload)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Run hosted validation suites
+        run: ./eng/validation/run-hosted-validation.sh
+        env:
+          ContinuousIntegrationBuild: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosted-validation-results
+          path: artifacts/test-results/
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # Device lane status, surfaced on every build.
+  #
+  # The real device lane lives in tizen-device-validation.yml and runs on self-hosted
+  # Samsung infrastructure that is deliberately NOT attached to ordinary pull requests.
+  # This job reports that fact rather than letting the lane silently not exist.
+  # ---------------------------------------------------------------------------
+  device-lane-status:
+    name: Tizen device lane (informational)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Report device lane availability
+        run: |
+          set -euo pipefail
+          {
+            echo "## Tizen device lane"
+            echo
+            if [ "${{ vars.TIZEN_DEVICE_LAB_ENABLED }}" = "true" ]; then
+              echo ":white_check_mark: A device lab is configured for this repository."
+              echo "The lane runs in \`tizen-device-validation.yml\`."
+            else
+              echo ":hourglass: **No device lab is attached — expected for pull requests.**"
+              echo
+              echo "Device-dependent validation (TPK creation, emulator/device deploy and run,"
+              echo "visual baselines, TV remote focus traversal, live handler parity) runs in"
+              echo "\`tizen-device-validation.yml\` on self-hosted Samsung infrastructure."
+              echo
+              echo "It is **not required** for pull requests and **is required** for a release,"
+              echo "through the \`tizen-release\` environment. See \`docs/validation/ci.md\`."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
   # Provenance integrity.
   #
   # The import's value is entirely in the history it preserves. If a future rebase or

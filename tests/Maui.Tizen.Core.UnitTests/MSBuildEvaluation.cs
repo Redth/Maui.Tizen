@@ -46,8 +46,21 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		/// </remarks>
 		static readonly ConcurrentDictionary<string, Evaluation> Cache = new(StringComparer.Ordinal);
 
-		static readonly string[] WantedItems = { "Compile", "AdditionalFiles", "ProjectReference" };
-		static readonly string[] WantedProperties = { "TargetFramework", "IsTizenProject", "AssemblyName", "DefineConstants" };
+		static readonly string[] WantedItems = { "Compile", "AdditionalFiles", "ProjectReference", "PackageReference", "None" };
+		static readonly string[] WantedProperties =
+		{
+			"TargetFramework",
+			"IsTizenProject",
+			"AssemblyName",
+			"DefineConstants",
+			"TizenManifestFile",
+			"UseMaui",
+			"GenerateDocumentationFile",
+			"TizenUIExtensionsPackageVersion",
+			"TizenUIExtensionsIsShippable",
+			"TizenReferencePackId",
+			"TizenReferencePackVersion",
+		};
 
 		sealed record Evaluation(
 			IReadOnlyDictionary<string, string[]> Items,

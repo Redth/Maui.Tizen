@@ -1,0 +1,151 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Host-side verification of the migrated Tizen backend sources.
+
+    This project deliberately does NOT target Tizen, and is therefore exempt from the
+    workload gate. The backend itself cannot be compiled by anyone until the Samsung
+    .NET 11 workload ships, but "cannot compile it" does not have to mean "cannot verify
+    it": these tests parse the backend sources with Roslyn and check them against the
+    real MAUI assemblies by reflection, so the expectations are derived rather than
+    transcribed by hand.
+
+    Complements tests/UnitTests, which guards repository-level invariants. This project
+    guards the migrated handler sources themselves.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);NETSDK1057</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    Compile the Wave B sources that carry no Tizen.NUI dependency, so their behaviour can be
+    executed here instead of only type-checked by the ref-pack lane.
+  -->
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
+
+  <ItemGroup>
+    <Compile Include="@(MauiTizenWaveBPortableCompile)" LinkBase="WaveB" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/TizenCleanup.cs" LinkBase="Shared" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/TizenContentSlot.cs" LinkBase="Shared" />
+    <Compile Include="$(MauiTizenCoreDir)Platform/TizenImageLoader.cs" LinkBase="Shared" />
+    <Compile Include="$(MauiTizenCoreDir)ImageSources/TizenImageSourceServiceCollectionExtensions.cs" LinkBase="WaveB" />
+
+    <!--
+      The Tizen-typed image source contract is NUI-free and is compiled as-is. The concrete
+      TizenImageSource is not: it wraps Tizen.NUI.ImageUrl, so HostStubs supplies a payload
+      stand-in, exactly as tests/Maui.Tizen.Core.UnitTests does for the platform views.
+    -->
+    <Compile Include="$(MauiTizenCoreDir)ImageSources/ITizenImageSourceService.cs" LinkBase="WaveB" />
+
+    <!--
+      Wave B's URI and font services are free of TizenFX types, so their registration can be
+      composed and resolved here. Wave A's file/stream services are not: they call
+      Tizen.Applications.ResourceManager, so their half of the composition is only verifiable in
+      the ref-pack lane and at integration.
+    -->
+    <Compile Include="$(MauiTizenCoreDir)ImageSources/TizenWaveBImageSourceServices.cs" LinkBase="WaveB" />
+
+    <!--
+      A stand-in font file, embedded so the loader can be driven through MAUI's real
+      ConfigureFonts/IFontRegistrar path. Its contents are irrelevant: the loader copies bytes and
+      returns a family name, it does not parse the file.
+    -->
+    <EmbeddedResource Include="TestAssets_TizenTestFont.ttf" LogicalName="Maui.Tizen.SourceTests.TizenTestFont.ttf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+
+    <!-- Parses the migrated sources. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+
+    <!--
+      Reflected over to derive the authoritative neutral mapper key sets: the same neutral
+      MAUI assemblies the backend will compile against.
+    -->
+    <PackageReference Include="Microsoft.Maui.Core" />
+    <PackageReference Include="Microsoft.Maui.Controls" />
+  </ItemGroup>
+
+  <ItemGroup Label="Executable slice of the Wave C adapters">
+    <!--
+      These two adapters are pure Microsoft.Maui.Controls code with no Tizen.NUI dependency, so
+      unlike the rest of Wave C they can be COMPILED AND EXECUTED on a plain net11.0 host.
+
+      That matters: flyout template resolution is where a real regression was found (a pre-resolved
+      template owner reaching IShellController and silently selecting the wrong BindableProperty).
+      Source analysis cannot catch that class of bug - only running the algorithm can. Everything
+      else in Wave C touches NUI and stays source-verified plus API15 type-checked.
+
+      Compiled by link rather than via ProjectReference because the Wave C project targets
+      the Tizen framework and cannot be restored until the Samsung workload ships.
+    -->
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Platform/Toolbar/TizenToolbarNavigationSlot.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Platform/Toolbar/ToolbarOwnership.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ToolbarDrawerToggle.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ShellElementTree.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ShellTemplateResolver.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ShellFlyoutTemplateResolution.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ItemSelectionState.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/BidirectionalUpdateGate.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/SelectionProposalCoordinator.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ItemsScrollCoordinator.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/OwnedReplacementCoordinator.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/RawSelectionProjection.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ViewportConstraint.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ExceptionSafeCleanup.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ItemSelectionSynchronizer.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ShellSectionViewCache.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Adapters/ShellRootMountCoordinator.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Platform/Items/TizenGroupItemSource.cs"
+             LinkBase="WaveCAdapters" />
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Controls/Navigation/Platform/Shell/TizenItemAppearance.cs"
+             LinkBase="WaveCAdapters" />
+  </ItemGroup>
+
+  <!--
+    The metadata tests assert on the ref-pack lane's compiled output, so that output must be built
+    from the CURRENT sources and the CURRENT source manifest.
+
+    ReferenceOutputAssembly="false" because nothing here can reference that assembly - it binds
+    Tizen.NUI, which does not load on a host TFM. This is purely a build-ordering dependency, which
+    hands the freshness problem to MSBuild: it already knows to rebuild when a compiled source
+    changes AND when the project or an imported .props changes. A timestamp heuristic in test code
+    cannot see the latter, so dropping a file from eng/Maui.Tizen.Core.Sources.props would silently
+    leave the old type in a stale assembly and the metadata assertion would still pass.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj"
+                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

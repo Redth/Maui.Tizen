@@ -33,6 +33,7 @@
   <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
 
   <PropertyGroup>
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(RepositoryRoot)eng/targets/TizenPackage.props</MSBuildAllProjects>
     <TargetFramework>$(DotNetTfm)</TargetFramework>
     <IsTizenProject>false</IsTizenProject>
 
@@ -90,6 +91,7 @@
     <Compile Include="@(MauiTizenPortableCompile)" LinkBase="Backend" />
     <Compile Include="@(MauiTizenHandlerCompile)" LinkBase="Backend" />
     <Compile Include="@(MauiTizenPlatformCompile)" LinkBase="Backend" />
+    <Compile Include="@(MauiTizenWaveBCompile)" LinkBase="WaveB" />
   </ItemGroup>
 
 </Project>

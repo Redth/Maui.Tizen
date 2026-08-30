@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -64,9 +65,13 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			Assert.NotEmpty(entries);
 
-			// Every entry belongs to this assembly's namespace, not Core's.
+			// Shape handlers retain the shared Tizen handler namespace even though they ship from
+			// the Controls assembly. Every entry must still remain under the owned Tizen root.
 			Assert.All(entries, e =>
-				Assert.Contains("Microsoft.Maui.Platforms.Tizen.Controls", e, StringComparison.Ordinal));
+				Assert.Contains("Microsoft.Maui.Platforms.Tizen", e, StringComparison.Ordinal));
+
+			Assert.Contains(entries, e => e.Contains(".TizenBoxViewHandler", StringComparison.Ordinal));
+			Assert.Contains(entries, e => e.Contains(".TizenControlsMauiAppBuilderExtensions", StringComparison.Ordinal));
 		}
 
 		[Fact]
@@ -80,9 +85,10 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				.ToArray();
 
 			Assert.Contains(entries, e => e.EndsWith(".TizenControlsMappings", StringComparison.Ordinal));
-			Assert.Contains(entries, e => e.EndsWith(".TizenControlsHostingExtensions", StringComparison.Ordinal));
+			Assert.Contains(entries, e => e.EndsWith(".TizenControlsMauiAppBuilderExtensions", StringComparison.Ordinal));
 			Assert.Contains(entries, e => e.Contains(".Register() -> void", StringComparison.Ordinal));
 			Assert.Contains(entries, e => e.Contains(".ConfigureTizenControls(", StringComparison.Ordinal));
+			Assert.Single(entries, e => e.Contains(".ConfigureTizenControls(", StringComparison.Ordinal));
 			Assert.Contains(entries, e => e.Contains(".MapLineBreakMode(", StringComparison.Ordinal));
 			Assert.Contains(entries, e => e.Contains(".MapAccessibility(", StringComparison.Ordinal));
 		}
@@ -92,12 +98,17 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[InlineData(ControlsLane)]
 		public void TheAnalyzerIsReferenced(string project)
 		{
-			// Baselines without the analyzer are inert files. Read from the csproj because the
-			// analyzer arrives as a PackageReference whose evaluated form is not an item type this
-			// helper fetches.
-			var text = File.ReadAllText(Path.Combine(RepositoryRoot, project));
+			// Baselines without the analyzer are inert files.
+			//
+			// This read the csproj TEXT until the duplicate-reference blocker showed why that is
+			// the wrong question: the analyzer reaches the product through TizenPackage.props, so
+			// text matching both missed a project that correctly inherits it and stayed happy when
+			// a second declaration was added on top. Evaluated items see the import.
+			var analyzerReferences = MSBuildEvaluation
+				.GetItems(project, "PackageReference")
+				.Count(id => id.EndsWith("Microsoft.CodeAnalysis.PublicApiAnalyzers", StringComparison.Ordinal));
 
-			Assert.Contains("Microsoft.CodeAnalysis.PublicApiAnalyzers", text, StringComparison.Ordinal);
+			Assert.Equal(1, analyzerReferences);
 		}
 
 		[Fact]
@@ -126,14 +137,199 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Fact]
-		public void TheLaneUsesControlsCoreRatherThanTheXamlInclusivePackage()
+		public void ProductAndLaneReferenceTheControlsHostingPackage()
 		{
-			// Stated directly as well, because the set comparison above would also pass if BOTH
-			// sides drifted to the broader package together.
+			// UseMauiApp<TApp> is the authoritative Controls startup path and is shipped by the
+			// XAML-inclusive package. Both the product and its RefPack lane must see the same API.
+			var product = PackageReferences(ControlsProduct);
 			var lane = PackageReferences(ControlsLane);
 
+			Assert.Contains("Microsoft.Maui.Controls", product);
+			Assert.Contains("Microsoft.Maui.Controls", lane);
+			Assert.Contains("Microsoft.Maui.Controls.Core", product);
 			Assert.Contains("Microsoft.Maui.Controls.Core", lane);
+		}
+
+		[Fact]
+		public void ProductAndApi15LaneCompileTheSamePresentationSources()
+		{
+			static string[] PresentationSources(string project) =>
+				MSBuildEvaluation.GetItemRelativePaths(project, "Compile")
+					.Where(path => path.StartsWith(
+						"src/Maui.Tizen.Controls/Core/Platform/",
+						StringComparison.Ordinal))
+					.OrderBy(path => path, StringComparer.Ordinal)
+					.ToArray();
+
+			var product = PresentationSources(ControlsProduct);
+			var lane = PresentationSources(ControlsLane);
+
+			Assert.NotEmpty(product);
+			Assert.Equal(product, lane);
+		}
+
+		[Fact]
+		public void ControlsPackIsBlockedByUnshippableUIExtensions()
+		{
+			var result = RunUIExtensionsPackGuard(isShippable: null);
+
+			Assert.NotEqual(0, result.ExitCode);
+			Assert.Contains("MAUITIZEN0101", result.Output, StringComparison.Ordinal);
+			Assert.Contains("Maui.Tizen.Controls", result.Output, StringComparison.Ordinal);
+			Assert.Contains("0.9.2", result.Output, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void ControlsPackGuardAllowsAVerifiedUIExtensionsVersion()
+		{
+			var result = RunUIExtensionsPackGuard(isShippable: true);
+
+			Assert.Equal(0, result.ExitCode);
+			Assert.DoesNotContain("MAUITIZEN0101", result.Output, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void ControlsPackIsBlockedWhenPinnedMauiLacksModalContracts()
+		{
+			var result = RunMauiControlsApiPackGuard();
+
+			Assert.NotEqual(0, result.ExitCode);
+			Assert.Contains("MAUITIZEN0104", result.Output, StringComparison.Ordinal);
+			Assert.Contains("IModalNavigationPlatform", result.Output, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void ControlsPackIsBlockedWhenPinnedMauiLacksLongPressSendApis()
+		{
+			var result = RunAdoptionFixture(
+				modalAdopted: true,
+				longPressAdopted: true,
+				modalAvailable: true,
+				longPressAvailable: null);
+
+			Assert.NotEqual(0, result.ExitCode);
+			Assert.DoesNotContain("MAUITIZEN0104", result.Output, StringComparison.Ordinal);
+			Assert.Contains("MAUITIZEN0105", result.Output, StringComparison.Ordinal);
+			Assert.Contains("SendLongPressed", result.Output, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void VerifiedUpstreamAvailabilityCannotBypassLocalModalAdoption()
+		{
+			var result = RunMauiControlsApiPackGuard(
+				modalAvailable: true,
+				longPressAvailable: true,
+				attemptLocalAdoptionOverride: true);
+
+			Assert.NotEqual(0, result.ExitCode);
+			Assert.Contains("MAUITIZEN0104", result.Output, StringComparison.Ordinal);
+			Assert.Contains("cannot bypass local source adoption", result.Output, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void LocallyAdoptedModalStillBlocksUntilLongPressIsAdopted()
+		{
+			var result = RunAdoptionFixture(modalAdopted: true, longPressAdopted: false);
+
+			Assert.NotEqual(0, result.ExitCode);
+			Assert.DoesNotContain("MAUITIZEN0104", result.Output, StringComparison.Ordinal);
+			Assert.Contains("MAUITIZEN0105", result.Output, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void VerifiedUpstreamAndSourceOwnedLocalAdoptionUnblockTheGate()
+		{
+			var result = RunAdoptionFixture(modalAdopted: true, longPressAdopted: true);
+
+			Assert.Equal(0, result.ExitCode);
+			Assert.DoesNotContain("MAUITIZEN0104", result.Output, StringComparison.Ordinal);
+			Assert.DoesNotContain("MAUITIZEN0105", result.Output, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void MauiControlsApiPackGuardDoesNotBlockUnrelatedPackages()
+		{
+			var result = RunMauiControlsApiPackGuard(
+				project: "src/Maui.Tizen.Core/Maui.Tizen.Core.csproj");
+
+			Assert.Equal(0, result.ExitCode);
+			Assert.DoesNotContain("MAUITIZEN0104", result.Output, StringComparison.Ordinal);
+			Assert.DoesNotContain("MAUITIZEN0105", result.Output, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void ControlsEvaluatesSharedTizenPolicyDefaults()
+		{
+			Assert.Equal("0.9.2", MSBuildEvaluation.GetProperty(ControlsProduct, "TizenUIExtensionsPackageVersion"));
+			Assert.Equal("false", MSBuildEvaluation.GetProperty(ControlsProduct, "TizenUIExtensionsIsShippable"));
+			Assert.Equal("Samsung.Tizen.Ref.API15", MSBuildEvaluation.GetProperty(ControlsProduct, "TizenReferencePackId"));
+			Assert.Equal("15.0.0.19396", MSBuildEvaluation.GetProperty(ControlsProduct, "TizenReferencePackVersion"));
+		}
+
+		[Fact]
+		public void SampleDoesNotDuplicateSharedPolicyImport()
+		{
+			var result = RunMSBuildPropertyEvaluation("samples/Maui.Tizen.Sample/Maui.Tizen.Sample.csproj");
+
+			Assert.Equal(0, result.ExitCode);
+			Assert.DoesNotContain("MSB4011", result.Output, StringComparison.Ordinal);
+			Assert.Contains("0.9.2", result.Output, StringComparison.Ordinal);
+			Assert.Contains("false", result.Output, StringComparison.Ordinal);
+		}
+
+		[Theory]
+		[InlineData("src/Maui.Tizen.Core/Maui.Tizen.Core.csproj")]
+		[InlineData(ControlsProduct)]
+		public void ExactlyOneAnalyzerPackageReferenceIsEvaluated(string project)
+		{
+			// TizenPackage.props already adds Microsoft.CodeAnalysis.PublicApiAnalyzers to every
+			// project that imports it. Declaring it again in the project produced TWO
+			// PackageReference items for the same package, which fails CI product restore with
+			// NU1504 - and is invisible in the csproj, because each declaration looks perfectly
+			// reasonable on its own.
+			//
+			// Asserted on the EVALUATED items, since that is the only view that sees the import
+			// and the project together.
+			var analyzerReferences = MSBuildEvaluation
+				.GetItems(project, "PackageReference")
+				.Count(id => id.EndsWith("Microsoft.CodeAnalysis.PublicApiAnalyzers", StringComparison.Ordinal));
+
+			Assert.Equal(1, analyzerReferences);
+		}
+
+		[Theory]
+		[InlineData("src/Maui.Tizen.Core/Maui.Tizen.Core.csproj")]
+		[InlineData(ControlsProduct)]
+		public void NoPackageIsReferencedTwice(string project)
+		{
+			// The general form. Any duplicate PackageReference is an NU1504; the analyzer was only
+			// the one that happened to be caught.
+			var duplicates = MSBuildEvaluation
+				.GetItems(project, "PackageReference")
+				.GroupBy(id => id, StringComparer.Ordinal)
+				.Where(g => g.Count() > 1)
+				.Select(g => g.Key)
+				.OrderBy(k => k, StringComparer.Ordinal)
+				.ToArray();
+
+			Assert.Empty(duplicates);
+		}
+
+		[Fact]
+		public void TheSampleLaneDoesNotReferenceControls()
+		{
+			// The real sample references only Maui.Tizen.Core - it is a Core-only app head using no
+			// Controls types. Its lane referenced Microsoft.Maui.Controls anyway, which stayed
+			// invisible until Controls' LayoutAlignment began colliding with
+			// Microsoft.Maui.Primitives.LayoutAlignment in the sample's own stubs: a CS0104 the
+			// product could never produce, caused entirely by the lane's extra reference.
+			//
+			// Over-broad lane references fail in both directions - green here and broken in the
+			// product, or red here and fine in the product. Both waste the lane's credibility.
+			var lane = PackageReferences("tests/Maui.Tizen.Sample.RefPackCompile/Maui.Tizen.Sample.RefPackCompile.csproj");
+
 			Assert.DoesNotContain("Microsoft.Maui.Controls", lane);
+			Assert.DoesNotContain("Microsoft.Maui.Controls.Core", lane);
 		}
 
 		static HashSet<string> PackageReferences(string project) => Regex
@@ -142,5 +338,204 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				@"<PackageReference\s+Include=""([^""]+)""")
 			.Select(m => m.Groups[1].Value)
 			.ToHashSet(StringComparer.Ordinal);
+
+		static (int ExitCode, string Output) RunUIExtensionsPackGuard(bool? isShippable)
+		{
+			var dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") is { Length: > 0 } host
+				? host
+				: "dotnet";
+
+			var startInfo = new ProcessStartInfo(dotnet)
+			{
+				WorkingDirectory = RepositoryRoot,
+				RedirectStandardOutput = true,
+				RedirectStandardError = true,
+			};
+
+			startInfo.ArgumentList.Add("msbuild");
+			startInfo.ArgumentList.Add(Path.Combine(RepositoryRoot, ControlsProduct));
+			startInfo.ArgumentList.Add("-t:BlockPackOnUnshippableUIExtensions");
+			startInfo.ArgumentList.Add("-nologo");
+			startInfo.ArgumentList.Add("-p:TargetFramework=net11.0");
+			startInfo.ArgumentList.Add("-p:TizenWorkloadAvailable=true");
+			if (isShippable.HasValue)
+				startInfo.ArgumentList.Add($"-p:TizenUIExtensionsIsShippable={isShippable.Value.ToString().ToLowerInvariant()}");
+
+			using var process = Process.Start(startInfo)
+				?? throw new InvalidOperationException("Failed to start dotnet msbuild.");
+
+			var output = process.StandardOutput.ReadToEnd();
+			var error = process.StandardError.ReadToEnd();
+			process.WaitForExit();
+
+			return (process.ExitCode, output + error);
+		}
+
+		static (int ExitCode, string Output) RunMauiControlsApiPackGuard(
+			bool? modalAvailable = null,
+			bool? longPressAvailable = null,
+			string project = ControlsProduct,
+			bool attemptLocalAdoptionOverride = false)
+		{
+			var dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") is { Length: > 0 } host
+				? host
+				: "dotnet";
+
+			var startInfo = new ProcessStartInfo(dotnet)
+			{
+				WorkingDirectory = RepositoryRoot,
+				RedirectStandardOutput = true,
+				RedirectStandardError = true,
+			};
+
+			startInfo.ArgumentList.Add("msbuild");
+			startInfo.ArgumentList.Add(Path.Combine(RepositoryRoot, project));
+			startInfo.ArgumentList.Add("-t:BlockControlsPackOnUnavailableMauiPublicContracts");
+			startInfo.ArgumentList.Add("-nologo");
+			startInfo.ArgumentList.Add("-p:TargetFramework=net11.0");
+			startInfo.ArgumentList.Add("-p:TizenWorkloadAvailable=true");
+			startInfo.ArgumentList.Add("-p:BuildProjectReferences=false");
+
+			if (modalAvailable.HasValue)
+			{
+				startInfo.ArgumentList.Add(
+					$"-p:MauiTizenModalPublicContractsVerifiedAvailable={modalAvailable.Value.ToString().ToLowerInvariant()}");
+			}
+
+			if (longPressAvailable.HasValue)
+			{
+				startInfo.ArgumentList.Add(
+					$"-p:MauiTizenLongPressSendApisVerifiedAvailable={longPressAvailable.Value.ToString().ToLowerInvariant()}");
+			}
+
+			if (attemptLocalAdoptionOverride)
+			{
+				startInfo.ArgumentList.Add("-p:_MauiTizenModalLocalAdoptionComplete=true");
+				startInfo.ArgumentList.Add("-p:_MauiTizenLongPressLocalAdoptionComplete=true");
+			}
+
+			using var process = Process.Start(startInfo)
+				?? throw new InvalidOperationException("Failed to start dotnet msbuild.");
+
+			var output = process.StandardOutput.ReadToEnd();
+			var error = process.StandardError.ReadToEnd();
+			process.WaitForExit();
+
+			return (process.ExitCode, output + error);
+		}
+
+		static (int ExitCode, string Output) RunAdoptionFixture(
+			bool modalAdopted,
+			bool longPressAdopted,
+			bool? modalAvailable = true,
+			bool? longPressAvailable = true)
+		{
+			var root = Path.Combine(
+				RepositoryRoot,
+				"artifacts",
+				"test-workspaces",
+				"controls-api-adoption",
+				Guid.NewGuid().ToString("N"));
+			var modalDir = Path.Combine(root, "Core", "Platform", "Modal");
+			var gestureDir = Path.Combine(root, "Core", "Platform", "Gestures");
+			var platformDir = Path.Combine(root, "Core", "Platform");
+			Directory.CreateDirectory(modalDir);
+			Directory.CreateDirectory(gestureDir);
+
+			var modalSource = Path.Combine(modalDir, "TizenModalNavigationPlatform.cs");
+			var provisionalSource = Path.Combine(modalDir, "ProvisionalModalNavigationContracts.cs");
+			var serviceSource = Path.Combine(platformDir, "TizenControlsServiceCollectionExtensions.cs");
+			var dispatcherSource = Path.Combine(gestureDir, "ITizenGestureDispatcher.cs");
+			var project = Path.Combine(root, "Maui.Tizen.Controls.csproj");
+
+			File.WriteAllText(
+				modalSource,
+				modalAdopted
+					? """
+					  using Microsoft.Maui.Controls.Platform;
+					  sealed class TizenModalNavigationPlatform : IModalNavigationPlatform { }
+					  sealed class TizenModalNavigationPlatformFactory : IModalNavigationPlatformFactory { }
+					  """
+					: "sealed class TizenModalNavigationPlatform { }");
+			if (!modalAdopted)
+			{
+				File.WriteAllText(provisionalSource, "interface IModalNavigationPlatform { }");
+			}
+
+			File.WriteAllText(
+				serviceSource,
+				modalAdopted
+					? "services.TryAddSingleton<IModalNavigationPlatformFactory, TizenModalNavigationPlatformFactory>();"
+					: "sealed class TizenControlsServiceCollectionExtensions { }");
+			File.WriteAllText(
+				dispatcherSource,
+				longPressAdopted
+					? """
+					  recognizer.SendLongPressed(view, getPosition);
+					  recognizer.SendLongPressing(view, status, getPosition);
+					  TizenGestureKind.LongPress => true;
+					  """
+					: """
+					  TizenGestureKind.LongPress => false;
+					  ReportUnsupported(TizenGestureKind.LongPress);
+					  """);
+
+			var gate = Path.Combine(RepositoryRoot, "eng", "targets", "MauiControlsApiGate.targets");
+			File.WriteAllText(
+				project,
+				$"""
+				<Project Sdk="Microsoft.NET.Sdk">
+				  <PropertyGroup>
+				    <TargetFramework>net11.0</TargetFramework>
+				    <DotNetTfm>net11.0</DotNetTfm>
+				    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+				  </PropertyGroup>
+				  <ItemGroup>
+				    <Compile Include="Core/Platform/Modal/TizenModalNavigationPlatform.cs" />
+				    <Compile Include="Core/Platform/TizenControlsServiceCollectionExtensions.cs" />
+				    <Compile Include="Core/Platform/Gestures/ITizenGestureDispatcher.cs" />
+				  </ItemGroup>
+				  <Import Project="{gate}" />
+				</Project>
+				""");
+
+			try
+			{
+				return RunMauiControlsApiPackGuard(
+					modalAvailable,
+					longPressAvailable,
+					project: project);
+			}
+			finally
+			{
+				Directory.Delete(root, recursive: true);
+			}
+		}
+
+		static (int ExitCode, string Output) RunMSBuildPropertyEvaluation(string project)
+		{
+			var dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") is { Length: > 0 } host
+				? host
+				: "dotnet";
+			var startInfo = new ProcessStartInfo(dotnet)
+			{
+				WorkingDirectory = RepositoryRoot,
+				RedirectStandardOutput = true,
+				RedirectStandardError = true,
+			};
+
+			startInfo.ArgumentList.Add("msbuild");
+			startInfo.ArgumentList.Add(Path.Combine(RepositoryRoot, project));
+			startInfo.ArgumentList.Add("-nologo");
+			startInfo.ArgumentList.Add("-getProperty:TizenUIExtensionsPackageVersion");
+			startInfo.ArgumentList.Add("-getProperty:TizenUIExtensionsIsShippable");
+
+			using var process = Process.Start(startInfo)
+				?? throw new InvalidOperationException("Failed to start dotnet msbuild.");
+			var output = process.StandardOutput.ReadToEnd();
+			var error = process.StandardError.ReadToEnd();
+			process.WaitForExit();
+			return (process.ExitCode, output + error);
+		}
 	}
 }

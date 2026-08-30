@@ -1,0 +1,57 @@
+<Project>
+
+  <PropertyGroup>
+    <_ParentDirectoryBuildTargets>$([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildThisFileDirectory)../'))</_ParentDirectoryBuildTargets>
+  </PropertyGroup>
+
+  <Import Project="$(_ParentDirectoryBuildTargets)" Condition="'$(_ParentDirectoryBuildTargets)' != ''" />
+
+  <!--
+    Projects opt in with <IsValidationTestProject>true</IsValidationTestProject> and get the
+    same runner, the same shared helpers and the same ambient metadata. Keeping this here
+    makes it obvious in review when a project deviates from the house rules.
+
+    These suites use xunit v3, which runs on Microsoft.Testing.Platform, while
+    tests/UnitTests uses xunit v2 on VSTest. That split is intentional and temporary: the
+    .NET 10+ SDK dropped VSTest support for Microsoft.Testing.Platform, and the two cannot
+    share one `dotnet test` invocation without a global.json opt-in that would break the v2
+    project. The v3 suites are therefore executed directly as binaries by
+    eng/validation/run-hosted-validation.sh. See docs/validation/hosted-lane.md.
+  -->
+
+  <PropertyGroup Condition="'$(IsValidationTestProject)' == 'true'">
+    <!-- xunit v3 test projects are self-hosting Microsoft.Testing.Platform executables. -->
+    <OutputType>Exe</OutputType>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+    <IsTizenProject>false</IsTizenProject>
+    <RollForward>Major</RollForward>
+    <NoWarn>$(NoWarn);NETSDK1057</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsValidationTestProject)' == 'true'">
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(IsValidationTestProject)' == 'true' and '$(IsTestUtilsProject)' != 'true'">
+    <ProjectReference Include="$(RepositoryRoot)tests/TestUtils/Maui.Tizen.TestUtils/Maui.Tizen.TestUtils.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(IsValidationTestProject)' == 'true'">
+    <Using Include="Xunit" />
+    <Using Include="Maui.Tizen.TestUtils" />
+  </ItemGroup>
+
+  <!--
+    Tests resolve repository-relative content (baselines, contracts, profile matrices,
+    visual baselines) through these values rather than walking up from the working
+    directory, which is not stable across test hosts, direct binary runs and IDEs.
+  -->
+  <ItemGroup Condition="'$(IsValidationTestProject)' == 'true' or '$(IsTestUtilsProject)' == 'true'">
+    <AssemblyMetadata Include="Maui.Tizen.RepositoryRoot" Value="$(RepositoryRoot)" />
+    <AssemblyMetadata Include="Maui.Tizen.TizenTargetFramework" Value="$(MauiTizenTargetFramework)" />
+    <AssemblyMetadata Include="Maui.Tizen.HostTargetFramework" Value="$(ValidationHostTargetFramework)" />
+    <AssemblyMetadata Include="Maui.Tizen.TizenWorkloadAvailable" Value="$(TizenWorkloadAvailable)" />
+  </ItemGroup>
+
+</Project>

@@ -14,8 +14,10 @@
 
   <Import Project="$(RepositoryRoot)eng/Maui.props" />
   <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.WaveC.Sources.props" />
 
   <PropertyGroup>
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(RepositoryRoot)eng/targets/TizenPackage.props</MSBuildAllProjects>
     <TargetFramework>$(DotNetTfm)</TargetFramework>
     <IsTizenProject>false</IsTizenProject>
 
@@ -26,7 +28,7 @@
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
-    <NoWarn>$(NoWarn);CS1591;NU1701</NoWarn>
+    <NoWarn>$(NoWarn);CS1591;NU1701;CA1416</NoWarn>
 
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
 
@@ -36,15 +38,17 @@
   <ItemGroup>
     <!-- Across the assembly boundary, exactly as the shipped package references Core. -->
     <ProjectReference Include="$(RepositoryRoot)tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj" />
+    <ProjectReference Include="$(RepositoryRoot)tests/Maui.Tizen.Essentials.RefPackCompile/Maui.Tizen.Essentials.RefPackCompile.csproj" />
 
     <!--
       EXACTLY the product's package references, no more.
-      
+
       This lane previously referenced Microsoft.Maui.Controls - the XAML-inclusive package - while
       the product references Microsoft.Maui.Controls.Core. A broader reference here means the lane
       can compile code the product cannot, which is the one failure mode a verification lane must
       not have: it would report green while the shipping assembly fails to build.
     -->
+    <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Microsoft.Maui.Controls.Core" />
     <PackageReference Include="Microsoft.Maui.Core" />
 
@@ -75,7 +79,7 @@
   <Import Project="$(RepositoryRoot)eng/targets/TizenRefPack.targets" />
 
   <ItemGroup>
-    <Compile Include="@(MauiTizenControlsCompile)" LinkBase="Controls" />
+    <Compile Include="@(MauiTizenControlsCompile);@(MauiTizenControlsPresentationCompile);@(MauiTizenWaveBControlsCompile);@(MauiTizenWaveCAdapterCompile);@(MauiTizenWaveCPlatformCompile);@(MauiTizenWaveCCompile)" LinkBase="Controls" />
   </ItemGroup>
 
 </Project>

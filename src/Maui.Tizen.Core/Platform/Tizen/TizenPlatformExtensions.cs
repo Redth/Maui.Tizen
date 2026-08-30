@@ -83,8 +83,19 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <summary>Converts a device-independent value to a scaled font point size.</summary>
 		/// <param name="dp">The device-independent value.</param>
 		/// <returns>The value in points.</returns>
+		/// <remarks>
+		/// Divides by the PHYSICAL dpi, not by the display scaling factor.
+		///
+		/// Upstream is <c>dp.ToScaledPixel() * 72 / DeviceInfo.DPI</c>. Using
+		/// <c>Current * BaselineDpi</c> instead happens to equal that in DP mode, where the scaling
+		/// factor IS dpi/160 - but in every other display resolution unit the two differ, and the
+		/// division then cancels exactly the scaling that ToScaledPixel just applied. Text came out
+		/// at its unscaled point size while every other dimension scaled, so fonts were wrong
+		/// precisely on the devices where scaling matters most.
+		/// </remarks>
 		public static double ToScaledPoint(this double dp) =>
-			dp.ToScaledPixel() * 72 / (TizenDisplayDensity.Current * TizenDisplayDensity.BaselineDpi);
+			TizenPropertyResolvers.ResolveFontPoint(
+				dp, TizenDisplayDensity.Current, TizenDisplayDensity.PhysicalScale);
 
 		// ---------------------------------------------------------------------------------------
 		// Colors (ported from ColorExtensions).
@@ -130,6 +141,24 @@ namespace Microsoft.Maui.Platforms.Tizen
 		// ---------------------------------------------------------------------------------------
 
 		/// <summary>Applies a view's background paint to the platform view.</summary>
+		/// <remarks>
+		/// <para>
+		/// <b>This is the image-capable entry point, and callers should prefer it over the
+		/// <see cref="Paint"/> overloads.</b> Resolving an image-source background needs an
+		/// <c>IImageSourceServiceProvider</c>, which is reached through <c>view.Handler</c> - so a
+		/// caller that passes only <c>view.Background</c> has already discarded the one thing the
+		/// image path requires, and can never render an image background no matter what is fixed
+		/// downstream.
+		/// </para>
+		/// <para>
+		/// Today both overloads behave identically, because MAUI's <c>ImageSourcePaint</c> is
+		/// internal and an image background cannot be detected at all (see the ADOPTION SEAM in the
+		/// <see cref="Paint"/> overload and <c>UpstreamGapExpiryTests</c>). Keeping the view flowing
+		/// to here is what makes that a one-place fix when the pinned package contains the API
+		/// merged by dotnet/maui#37864, instead of an
+		/// audit of every call site.
+		/// </para>
+		/// </remarks>
 		/// <param name="platformView">The platform view.</param>
 		/// <param name="view">The cross-platform view.</param>
 		public static void UpdateBackground(this TizenNativeView platformView, IView view)
@@ -206,6 +235,36 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 				return;
 			}
+
+			// ADOPTION SEAM for the public read-only IImageSourcePaint merged by
+			// dotnet/maui#37864 but absent from the pinned package.
+			//
+			// Consumption only: never implement IImageSourcePaint on a custom Paint. Upstream
+			// states external implementation is unsupported and that members may be added, so an
+			// implementation here would break on a servicing update. Only pattern match MAUI's
+			// built-in paint, and never by name, reflection or string check - guarded by
+			// UpstreamGapExpiryTests.
+			//
+			// The image case must be matched HERE, before the gradient and solid branches below, or
+			// an image paint keeps flattening to a colour exactly as it does today:
+			//
+			//     if (paint is IImageSourcePaint image)
+			//     {
+			//         if (image.ImageSource is null)
+			//         {
+			//             platformView.ClearBackgroundImage();   // drop any previously applied image
+			//             return;
+			//         }
+			//         // ...resolve via UpdateBackgroundImageSourceAsync; async resolution may ALSO
+			//         // yield no image, which must clear rather than leave the previous one.
+			//         return;
+			//     }
+			//
+			// Note this overload cannot actually complete that work: resolving an image source needs
+			// an IImageSourceServiceProvider, which is reached through view.Handler, and by here the
+			// view is gone. The adoption therefore belongs in the IView overload above, and call
+			// sites should pass the view rather than view.Background. TizenImageLoader already
+			// implements the cancellation/supersession/disposal semantics the load needs.
 
 			if (paint is SolidPaint solid && solid.Color is Color color)
 			{
@@ -643,13 +702,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 			var (hidden, highlightable) = TizenPropertyResolvers.ResolveAccessibility(
 				isInAccessibleTree, excludedWithChildren);
 
-			// Only written when the corresponding annotation is set, so an unannotated element
-			// keeps whatever the control or the platform configured.
-			if (hidden is bool hide)
-				platformView.AccessibilityHidden = hide;
+			// Remember what the view looked like BEFORE this backend first overrode it, so
+			// clearing an annotation can put it back.
+			//
+			// Skipping the write on null was not enough: once an annotation had been applied, the
+			// override stayed on the native view forever. Setting IsInAccessibleTree=false and then
+			// clearing it left the element permanently unreachable, with nothing in the tree to
+			// explain why. Null now means "restore the default", not "leave whatever is there".
+			var defaults = AccessibilityDefaults.GetValue(platformView, static view =>
+				new AccessibilityState(view.AccessibilityHidden, view.AccessibilityHighlightable));
 
-			if (highlightable is bool highlight)
-				platformView.AccessibilityHighlightable = highlight;
+			platformView.AccessibilityHidden = hidden ?? defaults.Hidden;
+			platformView.AccessibilityHighlightable = highlightable ?? defaults.Highlightable;
 		}
 
 
@@ -757,6 +821,31 @@ namespace Microsoft.Maui.Platforms.Tizen
 			{
 				Enable = (resolved & TizenPropertyResolvers.StrikethroughDecoration) != 0,
 			});
+		}
+
+		/// <summary>
+		/// The accessibility state a view had before this backend first overrode it.
+		/// </summary>
+		/// <remarks>
+		/// Captured lazily on the first write and keyed weakly, so a discarded view takes its
+		/// entry with it. Without this there is nothing to restore TO: NUI exposes no "unset" for
+		/// these flags, and assuming a fixed default would stamp over whatever a control had
+		/// configured for itself.
+		/// </remarks>
+		static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TizenNativeView, AccessibilityState>
+			AccessibilityDefaults = new();
+
+		sealed class AccessibilityState
+		{
+			public AccessibilityState(bool hidden, bool highlightable)
+			{
+				Hidden = hidden;
+				Highlightable = highlightable;
+			}
+
+			public bool Hidden { get; }
+
+			public bool Highlightable { get; }
 		}
 
 		/// <summary>Applies a line break mode to the platform label.</summary>

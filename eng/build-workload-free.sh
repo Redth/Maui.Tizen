@@ -38,19 +38,24 @@ info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 note() { printf '\033[1;33m  GATE\033[0m %s\n' "$*"; }
 
 FAILURES=0
+CHECK_LOG_DIR="$REPO_ROOT/artifacts/logs/build-workload-free"
+CHECK_LOG="$CHECK_LOG_DIR/check.$$.log"
+mkdir -p "$CHECK_LOG_DIR"
+trap 'rm -f "$CHECK_LOG"' EXIT
+
 # check <label> <command...> — runs the command, reports, and returns its status so
 # callers can branch (e.g. to skip tests after a failed build).
 check() {
   local label="$1"; shift
-  if "$@" >/tmp/mt-check.$$ 2>&1; then
+  if "$@" >"$CHECK_LOG" 2>&1; then
     pass "$label"
-    rm -f /tmp/mt-check.$$
+    rm -f "$CHECK_LOG"
     return 0
   fi
   fail "$label"
-  sed 's/^/        /' /tmp/mt-check.$$ | tail -30
+  sed 's/^/        /' "$CHECK_LOG" | tail -30
   FAILURES=$((FAILURES + 1))
-  rm -f /tmp/mt-check.$$
+  rm -f "$CHECK_LOG"
   return 1
 }
 
@@ -64,7 +69,7 @@ info "SDK"
 # malformed file there breaks both in confusing ways.
 # ---------------------------------------------------------------------------
 info "JSON validation"
-for f in eng/baselines.json eng/manifests/*.json; do
+for f in eng/baselines.json eng/manifests/*.json eng/validation/*.json; do
   [[ -e "$f" ]] || continue
   check "$f is well-formed JSON" python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$f"
 done
@@ -78,37 +83,17 @@ check "Maui.Tizen.slnx is valid" "$DOTNET" sln Maui.Tizen.slnx list
 # ---------------------------------------------------------------------------
 # 2. Baseline consistency.
 #
-# Directory.Build.props and eng/baselines.json both declare the target framework.
-# They drift silently and the symptom (API baselines generated for a different
-# platform version) is expensive to diagnose, so check it cheaply here.
+# Directory.Build.props, eng/Validation.Versions-equivalent properties and
+# eng/baselines.json all restate parts of the target contract, and they drift silently.
+#
+# This check used to live here as an inline python snippet. It now lives in
+# Maui.Tizen.Validation.Tests.RepositoryContractTests, which asserts the same invariants
+# plus TizenManifestApiVersion and SDK band membership, and reports failures with the
+# specific property that drifted. Keeping a second copy here meant two things to update
+# and two places to disagree.
+#
+# Run it with ./eng/validation/run-hosted-validation.sh (the hosted-validation CI job).
 # ---------------------------------------------------------------------------
-info "Baseline consistency"
-check "Directory.Build.props TFM matches eng/baselines.json" python3 - <<'PY'
-import json, re, sys
-
-baselines = json.load(open("eng/baselines.json"))
-expected = baselines["target"]["targetFramework"]
-
-props = open("Directory.Build.props").read()
-version = re.search(r"<TizenPlatformVersion>([^<]+)</TizenPlatformVersion>", props)
-dotnet  = re.search(r"<DotNetVersion>([^<]+)</DotNetVersion>", props)
-if not version or not dotnet:
-    sys.exit("could not read TFM properties from Directory.Build.props")
-
-actual = f"net{dotnet.group(1)}-tizen{version.group(1)}"
-if actual != expected:
-    sys.exit(f"Directory.Build.props builds '{actual}' but eng/baselines.json declares '{expected}'")
-
-band = baselines["target"]["sdkBand"]
-gj = json.load(open("global.json"))
-sdk = gj["sdk"]["version"]
-if not sdk.startswith(band):
-    sys.exit(f"global.json SDK '{sdk}' is not in the declared band '{band}'")
-if sdk == band:
-    sys.exit(
-        f"global.json SDK '{sdk}' is a bare band, not a resolvable SDK version. "
-        "actions/setup-dotnet cannot install it. Pin a concrete version within the band.")
-PY
 
 # ---------------------------------------------------------------------------
 # 3. Import reproducibility contract.
@@ -124,6 +109,9 @@ check "normalize script is syntactically valid" bash -n eng/import/normalize-lay
 check "Tizen workload gate script is syntactically valid" bash -n eng/ci/tizen-workload-gate.sh
 check "real Tizen lane script is syntactically valid" bash -n eng/build-tizen.sh
 check "Tizen workload transition tests are syntactically valid" bash -n eng/tests/test-ci-tizen-workload-gate.sh
+check "Essentials mutation runner is syntactically valid" bash -n eng/tests/run-essentials-negative-controls.sh
+check "Essentials mutation lock tests are syntactically valid" bash -n eng/tests/test-essentials-mutation-lock.sh
+check "Wave C mutation runner is syntactically valid" bash -n eng/tests/run-wave-c-negative-controls.sh
 
 # ---------------------------------------------------------------------------
 # 4. Restore and build the workload-independent projects.
@@ -133,6 +121,7 @@ check "Tizen workload transition tests are syntactically valid" bash -n eng/test
 info "Workload-independent projects"
 WORKLOAD_FREE_PROJECTS=(
   "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj"
+  "src/Maui.Tizen.Essentials.HostVerification/Maui.Tizen.Essentials.HostVerification.csproj"
   "tests/UnitTests/Maui.Tizen.UnitTests.csproj"
 
   # Verification lanes for the ported backend slice. Neither is a Tizen artifact:
@@ -162,8 +151,23 @@ WORKLOAD_FREE_PROJECTS=(
   #                               exists to avoid.
   "tests/Maui.Tizen.Sample.RefPackCompile/Maui.Tizen.Sample.RefPackCompile.csproj"
   "tests/Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj"
+  "tests/Maui.Tizen.Controls.ConsumerCompile/Maui.Tizen.Controls.ConsumerCompile.csproj"
   "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj"
+  "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj"
+  "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj"
 
+  # Essentials verification lanes, mirroring the pair above:
+  #
+  #   Maui.Tizen.Essentials.RefPackCompile  type-checks the ported Essentials sources against the
+  #                                         REAL API15 reference assemblies the product will bind
+  #                                         to. Compile-only and unpackable. This is the lane that
+  #                                         caught Tizen.Maps being removed from API15.
+  #
+  #   Maui.Tizen.Essentials.Tests           executes DI/facade/permission/translation tests against
+  #                                         the loadable Tizen.NET assemblies via
+  #                                         src/Maui.Tizen.Essentials.HostVerification.
+  "tests/Maui.Tizen.Essentials.RefPackCompile/Maui.Tizen.Essentials.RefPackCompile.csproj"
+  "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj"
   # Foundation-owned probes.
   "eng/tests/PublicApiOptIn/PublicApiOptIn.csproj"
   "eng/tests/PackReadmeProbe/PackReadmeProbe.csproj"
@@ -252,7 +256,47 @@ info "Repository invariant tests"
 if [[ $BUILD_OK -eq 1 ]]; then
   check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
   check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
+  check "controls presentation tests" "$DOTNET" test tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj --no-build -c Release
+  # Essentials behaviour tests, run against the workload-free host verification harness
+  # (src/Maui.Tizen.Essentials.HostVerification), which compiles the same sources the Tizen
+  # package will. Anything that P/Invokes into Tizen is out of their reach and is classified
+  # in docs/tizen-essentials-service-coverage.md rather than faked into a green test.
+  #
+  # The self-executing Microsoft.Testing.Platform binary is run directly. `dotnet test` would
+  # need the repository-wide dotnet.config MTP opt-in, which would break tests/UnitTests
+  # (xunit v2 on VSTest). See that project's csproj for the full reasoning.
+  ESSENTIALS_TESTS="artifacts/bin/Maui.Tizen.Essentials.Tests/Release/net11.0/Maui.Tizen.Essentials.Tests"
+  ESSENTIALS_RESULTS="$REPO_ROOT/artifacts/test-results/essentials"
+
+  # Assert the test COUNT, not just the exit code.
+  #
+  # This is not belt-and-braces. Discovery over this assembly walks assembly-level attributes
+  # across the loaded closure, and Tizen.NUI's [XmlnsDefinition] constructor P/Invokes and
+  # throws off-device. On the xunit v2 runner that aborted discovery part way through a class
+  # and SILENTLY DROPPED the remaining tests while still reporting success - it hid 4 tests
+  # before it was noticed. v3 handles it, but "the runner exited 0" is demonstrably not
+  # sufficient evidence here, so the floor is pinned.
+  #
+  # The count comes from the runner's JUnit report rather than from scraping its console
+  # summary: the first attempt at this parsed stdout and passed locally but failed on the CI
+  # runner, because console rendering is not a stable contract. A report file is.
+  #
+  # Raise this when adding tests; never lower it to make a run go green.
+  ESSENTIALS_TESTS_MINIMUM=449
+
+  check "essentials tests" "$ESSENTIALS_TESTS" \
+    --report-xunit-junit --report-xunit-junit-filename results.xml \
+    --results-directory "$ESSENTIALS_RESULTS"
+
+  check "essentials tests ran at least $ESSENTIALS_TESTS_MINIMUM tests" \
+    python3 "$REPO_ROOT/eng/assert-test-count.py" "$ESSENTIALS_RESULTS/results.xml" "$ESSENTIALS_TESTS_MINIMUM"
+  check "Wave B source tests" "$DOTNET" test tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj --no-build -c Release
   check "migration tooling tests" "$DOTNET" test tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj --no-build -c Release
+  check "Essentials negative controls" "$REPO_ROOT/eng/tests/run-essentials-negative-controls.sh"
+  check "Essentials mutation lock behavior" "$REPO_ROOT/eng/tests/test-essentials-mutation-lock.sh"
+  check "Wave B negative controls" env DOTNET="$DOTNET" "$REPO_ROOT/eng/tests/run-wave-b-negative-controls.sh"
+  check "Wave B mutation runner behavior" "$REPO_ROOT/eng/tests/test-wave-b-mutation-runner.sh"
+  check "Wave C negative controls" "$REPO_ROOT/eng/tests/run-wave-c-negative-controls.sh"
 else
   fail "tests skipped - a preceding build failed (running --no-build now would only add cascading noise)"
   FAILURES=$((FAILURES + 1))
@@ -319,6 +363,15 @@ else
   fail "blazorwebview tests skipped - a preceding build failed (running --no-build now could pass against stale assemblies)"
   FAILURES=$((FAILURES + 1))
 fi
+
+# 7. Parity determinism.
+#
+# The full suite above is NOT sufficient evidence that parity generation is deterministic. MAUI's
+# neutral mappers are mutated at runtime by Controls' RemapForControls, so a parity test can pass
+# in the full suite purely because an earlier test already initialized Controls, while failing in a
+# fresh process. This runs each parity-sensitive test alone to catch exactly that.
+info "Parity isolation checks"
+check "parity isolation" ./eng/run-parity-isolation-checks.sh
 
 # ---------------------------------------------------------------------------
 # 6. Report the Tizen gate explicitly.

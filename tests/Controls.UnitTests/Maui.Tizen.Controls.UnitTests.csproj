@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Controls platform tests - alerts, modal coordination and gestures.
+
+    tests/UnitTests covers repository invariants and notes that backend tests would be
+    "untestable theatre" while the Samsung workload is missing. That is true of anything
+    that touches NUI, and it is why this project excludes it. It is not true of the layer
+    above: routing an alert to the right window, mapping dialog cancellation onto the
+    documented result, keeping the modal stack balanced, tracking a view's gesture
+    recognizers, and converting native gesture deltas into .NET MAUI gesture events are
+    all toolkit-independent decisions.
+
+    src/Maui.Tizen.Controls/Core/Platform is written so that those decisions sit behind
+    Tizen-owned contracts (ITizenAlertDialogFactory, ITizenModalHost,
+    ITizenNativeGestureDetector, ITizenGestureDispatcher) with the NUI implementations
+    isolated under Core/Platform/Nui. This project SOURCE-INCLUDES the contract side and
+    substitutes doubles for the NUI side.
+
+    Source inclusion rather than a ProjectReference is deliberate: Maui.Tizen.Controls is
+    net11.0-tizen11.0 and cannot be referenced until the workload ships, and adding a
+    neutral fallback TFM to it is explicitly forbidden by Directory.Build.props. Compiling
+    the neutral sources into a non-shipping test assembly keeps that rule intact - no
+    neutral product assembly is ever produced - while still running the logic.
+
+    The NUI implementations under Core/Platform/Nui are type-checked against API15 by
+    Maui.Tizen.Controls.RefPackCompile. Their runtime behaviour remains a device-test gap.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Microsoft.Maui.Platforms.Tizen.UnitTests</RootNamespace>
+    <AssemblyName>Maui.Tizen.Controls.UnitTests</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);NETSDK1057</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TizenControlsPlatformDir>$(RepositoryRoot)src/Maui.Tizen.Controls/Core/Platform/</TizenControlsPlatformDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup Label="Product sources under test (NUI-free by construction)">
+    <Compile Include="$(RepositoryRoot)src/Maui.Tizen.Core/Platform/Tizen/TizenModalHost.cs" LinkBase="Product/Core" />
+    <Compile Include="$(TizenControlsPlatformDir)Alerts/*.cs" LinkBase="Product/Alerts" />
+    <Compile Include="$(TizenControlsPlatformDir)Gestures/*.cs" LinkBase="Product/Gestures" />
+    <Compile Include="$(TizenControlsPlatformDir)Modal/*.cs" LinkBase="Product/Modal" />
+    <Compile Include="$(TizenControlsPlatformDir)TizenControlsServiceCollectionExtensions.cs" LinkBase="Product" />
+  </ItemGroup>
+
+</Project>
