@@ -70,11 +70,17 @@ For a critical/security fix on a supported line:
 
 1. Branch from the released tag (not `main`) if `main` has since diverged
    with unrelated changes.
-2. Apply the minimal fix + regression test.
-3. Follow the same release process gate above, using an expedited review
+2. Add the exact protected branch name to
+   `eng/release/release-policy.json` `servicingBranches`. The release workflow
+   accepts no wildcard or ambient branch: it verifies the configured branch's
+   current head, required check conclusions, ruleset, and device-runner workflow
+   restriction.
+3. Apply the minimal fix + regression test.
+4. Follow the same release process gate above, using an expedited review
    (still requires environment approvals — security urgency does not skip
    the sign/publish gates).
-4. Backport the fix to `main`/the active development branch.
+5. Backport the fix to `main`/the active development branch and remove the
+   servicing branch from the release policy when that line is no longer active.
 
 ## 6. Deprecation and EOL communication
 

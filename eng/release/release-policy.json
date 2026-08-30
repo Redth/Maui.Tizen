@@ -3,9 +3,11 @@
   "status": "not-ready",
   "publishingEnabled": false,
   "defaultBranch": "main",
+  "servicingBranches": [],
   "apiCompatibility": {
     "baselineVersion": null,
-    "baselineDirectory": null
+    "baselineDirectory": null,
+    "approvedBreakingChanges": []
   },
   "packageMetadata": {
     "authors": null,

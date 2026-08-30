@@ -141,6 +141,25 @@ rm "$TASKS_WITHOUT_SYMBOLS/Maui.Tizen.Build.Tasks.${VERSION}.snupkg"
 expect_success "Build.Tasks ships without a runtime symbol package" \
   create_unsigned "$TASKS_WITHOUT_SYMBOLS"
 
+TEMPLATE_IDS="$TEMP_ROOT/template-package-ids.txt"
+printf '%s\n' Maui.Tizen.Build.Tasks Maui.Tizen.Core Maui.Tizen.Templates > "$TEMPLATE_IDS"
+TEMPLATES_WITHOUT_SYMBOLS="$TEMP_ROOT/templates-without-symbols"
+make_unsigned_set "$TEMPLATES_WITHOUT_SYMBOLS"
+rm "$TEMPLATES_WITHOUT_SYMBOLS/Maui.Tizen.Build.Tasks.${VERSION}.snupkg"
+make_package "$TEMPLATES_WITHOUT_SYMBOLS" Maui.Tizen.Templates "$VERSION" package false
+expect_success "Templates ships without a runtime symbol package" \
+  python3 "$CONTRACT" create-unsigned-manifest \
+    --packages-dir "$TEMPLATES_WITHOUT_SYMBOLS" \
+    --output "$TEMPLATES_WITHOUT_SYMBOLS/release-manifest.json" \
+    --expected-package-ids-file "$TEMPLATE_IDS" \
+    --repository "$REPOSITORY" \
+    --version "$VERSION" \
+    --source-commit "$SOURCE_SHA" \
+    --source-ref "$SOURCE_REF" \
+    --run-id "$RUN_ID" \
+    --run-attempt "$RUN_ATTEMPT" \
+    --artifact-name "$UNSIGNED_NAME"
+
 WRONG_VERSION="$TEMP_ROOT/wrong-version"
 make_unsigned_set "$WRONG_VERSION" "11.0.0-alpha"
 expect_failure "wrong package version is rejected" create_unsigned "$WRONG_VERSION"
@@ -209,6 +228,64 @@ expect_failure "arbitrary release ref is rejected" \
     --source-ref refs/heads/other \
     --source-commit "$SOURCE_SHA" \
     --ref-protected true
+
+SERVICING_POLICY="$TEMP_ROOT/servicing-policy.json"
+python3 - "$REPO_ROOT/eng/release/release-policy.json" "$SERVICING_POLICY" <<'PY'
+import json
+import sys
+
+policy = json.load(open(sys.argv[1]))
+policy["servicingBranches"] = ["release/10.x"]
+json.dump(policy, open(sys.argv[2], "w"))
+PY
+expect_success "configured protected servicing branch head is accepted" \
+  python3 "$CONTRACT" verify-source \
+    --policy "$SERVICING_POLICY" \
+    --repository-json "$REPOSITORY_JSON" \
+    --branch-json "$BRANCH_JSON" \
+    --source-ref refs/heads/release/10.x \
+    --source-commit "$SOURCE_SHA" \
+    --ref-protected true
+
+CHECK_RUNS_JSON="$TEMP_ROOT/check-runs.json"
+python3 - "$REPO_ROOT/eng/release/release-policy.json" "$CHECK_RUNS_JSON" "$SOURCE_SHA" <<'PY'
+import json
+import sys
+
+policy = json.load(open(sys.argv[1]))
+checks = [
+    {
+        "id": index,
+        "name": name,
+        "head_sha": sys.argv[3],
+        "status": "completed",
+        "conclusion": "success",
+        "app": {"slug": "github-actions"},
+    }
+    for index, name in enumerate(policy["requiredStatusChecks"], start=1)
+]
+json.dump([{"total_count": len(checks), "check_runs": checks}], open(sys.argv[2], "w"))
+PY
+expect_success "all required GitHub Actions checks passed for the exact SHA" \
+  python3 "$CONTRACT" verify-required-checks \
+    --check-runs-json "$CHECK_RUNS_JSON" \
+    --source-commit "$SOURCE_SHA"
+
+python3 - "$CHECK_RUNS_JSON" <<'PY'
+import json
+import sys
+
+pages = json.load(open(sys.argv[1]))
+latest = dict(pages[0]["check_runs"][0])
+latest["id"] = 999
+latest["conclusion"] = "failure"
+pages[0]["check_runs"].append(latest)
+json.dump(pages, open(sys.argv[1], "w"))
+PY
+expect_failure "a newer failed required check cannot be hidden by an older success" \
+  python3 "$CONTRACT" verify-required-checks \
+    --check-runs-json "$CHECK_RUNS_JSON" \
+    --source-commit "$SOURCE_SHA"
 
 WORKLOAD_ID="Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7"
 WORKLOAD_VERSION="11.0.0-preview.7"
@@ -526,6 +603,31 @@ expect_success "complete environment and ruleset protections are accepted" \
     --default-branch main \
     --gh "$FAKE_GH_READY"
 
+FAKE_GH_SERVICING="$TEMP_ROOT/gh-servicing"
+python3 - "$FAKE_GH_READY" "$FAKE_GH_SERVICING" <<'PY'
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text()
+source = source.replace(
+    '"include":["~DEFAULT_BRANCH"]',
+    '"include":["~DEFAULT_BRANCH","refs/heads/release/10.x"]',
+)
+source = source.replace(
+    '"selected_workflows":["Redth/Maui.Tizen/.github/workflows/tizen-device-validation.yml@refs/heads/main"]',
+    '"selected_workflows":["Redth/Maui.Tizen/.github/workflows/tizen-device-validation.yml@refs/heads/main","Redth/Maui.Tizen/.github/workflows/tizen-device-validation.yml@refs/heads/release/10.x"]',
+)
+pathlib.Path(sys.argv[2]).write_text(source)
+PY
+chmod +x "$FAKE_GH_SERVICING"
+expect_success "servicing releases require servicing-branch rules and runner workflow restriction" \
+  python3 "$CONTRACT" verify-protections \
+    --repository "$REPOSITORY" \
+    --default-branch main \
+    --source-branch release/10.x \
+    --policy "$SERVICING_POLICY" \
+    --gh "$FAKE_GH_SERVICING"
+
 FAKE_GH_INHERITED_RUNNERS="$TEMP_ROOT/gh-inherited-runners"
 python3 - "$FAKE_GH_READY" "$FAKE_GH_INHERITED_RUNNERS" <<'PY'
 import pathlib
@@ -618,6 +720,64 @@ expect_failure "placeholder governance and package policies block publishing" \
 BASELINE_API="$TEMP_ROOT/api-baseline"
 CURRENT_API="$TEMP_ROOT/api-current"
 mkdir -p "$BASELINE_API" "$CURRENT_API"
+expect_failure "historical upstream API reference cannot be selected as a release baseline" \
+  python3 "$CONTRACT" verify-api-baseline \
+    --baseline-dir "$REPO_ROOT/eng/api-baselines/net9.0-tizen7.0" \
+    --version 9.0.120
+
+BASELINE_GENERATOR_PACKAGES="$TEMP_ROOT/baseline-generator-packages"
+mkdir -p "$BASELINE_GENERATOR_PACKAGES"
+make_package "$BASELINE_GENERATOR_PACKAGES" Maui.Tizen.Build.Tasks "$VERSION" package false
+make_package "$BASELINE_GENERATOR_PACKAGES" Maui.Tizen.Templates "$VERSION" package false
+BASELINE_GENERATOR_MANIFEST="$TEMP_ROOT/baseline-generator-manifest.json"
+python3 - "$BASELINE_GENERATOR_PACKAGES" "$BASELINE_GENERATOR_MANIFEST" "$VERSION" "$SOURCE_SHA" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+directory = pathlib.Path(sys.argv[1])
+packages = []
+for path in sorted(directory.glob("*.nupkg")):
+    package_id = path.name.removesuffix(f".{sys.argv[3]}.nupkg")
+    packages.append(
+        {
+            "id": package_id,
+            "version": sys.argv[3],
+            "files": [
+                {
+                    "kind": "package",
+                    "filename": path.name,
+                    "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                }
+            ],
+        }
+    )
+json.dump(
+    {
+        "version": sys.argv[3],
+        "source": {"commit": sys.argv[4]},
+        "packages": packages,
+    },
+    open(sys.argv[2], "w"),
+)
+PY
+BASELINE_GENERATOR_OUTPUT="$REPO_ROOT/eng/api-baselines/.release-generator-probe-$$"
+mkdir -p "$BASELINE_GENERATOR_OUTPUT"
+printf 'preserve\n' > "$BASELINE_GENERATOR_OUTPUT/sentinel.txt"
+expect_failure "standalone baseline generation rejects an incomplete package set" \
+  pwsh -NoProfile -File "$REPO_ROOT/eng/scripts/generate-release-api-baseline.ps1" \
+    -PackagesDirectory "$BASELINE_GENERATOR_PACKAGES" \
+    -PackageVersion "$VERSION" \
+    -ReleaseManifest "$BASELINE_GENERATOR_MANIFEST" \
+    -OutputDirectory "$BASELINE_GENERATOR_OUTPUT"
+if [[ "$(cat "$BASELINE_GENERATOR_OUTPUT/sentinel.txt" 2>/dev/null || true)" == "preserve" ]]; then
+  pass "failed baseline generation preserves the previous baseline atomically"
+else
+  fail "failed baseline generation preserves the previous baseline atomically"
+fi
+rm -rf "$BASELINE_GENERATOR_OUTPUT"
+
 cat > "$BASELINE_API/Test.json" <<'JSON'
 {"schemaVersion":2,"types":[{"namespace":"Test","name":"Base","kind":"class","arity":0,"isAbstract":true,"members":[]},{"namespace":"Test","name":"Callback","kind":"delegate","arity":0,"delegateSignature":"Invoke(System.String) -> System.Void","delegateParameters":["1:value:None::"],"members":[]},{"namespace":"Test","name":"Contract","kind":"interface","arity":0,"interfaces":[],"members":[]},{"namespace":"Test","name":"Generic","kind":"class","arity":1,"genericConstraints":["T0:None:"],"members":[]},{"namespace":"Test","name":"Mode","kind":"enum","arity":0,"underlyingType":"System.Int32","members":[]},{"namespace":"Test","name":"Widget","kind":"class","arity":0,"members":[{"kind":"field","signature":"Default : System.String","isLiteral":true,"isInitOnly":false,"constantValue":"String:640065006600610075006C007400"},{"kind":"method","signature":"void Run(System.Int32)","isFinal":false,"isExtensionMethod":false,"parameters":["1:value:None::"]},{"kind":"property","signature":"Item[System.Int32] { get; set; } : System.Int32","getterAccessibility":"public","setterAccessibility":"public","parameters":["1:index:None::"]}]}]}
 JSON
@@ -628,11 +788,41 @@ expect_success "API compatibility ignores baseline metadata and accepts an uncha
 python3 - "$CURRENT_API/Test.json" <<'PY'
 import json, sys
 data=json.load(open(sys.argv[1]))
-next(item for item in data["types"] if item["name"] == "Widget")["members"]=[]
+widget=next(item for item in data["types"] if item["name"] == "Widget")
+widget["members"]=[
+    member for member in widget["members"]
+    if member["signature"] != "void Run(System.Int32)"
+]
 json.dump(data, open(sys.argv[1], "w"))
 PY
 expect_failure "API compatibility rejects a removed member" \
   python3 "$CONTRACT" compare-api --baseline-dir "$BASELINE_API" --current-dir "$CURRENT_API"
+APPROVED_BREAKS="$TEMP_ROOT/approved-api-breaks.json"
+cat > "$APPROVED_BREAKS" <<'JSON'
+{"approvedBreakingChanges":[{"difference":"Test.json: removed public member Test.Widget ('method', 'void Run(System.Int32)')","baselineVersion":"10.0.0","releaseMajor":11,"deprecationEvidence":"https://github.com/Redth/Maui.Tizen/issues/123"}]}
+JSON
+expect_failure "approved API breaks remain forbidden within the same major" \
+  python3 "$CONTRACT" compare-api \
+    --baseline-dir "$BASELINE_API" \
+    --current-dir "$CURRENT_API" \
+    --baseline-version 10.0.0 \
+    --release-version 10.1.0 \
+    --approved-breaks-json "$APPROVED_BREAKS"
+expect_success "an exact reviewed API break is accepted only in a newer major" \
+  python3 "$CONTRACT" compare-api \
+    --baseline-dir "$BASELINE_API" \
+    --current-dir "$CURRENT_API" \
+    --baseline-version 10.0.0 \
+    --release-version 11.0.0 \
+    --approved-breaks-json "$APPROVED_BREAKS"
+cp "$BASELINE_API/Test.json" "$CURRENT_API/Test.json"
+expect_failure "stale major-version API approvals are rejected" \
+  python3 "$CONTRACT" compare-api \
+    --baseline-dir "$BASELINE_API" \
+    --current-dir "$CURRENT_API" \
+    --baseline-version 10.0.0 \
+    --release-version 11.0.0 \
+    --approved-breaks-json "$APPROVED_BREAKS"
 cp "$BASELINE_API/Test.json" "$CURRENT_API/Test.json"
 python3 - "$CURRENT_API/Test.json" <<'PY'
 import json, sys
@@ -741,7 +931,7 @@ expect_failure "API compatibility rejects a new base interface requirement" \
   python3 "$CONTRACT" compare-api --baseline-dir "$BASELINE_API" --current-dir "$CURRENT_API"
 BASELINE_OUTPUT_SHA="$(shasum -a 256 "$BASELINE_API/Test.json" | cut -d' ' -f1)"
 cat > "$BASELINE_API/manifest.json" <<JSON
-{"schemaVersion":1,"dumpSchemaVersion":2,"packageVersion":"10.0.0","packages":[{"assembly":"Test.dll","outputSha256":"$BASELINE_OUTPUT_SHA"}],"msbuildFiles":[]}
+{"schemaVersion":1,"baselineKind":"standalone-release","dumpSchemaVersion":2,"packageVersion":"10.0.0","targetFramework":"net11.0-tizen11.0","sourceCommit":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","sourceManifestSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","packages":[{"assembly":"Test.dll","outputSha256":"$BASELINE_OUTPUT_SHA"}],"msbuildFiles":[]}
 JSON
 expect_success "API baseline version and output hashes are bound" \
   python3 "$CONTRACT" verify-api-baseline \

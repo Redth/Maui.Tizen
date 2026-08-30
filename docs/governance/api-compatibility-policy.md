@@ -37,6 +37,18 @@ experimental (see §4) is not covered by this policy.
   constraints, reduced property accessor visibility, newly sealed
   overrides, added abstract requirements, and new base-interface
   requirements.
+- `eng/api-baselines/net9.0-tizen7.0` is an `upstream-reference` baseline for
+  migration/parity work. It cannot be selected by the release policy because its
+  `Microsoft.Maui.*` assembly/package identities are not the standalone
+  `Maui.Tizen.*` shipping shape.
+- Generate a selectable `standalone-release` baseline from one complete, reviewed
+  Maui.Tizen package set with:
+  `eng/scripts/generate-release-api-baseline.ps1 -PackagesDirectory <dir> -PackageVersion <version> -ReleaseManifest <manifest>`.
+  The generator records the standalone assembly names, API dump hashes, and
+  consumer-facing `build*/*.props`/`build*/*.targets` bytes. The selected
+  baseline must predate the release being built; bootstrap the first public
+  release from a separately reviewed prerelease candidate rather than
+  baselining a release against itself.
 
 ## 3. Change classification
 
@@ -69,6 +81,13 @@ Any PR touching public API surface must:
       `docs/governance/deprecation-policy.md`, and get sign-off from a
       CODEOWNERS approver with release authority (see `.github/CODEOWNERS`),
       not just a general code reviewer.
+
+For a major release, each approved break must also be entered exactly in
+`release-policy.json` under `apiCompatibility.approvedBreakingChanges`, together
+with its concrete GitHub deprecation issue. The executable gate accepts the list
+only when the release major is newer than the baseline major, every detected
+managed or MSBuild difference has one exact approval bound to that baseline
+version and release major, and no stale approval remains.
 
 ## 6. Tizen-specific considerations
 

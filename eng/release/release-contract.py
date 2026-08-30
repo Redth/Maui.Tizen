@@ -34,7 +34,9 @@ SEMVER = re.compile(
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 PLACEHOLDER = re.compile(r"\b(?:TBD|TODO|PLACEHOLDER|NOT[- ]READY)\b", re.IGNORECASE)
-SYMBOLS_OPTIONAL_PACKAGE_IDS = frozenset({"Maui.Tizen.Build.Tasks"})
+SYMBOLS_OPTIONAL_PACKAGE_IDS = frozenset(
+    {"Maui.Tizen.Build.Tasks", "Maui.Tizen.Templates"}
+)
 
 
 class ContractError(RuntimeError):
@@ -768,21 +770,90 @@ def verify_artifact_metadata(args: argparse.Namespace) -> None:
         fail("Artifact name is not bound to the requested workflow attempt")
 
 
+def configured_release_branches(policy: dict[str, Any], default_branch: str) -> list[str]:
+    servicing = policy.get("servicingBranches")
+    if not isinstance(servicing, list):
+        fail("Release policy servicingBranches must be an array")
+
+    branches = [default_branch]
+    for branch in servicing:
+        if (
+            not isinstance(branch, str)
+            or not re.fullmatch(r"release/[1-9][0-9]*\.x", branch)
+        ):
+            fail(f"Release policy contains an invalid servicing branch: {branch!r}")
+        if branch in branches:
+            fail(f"Release policy repeats release branch '{branch}'")
+        branches.append(branch)
+    return branches
+
+
 def verify_source(args: argparse.Namespace) -> None:
     repository = load_json(args.repository_json)
     branch = load_json(args.branch_json)
+    policy = load_json(args.policy)
     default_branch = repository.get("default_branch")
     if not default_branch:
         fail("Repository API response has no default_branch")
-    if args.source_ref != f"refs/heads/{default_branch}":
+    if policy.get("defaultBranch") != default_branch:
+        fail("Release policy default branch does not match the repository default")
+    release_branches = configured_release_branches(policy, default_branch)
+    if not args.source_ref.startswith("refs/heads/"):
+        fail(f"Release ref '{args.source_ref}' is not a branch ref")
+    source_branch = args.source_ref.removeprefix("refs/heads/")
+    if source_branch not in release_branches:
         fail(
-            f"Release ref '{args.source_ref}' is not the current default branch "
-            f"'refs/heads/{default_branch}'"
+            f"Release ref '{args.source_ref}' is neither the default branch nor a "
+            "policy-approved servicing branch"
         )
     if (branch.get("commit") or {}).get("sha") != args.source_commit:
-        fail("Release SHA is not the current default-branch head")
+        fail("Release SHA is not the current release-branch head")
     if args.require_protected == "true" and args.ref_protected != "true":
         fail("Release source ref is not reported as protected")
+
+
+def verify_required_checks(args: argparse.Namespace) -> None:
+    policy = load_json(args.policy)
+    required = policy.get("requiredStatusChecks")
+    if (
+        not isinstance(required, list)
+        or not required
+        or any(not isinstance(item, str) or not item for item in required)
+    ):
+        fail("Release policy requiredStatusChecks must contain check names")
+
+    payload = load_json(args.check_runs_json)
+    pages = payload if isinstance(payload, list) else [payload]
+    check_runs: list[dict[str, Any]] = []
+    for page in pages:
+        if not isinstance(page, dict) or not isinstance(page.get("check_runs"), list):
+            fail("GitHub check-runs response is malformed")
+        check_runs.extend(page["check_runs"])
+
+    failures: list[str] = []
+    for name in required:
+        candidates = [
+            item
+            for item in check_runs
+            if item.get("name") == name
+            and item.get("head_sha") == args.source_commit
+            and ((item.get("app") or {}).get("slug") == "github-actions")
+            and isinstance(item.get("id"), int)
+        ]
+        if not candidates:
+            failures.append(f"{name}: no GitHub Actions check run for the release SHA")
+            continue
+        latest = max(candidates, key=lambda item: item["id"])
+        if latest.get("status") != "completed" or latest.get("conclusion") != "success":
+            failures.append(
+                f"{name}: latest run is status={latest.get('status')!r}, "
+                f"conclusion={latest.get('conclusion')!r}"
+            )
+    if failures:
+        fail(
+            "Required checks have not succeeded for the exact release SHA:\n  "
+            + "\n  ".join(failures)
+        )
 
 
 def verify_installed_workload(args: argparse.Namespace) -> None:
@@ -968,6 +1039,10 @@ def verify_protections(args: argparse.Namespace) -> None:
     policy = load_json(args.policy)
     if policy.get("defaultBranch") != args.default_branch:
         fail("Release policy default branch does not match the repository default")
+    release_branches = configured_release_branches(policy, args.default_branch)
+    source_branch = args.source_branch or args.default_branch
+    if source_branch not in release_branches:
+        fail("Protection audit source branch is not approved by release policy")
     environments = policy.get("protectedEnvironments")
     if not isinstance(environments, list) or not environments:
         fail("Release policy declares no protected environments")
@@ -1004,7 +1079,7 @@ def verify_protections(args: argparse.Namespace) -> None:
         ref_names = (detail.get("conditions") or {}).get("ref_name") or {}
         includes = ref_names.get("include") or []
         excludes = ref_names.get("exclude") or []
-        ref = f"refs/heads/{args.default_branch}"
+        ref = f"refs/heads/{source_branch}"
         included = any(
             github_ref_matches(pattern, ref, args.default_branch)
             for pattern in includes
@@ -1023,7 +1098,7 @@ def verify_protections(args: argparse.Namespace) -> None:
             safe_rules.extend(detail.get("rules") or [])
     if not safe_rules:
         missing.append(
-            f"{args.default_branch}: no active covering ruleset is free of bypass actors"
+            f"{source_branch}: no active covering ruleset is free of bypass actors"
         )
     rule_types = {rule.get("type") for rule in safe_rules}
     pull_rules = [
@@ -1038,18 +1113,18 @@ def verify_protections(args: argparse.Namespace) -> None:
         ),
         default=0,
     ) < 1:
-        missing.append(f"{args.default_branch}: no approving review is required")
+        missing.append(f"{source_branch}: no approving review is required")
     if not any(
         rule.get("require_code_owner_review") is True for rule in pull_rules
     ):
-        missing.append(f"{args.default_branch}: CODEOWNERS review is not required")
+        missing.append(f"{source_branch}: CODEOWNERS review is not required")
     if not any(
         rule.get("require_last_push_approval") is True for rule in pull_rules
     ):
-        missing.append(f"{args.default_branch}: last-push approval is not required")
+        missing.append(f"{source_branch}: last-push approval is not required")
     for rule_type in ("deletion", "non_fast_forward", "required_linear_history"):
         if rule_type not in rule_types:
-            missing.append(f"{args.default_branch}: missing {rule_type} rule")
+            missing.append(f"{source_branch}: missing {rule_type} rule")
     status_rules = [
         rule.get("parameters") or {}
         for rule in safe_rules
@@ -1064,14 +1139,14 @@ def verify_protections(args: argparse.Namespace) -> None:
     policy_contexts = set(policy.get("requiredStatusChecks") or [])
     if not policy_contexts or not policy_contexts.issubset(required_contexts):
         missing.append(
-            f"{args.default_branch}: required status checks do not match release policy"
+            f"{source_branch}: required status checks do not match release policy"
         )
     if not any(
         rule.get("strict_required_status_checks_policy") is True
         for rule in status_rules
     ):
         missing.append(
-            f"{args.default_branch}: status checks are not required on the latest head"
+            f"{source_branch}: status checks are not required on the latest head"
         )
 
     runner_policy = policy.get("runnerGroup") or {}
@@ -1107,10 +1182,11 @@ def verify_protections(args: argparse.Namespace) -> None:
                 args.gh,
                 f"orgs/{organization}/actions/runner-groups/{group_id}",
             )
-            expected_workflow = (
+            expected_workflows = {
                 f"{args.repository}/.github/workflows/"
-                f"tizen-device-validation.yml@refs/heads/{args.default_branch}"
-            )
+                f"tizen-device-validation.yml@refs/heads/{branch}"
+                for branch in release_branches
+            }
             selected_workflows = group.get("selected_workflows")
             if group.get("inherited") is not False:
                 missing.append(
@@ -1122,9 +1198,10 @@ def verify_protections(args: argparse.Namespace) -> None:
                 missing.append("release runner group does not explicitly allow this public repository")
             if group.get("restricted_to_workflows") is not True:
                 missing.append("release runner group is not restricted to selected workflows")
-            if not isinstance(selected_workflows, list) or set(selected_workflows) != {
-                expected_workflow
-            }:
+            if (
+                not isinstance(selected_workflows, list)
+                or set(selected_workflows) != expected_workflows
+            ):
                 missing.append(
                     "release runner group is not restricted exclusively to the reviewed device workflow"
                 )
@@ -1164,7 +1241,9 @@ def policy_value(value: Any, label: str, errors: list[str]) -> str:
     return value.strip()
 
 
-def compare_api_directories(baseline_dir: Path, current_dir: Path) -> None:
+def api_directory_differences(
+    baseline_dir: Path, current_dir: Path
+) -> list[str]:
     baseline_files = sorted(
         path
         for path in baseline_dir.glob("*.json")
@@ -1300,8 +1379,125 @@ def compare_api_directories(baseline_dir: Path, current_dir: Path) -> None:
                             f"{baseline_path.name}: added abstract requirement "
                             f"{key[0]}.{key[1]} {member_key}"
                         )
-    if errors:
-        fail("API compatibility check failed:\n  " + "\n  ".join(errors))
+    return errors
+
+
+def version_major(version: str, label: str) -> int:
+    match = SEMVER.fullmatch(version)
+    if match is None:
+        fail(f"{label} '{version}' is not a supported release version")
+    return int(match.group("major"))
+
+
+def enforce_api_differences(
+    differences: list[str],
+    release_version: str | None = None,
+    baseline_version: str | None = None,
+    approvals: Any = None,
+) -> None:
+    approval_entries = approvals if approvals is not None else []
+    if not isinstance(approval_entries, list):
+        fail("API approvedBreakingChanges must be an array")
+
+    approved: dict[str, dict[str, Any]] = {}
+    for entry in approval_entries:
+        if not isinstance(entry, dict):
+            fail("Each approved API break must be an object")
+        difference = entry.get("difference")
+        evidence = entry.get("deprecationEvidence")
+        approved_baseline = entry.get("baselineVersion")
+        approved_major = entry.get("releaseMajor")
+        if not isinstance(difference, str) or not difference:
+            fail("Each approved API break must name one exact difference")
+        if difference in approved:
+            fail(f"Approved API break is duplicated: {difference}")
+        if (
+            not isinstance(evidence, str)
+            or not re.fullmatch(
+                r"https://github\.com/[^/]+/[^/]+/issues/[1-9][0-9]*",
+                evidence,
+            )
+        ):
+            fail(
+                f"Approved API break has no concrete GitHub deprecation issue: {difference}"
+            )
+        if not isinstance(approved_baseline, str) or SEMVER.fullmatch(
+            approved_baseline
+        ) is None:
+            fail(f"Approved API break has no valid baselineVersion: {difference}")
+        if not isinstance(approved_major, int) or approved_major < 1:
+            fail(f"Approved API break has no valid releaseMajor: {difference}")
+        approved[difference] = entry
+
+    if not differences:
+        if approved:
+            fail(
+                "API break approvals are stale; no matching differences were detected:\n  "
+                + "\n  ".join(sorted(approved))
+            )
+        return
+
+    if release_version is None or baseline_version is None:
+        fail("API compatibility check failed:\n  " + "\n  ".join(differences))
+    release_major = version_major(release_version, "Release version")
+    baseline_major = version_major(baseline_version, "API baseline version")
+    if release_major <= baseline_major:
+        fail(
+            "API compatibility check failed outside a newer major release:\n  "
+            + "\n  ".join(differences)
+        )
+    for difference, entry in approved.items():
+        if entry["baselineVersion"] != baseline_version:
+            fail(
+                f"Approved API break baselineVersion does not match "
+                f"'{baseline_version}': {difference}"
+            )
+        if entry["releaseMajor"] != release_major:
+            fail(
+                f"Approved API break releaseMajor does not match "
+                f"'{release_major}': {difference}"
+            )
+
+    detected = set(differences)
+    approved_set = set(approved)
+    missing = sorted(detected - approved_set)
+    stale = sorted(approved_set - detected)
+    if missing or stale:
+        details: list[str] = []
+        if missing:
+            details.append("unapproved differences:\n    " + "\n    ".join(missing))
+        if stale:
+            details.append("stale approvals:\n    " + "\n    ".join(stale))
+        fail("Major-release API break approval mismatch:\n  " + "\n  ".join(details))
+
+
+def compare_api_directories(
+    baseline_dir: Path,
+    current_dir: Path,
+    release_version: str | None = None,
+    baseline_version: str | None = None,
+    approvals: Any = None,
+) -> None:
+    enforce_api_differences(
+        api_directory_differences(baseline_dir, current_dir),
+        release_version,
+        baseline_version,
+        approvals,
+    )
+
+
+def compare_api_command(args: argparse.Namespace) -> None:
+    approvals = None
+    if args.approved_breaks_json is not None:
+        approval_data = load_json(args.approved_breaks_json)
+        approvals = approval_data.get("approvedBreakingChanges")
+    compare_api_directories(
+        args.baseline_dir,
+        args.current_dir,
+        args.release_version,
+        args.baseline_version,
+        approvals,
+    )
 
 
 def verify_api_baseline_manifest(
@@ -1309,6 +1505,23 @@ def verify_api_baseline_manifest(
 ) -> dict[str, Any]:
     manifest_path = baseline_dir / "manifest.json"
     manifest = load_json(manifest_path)
+    if manifest.get("baselineKind") != "standalone-release":
+        fail(
+            "API baseline is not a standalone-release baseline generated from "
+            "Maui.Tizen package identities"
+        )
+    if not COMMIT_SHA.fullmatch(str(manifest.get("sourceCommit") or "")):
+        fail("Standalone release API baseline has no source commit")
+    if not SHA256.fullmatch(str(manifest.get("sourceManifestSha256") or "")):
+        fail("Standalone release API baseline has no reviewed manifest hash")
+    expected_tfm = (load_json(DEFAULT_BASELINES).get("target") or {}).get(
+        "targetFramework"
+    )
+    if manifest.get("targetFramework") != expected_tfm:
+        fail(
+            f"Standalone release API baseline target framework is "
+            f"'{manifest.get('targetFramework')}', expected '{expected_tfm}'"
+        )
     if manifest.get("packageVersion") != baseline_version:
         fail(
             f"API baseline manifest version '{manifest.get('packageVersion')}' "
@@ -1364,11 +1577,11 @@ def verify_api_baseline_manifest(
     return manifest
 
 
-def verify_msbuild_contracts(
+def msbuild_contract_differences(
     packages_dir: Path,
     baseline_dir: Path,
     baseline_version: str,
-) -> None:
+) -> list[str]:
     manifest = verify_api_baseline_manifest(baseline_dir, baseline_version)
     expected = {
         (entry.get("packageId"), entry.get("packagePath")): entry
@@ -1392,15 +1605,33 @@ def verify_msbuild_contracts(
                 ):
                     actual[(info["id"], normalized)] = archive.read(name)
 
+    differences: list[str] = []
     if set(actual) != set(expected):
-        fail(
+        differences.append(
             "MSBuild public API file set mismatch; "
             f"expected={sorted(expected)}, actual={sorted(actual)}"
         )
     for key, current_bytes in actual.items():
+        if key not in expected:
+            continue
         baseline_file = (baseline_dir / expected[key]["baselineFile"]).resolve()
         if current_bytes != baseline_file.read_bytes():
-            fail(f"MSBuild public API changed for {key[0]}:{key[1]}")
+            differences.append(
+                f"MSBuild public API changed for {key[0]}:{key[1]}"
+            )
+    return differences
+
+
+def verify_msbuild_contracts(
+    packages_dir: Path,
+    baseline_dir: Path,
+    baseline_version: str,
+) -> None:
+    enforce_api_differences(
+        msbuild_contract_differences(
+            packages_dir, baseline_dir, baseline_version
+        )
+    )
 
 
 def run_api_compatibility(
@@ -1408,6 +1639,8 @@ def run_api_compatibility(
     baseline_dir: Path,
     baseline_version: str,
     dotnet: str,
+    release_version: str,
+    approvals: Any,
 ) -> None:
     verify_api_baseline_manifest(baseline_dir, baseline_version)
     with tempfile.TemporaryDirectory(prefix="maui-tizen-api-") as temporary:
@@ -1443,8 +1676,18 @@ def run_api_compatibility(
         )
         if result.returncode != 0:
             fail(f"ApiDump failed:\n{result.stdout}\n{result.stderr}")
-        compare_api_directories(baseline_dir, output)
-    verify_msbuild_contracts(packages_dir, baseline_dir, baseline_version)
+        differences = api_directory_differences(baseline_dir, output)
+    differences.extend(
+        msbuild_contract_differences(
+            packages_dir, baseline_dir, baseline_version
+        )
+    )
+    enforce_api_differences(
+        differences,
+        release_version,
+        baseline_version,
+        approvals,
+    )
 
 
 def evaluate_shipping_projects(dotnet: str) -> dict[str, dict[str, str]]:
@@ -1652,7 +1895,12 @@ def verify_policies(args: argparse.Namespace) -> None:
     if ROOT not in baseline_path.parents:
         fail("API baseline directory must stay inside the repository")
     run_api_compatibility(
-        args.packages_dir, baseline_path, baseline_version, args.dotnet
+        args.packages_dir,
+        baseline_path,
+        baseline_version,
+        args.dotnet,
+        args.version,
+        api.get("approvedBreakingChanges"),
     )
 
 
@@ -2022,6 +2270,7 @@ def build_parser() -> argparse.ArgumentParser:
     artifact.set_defaults(handler=verify_artifact_metadata)
 
     source = subparsers.add_parser("verify-source")
+    source.add_argument("--policy", type=Path, default=DEFAULT_POLICY)
     source.add_argument("--repository-json", type=Path, required=True)
     source.add_argument("--branch-json", type=Path, required=True)
     source.add_argument("--source-ref", required=True)
@@ -2033,6 +2282,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="true",
     )
     source.set_defaults(handler=verify_source)
+
+    required_checks = subparsers.add_parser("verify-required-checks")
+    required_checks.add_argument("--policy", type=Path, default=DEFAULT_POLICY)
+    required_checks.add_argument("--check-runs-json", type=Path, required=True)
+    required_checks.add_argument("--source-commit", required=True)
+    required_checks.set_defaults(handler=verify_required_checks)
 
     workload = subparsers.add_parser("verify-installed-workload")
     workload.add_argument("--baselines", type=Path, default=DEFAULT_BASELINES)
@@ -2061,6 +2316,7 @@ def build_parser() -> argparse.ArgumentParser:
     protections = subparsers.add_parser("verify-protections")
     protections.add_argument("--repository", required=True)
     protections.add_argument("--default-branch", required=True)
+    protections.add_argument("--source-branch")
     protections.add_argument("--policy", type=Path, default=DEFAULT_POLICY)
     protections.add_argument("--gh", default=os.environ.get("GH", "gh"))
     protections.set_defaults(handler=verify_protections)
@@ -2079,11 +2335,10 @@ def build_parser() -> argparse.ArgumentParser:
     compare_api = subparsers.add_parser("compare-api")
     compare_api.add_argument("--baseline-dir", type=Path, required=True)
     compare_api.add_argument("--current-dir", type=Path, required=True)
-    compare_api.set_defaults(
-        handler=lambda args: compare_api_directories(
-            args.baseline_dir, args.current_dir
-        )
-    )
+    compare_api.add_argument("--release-version")
+    compare_api.add_argument("--baseline-version")
+    compare_api.add_argument("--approved-breaks-json", type=Path)
+    compare_api.set_defaults(handler=compare_api_command)
 
     api_baseline = subparsers.add_parser("verify-api-baseline")
     api_baseline.add_argument("--baseline-dir", type=Path, required=True)

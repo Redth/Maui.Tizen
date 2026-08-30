@@ -221,6 +221,8 @@ check "Tizen workload transition tests are syntactically valid" bash -n eng/test
 check "release contract tests are syntactically valid" bash -n eng/tests/test-release-contract.sh
 check "release contract helper is syntactically valid" \
   python3 -c "import ast; ast.parse(open('eng/release/release-contract.py', encoding='utf-8').read())"
+check "standalone release API baseline generator is syntactically valid" \
+  pwsh -NoProfile -Command "[scriptblock]::Create((Get-Content 'eng/scripts/generate-release-api-baseline.ps1' -Raw)) | Out-Null"
 check "Essentials mutation runner is syntactically valid" bash -n eng/tests/run-essentials-negative-controls.sh
 check "Essentials mutation lock tests are syntactically valid" bash -n eng/tests/test-essentials-mutation-lock.sh
 check "Wave C mutation runner is syntactically valid" bash -n eng/tests/run-wave-c-negative-controls.sh

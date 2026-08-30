@@ -125,6 +125,32 @@ public class PackagingTests
     }
 
     [Fact]
+    public async Task TemplatesPackage_MatchesItsReleaseContentContract()
+    {
+        using var workspace = TempWorkspace.Create("templates-package-contract");
+        var output = workspace.CreateSubdirectory("packages");
+        var project = Path.Combine(
+            RepoLayout.Root,
+            "src",
+            "Maui.Tizen.Templates",
+            "Maui.Tizen.Templates.csproj");
+
+        var result = await DotNetCli
+            .RunAsync(
+                ["pack", project, "--nologo", "-c", "Release", "--output", output],
+                workingDirectory: RepoLayout.Root,
+                cancellationToken: TestContext.Current.CancellationToken)
+            .ConfigureAwait(true);
+
+        result.EnsureSucceeded();
+        using var package = NuPkg.OpenFromDirectory(output, "Maui.Tizen.Templates");
+        var contract = PackageContentContract.Load("Maui.Tizen.Templates");
+        var evaluation = contract.Evaluate(package.Entries);
+
+        Assert.True(evaluation.Passed, evaluation.Describe(package.Entries));
+    }
+
+    [Fact]
     public async Task NuspecReader_ReturnsPackageIdentityAndDependencies()
     {
         var (workspace, output) = await PackProbeAsync().ConfigureAwait(true);

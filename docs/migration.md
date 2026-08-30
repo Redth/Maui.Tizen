@@ -106,8 +106,10 @@ The transition is automatic and fail-closed:
 4. `eng/build-tizen.sh` restores, builds, and invokes Pack for every actual
    `net11.0-tizen11.0` product project. Any install, restore, build, or pack failure fails
    the workflow.
-5. After that lane is green, regenerate API baselines against the real Tizen build and run the
-   device/profile/visual/package gates.
+5. After that lane is green, pack the complete standalone package set and generate a selectable
+   release baseline with `eng/scripts/generate-release-api-baseline.ps1`; the historical
+   `net9.0-tizen7.0` baseline remains reference-only because its Microsoft assembly identities do
+   not match the external package shape. Then run the device/profile/visual/package gates.
 
 ### SecureStorage data migration
 

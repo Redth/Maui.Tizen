@@ -19,10 +19,11 @@ if [[ "${MAUI_TIZEN_LOCAL_SEMANTICS:-0}" != "1" ]]; then
   export ContinuousIntegrationBuild=true
 fi
 
-# Every shipping project is explicit. Maui.Tizen.Build.Tasks is workload-independent, but it
-# ships with the Tizen packages and must be built and packed by the same single release invocation.
+# Every shipping project is explicit. Build.Tasks and Templates are workload-independent, but
+# they ship with the Tizen packages and must be packed into the same exact release artifact.
 SHIPPING_PROJECTS=(
   "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj"
+  "src/Maui.Tizen.Templates/Maui.Tizen.Templates.csproj"
   "src/Diagnostics/Maui.Tizen.DevFlow.Agent/Maui.Tizen.DevFlow.Agent.csproj"
   "src/Maui.Tizen.Core/Maui.Tizen.Core.csproj"
   "src/Maui.Tizen.Controls/Maui.Tizen.Controls.csproj"
@@ -59,10 +60,16 @@ fi
 
 mkdir -p "$PACKAGE_OUTPUT_PATH"
 
+is_reused_workload_free_project() {
+  local reuse="${MAUI_TIZEN_WORKLOAD_FREE_PROJECTS_ALREADY_BUILT:-${MAUI_TIZEN_BUILD_TASKS_ALREADY_BUILT:-false}}"
+  [[ "$reuse" == "true" ]] \
+    && [[ "$1" == "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj" \
+       || "$1" == "src/Maui.Tizen.Templates/Maui.Tizen.Templates.csproj" ]]
+}
+
 echo "==> Restore shipping projects"
 for project in "${SHIPPING_PROJECTS[@]}"; do
-  if [[ "$project" == "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj" \
-      && "${MAUI_TIZEN_BUILD_TASKS_ALREADY_BUILT:-false}" == "true" ]]; then
+  if is_reused_workload_free_project "$project"; then
     echo "  reuse   $project"
     continue
   fi
@@ -72,8 +79,7 @@ done
 
 echo "==> Build shipping projects"
 for project in "${SHIPPING_PROJECTS[@]}"; do
-  if [[ "$project" == "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj" \
-      && "${MAUI_TIZEN_BUILD_TASKS_ALREADY_BUILT:-false}" == "true" ]]; then
+  if is_reused_workload_free_project "$project"; then
     echo "  reuse   $project"
     continue
   fi

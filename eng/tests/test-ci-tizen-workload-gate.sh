@@ -440,12 +440,18 @@ while IFS= read -r project; do
     fi
   fi
 done < <(find src samples -name '*.csproj' -type f | sort)
-SHIPPING_PROJECT_COUNT=$((TIZEN_PROJECT_COUNT + 1))
+SHIPPING_PROJECT_COUNT=$((TIZEN_PROJECT_COUNT + 2))
 
 if grep -Fq '"src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj"' "$REAL_LANE"; then
   pass "real lane includes Maui.Tizen.Build.Tasks"
 else
   fail "real lane includes Maui.Tizen.Build.Tasks"
+fi
+
+if grep -Fq '"src/Maui.Tizen.Templates/Maui.Tizen.Templates.csproj"' "$REAL_LANE"; then
+  pass "real lane includes Maui.Tizen.Templates"
+else
+  fail "real lane includes Maui.Tizen.Templates"
 fi
 
 if [[ "$TIZEN_PROJECT_COUNT" -gt 0 ]]; then
@@ -475,17 +481,17 @@ set +e
 env \
   DOTNET="$LANE_DOTNET" \
   FAKE_DOTNET_LOG="$LANE_LOG" \
-  MAUI_TIZEN_BUILD_TASKS_ALREADY_BUILT=true \
+  MAUI_TIZEN_WORKLOAD_FREE_PROJECTS_ALREADY_BUILT=true \
   "$REAL_LANE" > "$TEMP_ROOT/lane-reuse-build-tasks.out" 2>&1
 LANE_STATUS=$?
 set -e
-expect_status "release lane reuses the workload-free Build.Tasks build" 0 "$LANE_STATUS"
+expect_status "release lane reuses the workload-free Build.Tasks and Templates builds" 0 "$LANE_STATUS"
 for phase in restore build; do
   count="$(grep -c "^${phase} " "$LANE_LOG" || true)"
   if [[ "$count" -eq "$TIZEN_PROJECT_COUNT" ]]; then
-    pass "release lane does not rebuild Build.Tasks during $phase"
+    pass "release lane does not rebuild workload-free shipping projects during $phase"
   else
-    fail "release lane does not rebuild Build.Tasks during $phase -- expected $TIZEN_PROJECT_COUNT, got $count"
+    fail "release lane does not rebuild workload-free shipping projects during $phase -- expected $TIZEN_PROJECT_COUNT, got $count"
   fi
 done
 count="$(grep -c '^pack ' "$LANE_LOG" || true)"

@@ -35,11 +35,15 @@ env:
 
 jobs:
   source:
-    name: Verify reviewed default-branch source
+    name: Verify reviewed release source and required checks
     runs-on: ubuntu-latest
+    permissions:
+      checks: read
+      contents: read
     outputs:
       default_branch: ${{ steps.source.outputs.default_branch }}
       package_version: ${{ steps.source.outputs.package_version }}
+      source_branch: ${{ steps.source.outputs.source_branch }}
       source_ref: ${{ steps.source.outputs.source_ref }}
       source_sha: ${{ steps.source.outputs.source_sha }}
     steps:
@@ -74,18 +78,30 @@ jobs:
           set -euo pipefail
           gh api "repos/$GITHUB_REPOSITORY" > repository.json
           default_branch="$(python3 -c 'import json; print(json.load(open("repository.json"))["default_branch"])')"
-          gh api "repos/$GITHUB_REPOSITORY/branches/$default_branch" > branch.json
+          source_branch="${SOURCE_REF#refs/heads/}"
+          encoded_source_branch="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$source_branch")"
+          gh api "repos/$GITHUB_REPOSITORY/branches/$encoded_source_branch" > branch.json
+          gh api --paginate --slurp \
+            -H "Accept: application/vnd.github+json" \
+            "repos/$GITHUB_REPOSITORY/commits/$REVIEWED_SHA/check-runs?filter=all&per_page=100" \
+            > check-runs.json
           ./eng/release/release-contract.py validate-version --version "$PACKAGE_VERSION"
           ./eng/release/release-contract.py verify-source \
+            --policy eng/release/release-policy.json \
             --repository-json repository.json \
             --branch-json branch.json \
             --source-ref "$SOURCE_REF" \
             --source-commit "$REVIEWED_SHA" \
             --ref-protected "$REF_PROTECTED" \
             --require-protected "$REQUIRE_PROTECTED"
+          ./eng/release/release-contract.py verify-required-checks \
+            --policy eng/release/release-policy.json \
+            --check-runs-json check-runs.json \
+            --source-commit "$REVIEWED_SHA"
           {
             echo "default_branch=$default_branch"
             echo "package_version=$PACKAGE_VERSION"
+            echo "source_branch=$source_branch"
             echo "source_ref=$SOURCE_REF"
             echo "source_sha=$REVIEWED_SHA"
           } >> "$GITHUB_OUTPUT"
@@ -135,7 +151,7 @@ jobs:
           PackageVersion: ${{ needs.source.outputs.package_version }}
           SOURCE_COMMIT: ${{ needs.source.outputs.source_sha }}
           MAUI_TIZEN_PACKAGE_OUTPUT_PATH: ${{ github.workspace }}/artifacts/release-packages
-          MAUI_TIZEN_BUILD_TASKS_ALREADY_BUILT: "true"
+          MAUI_TIZEN_WORKLOAD_FREE_PROJECTS_ALREADY_BUILT: "true"
           ContinuousIntegrationBuild: "true"
         run: ./eng/ci/tizen-workload-gate.sh
 
@@ -224,6 +240,7 @@ jobs:
       MANIFEST_SHA256: ${{ needs.build-pack.outputs.manifest_sha256 }}
       PACKAGE_VERSION: ${{ needs.source.outputs.package_version }}
       SOURCE_REF: ${{ needs.source.outputs.source_ref }}
+      SOURCE_BRANCH: ${{ needs.source.outputs.source_branch }}
       SOURCE_SHA: ${{ needs.source.outputs.source_sha }}
     steps:
       - name: Checkout the reviewed SHA
@@ -279,7 +296,7 @@ jobs:
             --run-attempt "$GITHUB_RUN_ATTEMPT" \
             --artifact-name "$ARTIFACT_NAME"
 
-      - name: Verify protected environments and default-branch ruleset
+      - name: Verify protected environments and release-branch ruleset
         if: always()
         env:
           GH_TOKEN: ${{ secrets.RELEASE_GOVERNANCE_AUDIT_TOKEN }}
@@ -290,7 +307,8 @@ jobs:
           fi
           ./eng/release/release-contract.py verify-protections \
             --repository "$GITHUB_REPOSITORY" \
-            --default-branch "$DEFAULT_BRANCH"
+            --default-branch "$DEFAULT_BRANCH" \
+            --source-branch "$SOURCE_BRANCH"
 
   device-validation:
     name: Validate exact unsigned artifact on Tizen devices

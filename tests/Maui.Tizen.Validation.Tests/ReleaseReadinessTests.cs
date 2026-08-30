@@ -331,6 +331,33 @@ public class ReleaseWorkflowSecurityTests
     }
 
     [Fact]
+    public void SharedPackageMetadataCarriesTheReleaseContractTags()
+    {
+        var props = File.ReadAllText(Path.Combine(RepoLayout.Root, "Directory.Build.props"));
+
+        Assert.Contains(
+            "<PackageTags>maui;tizen;dotnet;samsung</PackageTags>",
+            props,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReleaseSourceGateChecksTheExactShaAndSupportsOnlyConfiguredBranches()
+    {
+        var release = ReadWorkflow("release.yml");
+        var contract = File.ReadAllText(
+            Path.Combine(RepoLayout.Root, "eng", "release", "release-contract.py"));
+
+        Assert.Contains("checks: read", release, StringComparison.Ordinal);
+        Assert.Contains("commits/$REVIEWED_SHA/check-runs", release, StringComparison.Ordinal);
+        Assert.Contains("verify-required-checks", release, StringComparison.Ordinal);
+        Assert.Contains("--source-branch \"$SOURCE_BRANCH\"", release, StringComparison.Ordinal);
+        Assert.Contains("- \"release/**\"", ReadWorkflow("ci.yml"), StringComparison.Ordinal);
+        Assert.Contains("configured_release_branches", contract, StringComparison.Ordinal);
+        Assert.Contains("servicingBranches", contract, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ReleaseArtifactIsAttemptBoundAndPassedIntoReusableValidation()
     {
         var release = ReadWorkflow("release.yml");

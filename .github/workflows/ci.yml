@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - "release/**"
   # Deliberately unrestricted: stacked PRs target the foundation branch rather than
   # main, and a `branches: [ main ]` filter here silently gives them zero checks -
   # which is worse than a failing check, because nothing signals that anything is wrong.

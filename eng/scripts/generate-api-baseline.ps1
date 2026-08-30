@@ -242,6 +242,7 @@ foreach ($pkg in $packageManifest) {
 
 $manifest = [ordered]@{
     schemaVersion   = 1
+    baselineKind    = 'upstream-reference'
     dumpSchemaVersion = 2
     packageVersion  = $PackageVersion
     targetFramework = $tfm
