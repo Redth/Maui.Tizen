@@ -522,6 +522,64 @@ public class TizenGesturePlatformManagerTests
 	}
 
 	[Fact]
+	public void NativeAttachFailureIsRolledBackBeforeTheHandlerIsPublished()
+	{
+		var detectors = new FakeNativeGestureDetectorFactory
+		{
+			ConfigureDetector = detector =>
+				detector.AttachFailure = new InvalidOperationException("attach"),
+		};
+		var factory = new TizenGestureHandlerFactory(
+			detectors,
+			new RecordingGestureDispatcher(),
+			new TizenPixelScaler());
+		var view = ViewWith(new PanGestureRecognizer());
+		var detectorGraph = new TizenGestureDetector(new StubViewHandler(view), factory)
+		{
+			IsEnabled = true,
+		};
+
+		Assert.Throws<InvalidOperationException>(
+			() => detectorGraph.AddGestures(view.GestureRecognizers));
+
+		var native = Assert.Single(detectors.Created);
+		Assert.Equal(0, detectorGraph.Count);
+		Assert.False(native.IsAttached);
+		Assert.True(native.Disposed);
+	}
+
+	[Fact]
+	public void ManagerConstructorFailureUnwindsSubscriptionsAndEveryPartialDetector()
+	{
+		var detectors = new FakeNativeGestureDetectorFactory();
+		var created = 0;
+		detectors.ConfigureDetector = detector =>
+		{
+			if (created++ == 1)
+			{
+				detector.AttachFailure = new InvalidOperationException("second attach");
+			}
+		};
+		var factory = new TizenGestureHandlerFactory(
+			detectors,
+			new RecordingGestureDispatcher(),
+			new TizenPixelScaler());
+		var view = ViewWith(new PanGestureRecognizer(), new PinchGestureRecognizer());
+
+		Assert.Throws<InvalidOperationException>(
+			() => new TizenGesturePlatformManager(new StubViewHandler(view), factory));
+
+		Assert.Equal(2, detectors.Created.Count);
+		Assert.All(detectors.Created, detector => Assert.True(detector.Disposed));
+
+		view.GestureRecognizers.Add(new TapGestureRecognizer());
+		view.IsEnabled = false;
+		view.InputTransparent = true;
+
+		Assert.Equal(2, detectors.Created.Count);
+	}
+
+	[Fact]
 	public void UnsupportedGestureKindsProduceNoHandler()
 	{
 		var (factory, detectors) = CreateFactory(TizenGestureKind.Pinch);

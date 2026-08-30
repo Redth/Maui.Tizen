@@ -62,7 +62,50 @@ namespace Microsoft.Maui.Platforms.Tizen
 			// detectors, matching the original backend.
 			_gestureDetector = new Lazy<TizenGestureDetector>(() => new TizenGestureDetector(handler, handlerFactory));
 
-			SetupElement(null, Element);
+			try
+			{
+				SetupElement(null, Element);
+			}
+			catch (Exception setupFailure)
+			{
+				var element = Element;
+				var gestureRecognizers = _gestureRecognizers;
+				_disposed = true;
+				_handler = null;
+				_gestureRecognizers = null;
+
+				var cleanup = new List<Action>();
+				if (gestureRecognizers is INotifyCollectionChanged observable)
+				{
+					cleanup.Add(() => observable.CollectionChanged -= OnGestureRecognizerCollectionChanged);
+				}
+
+				if (element is not null)
+				{
+					cleanup.Add(() => element.PropertyChanged -= OnElementPropertyChanged);
+				}
+
+				if (_gestureDetector.IsValueCreated)
+				{
+					cleanup.Add(_gestureDetector.Value.Dispose);
+				}
+
+				try
+				{
+					TizenGestureCleanup.Run(
+						"Gesture manager setup rollback failed.",
+						cleanup.ToArray());
+				}
+				catch (Exception cleanupFailure)
+				{
+					throw new AggregateException(
+						"Gesture manager setup and rollback both failed.",
+						setupFailure,
+						cleanupFailure);
+				}
+
+				throw;
+			}
 		}
 
 		/// <summary>

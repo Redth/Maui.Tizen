@@ -81,6 +81,70 @@
     </Task>
   </UsingTask>
 
+  <UsingTask TaskName="MauiTizenInspectLocalControlsAdoption"
+             TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <CompileFiles ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <ModalSourcePath ParameterType="System.String" Required="true" />
+      <ModalServiceSourcePath ParameterType="System.String" Required="true" />
+      <ProvisionalModalSourcePath ParameterType="System.String" Required="true" />
+      <GestureDispatcherSourcePath ParameterType="System.String" Required="true" />
+      <ModalAdoptionMarker ParameterType="Microsoft.Build.Framework.ITaskItem" Output="true" />
+      <LongPressAdoptionMarker ParameterType="Microsoft.Build.Framework.ITaskItem" Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System" />
+      <Using Namespace="System.Collections.Generic" />
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Linq" />
+      <Using Namespace="Microsoft.Build.Utilities" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        var comparer = Path.DirectorySeparatorChar == '\\'
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
+        var compiled = new HashSet<string>(
+            CompileFiles.Select(item => Path.GetFullPath(item.GetMetadata("FullPath"))),
+            comparer);
+
+        var modalSource = File.Exists(ModalSourcePath)
+            ? File.ReadAllText(ModalSourcePath)
+            : string.Empty;
+        var serviceSource = File.Exists(ModalServiceSourcePath)
+            ? File.ReadAllText(ModalServiceSourcePath)
+            : string.Empty;
+        var dispatcherSource = File.Exists(GestureDispatcherSourcePath)
+            ? File.ReadAllText(GestureDispatcherSourcePath)
+            : string.Empty;
+
+        var modalAdoptionComplete =
+            !File.Exists(ProvisionalModalSourcePath) &&
+            compiled.Contains(Path.GetFullPath(ModalSourcePath)) &&
+            compiled.Contains(Path.GetFullPath(ModalServiceSourcePath)) &&
+            modalSource.IndexOf("using Microsoft.Maui.Controls.Platform;", StringComparison.Ordinal) >= 0 &&
+            modalSource.IndexOf("TizenModalNavigationPlatform : IModalNavigationPlatform", StringComparison.Ordinal) >= 0 &&
+            modalSource.IndexOf("TizenModalNavigationPlatformFactory : IModalNavigationPlatformFactory", StringComparison.Ordinal) >= 0 &&
+            serviceSource.IndexOf(
+                "TryAddSingleton<IModalNavigationPlatformFactory, TizenModalNavigationPlatformFactory>()",
+                StringComparison.Ordinal) >= 0;
+
+        var longPressAdoptionComplete =
+            compiled.Contains(Path.GetFullPath(GestureDispatcherSourcePath)) &&
+            dispatcherSource.IndexOf(".SendLongPressed(", StringComparison.Ordinal) >= 0 &&
+            dispatcherSource.IndexOf(".SendLongPressing(", StringComparison.Ordinal) >= 0 &&
+            dispatcherSource.IndexOf("TizenGestureKind.LongPress => true", StringComparison.Ordinal) >= 0 &&
+            dispatcherSource.IndexOf(
+                "ReportUnsupported(TizenGestureKind.LongPress)",
+                StringComparison.Ordinal) < 0;
+
+        ModalAdoptionMarker = new TaskItem(
+            modalAdoptionComplete ? "Adopted" : "NotAdopted");
+        LongPressAdoptionMarker = new TaskItem(
+            longPressAdoptionComplete ? "Adopted" : "NotAdopted");
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
   <!--
     Maui.Tizen.Controls exposes typed adapters for public MAUI seams. Do not produce its nuspec
     while the pinned Microsoft.Maui.Controls binary lacks either seam: a package would restore
@@ -93,6 +157,8 @@
           BeforeTargets="GenerateNuspec"
           Condition="'$(MSBuildProjectName)' == 'Maui.Tizen.Controls'">
     <ItemGroup>
+      <_MauiTizenModalLocalAdoption Remove="@(_MauiTizenModalLocalAdoption)" />
+      <_MauiTizenLongPressLocalAdoption Remove="@(_MauiTizenLongPressLocalAdoption)" />
       <_MauiTizenControlsPackageVersion Include="@(PackageVersion)"
                                         Condition="'%(PackageVersion.Identity)' == 'Microsoft.Maui.Controls.Core'" />
     </ItemGroup>
@@ -116,13 +182,25 @@
               PropertyName="_MauiTizenLongPressSendApisAvailable" />
     </MauiTizenInspectMauiControlsApi>
 
-    <Error Condition="'$(_MauiTizenModalPublicContractsAvailable)' != 'true' AND '$(MauiTizenModalPublicContractsVerifiedAvailable)' != 'true'"
-           Code="MAUITIZEN0104"
-           Text="Refusing to pack Maui.Tizen.Controls because the pinned Microsoft.Maui.Controls package does not publicly expose IModalNavigationPlatform, IModalNavigationPlatformFactory, and IModalNavigationHost. Keep the typed provisional adapter, publish/adopt dotnet/maui#37853, then update the package pin; use -p:MauiTizenModalPublicContractsVerifiedAvailable=true only after independently verifying the referenced binary." />
+    <MauiTizenInspectLocalControlsAdoption
+        CompileFiles="@(Compile)"
+        ModalSourcePath="$(MSBuildProjectDirectory)/Core/Platform/Modal/TizenModalNavigationPlatform.cs"
+        ModalServiceSourcePath="$(MSBuildProjectDirectory)/Core/Platform/TizenControlsServiceCollectionExtensions.cs"
+        ProvisionalModalSourcePath="$(MSBuildProjectDirectory)/Core/Platform/Modal/ProvisionalModalNavigationContracts.cs"
+        GestureDispatcherSourcePath="$(MSBuildProjectDirectory)/Core/Platform/Gestures/ITizenGestureDispatcher.cs">
+      <Output TaskParameter="ModalAdoptionMarker"
+              ItemName="_MauiTizenModalLocalAdoption" />
+      <Output TaskParameter="LongPressAdoptionMarker"
+              ItemName="_MauiTizenLongPressLocalAdoption" />
+    </MauiTizenInspectLocalControlsAdoption>
 
-    <Error Condition="'$(_MauiTizenLongPressSendApisAvailable)' != 'true' AND '$(MauiTizenLongPressSendApisVerifiedAvailable)' != 'true'"
+    <Error Condition="('$(_MauiTizenModalPublicContractsAvailable)' != 'true' AND '$(MauiTizenModalPublicContractsVerifiedAvailable)' != 'true') OR '@(_MauiTizenModalLocalAdoption)' != 'Adopted'"
+           Code="MAUITIZEN0104"
+           Text="Refusing to pack Maui.Tizen.Controls until the pinned Microsoft.Maui.Controls binary publicly exposes IModalNavigationPlatform, IModalNavigationPlatformFactory, and IModalNavigationHost AND local adoption is complete: remove ProvisionalModalNavigationContracts.cs, compile TizenModalNavigationPlatform against Microsoft.Maui.Controls.Platform, and register the real IModalNavigationPlatformFactory. -p:MauiTizenModalPublicContractsVerifiedAvailable=true may simulate upstream binary availability for verification, but cannot bypass local source adoption." />
+
+    <Error Condition="('$(_MauiTizenLongPressSendApisAvailable)' != 'true' AND '$(MauiTizenLongPressSendApisVerifiedAvailable)' != 'true') OR '@(_MauiTizenLongPressLocalAdoption)' != 'Adopted'"
            Code="MAUITIZEN0105"
-           Text="Refusing to pack Maui.Tizen.Controls because LongPressGestureRecognizer.SendLongPressed and SendLongPressing are not both public in the pinned Microsoft.Maui.Controls package. Pin a published package containing dotnet/maui#37861; use -p:MauiTizenLongPressSendApisVerifiedAvailable=true only after independently verifying the referenced binary." />
+           Text="Refusing to pack Maui.Tizen.Controls until LongPressGestureRecognizer.SendLongPressed and SendLongPressing are both public in the pinned Microsoft.Maui.Controls binary AND TizenGestureDispatcher locally calls both APIs, reports long press supported, and no longer routes it to ReportUnsupported. -p:MauiTizenLongPressSendApisVerifiedAvailable=true may simulate upstream binary availability for verification, but cannot bypass local source adoption." />
   </Target>
 
 </Project>

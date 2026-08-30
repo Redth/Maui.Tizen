@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Internals;
@@ -114,7 +115,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			var subscription = _subscription;
 			_subscription = null;
-			subscription?.Detach();
+
+			try
+			{
+				subscription?.Detach();
+			}
+			catch (Exception ex)
+			{
+				ReportFrameworkTeardownFailure(ex);
+			}
 		}
 
 		/// <inheritdoc/>
@@ -180,7 +189,29 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			if (failures is not null)
 			{
-				throw new AggregateException("One or more Tizen alert subscriptions failed during window teardown.", failures);
+				ReportFrameworkTeardownFailure(
+					new AggregateException(
+						"One or more Tizen alert subscriptions failed during window teardown.",
+						failures));
+			}
+		}
+
+		void ReportFrameworkTeardownFailure(Exception failure)
+		{
+			try
+			{
+				if (_logger is not null)
+				{
+					_logger.LogError(failure, "Tizen alert cleanup failed during framework teardown.");
+				}
+				else
+				{
+					Trace.TraceError("Tizen alert cleanup failed during framework teardown: {0}", failure);
+				}
+			}
+			catch
+			{
+				// Framework teardown must not throw through a failing logger or trace listener.
 			}
 		}
 	}

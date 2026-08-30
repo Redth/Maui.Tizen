@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Maui.Controls;
@@ -196,7 +197,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 		internal void Detach()
 		{
 			_busyCount = 0;
-			CloseBusyIndicator();
+
+			try
+			{
+				CloseBusyIndicator();
+			}
+			catch (Exception ex)
+			{
+				ReportTeardownFailures([ex]);
+			}
 		}
 
 		/// <summary>
@@ -280,10 +289,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				(failures ??= new()).Add(ex);
 			}
 
-			if (failures is not null)
-			{
-				throw new AggregateException("One or more Tizen dialogs failed during window teardown.", failures);
-			}
+			ReportTeardownFailures(failures);
 		}
 
 		bool ShouldHandle(Page sender)
@@ -500,6 +506,29 @@ namespace Microsoft.Maui.Platforms.Tizen
 			finally
 			{
 				indicator.Dispose();
+			}
+		}
+
+		static void ReportTeardownFailures(IReadOnlyList<Exception>? failures)
+		{
+			if (failures is null || failures.Count == 0)
+			{
+				return;
+			}
+
+			var failure = failures.Count == 1
+				? failures[0]
+				: new AggregateException(
+					"One or more Tizen alert cleanup operations failed during framework teardown.",
+					failures);
+
+			try
+			{
+				Trace.TraceError("Tizen alert framework teardown failed: {0}", failure);
+			}
+			catch
+			{
+				// Framework teardown must not throw through a failing trace listener.
 			}
 		}
 	}

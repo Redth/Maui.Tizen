@@ -314,6 +314,8 @@ internal sealed class FakeNativeGestureDetector : ITizenNativeGestureDetector
 
 	public Exception? SubscribeFailure { get; set; }
 
+	public Exception? AttachFailure { get; set; }
+
 	public Exception? UnsubscribeFailure { get; set; }
 
 	public Exception? DetachFailure { get; set; }
@@ -330,6 +332,11 @@ internal sealed class FakeNativeGestureDetector : ITizenNativeGestureDetector
 		IsAttached = true;
 		AttachedView = platformView;
 		AttachCount++;
+
+		if (AttachFailure is not null)
+		{
+			throw AttachFailure;
+		}
 	}
 
 	public void Detach()

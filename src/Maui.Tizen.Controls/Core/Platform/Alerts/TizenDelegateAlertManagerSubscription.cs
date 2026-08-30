@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Maui.Controls;
@@ -94,7 +95,23 @@ namespace Microsoft.Maui.Platforms.Tizen
 				_fallback = null;
 			}
 
-			disposable?.Dispose();
+			try
+			{
+				disposable?.Dispose();
+			}
+			catch (Exception ex)
+			{
+				try
+				{
+					Trace.TraceError(
+						"Tizen delegate alert fallback failed during framework teardown: {0}",
+						ex);
+				}
+				catch
+				{
+					// Framework teardown must not throw through a failing trace listener.
+				}
+			}
 		}
 
 		void InvokeFallback(Action<IAlertManagerSubscription> invoke)

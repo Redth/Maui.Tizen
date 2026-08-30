@@ -258,6 +258,46 @@ public class TizenAlertManagerTests
 	}
 
 	[Fact]
+	public async Task WindowScopeDisposeReturnsWhileTheWaitingRequestReceivesCleanupFailures()
+	{
+		var fixture = new Fixture();
+		fixture.Manager.Subscribe();
+		var args = Alert();
+		fixture.Manager.RequestAlert(fixture.Page, args);
+		var dialog = fixture.Dialogs.LastAlert!;
+		var closeFailure = new InvalidOperationException("close failed");
+		var disposeFailure = new InvalidOperationException("dispose failed");
+		dialog.CloseFailure = closeFailure;
+		dialog.DisposeFailure = disposeFailure;
+
+		var frameworkFailure = Record.Exception(fixture.Manager.Dispose);
+
+		Assert.Null(frameworkFailure);
+		var requestFailure = await Assert.ThrowsAsync<AggregateException>(
+			() => Completed(args.Result.Task));
+		Assert.Contains(closeFailure, requestFailure.InnerExceptions);
+		Assert.Contains(disposeFailure, requestFailure.InnerExceptions);
+		Assert.Equal(1, dialog.DisposeCount);
+	}
+
+	[Fact]
+	[Obsolete("Exercises framework-owned busy teardown on Unsubscribe.")]
+	public void UnsubscribeReturnsAfterBusyCleanupFailure()
+	{
+		var fixture = new Fixture();
+		fixture.Manager.Subscribe();
+		fixture.Manager.RequestPageBusy(fixture.Page, true);
+		var indicator = fixture.Dialogs.LastBusyIndicator!;
+		indicator.CloseFailure = new InvalidOperationException("close failed");
+
+		var failure = Record.Exception(fixture.Manager.Unsubscribe);
+
+		Assert.Null(failure);
+		Assert.True(indicator.Disposed);
+		Assert.Null(fixture.Manager.Subscription);
+	}
+
+	[Fact]
 	public void DisposeUnsubscribes()
 	{
 		var fixture = new Fixture();

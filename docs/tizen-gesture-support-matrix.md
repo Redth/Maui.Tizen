@@ -85,7 +85,9 @@ package containing it is pinned, and the only change needed is to complete
 
 Packing `Maui.Tizen.Controls` is independently blocked with `MAUITIZEN0105` until both send methods
 are public in the actual pinned binary. The gate inspects metadata from
-`Microsoft.Maui.Controls.dll`; the merged upstream source alone is not treated as availability.
+`Microsoft.Maui.Controls.dll` and also requires local adoption: both send calls, a supported
+capability result, and removal of the unsupported path. The upstream verification override cannot
+stand in for those source-owned conditions.
 
 ### Position resolution
 

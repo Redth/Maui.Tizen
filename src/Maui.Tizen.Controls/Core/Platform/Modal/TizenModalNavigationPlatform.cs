@@ -115,27 +115,110 @@ namespace Microsoft.Maui.Platforms.Tizen
 				: page.Handler;
 			_owners.Remove(platformView);
 
-			if (handler is not null && ReferenceEquals(page.Handler, handler))
+			if (handler is null)
 			{
-				((Element)page).Handler = null;
-			}
-
-			if (platformViewDisposed)
-			{
-				handler?.DisconnectHandler();
-			}
-			else if (handler is IDisposable disposableHandler)
-			{
-				disposableHandler.Dispose();
-			}
-			else
-			{
-				handler?.DisconnectHandler();
-
 				if (!platformViewDisposed)
 				{
 					(platformView as IDisposable)?.Dispose();
 				}
+
+				return;
+			}
+
+			List<Exception>? failures = null;
+
+			if (platformViewDisposed)
+			{
+				if (ReferenceEquals(page.Handler, handler))
+				{
+					try
+					{
+						((Element)page).Handler = null;
+					}
+					catch (Exception ex)
+					{
+						(failures ??= new()).Add(ex);
+					}
+				}
+				else
+				{
+					try
+					{
+						handler.DisconnectHandler();
+					}
+					catch (Exception ex)
+					{
+						(failures ??= new()).Add(ex);
+					}
+				}
+			}
+			else if (handler is IDisposable disposableHandler)
+			{
+				try
+				{
+					// Keep page.Handler intact while the handler tears down its live platform
+					// view. MAUI handlers can read or clear PlatformView during Dispose.
+					disposableHandler.Dispose();
+				}
+				catch (Exception ex)
+				{
+					(failures ??= new()).Add(ex);
+				}
+
+				if (ReferenceEquals(page.Handler, handler))
+				{
+					try
+					{
+						((Element)page).Handler = null;
+					}
+					catch (Exception ex)
+					{
+						(failures ??= new()).Add(ex);
+					}
+				}
+			}
+			else
+			{
+				try
+				{
+					// Use the captured view before clearing Handler. Clearing can invoke
+					// DisconnectHandler, and MAUI handlers commonly null PlatformView there.
+					(platformView as IDisposable)?.Dispose();
+				}
+				catch (Exception ex)
+				{
+					(failures ??= new()).Add(ex);
+				}
+
+				if (ReferenceEquals(page.Handler, handler))
+				{
+					try
+					{
+						((Element)page).Handler = null;
+					}
+					catch (Exception ex)
+					{
+						(failures ??= new()).Add(ex);
+					}
+				}
+				else
+				{
+					try
+					{
+						handler.DisconnectHandler();
+					}
+					catch (Exception ex)
+					{
+						(failures ??= new()).Add(ex);
+					}
+				}
+			}
+
+			if (failures is not null)
+			{
+				throw failures.Count == 1
+					? failures[0]
+					: new AggregateException("One or more modal release operations failed.", failures);
 			}
 		}
 
@@ -153,11 +236,6 @@ namespace Microsoft.Maui.Platforms.Tizen
 				(failures ??= new()).Add(ex);
 			}
 
-			if (ReferenceEquals(element.Handler, handler))
-			{
-				element.Handler = null;
-			}
-
 			if (handler is IDisposable disposableHandler)
 			{
 				try
@@ -173,16 +251,32 @@ namespace Microsoft.Maui.Platforms.Tizen
 			{
 				try
 				{
-					handler.DisconnectHandler();
+					(platformView as IDisposable)?.Dispose();
 				}
 				catch (Exception ex)
 				{
 					(failures ??= new()).Add(ex);
 				}
 
+				if (!ReferenceEquals(element.Handler, handler)
+					|| !ReferenceEquals(handler.VirtualView, element))
+				{
+					try
+					{
+						handler.DisconnectHandler();
+					}
+					catch (Exception ex)
+					{
+						(failures ??= new()).Add(ex);
+					}
+				}
+			}
+
+			if (ReferenceEquals(element.Handler, handler))
+			{
 				try
 				{
-					(platformView as IDisposable)?.Dispose();
+					element.Handler = null;
 				}
 				catch (Exception ex)
 				{

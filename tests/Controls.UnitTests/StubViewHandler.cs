@@ -76,6 +76,70 @@ internal class StubViewHandler : IViewHandler, IDisposable
 	}
 }
 
+internal sealed class DisconnectClearsPlatformViewHandler : IViewHandler
+{
+	readonly Func<bool>? _isPlatformViewDisposed;
+
+	public DisconnectClearsPlatformViewHandler(
+		IDisposable platformView,
+		Func<bool>? isPlatformViewDisposed = null)
+	{
+		PlatformView = platformView;
+		_isPlatformViewDisposed = isPlatformViewDisposed;
+	}
+
+	public bool HasContainer { get; set; }
+
+	public object? ContainerView { get; set; }
+
+	public object? PlatformView { get; private set; }
+
+	public IView? VirtualView { get; private set; }
+
+	public IMauiContext? MauiContext { get; private set; }
+
+	IElement? IElementHandler.VirtualView => VirtualView;
+
+	public int DisconnectCount { get; private set; }
+
+	public bool? PlatformWasDisposedWhenDisconnected { get; private set; }
+
+	public Exception? SetVirtualViewFailure { get; set; }
+
+	public void DisconnectHandler()
+	{
+		DisconnectCount++;
+		PlatformWasDisposedWhenDisconnected = _isPlatformViewDisposed?.Invoke();
+		PlatformView = null;
+	}
+
+	public Size GetDesiredSize(double widthConstraint, double heightConstraint) => Size.Zero;
+
+	public void Invoke(string command, object? args)
+	{
+	}
+
+	public void PlatformArrange(Rect frame)
+	{
+	}
+
+	public void SetMauiContext(IMauiContext mauiContext) => MauiContext = mauiContext;
+
+	public void SetVirtualView(IElement view)
+	{
+		if (SetVirtualViewFailure is not null)
+		{
+			throw SetVirtualViewFailure;
+		}
+
+		VirtualView = view as IView;
+	}
+
+	public void UpdateValue(string property)
+	{
+	}
+}
+
 /// <summary>
 /// A minimal <see cref="IMauiContext"/> backed by a real service provider so that scoped
 /// resolution behaves the way it does in a hosted app.

@@ -676,6 +676,8 @@ public class TizenModalNavigationPlatformTests
 
 		Assert.True(staleHandler.Disposed);
 		Assert.True(nativeView.Disposed);
+		Assert.Equal(1, staleHandler.DisposeCount);
+		Assert.Equal(1, nativeView.DisposeCount);
 		Assert.NotSame(staleHandler, ((Element)page).Handler);
 	}
 
@@ -713,6 +715,93 @@ public class TizenModalNavigationPlatformTests
 		Assert.True(original.Disposed);
 		Assert.False(replacement.Disposed);
 		Assert.Same(replacement, ((Element)page).Handler);
+	}
+
+	[Fact]
+	public void ReleaseDisposesTheCapturedLiveViewBeforeClearingThePageHandler()
+	{
+		var nativeView = new FakeModalPageRealizer.FakePlatformView();
+		var handler = new DisconnectClearsPlatformViewHandler(
+			nativeView,
+			() => nativeView.Disposed);
+		var target = StubMauiContext.WithHandlers(new StubHandlersFactory(() => handler));
+		var page = new ContentPage();
+		var realizer = new TizenModalPageRealizer();
+		var platformView = realizer.Realize(page, target);
+
+		realizer.Release(page, platformView, platformViewDisposed: false);
+
+		Assert.Equal(1, handler.DisconnectCount);
+		Assert.True(handler.PlatformWasDisposedWhenDisconnected);
+		Assert.Equal(1, nativeView.DisposeCount);
+		Assert.Null(((Element)page).Handler);
+	}
+
+	[Fact]
+	public void FailedRealizationDisposesCapturedViewExactlyOnceAfterDisconnectClearsIt()
+	{
+		var nativeView = new FakeModalPageRealizer.FakePlatformView();
+		var handler = new DisconnectClearsPlatformViewHandler(nativeView)
+		{
+			SetVirtualViewFailure = new InvalidOperationException("bind failed"),
+		};
+		var target = StubMauiContext.WithHandlers(new StubHandlersFactory(() => handler));
+		var page = new ContentPage();
+		var realizer = new TizenModalPageRealizer();
+
+		Assert.Throws<InvalidOperationException>(() => realizer.Realize(page, target));
+
+		Assert.Equal(1, handler.DisconnectCount);
+		Assert.Equal(1, nativeView.DisposeCount);
+		Assert.Null(((Element)page).Handler);
+	}
+
+	[Fact]
+	public async Task FailedPushRollbackReleasesCapturedLiveViewExactlyOnce()
+	{
+		var nativeView = new FakeModalPageRealizer.FakePlatformView();
+		var handler = new DisconnectClearsPlatformViewHandler(nativeView);
+		var context = StubMauiContext.WithHandlers(new StubHandlersFactory(() => handler));
+		var host = new FakeModalNavigationHost(context) { CurrentPage = new ContentPage() };
+		var stack = new FakeNavigationStack { PushFailure = new InvalidOperationException("push") };
+		var platform = new TizenModalNavigationPlatform(
+			host,
+			stack,
+			new TizenModalPageRealizer());
+		var modal = new ContentPage();
+		host.RecordPush(modal);
+
+		await Assert.ThrowsAsync<InvalidOperationException>(
+			() => platform.PushModalAsync(modal, false));
+
+		Assert.Equal(1, handler.DisconnectCount);
+		Assert.Equal(1, nativeView.DisposeCount);
+		Assert.Null(((Element)modal).Handler);
+	}
+
+	[Fact]
+	public async Task BuriedRemovalReleasesCapturedLiveViewExactlyOnce()
+	{
+		var nativeView = new FakeModalPageRealizer.FakePlatformView();
+		var handler = new DisconnectClearsPlatformViewHandler(nativeView);
+		var context = StubMauiContext.WithHandlers(new StubHandlersFactory(() => handler));
+		var host = new FakeModalNavigationHost(context) { CurrentPage = new ContentPage() };
+		var stack = new FakeNavigationStack();
+		var platform = new TizenModalNavigationPlatform(
+			host,
+			stack,
+			new TizenModalPageRealizer());
+		var modal = new ContentPage();
+		host.RecordPush(modal);
+		await platform.PushModalAsync(modal, false);
+		await stack.PushAsync(new object(), false);
+		host.RecordPop(modal);
+
+		await platform.PopModalAsync(modal, false);
+
+		Assert.Equal(1, handler.DisconnectCount);
+		Assert.Equal(1, nativeView.DisposeCount);
+		Assert.Null(((Element)modal).Handler);
 	}
 
 }

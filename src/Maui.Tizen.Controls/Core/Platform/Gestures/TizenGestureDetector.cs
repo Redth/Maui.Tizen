@@ -333,12 +333,34 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
-			_handlers.Add(gesture, handler);
-
-			if (GestureEnabled && _handler is not null)
+			try
 			{
-				handler.Attach(_handler);
+				if (GestureEnabled && _handler is not null)
+				{
+					// Native attachment is the commit point. Publishing first lets a throwing
+					// Attach leave a half-owned handler in the dictionary and roots it through the
+					// manager's collection subscriptions.
+					handler.Attach(_handler);
+				}
 			}
+			catch (Exception attachFailure)
+			{
+				try
+				{
+					handler.Dispose();
+				}
+				catch (Exception cleanupFailure)
+				{
+					throw new AggregateException(
+						"Native gesture attachment and rollback both failed.",
+						attachFailure,
+						cleanupFailure);
+				}
+
+				throw;
+			}
+
+			_handlers.Add(gesture, handler);
 		}
 
 		void RemoveGesture(IGestureRecognizer gesture)

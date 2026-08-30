@@ -50,8 +50,14 @@ Additional publication gates remain explicit:
   mobile/TV runners.
 
 `Maui.Tizen.Controls` has distinct `GenerateNuspec` guards for the modal and long-press package
-contracts. They inspect the pinned `Microsoft.Maui.Controls.dll`; source-only upstream availability
-cannot accidentally be reported as publishable parity.
+contracts. They inspect the pinned `Microsoft.Maui.Controls.dll` and the compiled local source
+closure. Even a verified upstream binary override cannot unblock packing until the provisional
+modal contracts are removed/registered against MAUI and long-press dispatch actually calls the
+public send APIs.
+
+Window-scope alert teardown is also single-channel: every waiting request receives native
+close/dispose failures through its result task, while framework-owned unsubscribe, scope disposal
+and application termination attempt all cleanup, report diagnostics, and do not throw again.
 
 ## What you can build today
 

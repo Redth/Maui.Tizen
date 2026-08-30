@@ -463,9 +463,7 @@ public class TizenAlertManagerSubscriptionTests
 				throw new ArgumentOutOfRangeException(nameof(dialogKind));
 		}
 
-		var teardownFailure = Assert.Throws<AggregateException>(fixture.Subscription.Dispose);
-
-		Assert.Contains(expected, teardownFailure.InnerExceptions);
+		Assert.Null(Record.Exception(fixture.Subscription.Dispose));
 		var callerFailure = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(result));
 		Assert.Same(expected, callerFailure);
 		assertDialogTeardown();
@@ -479,7 +477,7 @@ public class TizenAlertManagerSubscriptionTests
 		fixture.Subscription.OnAlertRequested(fixture.Page, args);
 		fixture.Dialogs.LastAlert!.CloseFailure = new InvalidOperationException("close failed");
 
-		Assert.Throws<AggregateException>(fixture.Subscription.Dispose);
+		Assert.Null(Record.Exception(fixture.Subscription.Dispose));
 
 		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(args.Result.Task));
 		Assert.Equal("close failed", exception.Message);
@@ -494,7 +492,7 @@ public class TizenAlertManagerSubscriptionTests
 		fixture.Subscription.OnActionSheetRequested(fixture.Page, args);
 		fixture.Dialogs.LastActionSheet!.CloseFailure = new InvalidOperationException("close failed");
 
-		Assert.Throws<AggregateException>(fixture.Subscription.Dispose);
+		Assert.Null(Record.Exception(fixture.Subscription.Dispose));
 
 		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(args.Result.Task));
 		Assert.Equal("close failed", exception.Message);
@@ -508,7 +506,7 @@ public class TizenAlertManagerSubscriptionTests
 		fixture.Subscription.OnPromptRequested(fixture.Page, args);
 		fixture.Dialogs.LastPrompt!.CloseFailure = new InvalidOperationException("close failed");
 
-		Assert.Throws<AggregateException>(fixture.Subscription.Dispose);
+		Assert.Null(Record.Exception(fixture.Subscription.Dispose));
 
 		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(args.Result.Task));
 		Assert.Equal("close failed", exception.Message);
@@ -660,7 +658,7 @@ public class TizenAlertManagerSubscriptionTests
 		var promptDialog = fixture.Dialogs.LastPrompt!;
 		alertDialog.CloseFailure = new InvalidOperationException("close failed");
 
-		Assert.Throws<AggregateException>(fixture.Subscription.Dispose);
+		Assert.Null(Record.Exception(fixture.Subscription.Dispose));
 
 		Assert.True(alertDialog.Disposed);
 		Assert.True(promptDialog.Closed);

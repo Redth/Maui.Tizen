@@ -1047,7 +1047,7 @@
     "expected": "ControlsPackIsBlockedWhenPinnedMauiLacksModalContracts",
     "replacements": [
       {
-        "search": "<Error Condition=\"'$(_MauiTizenModalPublicContractsAvailable)' != 'true' AND '$(MauiTizenModalPublicContractsVerifiedAvailable)' != 'true'\"\n           Code=\"MAUITIZEN0104\"",
+        "search": "<Error Condition=\"('$(_MauiTizenModalPublicContractsAvailable)' != 'true' AND '$(MauiTizenModalPublicContractsVerifiedAvailable)' != 'true') OR '@(_MauiTizenModalLocalAdoption)' != 'Adopted'\"\n           Code=\"MAUITIZEN0104\"",
         "replace": "<Error Condition=\"false\"\n           Code=\"MAUITIZEN0104\""
       }
     ]
@@ -1060,7 +1060,7 @@
     "expected": "ControlsPackIsBlockedWhenPinnedMauiLacksLongPressSendApis",
     "replacements": [
       {
-        "search": "<Error Condition=\"'$(_MauiTizenLongPressSendApisAvailable)' != 'true' AND '$(MauiTizenLongPressSendApisVerifiedAvailable)' != 'true'\"\n           Code=\"MAUITIZEN0105\"",
+        "search": "<Error Condition=\"('$(_MauiTizenLongPressSendApisAvailable)' != 'true' AND '$(MauiTizenLongPressSendApisVerifiedAvailable)' != 'true') OR '@(_MauiTizenLongPressLocalAdoption)' != 'Adopted'\"\n           Code=\"MAUITIZEN0105\"",
         "replace": "<Error Condition=\"false\"\n           Code=\"MAUITIZEN0105\""
       }
     ]
@@ -1231,6 +1231,101 @@
       {
         "search": "\t\t\tcatch (Exception ex)\n\t\t\t{\n\t\t\t\ttry\n\t\t\t\t{\n\t\t\t\t\tif (_logger is not null)",
         "replace": "\t\t\tcatch (Exception ex)\n\t\t\t{\n\t\t\t\tthrow;\n#pragma warning disable CS0162\n\t\t\t\ttry\n\t\t\t\t{\n\t\t\t\t\tif (_logger is not null)"
+      }
+    ]
+  },
+  {
+    "id": "controls-upstream-override-cannot-bypass-local-adoption",
+    "file": "eng/targets/MauiControlsApiGate.targets",
+    "filter": "FullyQualifiedName~VerifiedUpstreamAvailabilityCannotBypassLocalModalAdoption",
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "expected": "VerifiedUpstreamAvailabilityCannotBypassLocalModalAdoption",
+    "replacements": [
+      {
+        "search": "<Error Condition=\"('$(_MauiTizenModalPublicContractsAvailable)' != 'true' AND '$(MauiTizenModalPublicContractsVerifiedAvailable)' != 'true') OR '@(_MauiTizenModalLocalAdoption)' != 'Adopted'\"",
+        "replace": "<Error Condition=\"'$(_MauiTizenModalPublicContractsAvailable)' != 'true' AND '$(MauiTizenModalPublicContractsVerifiedAvailable)' != 'true'\""
+      }
+    ]
+  },
+  {
+    "id": "controls-adopted-source-path",
+    "file": "eng/targets/MauiControlsApiGate.targets",
+    "filter": "FullyQualifiedName~VerifiedUpstreamAndSourceOwnedLocalAdoptionUnblockTheGate",
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "expected": "VerifiedUpstreamAndSourceOwnedLocalAdoptionUnblockTheGate",
+    "replacements": [
+      {
+        "search": "dispatcherSource.IndexOf(\".SendLongPressed(\", StringComparison.Ordinal) >= 0",
+        "replace": "dispatcherSource.IndexOf(\".SendLongPressedAdopted(\", StringComparison.Ordinal) >= 0"
+      }
+    ]
+  },
+  {
+    "id": "gesture-attach-before-publish",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Gestures/TizenGestureDetector.cs",
+    "filter": "FullyQualifiedName~NativeAttachFailureIsRolledBackBeforeTheHandlerIsPublished",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "NativeAttachFailureIsRolledBackBeforeTheHandlerIsPublished",
+    "replacements": [
+      {
+        "search": "\t\t\ttry\n\t\t\t{\n\t\t\t\tif (GestureEnabled && _handler is not null)",
+        "replace": "\t\t\t_handlers.Add(gesture, handler);\n\n\t\t\ttry\n\t\t\t{\n\t\t\t\tif (GestureEnabled && _handler is not null)"
+      },
+      {
+        "search": "\n\t\t\t_handlers.Add(gesture, handler);\n\t\t}\n\n\t\tvoid RemoveGesture",
+        "replace": "\n\t\t}\n\n\t\tvoid RemoveGesture"
+      }
+    ]
+  },
+  {
+    "id": "gesture-manager-constructor-rollback",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Gestures/TizenGesturePlatformManager.cs",
+    "filter": "FullyQualifiedName~ManagerConstructorFailureUnwindsSubscriptionsAndEveryPartialDetector",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "ManagerConstructorFailureUnwindsSubscriptionsAndEveryPartialDetector",
+    "replacements": [
+      {
+        "search": "\t\t\t\tif (_gestureDetector.IsValueCreated)\n\t\t\t\t{\n\t\t\t\t\tcleanup.Add(_gestureDetector.Value.Dispose);\n\t\t\t\t}",
+        "replace": "\t\t\t\tif (_gestureDetector.IsValueCreated)\n\t\t\t\t{\n\t\t\t\t\t// mutation: partial detector graph remains rooted\n\t\t\t\t}"
+      }
+    ]
+  },
+  {
+    "id": "modal-live-view-release-order",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Modal/TizenModalNavigationPlatform.cs",
+    "filter": "FullyQualifiedName~ReleaseDisposesTheCapturedLiveViewBeforeClearingThePageHandler",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "ReleaseDisposesTheCapturedLiveViewBeforeClearingThePageHandler",
+    "replacements": [
+      {
+        "search": "\t\t\t\ttry\n\t\t\t\t{\n\t\t\t\t\t// Use the captured view before clearing Handler. Clearing can invoke\n\t\t\t\t\t// DisconnectHandler, and MAUI handlers commonly null PlatformView there.\n\t\t\t\t\t(platformView as IDisposable)?.Dispose();",
+        "replace": "\t\t\t\ttry\n\t\t\t\t{\n\t\t\t\t\tif (ReferenceEquals(page.Handler, handler))\n\t\t\t\t\t\t((Element)page).Handler = null;\n\t\t\t\t\t(platformView as IDisposable)?.Dispose();"
+      }
+    ]
+  },
+  {
+    "id": "alert-subscription-framework-dispose-no-throw",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Alerts/TizenAlertManagerSubscription.cs",
+    "filter": "FullyQualifiedName~InlineCloseFollowedByDisposeFailureFaultsCaller",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "InlineCloseFollowedByDisposeFailureFaultsCaller",
+    "replacements": [
+      {
+        "search": "\t\t\tReportTeardownFailures(failures);\n\t\t}",
+        "replace": "\t\t\tif (failures is not null)\n\t\t\t\tthrow new AggregateException(failures);\n\t\t}"
+      }
+    ]
+  },
+  {
+    "id": "alert-manager-framework-dispose-no-throw",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Alerts/TizenAlertManager.cs",
+    "filter": "FullyQualifiedName~WindowScopeDisposalDoesNotThrowWhileItsWaitingAlertReceivesCleanupFailure",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "WindowScopeDisposalDoesNotThrowWhileItsWaitingAlertReceivesCleanupFailure",
+    "replacements": [
+      {
+        "search": "\t\t\tif (failures is not null)\n\t\t\t{\n\t\t\t\tReportFrameworkTeardownFailure(",
+        "replace": "\t\t\tif (failures is not null || failures is null)\n\t\t\t{\n\t\t\t\tthrow new AggregateException(failures!);\n#pragma warning disable CS0162\n\t\t\t\tReportFrameworkTeardownFailure("
       }
     ]
   }

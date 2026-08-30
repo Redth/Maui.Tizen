@@ -54,6 +54,11 @@ public class PresentationSourceIntegrityTests
 			StringComparison.Ordinal);
 		Assert.Contains("MAUITIZEN0104", source, StringComparison.Ordinal);
 		Assert.Contains("MAUITIZEN0105", source, StringComparison.Ordinal);
+		Assert.Contains("MauiTizenInspectLocalControlsAdoption", source, StringComparison.Ordinal);
+		Assert.Contains("_MauiTizenModalLocalAdoption", source, StringComparison.Ordinal);
+		Assert.Contains("_MauiTizenLongPressLocalAdoption", source, StringComparison.Ordinal);
+		Assert.DoesNotContain("LocalAdoptionVerified", source, StringComparison.Ordinal);
+		Assert.DoesNotContain("LocalAdoptionComplete)'", source, StringComparison.Ordinal);
 		Assert.DoesNotContain("Assembly.Load", source, StringComparison.Ordinal);
 		Assert.DoesNotContain("GetMethod(", source, StringComparison.Ordinal);
 	}

@@ -195,26 +195,51 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			Assert.NotEqual(0, result.ExitCode);
 			Assert.Contains("MAUITIZEN0104", result.Output, StringComparison.Ordinal);
-			Assert.Contains("dotnet/maui#37853", result.Output, StringComparison.Ordinal);
+			Assert.Contains("IModalNavigationPlatform", result.Output, StringComparison.Ordinal);
 		}
 
 		[Fact]
 		public void ControlsPackIsBlockedWhenPinnedMauiLacksLongPressSendApis()
 		{
-			var result = RunMauiControlsApiPackGuard(modalAvailable: true);
+			var result = RunAdoptionFixture(
+				modalAdopted: true,
+				longPressAdopted: true,
+				modalAvailable: true,
+				longPressAvailable: null);
 
 			Assert.NotEqual(0, result.ExitCode);
 			Assert.DoesNotContain("MAUITIZEN0104", result.Output, StringComparison.Ordinal);
 			Assert.Contains("MAUITIZEN0105", result.Output, StringComparison.Ordinal);
-			Assert.Contains("dotnet/maui#37861", result.Output, StringComparison.Ordinal);
+			Assert.Contains("SendLongPressed", result.Output, StringComparison.Ordinal);
 		}
 
 		[Fact]
-		public void ControlsPackAllowsExplicitlyVerifiedMauiContractAvailability()
+		public void VerifiedUpstreamAvailabilityCannotBypassLocalModalAdoption()
 		{
 			var result = RunMauiControlsApiPackGuard(
 				modalAvailable: true,
-				longPressAvailable: true);
+				longPressAvailable: true,
+				attemptLocalAdoptionOverride: true);
+
+			Assert.NotEqual(0, result.ExitCode);
+			Assert.Contains("MAUITIZEN0104", result.Output, StringComparison.Ordinal);
+			Assert.Contains("cannot bypass local source adoption", result.Output, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void LocallyAdoptedModalStillBlocksUntilLongPressIsAdopted()
+		{
+			var result = RunAdoptionFixture(modalAdopted: true, longPressAdopted: false);
+
+			Assert.NotEqual(0, result.ExitCode);
+			Assert.DoesNotContain("MAUITIZEN0104", result.Output, StringComparison.Ordinal);
+			Assert.Contains("MAUITIZEN0105", result.Output, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void VerifiedUpstreamAndSourceOwnedLocalAdoptionUnblockTheGate()
+		{
+			var result = RunAdoptionFixture(modalAdopted: true, longPressAdopted: true);
 
 			Assert.Equal(0, result.ExitCode);
 			Assert.DoesNotContain("MAUITIZEN0104", result.Output, StringComparison.Ordinal);
@@ -349,7 +374,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		static (int ExitCode, string Output) RunMauiControlsApiPackGuard(
 			bool? modalAvailable = null,
 			bool? longPressAvailable = null,
-			string project = ControlsProduct)
+			string project = ControlsProduct,
+			bool attemptLocalAdoptionOverride = false)
 		{
 			var dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") is { Length: > 0 } host
 				? host
@@ -382,6 +408,12 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 					$"-p:MauiTizenLongPressSendApisVerifiedAvailable={longPressAvailable.Value.ToString().ToLowerInvariant()}");
 			}
 
+			if (attemptLocalAdoptionOverride)
+			{
+				startInfo.ArgumentList.Add("-p:_MauiTizenModalLocalAdoptionComplete=true");
+				startInfo.ArgumentList.Add("-p:_MauiTizenLongPressLocalAdoptionComplete=true");
+			}
+
 			using var process = Process.Start(startInfo)
 				?? throw new InvalidOperationException("Failed to start dotnet msbuild.");
 
@@ -390,6 +422,94 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			process.WaitForExit();
 
 			return (process.ExitCode, output + error);
+		}
+
+		static (int ExitCode, string Output) RunAdoptionFixture(
+			bool modalAdopted,
+			bool longPressAdopted,
+			bool? modalAvailable = true,
+			bool? longPressAvailable = true)
+		{
+			var root = Path.Combine(
+				RepositoryRoot,
+				"artifacts",
+				"test-workspaces",
+				"controls-api-adoption",
+				Guid.NewGuid().ToString("N"));
+			var modalDir = Path.Combine(root, "Core", "Platform", "Modal");
+			var gestureDir = Path.Combine(root, "Core", "Platform", "Gestures");
+			var platformDir = Path.Combine(root, "Core", "Platform");
+			Directory.CreateDirectory(modalDir);
+			Directory.CreateDirectory(gestureDir);
+
+			var modalSource = Path.Combine(modalDir, "TizenModalNavigationPlatform.cs");
+			var provisionalSource = Path.Combine(modalDir, "ProvisionalModalNavigationContracts.cs");
+			var serviceSource = Path.Combine(platformDir, "TizenControlsServiceCollectionExtensions.cs");
+			var dispatcherSource = Path.Combine(gestureDir, "ITizenGestureDispatcher.cs");
+			var project = Path.Combine(root, "Maui.Tizen.Controls.csproj");
+
+			File.WriteAllText(
+				modalSource,
+				modalAdopted
+					? """
+					  using Microsoft.Maui.Controls.Platform;
+					  sealed class TizenModalNavigationPlatform : IModalNavigationPlatform { }
+					  sealed class TizenModalNavigationPlatformFactory : IModalNavigationPlatformFactory { }
+					  """
+					: "sealed class TizenModalNavigationPlatform { }");
+			if (!modalAdopted)
+			{
+				File.WriteAllText(provisionalSource, "interface IModalNavigationPlatform { }");
+			}
+
+			File.WriteAllText(
+				serviceSource,
+				modalAdopted
+					? "services.TryAddSingleton<IModalNavigationPlatformFactory, TizenModalNavigationPlatformFactory>();"
+					: "sealed class TizenControlsServiceCollectionExtensions { }");
+			File.WriteAllText(
+				dispatcherSource,
+				longPressAdopted
+					? """
+					  recognizer.SendLongPressed(view, getPosition);
+					  recognizer.SendLongPressing(view, status, getPosition);
+					  TizenGestureKind.LongPress => true;
+					  """
+					: """
+					  TizenGestureKind.LongPress => false;
+					  ReportUnsupported(TizenGestureKind.LongPress);
+					  """);
+
+			var gate = Path.Combine(RepositoryRoot, "eng", "targets", "MauiControlsApiGate.targets");
+			File.WriteAllText(
+				project,
+				$"""
+				<Project Sdk="Microsoft.NET.Sdk">
+				  <PropertyGroup>
+				    <TargetFramework>net11.0</TargetFramework>
+				    <DotNetTfm>net11.0</DotNetTfm>
+				    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+				  </PropertyGroup>
+				  <ItemGroup>
+				    <Compile Include="Core/Platform/Modal/TizenModalNavigationPlatform.cs" />
+				    <Compile Include="Core/Platform/TizenControlsServiceCollectionExtensions.cs" />
+				    <Compile Include="Core/Platform/Gestures/ITizenGestureDispatcher.cs" />
+				  </ItemGroup>
+				  <Import Project="{gate}" />
+				</Project>
+				""");
+
+			try
+			{
+				return RunMauiControlsApiPackGuard(
+					modalAvailable,
+					longPressAvailable,
+					project: project);
+			}
+			finally
+			{
+				Directory.Delete(root, recursive: true);
+			}
 		}
 
 		static (int ExitCode, string Output) RunMSBuildPropertyEvaluation(string project)

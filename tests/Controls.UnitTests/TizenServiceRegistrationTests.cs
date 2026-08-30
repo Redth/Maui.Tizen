@@ -311,6 +311,26 @@ public class TizenServiceRegistrationTests
 	}
 
 	[Fact]
+	public async Task SubscriptionOnlyFrameworkDisposeSuppressesFallbackCleanupFailure()
+	{
+		var fallback = new DisposableAlertSubscription
+		{
+			DisposeFailure = new InvalidOperationException("fallback dispose failed"),
+		};
+		var subscription = new TizenDelegateAlertManagerSubscription(
+			static (_, _) => Task.FromResult(true),
+			actionSheetHandler: null,
+			promptHandler: null,
+			() => fallback);
+		var args = new ActionSheetArguments("Title", "Cancel", null, new[] { "Choice" });
+		subscription.OnActionSheetRequested(new ContentPage(), args);
+
+		Assert.Equal("Fallback", await args.Result.Task.WaitAsync(TimeSpan.FromSeconds(10)));
+		Assert.Null(Record.Exception(subscription.Dispose));
+		Assert.True(fallback.Disposed);
+	}
+
+	[Fact]
 	public void SubscriptionOnlyModeIsAlsoPerWindow()
 	{
 		using var provider = PresentationServices()
@@ -588,6 +608,37 @@ public class TizenServiceRegistrationTests
 		Assert.Null(manager.Subscription);
 	}
 
+	[Fact]
+	public async Task WindowScopeDisposalDoesNotThrowWhileItsWaitingAlertReceivesCleanupFailure()
+	{
+		var dialogs = new FakeAlertDialogFactory();
+		var services = new ServiceCollection();
+		services.AddSingleton<ITizenAlertDialogFactory>(dialogs);
+		services.AddSingleton<ITizenModalHost>(new FakeModalHost());
+		services.AddSingleton<ITizenNativeGestureDetectorFactory>(new FakeNativeGestureDetectorFactory());
+		using var provider = services.AddTizenAlerts().BuildServiceProvider();
+		var scope = provider.CreateScope();
+		var context = new StubMauiContext(scope.ServiceProvider);
+		var window = new object();
+		((TizenWindowContext)scope.ServiceProvider.GetRequiredService<ITizenWindowContext>())
+			.Attach(context, window);
+		var page = new ContentPage { Handler = new StubViewHandler(mauiContext: context) };
+		var manager = scope.ServiceProvider.GetRequiredService<IAlertManager>();
+		manager.Subscribe();
+		var args = new AlertArguments("Title", "Message", "OK", "Cancel");
+		manager.RequestAlert(page, args);
+		var expected = new InvalidOperationException("close failed");
+		dialogs.LastAlert!.CloseFailure = expected;
+
+		var teardownFailure = Record.Exception(scope.Dispose);
+
+		Assert.Null(teardownFailure);
+		Assert.Same(
+			expected,
+			await Assert.ThrowsAsync<InvalidOperationException>(
+				() => args.Result.Task.WaitAsync(TimeSpan.FromSeconds(10))));
+	}
+
 	sealed class CustomGestureFactory : IGesturePlatformManagerFactory
 	{
 		public IGesturePlatformManager CreateGesturePlatformManager(IViewHandler handler) =>
@@ -597,6 +648,8 @@ public class TizenServiceRegistrationTests
 	sealed class DisposableAlertSubscription : IAlertManagerSubscription, IDisposable
 	{
 		public bool Disposed { get; private set; }
+
+		public Exception? DisposeFailure { get; set; }
 
 		public void OnAlertRequested(Page sender, AlertArguments arguments) =>
 			arguments.SetResult(false);
@@ -612,7 +665,15 @@ public class TizenServiceRegistrationTests
 		{
 		}
 
-		public void Dispose() => Disposed = true;
+		public void Dispose()
+		{
+			Disposed = true;
+
+			if (DisposeFailure is not null)
+			{
+				throw DisposeFailure;
+			}
+		}
 	}
 
 	sealed class BlockingDisposableAlertSubscription : IAlertManagerSubscription, IDisposable

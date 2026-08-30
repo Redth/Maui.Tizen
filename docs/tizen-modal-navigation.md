@@ -84,7 +84,9 @@ provisional interface, not one the framework knows about.
 
 Packing `Maui.Tizen.Controls` is also blocked with `MAUITIZEN0104` while the three contracts are
 absent from the actual pinned `Microsoft.Maui.Controls.dll`. This is a metadata inspection of the
-consumed binary, not an assumption based on upstream source status.
+consumed binary, not an assumption based on upstream source status. Availability alone is
+insufficient: the local provisional contract file must be absent and the compiled platform/factory
+and service registration must reference the real `Microsoft.Maui.Controls.Platform` contracts.
 
 ### What the Tizen implementation does
 
