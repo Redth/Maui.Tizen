@@ -175,6 +175,20 @@ WORKLOAD_FREE_PROJECTS=(
   "eng/tools/SourceInventory/SourceInventory.csproj"
   "eng/tools/PackageVerify/PackageVerify.csproj"
   "tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj"
+
+  #   Maui.Tizen.BlazorWebView.Tests  the same two roles for the BlazorWebView package: it
+  #                               compiles the handler sources and the Blazor sample head
+  #                               against the Samsung reference assemblies, and EXECUTES
+  #                               tests for registration order, the asset file provider,
+  #                               request mapping and the static content cache.
+  #                               See docs/blazorwebview.md.
+  "tests/Maui.Tizen.BlazorWebView.Tests/Maui.Tizen.BlazorWebView.Tests.csproj"
+
+  #   Maui.Tizen.BlazorWebView.PublicApi  compiles the BlazorWebView sources with the
+  #                               PublicApiAnalyzers treated as errors. The shipping project
+  #                               carries the analyzer too, but it is workload-gated and so never
+  #                               actually runs it; this lane is where the baseline is enforced.
+  "tests/Maui.Tizen.BlazorWebView.PublicApi/Maui.Tizen.BlazorWebView.PublicApi.csproj"
 )
 BUILD_OK=1
 for proj in "${WORKLOAD_FREE_PROJECTS[@]}"; do
@@ -330,6 +344,23 @@ if pwsh -NoProfile -File "$REPO_ROOT/eng/tests/test-snapshot-verification.ps1"; 
   :
 else
   fail "snapshot verification regressions failed"
+  FAILURES=$((FAILURES + 1))
+fi
+# 5b. BlazorWebView host-side verification.
+#
+# Unlike the invariant tests, these exercise real backend behaviour: registration order,
+# the asset file provider, request mapping and the static content cache. They can run
+# because none of that code needs the native NUI WebView.
+# ---------------------------------------------------------------------------
+#
+# Gated on BUILD_OK for the same reason as the invariant tests above: `--no-build` after a
+# failed build silently runs whatever assemblies happen to be on disk from an earlier run,
+# so a green result here could reflect stale artifacts rather than the current tree.
+info "BlazorWebView host-side tests"
+if [[ $BUILD_OK -eq 1 ]]; then
+  check "blazorwebview tests" "$DOTNET" test tests/Maui.Tizen.BlazorWebView.Tests/Maui.Tizen.BlazorWebView.Tests.csproj --no-build -c Release
+else
+  fail "blazorwebview tests skipped - a preceding build failed (running --no-build now could pass against stale assemblies)"
   FAILURES=$((FAILURES + 1))
 fi
 

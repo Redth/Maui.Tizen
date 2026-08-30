@@ -19,6 +19,8 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		const string Sample = "samples/Maui.Tizen.Sample/Maui.Tizen.Sample.csproj";
 		const string Core = "src/Maui.Tizen.Core/Maui.Tizen.Core.csproj";
 		const string Controls = "src/Maui.Tizen.Controls/Maui.Tizen.Controls.csproj";
+		const string BlazorWebView = "src/Maui.Tizen.BlazorWebView/Maui.Tizen.BlazorWebView.csproj";
+		const string Maps = "src/Maui.Tizen.Maps/Maui.Tizen.Maps.csproj";
 
 		static string RepositoryRoot => MSBuildEvaluation.RepositoryRoot;
 
@@ -98,11 +100,12 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[InlineData(Core)]
 		[InlineData(Controls)]
 		[InlineData("src/Maui.Tizen.Essentials/Maui.Tizen.Essentials.csproj")]
+		[InlineData(BlazorWebView)]
 		public void ShippingAssembliesGenerateDocumentation(string project)
 		{
-			// The heuristic keyed off EnableDefaultCompileItems, which these two turn OFF - not
+			// The heuristic keyed off EnableDefaultCompileItems, which these projects turn OFF - not
 			// because they have no sources, but because the raw imported tree must not be compiled
-			// and their shipping sources are listed explicitly. They are the two projects that
+			// and their shipping sources are listed explicitly. These are the projects that
 			// export a public API and most need documentation, and docs were silently disabled for
 			// exactly them.
 			Assert.Equal("true", MSBuildEvaluation.GetProperty(project, "GenerateDocumentationFile"));
@@ -115,7 +118,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			// fills with CS1591 for assemblies that have no API at all.
 			Assert.Equal(
 				"false",
-				MSBuildEvaluation.GetProperty("src/Maui.Tizen.BlazorWebView/Maui.Tizen.BlazorWebView.csproj", "GenerateDocumentationFile"));
+				MSBuildEvaluation.GetProperty(Maps, "GenerateDocumentationFile"));
 		}
 
 		[Fact]
@@ -168,6 +171,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				"tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj",
 				"tests/Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj",
 				"tests/Maui.Tizen.Essentials.RefPackCompile/Maui.Tizen.Essentials.RefPackCompile.csproj",
+				"tests/Maui.Tizen.BlazorWebView.PublicApi/Maui.Tizen.BlazorWebView.PublicApi.csproj",
 			})
 			{
 				var document = XDocument.Load(Path.Combine(RepositoryRoot, lane));

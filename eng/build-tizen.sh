@@ -38,6 +38,12 @@ TIZEN_PROJECTS=(
   # It sets IsPackable=false, so the pack phase below is a no-op for it rather than a
   # failure.
   "samples/Maui.Tizen.Sample/Maui.Tizen.Sample.csproj"
+
+  # The Blazor sample head, for the same reason: it imports TizenPackage.props, so the
+  # transition regression test requires it here. It is the only project that exercises the
+  # BlazorWebView registration and the StaticWebAsset -> MauiAsset conversion against a real
+  # Tizen app head. Also IsPackable=false, so pack is a no-op.
+  "samples/BlazorWebView/Maui.Tizen.BlazorWebView.Sample/Maui.Tizen.BlazorWebView.Sample.csproj"
 )
 
 echo "==> Restore net11.0-tizen11.0 projects"

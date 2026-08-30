@@ -9,6 +9,8 @@
 
 # The single supported target framework. eng/baselines.json > target.targetFramework.
 require  lib/net11.0-tizen11.0/Maui.Tizen.BlazorWebView.dll
+require  buildTransitive/Maui.Tizen.BlazorWebView.props
+require  buildTransitive/Maui.Tizen.BlazorWebView.targets
 
 # Assembly names follow the package id so a Maui.Tizen package can never collide with the
 # real Microsoft.Maui.* assemblies at runtime or in the NuGet graph.

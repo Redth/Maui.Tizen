@@ -1,0 +1,41 @@
+<Project>
+
+  <!--
+    BlazorWebView source list, factored out the same way as eng/Maui.Tizen.Core.Sources.props so the
+    product project and the verification lane compile exactly the same files.
+
+    Sources are listed by directory glob rather than by file because, unlike src/Maui.Tizen.Core, the
+    reworked BlazorWebView code lives in its own folders (Handlers/, Hosting/, Internal/,
+    StaticContent/). The raw dotnet/maui import sits in Tizen/ and is deliberately outside every glob
+    here: those files are the Tizen half of the partial
+    Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler, which now ships complete in the
+    shared MAUI package. Compiling them would redefine a type this package consumes.
+  -->
+
+  <PropertyGroup>
+    <MauiTizenBlazorWebViewDir Condition="'$(MauiTizenBlazorWebViewDir)' == ''">$(MSBuildThisFileDirectory)../src/Maui.Tizen.BlazorWebView/</MauiTizenBlazorWebViewDir>
+    <MauiTizenBlazorWebViewSampleDir Condition="'$(MauiTizenBlazorWebViewSampleDir)' == ''">$(MSBuildThisFileDirectory)../samples/BlazorWebView/Maui.Tizen.BlazorWebView.Sample/</MauiTizenBlazorWebViewSampleDir>
+  </PropertyGroup>
+
+  <ItemGroup Label="BlazorWebView sources">
+    <MauiTizenBlazorWebViewCompile Include="$(MauiTizenBlazorWebViewDir)Handlers/**/*.cs" />
+    <MauiTizenBlazorWebViewCompile Include="$(MauiTizenBlazorWebViewDir)Hosting/**/*.cs" />
+    <MauiTizenBlazorWebViewCompile Include="$(MauiTizenBlazorWebViewDir)Internal/**/*.cs" />
+    <MauiTizenBlazorWebViewCompile Include="$(MauiTizenBlazorWebViewDir)StaticContent/**/*.cs" />
+  </ItemGroup>
+
+  <!--
+    Sample head sources. Compiled by the verification lane so the registration snippet documented in
+    docs/blazorwebview.md is type-checked - and, for MauiProgram.cs, actually executed - even though
+    the sample itself cannot be built without the Samsung workload.
+
+    Main.cs is excluded: it derives from the core's TizenMauiApplication, which is Tizen-only.
+  -->
+  <ItemGroup Label="BlazorWebView sample sources">
+    <MauiTizenBlazorWebViewSampleCompile Include="$(MauiTizenBlazorWebViewSampleDir)MauiProgram.cs" />
+    <MauiTizenBlazorWebViewSampleRazor Include="$(MauiTizenBlazorWebViewSampleDir)_Imports.razor" />
+    <MauiTizenBlazorWebViewSampleRazor Include="$(MauiTizenBlazorWebViewSampleDir)Components/**/*.razor" />
+    <MauiTizenBlazorWebViewSampleContent Include="$(MauiTizenBlazorWebViewSampleDir)wwwroot/**/*" />
+  </ItemGroup>
+
+</Project>

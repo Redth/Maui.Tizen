@@ -29,6 +29,7 @@
 
   <Folder Name="/samples/">
     <Project Path="samples/Maui.Tizen.Sample/Maui.Tizen.Sample.csproj" />
+    <Project Path="samples/BlazorWebView/Maui.Tizen.BlazorWebView.Sample/Maui.Tizen.BlazorWebView.Sample.csproj" />
   </Folder>
 
   <Folder Name="/tests/">
@@ -43,6 +44,8 @@
     <Project Path="tests/Maui.Tizen.Controls.ConsumerCompile/Maui.Tizen.Controls.ConsumerCompile.csproj" />
     <Project Path="tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj" />
     <Project Path="tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj" />
+    <Project Path="tests/Maui.Tizen.BlazorWebView.Tests/Maui.Tizen.BlazorWebView.Tests.csproj" />
+    <Project Path="tests/Maui.Tizen.BlazorWebView.PublicApi/Maui.Tizen.BlazorWebView.PublicApi.csproj" />
     <Project Path="eng/tests/PackageGraphProbe/PackageGraphProbe.csproj" />
     <Project Path="eng/tests/PublicApiOptIn/PublicApiOptIn.csproj" />
     <Project Path="eng/tests/PackReadmeProbe/PackReadmeProbe.csproj" />
@@ -95,6 +98,7 @@
     <File Path="PROVENANCE.md" />
     <File Path="THIRD-PARTY-NOTICES.md" />
     <File Path="docs/architecture.md" />
+    <File Path="docs/blazorwebview.md" />
     <File Path="docs/migration.md" />
     <File Path="docs/net11-status.md" />
     <File Path="docs/waves/wave-c.md" />
