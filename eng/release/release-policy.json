@@ -40,6 +40,7 @@
   },
   "requiredStatusChecks": [
     "Build and test (no Tizen workload)",
+    "Build tasks under full-framework MSBuild (final lane)",
     "Hosted validation (no Tizen workload)",
     "Tizen device lane (informational)",
     "Verify imported history",

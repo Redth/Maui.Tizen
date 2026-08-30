@@ -314,6 +314,23 @@ public class ReleaseWorkflowSecurityTests
     }
 
     [Fact]
+    public void ReleasePolicyRequiresTheFullFrameworkBuildTaskLane()
+    {
+        const string context = "Build tasks under full-framework MSBuild (final lane)";
+        var ci = ReadWorkflow("ci.yml");
+        using var policy = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(RepoLayout.Root, "eng", "release", "release-policy.json")));
+        var required = policy.RootElement
+            .GetProperty("requiredStatusChecks")
+            .EnumerateArray()
+            .Select(item => item.GetString())
+            .ToList();
+
+        Assert.Contains($"name: {context}", ci, StringComparison.Ordinal);
+        Assert.Contains(context, required);
+    }
+
+    [Fact]
     public void ReleaseArtifactIsAttemptBoundAndPassedIntoReusableValidation()
     {
         var release = ReadWorkflow("release.yml");
