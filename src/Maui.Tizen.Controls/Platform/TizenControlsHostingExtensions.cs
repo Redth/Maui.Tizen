@@ -5,6 +5,9 @@ using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.Hosting;
 using Microsoft.Maui.Platforms.Tizen.Handlers;
+#if TIZEN
+using Microsoft.Maui.Platforms.Tizen.Nui;
+#endif
 
 namespace Microsoft.Maui.Platforms.Tizen.Controls
 {
@@ -27,6 +30,17 @@ namespace Microsoft.Maui.Platforms.Tizen.Controls
 		internal static MauiAppBuilder AddTizenControlsBackend(this MauiAppBuilder builder)
 		{
 			ArgumentNullException.ThrowIfNull(builder);
+
+			// ConfigureTizenControls is the single production composition root. Register the
+			// Controls services here rather than requiring a second, optional startup call that
+			// leaves alerts and gestures inactive in otherwise valid Controls applications.
+#if TIZEN
+			builder.Services.AddTizenNuiControlsPlatform();
+#else
+			builder.Services.AddTizenControlsPlatform(
+				TizenAlertRegistrationMode.FullManager,
+				replaceFrameworkServices: true);
+#endif
 
 			builder.Services.TryAddEnumerable(
 				ServiceDescriptor.Singleton<IMauiInitializeService, TizenControlsMappingsInitializer>());

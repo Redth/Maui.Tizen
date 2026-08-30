@@ -38,7 +38,7 @@
   <Import Project="$(RepositoryRoot)eng/Maui.Tizen.WaveC.Sources.props" />
 
   <ItemGroup>
-    <Compile Include="@(MauiTizenControlsCompile);@(MauiTizenWaveBControlsCompile);@(MauiTizenWaveCAdapterCompile);@(MauiTizenWaveCPlatformCompile);@(MauiTizenWaveCCompile)" />
+    <Compile Include="@(MauiTizenControlsCompile);@(MauiTizenControlsPresentationCompile);@(MauiTizenWaveBControlsCompile);@(MauiTizenWaveCAdapterCompile);@(MauiTizenWaveCPlatformCompile);@(MauiTizenWaveCCompile)" />
     <None Remove="@(Compile)" />
   </ItemGroup>
 

@@ -84,6 +84,7 @@
       production caller was invisible precisely because nothing executed that path.
     -->
     <Compile Include="@(MauiTizenControlsCompile)" LinkBase="Controls" />
+    <Compile Include="@(MauiTizenControlsPresentationPortableCompile)" LinkBase="ControlsPresentation" />
     <Compile Include="*.cs" />
   </ItemGroup>
 

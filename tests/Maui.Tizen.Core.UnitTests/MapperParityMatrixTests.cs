@@ -89,6 +89,23 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 				"src/Maui.Tizen.Controls/Platform/TizenControlsHostingExtensions.cs",
 				"src/Maui.Tizen.Controls/Platform/TizenControlsMappings.cs",
 			}
+				.Concat(new[]
+				{
+					"Alerts",
+					"Gestures",
+					"Modal",
+					"Nui",
+				}
+					.SelectMany(directory => Directory.EnumerateFiles(
+						Path.Combine(controlsRoot, "Core", "Platform", directory),
+						"*.cs",
+						SearchOption.TopDirectoryOnly))
+					.Append(Path.Combine(
+						controlsRoot,
+						"Core",
+						"Platform",
+						"TizenControlsServiceCollectionExtensions.cs"))
+					.Select(path => Path.GetRelativePath(TestRepositoryPaths.Root, path).Replace('\\', '/')))
 				.Concat(Directory
 					.EnumerateFiles(
 						Path.Combine(controlsRoot, "Navigation"),

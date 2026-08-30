@@ -1,0 +1,667 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Maui.Controls;
+using Microsoft.Maui.Controls.Internals;
+using Xunit;
+
+namespace Microsoft.Maui.Platforms.Tizen.UnitTests;
+
+public class TizenAlertManagerSubscriptionTests
+{
+	static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
+
+	public enum DialogKind
+	{
+		Alert,
+		ActionSheet,
+		Prompt,
+	}
+
+	sealed class Fixture
+	{
+		public Fixture(object? window = null)
+		{
+			Window = window ?? new object();
+			Dialogs = new FakeAlertDialogFactory();
+			ModalHost = new FakeModalHost();
+			WindowProvider = new FakeWindowProvider();
+
+			Context = StubMauiContext.Empty();
+			WindowProvider.Map(Context, Window);
+
+			Page = new ContentPage { Handler = new StubViewHandler(mauiContext: Context) };
+
+			Subscription = new TizenAlertManagerSubscription(Window, Dialogs, ModalHost, WindowProvider);
+		}
+
+		public object Window { get; }
+
+		public FakeAlertDialogFactory Dialogs { get; }
+
+		public FakeModalHost ModalHost { get; }
+
+		public FakeWindowProvider WindowProvider { get; }
+
+		public StubMauiContext Context { get; }
+
+		public ContentPage Page { get; }
+
+		public TizenAlertManagerSubscription Subscription { get; }
+
+		/// <summary>Creates a page that belongs to a different window.</summary>
+		public ContentPage CreateForeignPage()
+		{
+			var foreignContext = StubMauiContext.Empty();
+			WindowProvider.Map(foreignContext, new object());
+			return new ContentPage { Handler = new StubViewHandler(mauiContext: foreignContext) };
+		}
+	}
+
+	static async Task<T> Completed<T>(Task<T> task)
+	{
+		var finished = await Task.WhenAny(task, Task.Delay(Timeout));
+		Assert.Same(task, finished);
+		return await task;
+	}
+
+	static async Task Completed(Task task)
+	{
+		var finished = await Task.WhenAny(task, Task.Delay(Timeout));
+		Assert.Same(task, finished);
+		await task;
+	}
+
+	static async Task<bool> NeverCompletes<T>(Task<T> task)
+	{
+		var finished = await Task.WhenAny(task, Task.Delay(TimeSpan.FromMilliseconds(200)));
+		return finished != task;
+	}
+
+	static AlertArguments Alert() => new("Title", "Message", "OK", "Cancel");
+
+	static ActionSheetArguments ActionSheet() => new("Title", "Cancel", "Delete", new[] { "One", "Two" });
+
+	static PromptArguments Prompt() => new("Title", "Message", "OK", "Cancel", placeholder: " ", maxLength: 10, keyboard: Keyboard.Default, initialValue: string.Empty);
+
+	[Fact]
+	public async Task AlertResultIsPropagatedToCaller()
+	{
+		var fixture = new Fixture();
+		var args = Alert();
+
+		fixture.Subscription.OnAlertRequested(fixture.Page, args);
+
+		fixture.Dialogs.LastAlert!.CompleteWith(true);
+
+		Assert.True(await Completed(args.Result.Task));
+	}
+
+	[Fact]
+	public async Task AlertCancellationYieldsFalse()
+	{
+		var fixture = new Fixture();
+		var args = Alert();
+
+		fixture.Subscription.OnAlertRequested(fixture.Page, args);
+		fixture.Dialogs.LastAlert!.Close();
+
+		Assert.False(await Completed(args.Result.Task));
+	}
+
+	[Fact]
+	public async Task ActionSheetResultIsPropagatedToCaller()
+	{
+		var fixture = new Fixture();
+		var args = ActionSheet();
+
+		fixture.Subscription.OnActionSheetRequested(fixture.Page, args);
+		fixture.Dialogs.LastActionSheet!.CompleteWith("Two");
+
+		Assert.Equal("Two", await Completed(args.Result.Task));
+	}
+
+	[Fact]
+	public async Task ActionSheetCancellationYieldsCancelLabel()
+	{
+		var fixture = new Fixture();
+		var args = ActionSheet();
+
+		fixture.Subscription.OnActionSheetRequested(fixture.Page, args);
+		fixture.Dialogs.LastActionSheet!.Close();
+
+		Assert.Equal("Cancel", await Completed(args.Result.Task));
+	}
+
+	[Fact]
+	public async Task PromptResultIsPropagatedToCaller()
+	{
+		var fixture = new Fixture();
+		var args = Prompt();
+
+		fixture.Subscription.OnPromptRequested(fixture.Page, args);
+		fixture.Dialogs.LastPrompt!.CompleteWith("typed");
+
+		Assert.Equal("typed", await Completed(args.Result.Task));
+	}
+
+	[Fact]
+	public async Task PromptCancellationYieldsNull()
+	{
+		var fixture = new Fixture();
+		var args = Prompt();
+
+		fixture.Subscription.OnPromptRequested(fixture.Page, args);
+		fixture.Dialogs.LastPrompt!.Close();
+
+		Assert.Null(await Completed(args.Result.Task));
+	}
+
+	[Fact]
+	public async Task DialogIsDisposedOnceTheRequestCompletes()
+	{
+		var fixture = new Fixture();
+		var args = Alert();
+
+		fixture.Subscription.OnAlertRequested(fixture.Page, args);
+		var dialog = fixture.Dialogs.LastAlert!;
+		dialog.CompleteWith(false);
+
+		await Completed(args.Result.Task);
+
+		Assert.True(dialog.Disposed);
+	}
+
+	[Fact]
+	public async Task DialogDisposalFailureFaultsTheCallerInsteadOfLeavingItPending()
+	{
+		var fixture = new Fixture();
+		var args = Alert();
+
+		fixture.Subscription.OnAlertRequested(fixture.Page, args);
+		var dialog = fixture.Dialogs.LastAlert!;
+		dialog.DisposeFailure = new InvalidOperationException("dispose failed");
+		dialog.CompleteWith(true);
+
+		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(args.Result.Task));
+		Assert.Equal("dispose failed", exception.Message);
+	}
+
+	[Fact]
+	public async Task DisposedRaceDialogDisposalFailureFaultsTheCaller()
+	{
+		var fixture = new Fixture();
+		var args = Alert();
+		fixture.Dialogs.BeforeCreateAlertDialog = fixture.Subscription.Dispose;
+		fixture.Dialogs.AlertDialogDisposeFailure = new InvalidOperationException("dispose failed");
+
+		fixture.Subscription.OnAlertRequested(fixture.Page, args);
+
+		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(args.Result.Task));
+		Assert.Equal("dispose failed", exception.Message);
+	}
+
+	[Fact]
+	public async Task ModalStackIsPushedAndPoppedInBalance()
+	{
+		var fixture = new Fixture();
+		var args = Alert();
+
+		fixture.Subscription.OnAlertRequested(fixture.Page, args);
+
+		Assert.Equal(1, fixture.ModalHost.Entered);
+
+		fixture.Dialogs.LastAlert!.CompleteWith(true);
+		await Completed(args.Result.Task);
+
+		Assert.True(fixture.ModalHost.IsBalanced);
+	}
+
+	[Fact]
+	public async Task RequestFromAnotherWindowIsIgnored()
+	{
+		var fixture = new Fixture();
+		var foreignPage = fixture.CreateForeignPage();
+		var args = Alert();
+
+		fixture.Subscription.OnAlertRequested(foreignPage, args);
+
+		Assert.Empty(fixture.Dialogs.AlertRequests);
+		Assert.Equal(0, fixture.ModalHost.Entered);
+		Assert.True(await NeverCompletes(args.Result.Task));
+	}
+
+	[Fact]
+	public async Task UnexpectedDialogFailureFaultsTheCallerInsteadOfHanging()
+	{
+		var fixture = new Fixture();
+		var args = Alert();
+
+		fixture.Subscription.OnAlertRequested(fixture.Page, args);
+		fixture.Dialogs.LastAlert!.FailWith(new InvalidOperationException("native failure"));
+
+		await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(args.Result.Task));
+	}
+
+	[Theory]
+	[InlineData(DialogKind.Alert)]
+	[InlineData(DialogKind.ActionSheet)]
+	[InlineData(DialogKind.Prompt)]
+	public async Task DialogConstructionFailureFaultsTheExactRequestAndDoesNotWedgeTheNextOne(DialogKind dialogKind)
+	{
+		var fixture = new Fixture();
+		var expected = new InvalidOperationException($"create {dialogKind}");
+
+		Task failed = dialogKind switch
+		{
+			DialogKind.Alert => RequestAlertWithCreationFailure(fixture, expected),
+			DialogKind.ActionSheet => RequestActionSheetWithCreationFailure(fixture, expected),
+			DialogKind.Prompt => RequestPromptWithCreationFailure(fixture, expected),
+			_ => throw new ArgumentOutOfRangeException(nameof(dialogKind)),
+		};
+
+		var actual = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(failed));
+		Assert.Same(expected, actual);
+
+		var next = Alert();
+		fixture.Subscription.OnAlertRequested(fixture.Page, next);
+		fixture.Dialogs.LastAlert!.CompleteWith(true);
+
+		Assert.True(await Completed(next.Result.Task));
+	}
+
+	[Theory]
+	[InlineData(DialogKind.Alert)]
+	[InlineData(DialogKind.ActionSheet)]
+	[InlineData(DialogKind.Prompt)]
+	public async Task NullDialogFactoryResultFaultsTheExactRequest(DialogKind dialogKind)
+	{
+		var fixture = new Fixture();
+		Task failed;
+
+		switch (dialogKind)
+		{
+			case DialogKind.Alert:
+				fixture.Dialogs.ReturnNullAlertDialog = true;
+				var alert = Alert();
+				fixture.Subscription.OnAlertRequested(fixture.Page, alert);
+				failed = alert.Result.Task;
+				break;
+			case DialogKind.ActionSheet:
+				fixture.Dialogs.ReturnNullActionSheetDialog = true;
+				var actionSheet = ActionSheet();
+				fixture.Subscription.OnActionSheetRequested(fixture.Page, actionSheet);
+				failed = actionSheet.Result.Task;
+				break;
+			case DialogKind.Prompt:
+				fixture.Dialogs.ReturnNullPromptDialog = true;
+				var prompt = Prompt();
+				fixture.Subscription.OnPromptRequested(fixture.Page, prompt);
+				failed = prompt.Result.Task;
+				break;
+			default:
+				throw new ArgumentOutOfRangeException(nameof(dialogKind));
+		}
+
+		var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(failed));
+		Assert.Contains("returned a null dialog", failure.Message, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public async Task SynchronousResultContinuationRunsOnceForConstructionFailure()
+	{
+		var fixture = new Fixture();
+		var expected = new InvalidOperationException("construction failed");
+		fixture.Dialogs.AlertDialogCreationFailure = expected;
+		var args = Alert();
+		var continuationCount = 0;
+		var continuation = args.Result.Task.ContinueWith(
+			_ => Interlocked.Increment(ref continuationCount),
+			CancellationToken.None,
+			TaskContinuationOptions.ExecuteSynchronously,
+			TaskScheduler.Default);
+
+		var requestFailure = Record.Exception(
+			() => fixture.Subscription.OnAlertRequested(fixture.Page, args));
+
+		Assert.Null(requestFailure);
+		Assert.Same(
+			expected,
+			await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(args.Result.Task)));
+		await Completed(continuation);
+
+		fixture.Subscription.Dispose();
+		Assert.Equal(1, continuationCount);
+	}
+
+	[Fact]
+	public async Task ModalStackFailureCancelsTheCallerInsteadOfHanging()
+	{
+		var dialogs = new FakeAlertDialogFactory();
+		var windowProvider = new FakeWindowProvider();
+		var window = new object();
+		var context = StubMauiContext.Empty();
+		windowProvider.Map(context, window);
+
+		var subscription = new TizenAlertManagerSubscription(
+			window,
+			dialogs,
+			new ThrowingModalHost(new TaskCanceledException()),
+			windowProvider);
+
+		var page = new ContentPage { Handler = new StubViewHandler(mauiContext: context) };
+		var args = Alert();
+
+		subscription.OnAlertRequested(page, args);
+
+		Assert.False(await Completed(args.Result.Task));
+	}
+
+	static Task RequestAlertWithCreationFailure(Fixture fixture, Exception failure)
+	{
+		fixture.Dialogs.AlertDialogCreationFailure = failure;
+		var args = Alert();
+		fixture.Subscription.OnAlertRequested(fixture.Page, args);
+		fixture.Dialogs.AlertDialogCreationFailure = null;
+		return args.Result.Task;
+	}
+
+	static Task RequestActionSheetWithCreationFailure(Fixture fixture, Exception failure)
+	{
+		fixture.Dialogs.ActionSheetCreationFailure = failure;
+		var args = ActionSheet();
+		fixture.Subscription.OnActionSheetRequested(fixture.Page, args);
+		fixture.Dialogs.ActionSheetCreationFailure = null;
+		return args.Result.Task;
+	}
+
+	static Task RequestPromptWithCreationFailure(Fixture fixture, Exception failure)
+	{
+		fixture.Dialogs.PromptCreationFailure = failure;
+		var args = Prompt();
+		fixture.Subscription.OnPromptRequested(fixture.Page, args);
+		fixture.Dialogs.PromptCreationFailure = null;
+		return args.Result.Task;
+	}
+
+	[Fact]
+	public async Task DisposeDismissesInFlightDialogsAndCancelsCallers()
+	{
+		var fixture = new Fixture();
+		var args = Alert();
+
+		fixture.Subscription.OnAlertRequested(fixture.Page, args);
+		var dialog = fixture.Dialogs.LastAlert!;
+
+		Assert.True(dialog.Opened);
+
+		fixture.Subscription.Dispose();
+
+		Assert.True(dialog.Closed);
+		Assert.False(await Completed(args.Result.Task));
+		Assert.Equal(1, dialog.DisposeCount);
+	}
+
+	[Theory]
+	[InlineData(DialogKind.Alert)]
+	[InlineData(DialogKind.ActionSheet)]
+	[InlineData(DialogKind.Prompt)]
+	public async Task InlineCloseFollowedByDisposeFailureFaultsCaller(DialogKind dialogKind)
+	{
+		var fixture = new Fixture();
+		fixture.Dialogs.UseSynchronousDialogContinuations = true;
+
+		var expected = new InvalidOperationException("dispose failed");
+		Task result;
+		Action assertDialogTeardown;
+
+		switch (dialogKind)
+		{
+			case DialogKind.Alert:
+				{
+					var args = Alert();
+					fixture.Subscription.OnAlertRequested(fixture.Page, args);
+					var dialog = fixture.Dialogs.LastAlert!;
+					dialog.DisposeFailure = expected;
+					result = args.Result.Task;
+					assertDialogTeardown = () =>
+					{
+						Assert.True(dialog.Closed);
+						Assert.Equal(1, dialog.DisposeCount);
+					};
+					break;
+				}
+			case DialogKind.ActionSheet:
+				{
+					var args = ActionSheet();
+					fixture.Subscription.OnActionSheetRequested(fixture.Page, args);
+					var dialog = fixture.Dialogs.LastActionSheet!;
+					dialog.DisposeFailure = expected;
+					result = args.Result.Task;
+					assertDialogTeardown = () =>
+					{
+						Assert.True(dialog.Closed);
+						Assert.Equal(1, dialog.DisposeCount);
+					};
+					break;
+				}
+			case DialogKind.Prompt:
+				{
+					var args = Prompt();
+					fixture.Subscription.OnPromptRequested(fixture.Page, args);
+					var dialog = fixture.Dialogs.LastPrompt!;
+					dialog.DisposeFailure = expected;
+					result = args.Result.Task;
+					assertDialogTeardown = () =>
+					{
+						Assert.True(dialog.Closed);
+						Assert.Equal(1, dialog.DisposeCount);
+					};
+					break;
+				}
+			default:
+				throw new ArgumentOutOfRangeException(nameof(dialogKind));
+		}
+
+		Assert.Null(Record.Exception(fixture.Subscription.Dispose));
+		var callerFailure = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(result));
+		Assert.Same(expected, callerFailure);
+		assertDialogTeardown();
+	}
+
+	[Fact]
+	public async Task AlertCloseFailureDuringTeardownFaultsTheCaller()
+	{
+		var fixture = new Fixture();
+		var args = Alert();
+		fixture.Subscription.OnAlertRequested(fixture.Page, args);
+		fixture.Dialogs.LastAlert!.CloseFailure = new InvalidOperationException("close failed");
+
+		Assert.Null(Record.Exception(fixture.Subscription.Dispose));
+
+		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(args.Result.Task));
+		Assert.Equal("close failed", exception.Message);
+		Assert.Equal(1, fixture.Dialogs.LastAlert!.DisposeCount);
+	}
+
+	[Fact]
+	public async Task ActionSheetCloseFailureDuringTeardownFaultsTheCaller()
+	{
+		var fixture = new Fixture();
+		var args = ActionSheet();
+		fixture.Subscription.OnActionSheetRequested(fixture.Page, args);
+		fixture.Dialogs.LastActionSheet!.CloseFailure = new InvalidOperationException("close failed");
+
+		Assert.Null(Record.Exception(fixture.Subscription.Dispose));
+
+		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(args.Result.Task));
+		Assert.Equal("close failed", exception.Message);
+	}
+
+	[Fact]
+	public async Task PromptCloseFailureDuringTeardownFaultsTheCaller()
+	{
+		var fixture = new Fixture();
+		var args = Prompt();
+		fixture.Subscription.OnPromptRequested(fixture.Page, args);
+		fixture.Dialogs.LastPrompt!.CloseFailure = new InvalidOperationException("close failed");
+
+		Assert.Null(Record.Exception(fixture.Subscription.Dispose));
+
+		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(args.Result.Task));
+		Assert.Equal("close failed", exception.Message);
+	}
+
+	[Fact]
+	public void RequestsAfterDisposeAreIgnored()
+	{
+		var fixture = new Fixture();
+		fixture.Subscription.Dispose();
+
+		fixture.Subscription.OnAlertRequested(fixture.Page, Alert());
+		fixture.Subscription.OnActionSheetRequested(fixture.Page, ActionSheet());
+		fixture.Subscription.OnPromptRequested(fixture.Page, Prompt());
+
+		Assert.Empty(fixture.Dialogs.AlertRequests);
+		Assert.Empty(fixture.Dialogs.ActionSheetRequests);
+		Assert.Empty(fixture.Dialogs.PromptRequests);
+	}
+
+	[Fact]
+	public void DisposeIsIdempotent()
+	{
+		var fixture = new Fixture();
+
+		fixture.Subscription.Dispose();
+		fixture.Subscription.Dispose();
+	}
+
+	[Fact]
+	public async Task ConcurrentDialogsAreTrackedIndependently()
+	{
+		var fixture = new Fixture();
+		var alert = Alert();
+		var prompt = Prompt();
+
+		fixture.Subscription.OnAlertRequested(fixture.Page, alert);
+		fixture.Subscription.OnPromptRequested(fixture.Page, prompt);
+
+		fixture.Dialogs.LastPrompt!.CompleteWith("value");
+		Assert.Equal("value", await Completed(prompt.Result.Task));
+
+		fixture.Dialogs.LastAlert!.CompleteWith(true);
+		Assert.True(await Completed(alert.Result.Task));
+
+		Assert.Equal(2, fixture.ModalHost.Entered);
+		Assert.True(fixture.ModalHost.IsBalanced);
+	}
+
+	// Page busy is obsolete upstream, but Page.IsBusy still routes through it, so the Tizen
+	// backend keeps honouring it. These tests pin the behaviour explicitly.
+
+	[Fact]
+	[Obsolete("Exercises the obsolete page-busy notification on purpose.")]
+	public void PageBusyOpensTheIndicator()
+	{
+		var fixture = new Fixture();
+
+		fixture.Subscription.OnPageBusy(fixture.Page, true);
+
+		Assert.NotNull(fixture.Dialogs.LastBusyIndicator);
+		Assert.True(fixture.Dialogs.LastBusyIndicator!.IsOpen);
+	}
+
+	[Fact]
+	[Obsolete("Exercises the obsolete page-busy notification on purpose.")]
+	public void NestedPageBusyScopesKeepTheIndicatorOpenUntilTheLastOneCloses()
+	{
+		var fixture = new Fixture();
+
+		fixture.Subscription.OnPageBusy(fixture.Page, true);
+		fixture.Subscription.OnPageBusy(fixture.Page, true);
+
+		var indicator = fixture.Dialogs.LastBusyIndicator!;
+
+		// The original NUI implementation closed the popup on the second "busy" notification.
+		// Reference-counted nesting is the corrected behaviour; see TizenAlertManagerSubscription.
+		Assert.True(indicator.IsOpen);
+
+		fixture.Subscription.OnPageBusy(fixture.Page, false);
+		Assert.True(indicator.IsOpen);
+
+		fixture.Subscription.OnPageBusy(fixture.Page, false);
+		Assert.False(indicator.IsOpen);
+		Assert.True(indicator.Disposed);
+	}
+
+	[Fact]
+	[Obsolete("Exercises the obsolete page-busy notification on purpose.")]
+	public void PageBusyCountNeverGoesNegative()
+	{
+		var fixture = new Fixture();
+
+		fixture.Subscription.OnPageBusy(fixture.Page, false);
+		fixture.Subscription.OnPageBusy(fixture.Page, false);
+		fixture.Subscription.OnPageBusy(fixture.Page, true);
+
+		Assert.True(fixture.Dialogs.LastBusyIndicator!.IsOpen);
+	}
+
+	[Fact]
+	[Obsolete("Exercises the obsolete page-busy notification on purpose.")]
+	public void PageBusyFromAnotherWindowIsIgnored()
+	{
+		var fixture = new Fixture();
+		var foreignPage = fixture.CreateForeignPage();
+
+		fixture.Subscription.OnPageBusy(foreignPage, true);
+
+		Assert.Equal(0, fixture.Dialogs.BusyIndicatorsCreated);
+	}
+
+	[Fact]
+	[Obsolete("Exercises the obsolete page-busy notification on purpose.")]
+	public void DisposeTearsDownTheBusyIndicator()
+	{
+		var fixture = new Fixture();
+		fixture.Subscription.OnPageBusy(fixture.Page, true);
+
+		var indicator = fixture.Dialogs.LastBusyIndicator!;
+		fixture.Subscription.Dispose();
+
+		Assert.False(indicator.IsOpen);
+		Assert.True(indicator.Disposed);
+	}
+
+	[Fact]
+	[Obsolete("Exercises the obsolete page-busy notification on purpose.")]
+	public void BusyIndicatorIsDisposedEvenWhenCloseFails()
+	{
+		var fixture = new Fixture();
+		fixture.Subscription.OnPageBusy(fixture.Page, true);
+		var indicator = fixture.Dialogs.LastBusyIndicator!;
+		indicator.CloseFailure = new InvalidOperationException("close failed");
+
+		Assert.Throws<InvalidOperationException>(() => fixture.Subscription.OnPageBusy(fixture.Page, false));
+		Assert.True(indicator.Disposed);
+	}
+
+	[Fact]
+	public void DisposeContinuesThroughEveryOpenDialogWhenOneCloseFails()
+	{
+		var fixture = new Fixture();
+		var alert = Alert();
+		var prompt = Prompt();
+		fixture.Subscription.OnAlertRequested(fixture.Page, alert);
+		var alertDialog = fixture.Dialogs.LastAlert!;
+		fixture.Subscription.OnPromptRequested(fixture.Page, prompt);
+		var promptDialog = fixture.Dialogs.LastPrompt!;
+		alertDialog.CloseFailure = new InvalidOperationException("close failed");
+
+		Assert.Null(Record.Exception(fixture.Subscription.Dispose));
+
+		Assert.True(alertDialog.Disposed);
+		Assert.True(promptDialog.Closed);
+		Assert.True(promptDialog.Disposed);
+	}
+}

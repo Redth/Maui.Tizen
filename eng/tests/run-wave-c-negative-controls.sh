@@ -169,6 +169,7 @@ fi
 EXECUTED=0
 CANONICAL_OUTPUTS=(
   "$REPO_ROOT/artifacts/bin/Maui.Tizen.Core.UnitTests/Release/net11.0/Maui.Tizen.Core.UnitTests.dll"
+  "$REPO_ROOT/artifacts/bin/Maui.Tizen.Controls.UnitTests/Release/net11.0/Maui.Tizen.Controls.UnitTests.dll"
   "$REPO_ROOT/artifacts/bin/Maui.Tizen.SourceTests/Release/net11.0/Maui.Tizen.SourceTests.dll"
   "$REPO_ROOT/artifacts/bin/Maui.Tizen.Core.RefPackCompile/Release/net11.0/Maui.Tizen.Core.dll"
   "$REPO_ROOT/artifacts/bin/Maui.Tizen.Controls.RefPackCompile/Release/net11.0/Maui.Tizen.Controls.dll"
@@ -288,6 +289,8 @@ fi
   -c Release --no-restore --no-incremental -v:minimal >"$SCRATCH/final-core-build.log" 2>&1
 "$DOTNET" build tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj \
   -c Release --no-restore --no-incremental -v:minimal >"$SCRATCH/final-source-build.log" 2>&1
+"$DOTNET" build tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj \
+  -c Release --no-restore --no-incremental -v:minimal >"$SCRATCH/final-controls-build.log" 2>&1
 "$DOTNET" build tests/Maui.Tizen.Controls.ConsumerCompile/Maui.Tizen.Controls.ConsumerCompile.csproj \
   -c Release --no-restore --no-incremental -v:minimal >"$SCRATCH/final-consumer-build.log" 2>&1
 
@@ -297,11 +300,16 @@ fi
 "$DOTNET" test tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj \
   -c Release --no-build --filter 'FullyQualifiedName~MapperParityTests.ParityManifestMatchesSource' \
   --logger 'console;verbosity=minimal' >"$SCRATCH/final-source-test.log" 2>&1
+"$DOTNET" test tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj \
+  -c Release --no-build --filter 'FullyQualifiedName~TapCountChangesAfterAttachmentKeepTheNativeConfiguration' \
+  --logger 'console;verbosity=minimal' >"$SCRATCH/final-controls-test.log" 2>&1
 
 CORE_ASSEMBLY="$REPO_ROOT/artifacts/bin/Maui.Tizen.Core.UnitTests/Release/net11.0/Maui.Tizen.Core.UnitTests.dll"
 SOURCE_ASSEMBLY="$REPO_ROOT/artifacts/bin/Maui.Tizen.SourceTests/Release/net11.0/Maui.Tizen.SourceTests.dll"
+CONTROLS_ASSEMBLY="$REPO_ROOT/artifacts/bin/Maui.Tizen.Controls.UnitTests/Release/net11.0/Maui.Tizen.Controls.UnitTests.dll"
 test -f "$CORE_ASSEMBLY"
 test -f "$SOURCE_ASSEMBLY"
+test -f "$CONTROLS_ASSEMBLY"
 
 if find src tests/Maui.Tizen.Core.UnitTests -name '*.cs' -newer "$CORE_ASSEMBLY" -print -quit | grep -q .; then
   echo "Core test output is older than restored source." >&2
@@ -309,6 +317,10 @@ if find src tests/Maui.Tizen.Core.UnitTests -name '*.cs' -newer "$CORE_ASSEMBLY"
 fi
 if find tests/Maui.Tizen.SourceTests eng/Maui.Tizen.Core.Sources.props -newer "$SOURCE_ASSEMBLY" -print -quit | grep -q .; then
   echo "Source-test output is older than restored inputs." >&2
+  exit 1
+fi
+if find src/Maui.Tizen.Controls/Core/Platform tests/Controls.UnitTests -name '*.cs' -newer "$CONTROLS_ASSEMBLY" -print -quit | grep -q .; then
+  echo "Controls test output is older than restored source." >&2
   exit 1
 fi
 

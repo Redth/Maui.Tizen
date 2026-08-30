@@ -4,6 +4,8 @@ using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Hosting;
+using Microsoft.Maui.Controls.Internals;
+using Microsoft.Maui.Controls.Platform;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Hosting;
 using Microsoft.Maui.Platforms.Tizen.Controls;
@@ -165,6 +167,41 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			Assert.Single(methods);
 			Assert.Equal(typeof(TizenControlsMauiAppBuilderExtensions), methods[0].DeclaringType);
+		}
+
+		[Fact]
+		public void UnifiedControlsStartupRegistersPresentationServicesExactlyOnce()
+		{
+			var builder = MauiApp.CreateBuilder();
+			builder.UseMauiAppTizenControls<ControlsApp>();
+
+			Assert.Single(builder.Services, service => service.ServiceType == typeof(IAlertManager));
+			Assert.Single(builder.Services, service => service.ServiceType == typeof(IGesturePlatformManagerFactory));
+			Assert.Single(builder.Services, service => service.ServiceType == typeof(IModalNavigationPlatformFactory));
+
+			Assert.Equal(
+				typeof(TizenAlertManager),
+				Assert.Single(builder.Services, service => service.ServiceType == typeof(IAlertManager)).ImplementationType);
+			Assert.Equal(
+				typeof(TizenGesturePlatformManagerFactory),
+				Assert.Single(builder.Services, service => service.ServiceType == typeof(IGesturePlatformManagerFactory)).ImplementationType);
+			Assert.Equal(
+				typeof(TizenModalNavigationPlatformFactory),
+				Assert.Single(builder.Services, service => service.ServiceType == typeof(IModalNavigationPlatformFactory)).ImplementationType);
+		}
+
+		[Fact]
+		public void ReapplyingUnifiedControlsStartupDoesNotDuplicatePresentationServices()
+		{
+			var builder = MauiApp.CreateBuilder();
+			builder.UseMauiApp<ControlsApp>();
+
+			builder.ConfigureTizenControls();
+			builder.ConfigureTizenControls();
+
+			Assert.Single(builder.Services, service => service.ServiceType == typeof(IAlertManager));
+			Assert.Single(builder.Services, service => service.ServiceType == typeof(IGesturePlatformManagerFactory));
+			Assert.Single(builder.Services, service => service.ServiceType == typeof(IModalNavigationPlatformFactory));
 		}
 
 		[Fact]

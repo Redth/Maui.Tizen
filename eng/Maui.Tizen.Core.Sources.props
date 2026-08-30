@@ -181,6 +181,20 @@
   </ItemGroup>
 
   <!--
+    Alerts, gestures and the provisional modal adapter are Controls-owned sources. Keep this
+    deterministic list shared by the shipping project and its API15 compile lane so neither can
+    silently omit a platform adapter that the other accepts.
+  -->
+  <ItemGroup Label="Controls presentation sources">
+    <MauiTizenControlsPresentationPortableCompile Include="$(MauiTizenControlsDir)Core/Platform/Alerts/*.cs" />
+    <MauiTizenControlsPresentationPortableCompile Include="$(MauiTizenControlsDir)Core/Platform/Gestures/*.cs" />
+    <MauiTizenControlsPresentationPortableCompile Include="$(MauiTizenControlsDir)Core/Platform/Modal/*.cs" />
+    <MauiTizenControlsPresentationPortableCompile Include="$(MauiTizenControlsDir)Core/Platform/TizenControlsServiceCollectionExtensions.cs" />
+    <MauiTizenControlsPresentationNuiCompile Include="$(MauiTizenControlsDir)Core/Platform/Nui/*.cs" />
+    <MauiTizenControlsPresentationCompile Include="@(MauiTizenControlsPresentationPortableCompile);@(MauiTizenControlsPresentationNuiCompile)" />
+  </ItemGroup>
+
+  <!--
     Sample head sources. Included in the compile-validation lane so the sample's managed code is
     type-checked against real TizenFX even though the sample itself cannot be packaged without the
     Samsung workload.

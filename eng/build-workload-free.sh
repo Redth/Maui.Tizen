@@ -153,6 +153,7 @@ WORKLOAD_FREE_PROJECTS=(
   "tests/Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj"
   "tests/Maui.Tizen.Controls.ConsumerCompile/Maui.Tizen.Controls.ConsumerCompile.csproj"
   "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj"
+  "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj"
   "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj"
 
   # Essentials verification lanes, mirroring the pair above:
@@ -241,6 +242,7 @@ info "Repository invariant tests"
 if [[ $BUILD_OK -eq 1 ]]; then
   check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
   check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
+  check "controls presentation tests" "$DOTNET" test tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj --no-build -c Release
   # Essentials behaviour tests, run against the workload-free host verification harness
   # (src/Maui.Tizen.Essentials.HostVerification), which compiles the same sources the Tizen
   # package will. Anything that P/Invokes into Tizen is out of their reach and is classified

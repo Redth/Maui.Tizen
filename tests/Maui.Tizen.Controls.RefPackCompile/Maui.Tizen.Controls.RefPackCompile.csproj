@@ -28,7 +28,7 @@
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
-    <NoWarn>$(NoWarn);CS1591;NU1701</NoWarn>
+    <NoWarn>$(NoWarn);CS1591;NU1701;CA1416</NoWarn>
 
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
 
@@ -79,7 +79,7 @@
   <Import Project="$(RepositoryRoot)eng/targets/TizenRefPack.targets" />
 
   <ItemGroup>
-    <Compile Include="@(MauiTizenControlsCompile);@(MauiTizenWaveBControlsCompile);@(MauiTizenWaveCAdapterCompile);@(MauiTizenWaveCPlatformCompile);@(MauiTizenWaveCCompile)" LinkBase="Controls" />
+    <Compile Include="@(MauiTizenControlsCompile);@(MauiTizenControlsPresentationCompile);@(MauiTizenWaveBControlsCompile);@(MauiTizenWaveCAdapterCompile);@(MauiTizenWaveCPlatformCompile);@(MauiTizenWaveCCompile)" LinkBase="Controls" />
   </ItemGroup>
 
 </Project>
