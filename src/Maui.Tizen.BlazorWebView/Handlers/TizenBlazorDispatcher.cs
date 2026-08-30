@@ -20,10 +20,50 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 	{
 		internal sealed class OperationCapture : IDisposable
 		{
+			internal sealed class Reservation
+			{
+				private readonly OperationCapture _owner;
+				private int _completed;
+
+				public Reservation(OperationCapture owner) => _owner = owner;
+
+				public void Attach(Task operation)
+				{
+					if (Interlocked.Exchange(ref _completed, 1) != 0)
+						return;
+
+					if (operation.IsCompleted)
+					{
+						_owner.Complete(operation);
+						return;
+					}
+
+					_ = operation.ContinueWith(
+						static (completed, state) =>
+							((OperationCapture)state!).Complete(completed),
+						_owner,
+						CancellationToken.None,
+						TaskContinuationOptions.ExecuteSynchronously,
+						TaskScheduler.Default);
+				}
+
+				public void Fail(Exception exception)
+				{
+					if (Interlocked.Exchange(ref _completed, 1) == 0)
+						_owner.Complete(exception);
+				}
+			}
+
 			private readonly object _gate = new();
 			private readonly TizenBlazorDispatcher _owner;
 			private readonly OperationCapture? _previous;
-			private readonly List<Task> _operations = new();
+
+			private List<Exception>? _failures;
+			private TaskCompletionSource<object?>? _drained;
+			private Task? _drainTask;
+			private int _activeOperations;
+			private bool _draining;
+			private bool _sealed;
 
 			public OperationCapture(
 				TizenBlazorDispatcher owner,
@@ -33,50 +73,24 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 				_previous = previous;
 			}
 
-			public async Task DrainAsync()
+			public Task DrainAsync()
 			{
-				var drained = 0;
-				List<Exception>? failures = null;
-				while (true)
+				lock (_gate)
 				{
-					Task[] operations;
-					lock (_gate)
-					{
-						if (drained == _operations.Count)
-							break;
+					if (_drainTask is not null)
+						return _drainTask;
 
-						operations = _operations.GetRange(
-							drained,
-							_operations.Count - drained).ToArray();
-						drained = _operations.Count;
+					_draining = true;
+					if (_activeOperations == 0)
+					{
+						_sealed = true;
+						return _drainTask = CreateTerminalTask();
 					}
 
-					try
-					{
-						await Task.WhenAll(operations).ConfigureAwait(false);
-					}
-					catch
-					{
-						foreach (var operation in operations)
-						{
-							if (operation.IsFaulted)
-							{
-								(failures ??= new()).AddRange(
-									operation.Exception!.Flatten().InnerExceptions);
-							}
-							else if (operation.IsCanceled)
-							{
-								(failures ??= new()).Add(new TaskCanceledException(operation));
-							}
-						}
-					}
+					_drained = new TaskCompletionSource<object?>(
+						TaskCreationOptions.RunContinuationsAsynchronously);
+					return _drainTask = _drained.Task;
 				}
-
-				if (failures is { Count: 1 })
-					throw failures[0];
-
-				if (failures is not null)
-					throw new AggregateException("One or more captured dispatcher operations failed.", failures);
 			}
 
 			public void Dispose()
@@ -85,12 +99,77 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 					_owner._operationCapture.Value = _previous;
 			}
 
-			internal void Track(Task operation)
+			internal Reservation? Reserve()
 			{
 				lock (_gate)
 				{
-					_operations.Add(operation);
+					if (_sealed)
+						return null;
+
+					_activeOperations++;
+					return new Reservation(this);
 				}
+			}
+
+			private void Complete(Task operation)
+			{
+				lock (_gate)
+				{
+					if (operation.IsFaulted)
+					{
+						(_failures ??= new()).AddRange(
+							operation.Exception!.Flatten().InnerExceptions);
+					}
+					else if (operation.IsCanceled)
+					{
+						(_failures ??= new()).Add(new TaskCanceledException(operation));
+					}
+
+					CompleteReservation();
+				}
+			}
+
+			private void Complete(Exception exception)
+			{
+				lock (_gate)
+				{
+					(_failures ??= new()).Add(exception);
+					CompleteReservation();
+				}
+			}
+
+			private void CompleteReservation()
+			{
+				_activeOperations--;
+				if (!_draining || _activeOperations != 0)
+					return;
+
+				_sealed = true;
+				if (_failures is { Count: 1 })
+					_drained!.TrySetException(_failures[0]);
+				else if (_failures is not null)
+					_drained!.TrySetException(
+						new AggregateException(
+							"One or more captured dispatcher operations failed.",
+							_failures));
+				else
+					_drained!.TrySetResult(null);
+			}
+
+			private Task CreateTerminalTask()
+			{
+				if (_failures is { Count: 1 })
+					return Task.FromException(_failures[0]);
+
+				if (_failures is not null)
+				{
+					return Task.FromException(
+						new AggregateException(
+							"One or more captured dispatcher operations failed.",
+							_failures));
+				}
+
+				return Task.CompletedTask;
 			}
 		}
 
@@ -104,19 +183,17 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 		public override bool CheckAccess() => !_dispatcher.IsDispatchRequired;
 
-		public override Task InvokeAsync(Action workItem) => _dispatcher.DispatchAsync(workItem);
+		public override Task InvokeAsync(Action workItem) =>
+			Track(() => _dispatcher.DispatchAsync(workItem));
 
 		public override Task InvokeAsync(Func<Task> workItem) =>
-			Track(_dispatcher.DispatchAsync(workItem));
+			Track(() => _dispatcher.DispatchAsync(workItem));
 
-		public override Task<TResult> InvokeAsync<TResult>(Func<TResult> workItem) => _dispatcher.DispatchAsync(workItem);
+		public override Task<TResult> InvokeAsync<TResult>(Func<TResult> workItem) =>
+			Track(() => _dispatcher.DispatchAsync(workItem));
 
-		public override Task<TResult> InvokeAsync<TResult>(Func<Task<TResult>> workItem)
-		{
-			var operation = _dispatcher.DispatchAsync(workItem);
-			Track(operation);
-			return operation;
-		}
+		public override Task<TResult> InvokeAsync<TResult>(Func<Task<TResult>> workItem) =>
+			Track(() => _dispatcher.DispatchAsync(workItem));
 
 		internal OperationCapture BeginOperationCapture()
 		{
@@ -125,10 +202,44 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			return capture;
 		}
 
-		private Task Track(Task operation)
+		private Task Track(Func<Task> dispatch)
 		{
-			_operationCapture.Value?.Track(operation);
-			return operation;
+			var capture = _operationCapture.Value;
+			var reservation = capture?.Reserve();
+			if (capture is not null && reservation is null)
+				return Task.FromCanceled(new CancellationToken(canceled: true));
+
+			try
+			{
+				var operation = dispatch();
+				reservation?.Attach(operation);
+				return operation;
+			}
+			catch (Exception ex)
+			{
+				reservation?.Fail(ex);
+				throw;
+			}
+		}
+
+		private Task<TResult> Track<TResult>(Func<Task<TResult>> dispatch)
+		{
+			var capture = _operationCapture.Value;
+			var reservation = capture?.Reserve();
+			if (capture is not null && reservation is null)
+				return Task.FromCanceled<TResult>(new CancellationToken(canceled: true));
+
+			try
+			{
+				var operation = dispatch();
+				reservation?.Attach(operation);
+				return operation;
+			}
+			catch (Exception ex)
+			{
+				reservation?.Fail(ex);
+				throw;
+			}
 		}
 	}
 }

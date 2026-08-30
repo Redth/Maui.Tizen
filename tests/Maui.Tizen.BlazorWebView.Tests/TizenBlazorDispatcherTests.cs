@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Maui.Dispatching;
 using Xunit;
@@ -76,6 +77,34 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			var failure = await Assert.ThrowsAsync<InvalidOperationException>(
 				() => drain);
 			Assert.Same(expected, failure);
+		}
+
+		[Fact]
+		public async Task RegistrationFromAStaleCapturedContextIsRejectedAfterDrainSeals()
+		{
+			var dispatcher = new TizenBlazorDispatcher(new InlineDispatcher());
+			var capture = dispatcher.BeginOperationCapture();
+			var capturedContext = ExecutionContext.Capture();
+			capture.Dispose();
+			await capture.DrainAsync();
+			var invoked = false;
+			Task? lateOperation = null;
+
+			ExecutionContext.Run(
+				capturedContext!,
+				_ =>
+				{
+					lateOperation = dispatcher.InvokeAsync(() =>
+					{
+						invoked = true;
+						return Task.CompletedTask;
+					});
+				},
+				null);
+
+			Assert.NotNull(lateOperation);
+			await Assert.ThrowsAnyAsync<OperationCanceledException>(() => lateOperation!);
+			Assert.False(invoked);
 		}
 
 		private sealed class InlineDispatcher : IDispatcher

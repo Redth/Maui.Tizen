@@ -52,5 +52,48 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			Assert.False(accepted);
 			Assert.False(invoked);
 		}
+
+		[Fact]
+		public async Task FollowUpTrafficCannotExtendAdmissionAfterTheOriginalCohortCompletes()
+		{
+			var lifetime = new InboundMessageLifetime();
+			var originalStarted = new TaskCompletionSource<object?>(
+				TaskCreationOptions.RunContinuationsAsynchronously);
+			var releaseOriginal = new TaskCompletionSource<object?>(
+				TaskCreationOptions.RunContinuationsAsynchronously);
+			var releaseFollowUp = new TaskCompletionSource<object?>(
+				TaskCreationOptions.RunContinuationsAsynchronously);
+			var original = lifetime.TryRunAsync(async () =>
+			{
+				originalStarted.TrySetResult(null);
+				await releaseOriginal.Task;
+				return true;
+			});
+			await originalStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+			var drain = lifetime.DrainAsync();
+
+			var followUp = lifetime.TryRunAsync(async () =>
+			{
+				await releaseFollowUp.Task;
+				return true;
+			});
+			releaseOriginal.TrySetResult(null);
+			Assert.True(await original);
+
+			var invoked = false;
+			var late = await lifetime.TryRunAsync(() =>
+			{
+				invoked = true;
+				return Task.FromResult(true);
+			});
+
+			Assert.False(late);
+			Assert.False(invoked);
+			Assert.False(drain.IsCompleted);
+
+			releaseFollowUp.TrySetResult(null);
+			Assert.True(await followUp);
+			await drain.WaitAsync(TimeSpan.FromSeconds(10));
+		}
 	}
 }

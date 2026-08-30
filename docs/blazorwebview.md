@@ -126,8 +126,9 @@ Everything above the native boundary was ported as-is from `dotnet/maui` `net11.
   late renderer acknowledgement can finish retirement without being delivered to a replacement manager;
   the Tizen Blazor dispatcher captures the actual nested asynchronous IPC task, and accepted message and
   public-dispatch work remains leased until that task completes ahead of manager disposal. Message
-  retirement is two-phase: generation-matched completion messages remain admissible while an accepted
-  IPC operation is active, then admission closes when the final operation drains.
+  retirement is two-phase: generation-matched completion messages remain admissible while the
+  pre-retirement IPC cohort is active; admission then seals atomically while already-admitted follow-up
+  work finishes.
 - **`WebResourceRequested` is not raised.** `IBlazorWebView` inherits it from
   `IWebRequestInterceptingWebView`, but `WebResourceRequestedEventArgs` has only `internal` constructors
   and no Tizen shape, so a third-party backend cannot construct the argument. Static content is still

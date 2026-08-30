@@ -10,13 +10,14 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 		private bool _draining;
 		private bool _retired;
 		private int _activeMessages;
+		private int _originalMessagesRemaining;
 		private TaskCompletionSource<object?>? _drained;
 
 		public async Task<bool> TryRunAsync(Func<Task<bool>> operation)
 		{
 			ArgumentNullException.ThrowIfNull(operation);
 
-			if (!TryEnter())
+			if (!TryEnter(out var original))
 				return false;
 
 			try
@@ -25,7 +26,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 			}
 			finally
 			{
-				Exit();
+				Exit(original);
 			}
 		}
 
@@ -33,7 +34,11 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 		{
 			lock (_gate)
 			{
+				if (_draining)
+					return _activeMessages == 0 ? Task.CompletedTask : _drained!.Task;
+
 				_draining = true;
+				_originalMessagesRemaining = _activeMessages;
 				if (_activeMessages == 0)
 				{
 					_retired = true;
@@ -46,32 +51,40 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 			}
 		}
 
-		private bool TryEnter()
+		private bool TryEnter(out bool original)
 		{
 			lock (_gate)
 			{
+				original = false;
 				if (_retired)
 					return false;
 
 				// While an accepted message is still active, admit generation-matched completion
-				// messages needed to let it finish. The final active exit closes admission.
-				if (_draining && _activeMessages == 0)
+				// messages needed to let it finish. Once the pre-drain cohort completes, seal
+				// admission even while already-admitted follow-up messages are still finishing.
+				if (_draining && _originalMessagesRemaining == 0)
 				{
-					_retired = true;
 					return false;
 				}
 
+				original = !_draining;
 				_activeMessages++;
 				return true;
 			}
 		}
 
-		private void Exit()
+		private void Exit(bool original)
 		{
 			TaskCompletionSource<object?>? drained = null;
 			lock (_gate)
 			{
 				_activeMessages--;
+				if (_draining && original)
+					_originalMessagesRemaining--;
+
+				if (_draining && _originalMessagesRemaining == 0)
+					_retired = true;
+
 				if (_draining && _activeMessages == 0)
 				{
 					_retired = true;
