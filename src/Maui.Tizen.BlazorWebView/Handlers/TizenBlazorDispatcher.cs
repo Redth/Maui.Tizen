@@ -244,8 +244,13 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 		private Task Track(Func<Task> dispatch)
 		{
-			if (_operationCaptureSuppression.Value?.IsActive == true)
-				return dispatch();
+			var suppression = _operationCaptureSuppression.Value;
+			if (suppression is not null)
+			{
+				return suppression.IsActive
+					? dispatch()
+					: _lateOperations.RunAsync(dispatch);
+			}
 
 			var capture = _operationCapture.Value;
 			var reservation = capture?.Reserve();
@@ -267,8 +272,13 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 		private Task<TResult> Track<TResult>(Func<Task<TResult>> dispatch)
 		{
-			if (_operationCaptureSuppression.Value?.IsActive == true)
-				return dispatch();
+			var suppression = _operationCaptureSuppression.Value;
+			if (suppression is not null)
+			{
+				return suppression.IsActive
+					? dispatch()
+					: _lateOperations.RunAsync(dispatch);
+			}
 
 			var capture = _operationCapture.Value;
 			var reservation = capture?.Reserve();

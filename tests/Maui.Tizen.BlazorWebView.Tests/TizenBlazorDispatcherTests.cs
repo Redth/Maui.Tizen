@@ -222,6 +222,44 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			Assert.False(delayedInvoked);
 		}
 
+		[Fact]
+		public async Task ExpiredCleanupAuthorityIsRejectedWithoutAnOperationCapture()
+		{
+			var dispatcher = new TizenBlazorDispatcher(new InlineDispatcher());
+			await dispatcher.RetireAsync();
+			var cleanupInvoked = false;
+			ExecutionContext? delayedContext;
+
+			using (dispatcher.SuppressOperationCapture())
+			{
+				await dispatcher.InvokeAsync(() =>
+				{
+					cleanupInvoked = true;
+					return Task.CompletedTask;
+				});
+				delayedContext = ExecutionContext.Capture();
+			}
+
+			Assert.True(cleanupInvoked);
+			var delayedInvoked = false;
+			Task? delayed = null;
+			ExecutionContext.Run(
+				delayedContext!,
+				_ =>
+				{
+					delayed = dispatcher.InvokeAsync(() =>
+					{
+						delayedInvoked = true;
+						return Task.CompletedTask;
+					});
+				},
+				null);
+
+			Assert.NotNull(delayed);
+			await Assert.ThrowsAnyAsync<OperationCanceledException>(() => delayed!);
+			Assert.False(delayedInvoked);
+		}
+
 		private sealed class InlineDispatcher : IDispatcher
 		{
 			public bool IsDispatchRequired => false;
