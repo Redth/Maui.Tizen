@@ -76,7 +76,7 @@ internal class StubViewHandler : IViewHandler, IDisposable
 	}
 }
 
-internal sealed class DisconnectClearsPlatformViewHandler : IViewHandler
+internal class DisconnectClearsPlatformViewHandler : IViewHandler
 {
 	readonly Func<bool>? _isPlatformViewDisposed;
 
@@ -92,7 +92,7 @@ internal sealed class DisconnectClearsPlatformViewHandler : IViewHandler
 
 	public object? ContainerView { get; set; }
 
-	public object? PlatformView { get; private set; }
+	public object? PlatformView { get; protected set; }
 
 	public IView? VirtualView { get; private set; }
 
@@ -106,7 +106,7 @@ internal sealed class DisconnectClearsPlatformViewHandler : IViewHandler
 
 	public Exception? SetVirtualViewFailure { get; set; }
 
-	public void DisconnectHandler()
+	public virtual void DisconnectHandler()
 	{
 		DisconnectCount++;
 		PlatformWasDisposedWhenDisconnected = _isPlatformViewDisposed?.Invoke();
@@ -137,6 +137,24 @@ internal sealed class DisconnectClearsPlatformViewHandler : IViewHandler
 
 	public void UpdateValue(string property)
 	{
+	}
+}
+
+internal sealed class DisposableDisconnectClearsPlatformViewHandler
+	: DisconnectClearsPlatformViewHandler, IDisposable
+{
+	public DisposableDisconnectClearsPlatformViewHandler(IDisposable platformView)
+		: base(platformView)
+	{
+	}
+
+	public int DisposeCount { get; private set; }
+
+	public void Dispose()
+	{
+		DisposeCount++;
+		(PlatformView as IDisposable)?.Dispose();
+		DisconnectHandler();
 	}
 }
 

@@ -717,6 +717,35 @@ public class TizenModalNavigationPlatformTests
 		Assert.Same(replacement, ((Element)page).Handler);
 	}
 
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void ReplacedDisposableHandlerReleasesOrphanedCapturedViewExactlyOnce(
+		bool platformViewDisposed)
+	{
+		var nativeView = new FakeModalPageRealizer.FakePlatformView();
+		var oldHandler = new DisposableDisconnectClearsPlatformViewHandler(nativeView);
+		var target = StubMauiContext.WithHandlers(new StubHandlersFactory(() => oldHandler));
+		var page = new ContentPage();
+		var realizer = new TizenModalPageRealizer();
+		var platformView = realizer.Realize(page, target);
+
+		oldHandler.DisconnectHandler();
+		var replacement = new StubViewHandler(page, mauiContext: target);
+		((Element)page).Handler = replacement;
+
+		if (platformViewDisposed)
+		{
+			nativeView.Dispose();
+		}
+
+		realizer.Release(page, platformView, platformViewDisposed);
+
+		Assert.Equal(1, oldHandler.DisposeCount);
+		Assert.Equal(1, nativeView.DisposeCount);
+		Assert.Same(replacement, ((Element)page).Handler);
+	}
+
 	[Fact]
 	public void ReleaseDisposesTheCapturedLiveViewBeforeClearingThePageHandler()
 	{

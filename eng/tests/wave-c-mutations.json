@@ -1354,5 +1354,18 @@
         "replace": "shownBehindLease = s_shownBehindPage.Acquire(_stack);\n\t\t\t\tshownBehindLease.Dispose();"
       }
     ]
+  },
+  {
+    "id": "modal-replaced-disposable-orphaned-view",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Modal/TizenModalNavigationPlatform.cs",
+    "filter": "FullyQualifiedName~ReplacedDisposableHandlerReleasesOrphanedCapturedViewExactlyOnce",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "ReplacedDisposableHandlerReleasesOrphanedCapturedViewExactlyOnce",
+    "replacements": [
+      {
+        "search": "handlerOwnsCapturedView = ReferenceEquals(handler.PlatformView, platformView);",
+        "replace": "handlerOwnsCapturedView = true;"
+      }
+    ]
   }
 ]

@@ -121,6 +121,11 @@ Framework-owned `Dispose` attempts every tracked cleanup and reports failures th
 configured logger (or diagnostics fallback) without throwing into `Window.Destroying` or handler
 replacement. Caller-owned push/pop operations still surface their own transition and cleanup
 failures.
+
+Page release also distinguishes handler ownership from native-view ownership. If a replaced
+`IDisposable` handler no longer references the captured platform view, the handler is disposed
+first and the orphaned captured view is then released independently. A stack-disposed flag prevents
+double release, and a newer `Page.Handler` is never cleared.
   Keeping them would fire the page lifecycle events twice.
 - `_platformModalPages.Add/Remove` — the framework owns the platform stack and updates it *before*
   awaiting the platform, which is why `PushModalAsync` receives a page that is already on

@@ -126,8 +126,75 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 
 			List<Exception>? failures = null;
+			var handlerOwnsCapturedView = true;
 
-			if (platformViewDisposed)
+			try
+			{
+				// Capture ownership before cleanup. A handler that was already disconnected can
+				// have PlatformView == null even though this release still owns the old view.
+				handlerOwnsCapturedView = ReferenceEquals(handler.PlatformView, platformView);
+			}
+			catch (Exception ex)
+			{
+				(failures ??= new()).Add(ex);
+			}
+
+			if (handler is IDisposable disposableHandler)
+			{
+				if (platformViewDisposed && handlerOwnsCapturedView)
+				{
+					try
+					{
+						// The native stack already disposed this view. Disconnect rather than
+						// asking IDisposable.Dispose to release the same native owner again.
+						handler.DisconnectHandler();
+					}
+					catch (Exception ex)
+					{
+						(failures ??= new()).Add(ex);
+					}
+				}
+				else
+				{
+					try
+					{
+						// IDisposable handlers own their own ordering while they still reference
+						// the captured platform view.
+						disposableHandler.Dispose();
+					}
+					catch (Exception ex)
+					{
+						(failures ??= new()).Add(ex);
+					}
+				}
+
+				if (!platformViewDisposed && !handlerOwnsCapturedView)
+				{
+					try
+					{
+						// The old handler no longer owns the captured view, so its Dispose cannot
+						// release it. Release that orphan independently after handler cleanup.
+						(platformView as IDisposable)?.Dispose();
+					}
+					catch (Exception ex)
+					{
+						(failures ??= new()).Add(ex);
+					}
+				}
+
+				if (ReferenceEquals(page.Handler, handler))
+				{
+					try
+					{
+						((Element)page).Handler = null;
+					}
+					catch (Exception ex)
+					{
+						(failures ??= new()).Add(ex);
+					}
+				}
+			}
+			else if (platformViewDisposed)
 			{
 				if (ReferenceEquals(page.Handler, handler))
 				{
@@ -145,31 +212,6 @@ namespace Microsoft.Maui.Platforms.Tizen
 					try
 					{
 						handler.DisconnectHandler();
-					}
-					catch (Exception ex)
-					{
-						(failures ??= new()).Add(ex);
-					}
-				}
-			}
-			else if (handler is IDisposable disposableHandler)
-			{
-				try
-				{
-					// Keep page.Handler intact while the handler tears down its live platform
-					// view. MAUI handlers can read or clear PlatformView during Dispose.
-					disposableHandler.Dispose();
-				}
-				catch (Exception ex)
-				{
-					(failures ??= new()).Add(ex);
-				}
-
-				if (ReferenceEquals(page.Handler, handler))
-				{
-					try
-					{
-						((Element)page).Handler = null;
 					}
 					catch (Exception ex)
 					{
