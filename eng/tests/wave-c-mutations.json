@@ -1356,19 +1356,6 @@
     ]
   },
   {
-    "id": "modal-replaced-disposable-orphaned-view",
-    "file": "src/Maui.Tizen.Controls/Core/Platform/Modal/TizenModalNavigationPlatform.cs",
-    "filter": "FullyQualifiedName~LiveDisposableContainerHandlerOwnsItsDistinctCapturedContainer",
-    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
-    "expected": "LiveDisposableContainerHandlerOwnsItsDistinctCapturedContainer",
-    "replacements": [
-      {
-        "search": "handlerOwnsCapturedView =\n\t\t\t\t\tReferenceEquals(handler.PlatformView, platformView)\n\t\t\t\t\t|| (handler is IViewHandler viewHandler\n\t\t\t\t\t\t&& ReferenceEquals(viewHandler.ContainerView, platformView));",
-        "replace": "handlerOwnsCapturedView =\n\t\t\t\t\tReferenceEquals(handler.PlatformView, platformView);"
-      }
-    ]
-  },
-  {
     "id": "modal-container-handler-lifetime-required",
     "file": "src/Maui.Tizen.Controls/Core/Platform/Modal/TizenModalNavigationPlatform.cs",
     "filter": "FullyQualifiedName~DisposableDistinctContainerRequiresStackDisposedLifetimeOwnership",
@@ -1389,8 +1376,8 @@
     "expected": "StackDisposedContainerIsNotDisposedAgainWhileOtherHandlerResourcesAreReleased",
     "replacements": [
       {
-        "search": "if (handler is ITizenModalHandlerLifetime lifetime)",
-        "replace": "if (false && handler is ITizenModalHandlerLifetime lifetime)"
+        "search": "if (lifetimeReleaseRequired)",
+        "replace": "if (false && lifetimeReleaseRequired)"
       }
     ]
   },
@@ -1482,6 +1469,45 @@
       {
         "search": "if (lifetimeOwnsPageAssociation && ReferenceEquals(page.Handler, handler))",
         "replace": "if (false && lifetimeOwnsPageAssociation && ReferenceEquals(page.Handler, handler))"
+      }
+    ]
+  },
+  {
+    "id": "modal-recorded-container-lifetime-dispatch",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Modal/TizenModalNavigationPlatform.cs",
+    "filter": "FullyQualifiedName~StackDisposedDistinctContainerUsesRecordedOwnershipAfterHandlerDisconnects",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "StackDisposedDistinctContainerUsesRecordedOwnershipAfterHandlerDisconnects",
+    "replacements": [
+      {
+        "search": "var lifetimeReleaseRequired = platformViewDisposed && recordedDistinctContainer;",
+        "replace": "var lifetimeReleaseRequired = platformViewDisposed\n\t\t\t\t&& recordedDistinctContainer\n\t\t\t\t&& false;"
+      }
+    ]
+  },
+  {
+    "id": "modal-live-recorded-container-ownership",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Modal/TizenModalNavigationPlatform.cs",
+    "filter": "FullyQualifiedName~LiveDistinctContainerUsesRecordedOwnershipAfterHandlerDisconnects",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "LiveDistinctContainerUsesRecordedOwnershipAfterHandlerDisconnects",
+    "replacements": [
+      {
+        "search": "handlerOwnsCapturedView |= recordedDistinctContainer;",
+        "replace": "// mutation: disconnected distinct-container ownership is forgotten"
+      }
+    ]
+  },
+  {
+    "id": "modal-push-retries-pending-release",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Modal/TizenModalNavigationPlatform.cs",
+    "filter": "FullyQualifiedName~FailedPushCleanupIsRetriedBeforeTheFrameworkPushesTheModalAgain",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "FailedPushCleanupIsRetriedBeforeTheFrameworkPushesTheModalAgain",
+    "replacements": [
+      {
+        "search": "var retryFailure = RetryPendingRelease(existing);",
+        "replace": "var retryFailure = (Exception?)null;"
       }
     ]
   }

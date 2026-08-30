@@ -166,6 +166,7 @@ internal sealed class NativeFaithfulDisposableContainerHandler :
 	ITizenModalHandlerLifetime
 {
 	readonly IDisposable _platformResource;
+	readonly IDisposable _containerResource;
 	bool _disposed;
 
 	public NativeFaithfulDisposableContainerHandler(
@@ -173,6 +174,7 @@ internal sealed class NativeFaithfulDisposableContainerHandler :
 		IDisposable containerView)
 	{
 		_platformResource = platformView;
+		_containerResource = containerView;
 		PlatformView = platformView;
 		ContainerView = containerView;
 	}
@@ -203,10 +205,14 @@ internal sealed class NativeFaithfulDisposableContainerHandler :
 
 	public bool PreservePageAssociationAfterPlatformViewDisposed { get; set; }
 
+	public bool ClearContainerOnDisconnect { get; set; }
+
 	public void DisconnectHandler()
 	{
 		DisconnectCount++;
 		PlatformView = null;
+		if (ClearContainerOnDisconnect)
+			ContainerView = null;
 	}
 
 	public void Dispose()
@@ -217,7 +223,7 @@ internal sealed class NativeFaithfulDisposableContainerHandler :
 		_disposed = true;
 		DisposeCount++;
 		_platformResource.Dispose();
-		(ContainerView as IDisposable)?.Dispose();
+		_containerResource.Dispose();
 		DisconnectHandler();
 	}
 
@@ -237,7 +243,7 @@ internal sealed class NativeFaithfulDisposableContainerHandler :
 			return;
 		}
 
-		if (!ReferenceEquals(ContainerView, platformView))
+		if (!ReferenceEquals(_containerResource, platformView))
 			throw new InvalidOperationException("The externally disposed view is not this handler's container.");
 
 		_disposed = true;

@@ -143,6 +143,8 @@ Both ownership layers commit release only after cleanup succeeds. The realizer r
 `Owned`/`Releasing`/`Released` tombstone for the captured view, and the modal platform retains its
 tracked page until the realizer returns successfully. Reentrant release is a no-op while cleanup is
 active; a failure returns ownership to the retryable state rather than forgetting the handler.
+If cleanup after a failed native push remains pending, the next framework reconciliation push
+drains that absent view's release first and only then creates and presents a fresh handler.
 
 - `_platformModalPages.Add/Remove` — the framework owns the platform stack and updates it *before*
   awaiting the platform, which is why `PushModalAsync` receives a page that is already on

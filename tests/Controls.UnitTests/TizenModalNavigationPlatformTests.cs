@@ -225,6 +225,44 @@ public class TizenModalNavigationPlatformTests
 	}
 
 	[Fact]
+	public async Task FailedPushCleanupIsRetriedBeforeTheFrameworkPushesTheModalAgain()
+	{
+		var (platform, host, stack, realizer, _) = Build();
+		using var _platform = platform;
+		var modal = new ContentPage();
+		var pushFailure = new InvalidOperationException("native push failed");
+		var cleanupFailure = new InvalidOperationException("handler cleanup failed");
+		stack.PushFailure = pushFailure;
+		stack.MutateBeforePushFailure = true;
+		realizer.ReleaseFailures.Add(modal, cleanupFailure);
+		host.RecordPush(modal);
+
+		var failure = await Assert.ThrowsAsync<AggregateException>(
+			() => platform.PushModalAsync(modal, false));
+		var firstPlatformView = Assert.IsType<FakeModalPageRealizer.FakePlatformView>(
+			realizer.PlatformViewFor(modal));
+
+		Assert.Contains(pushFailure, failure.InnerExceptions);
+		Assert.Contains(cleanupFailure, failure.InnerExceptions);
+		Assert.Equal(0, stack.Count);
+		Assert.Empty(realizer.Released);
+		Assert.Single(realizer.ReleaseAttempts);
+		Assert.Equal(1, firstPlatformView.DisposeCount);
+
+		stack.PushFailure = null;
+		realizer.ReleaseFailures.Clear();
+		await platform.PushModalAsync(modal, false);
+
+		var replacementPlatformView = realizer.PlatformViewFor(modal);
+		Assert.NotSame(firstPlatformView, replacementPlatformView);
+		Assert.Same(replacementPlatformView, stack.Top);
+		Assert.Equal(2, realizer.Realized.Count);
+		Assert.Equal(2, realizer.ReleaseAttempts.Count);
+		Assert.Equal(modal, Assert.Single(realizer.Released));
+		Assert.Equal(1, firstPlatformView.DisposeCount);
+	}
+
+	[Fact]
 	public async Task BuriedModalRemovalExplicitlyDisposesThePlatformView()
 	{
 		var (platform, host, stack, realizer, _) = Build();
@@ -889,6 +927,64 @@ public class TizenModalNavigationPlatformTests
 
 		realizer.Release(page, captured, platformViewDisposed: false);
 
+		Assert.Equal(1, oldHandler.DisposeCount);
+		Assert.Equal(1, platformView.DisposeCount);
+		Assert.Equal(1, containerView.DisposeCount);
+		Assert.Same(replacement, ((Element)page).Handler);
+	}
+
+	[Fact]
+	public void LiveDistinctContainerUsesRecordedOwnershipAfterHandlerDisconnects()
+	{
+		var platformView = new FakeModalPageRealizer.FakePlatformView();
+		var containerView = new FakeModalPageRealizer.FakePlatformView();
+		var oldHandler = new NativeFaithfulDisposableContainerHandler(platformView, containerView)
+		{
+			ClearContainerOnDisconnect = true,
+		};
+		var target = StubMauiContext.WithHandlers(new StubHandlersFactory(() => oldHandler));
+		var page = new ContentPage();
+		var realizer = new TizenModalPageRealizer();
+		var captured = realizer.Realize(page, target);
+
+		oldHandler.DisconnectHandler();
+		var replacement = new StubViewHandler(page, mauiContext: target);
+		((Element)page).Handler = replacement;
+
+		realizer.Release(page, captured, platformViewDisposed: false);
+
+		Assert.Equal(1, oldHandler.DisposeCount);
+		Assert.Equal(0, oldHandler.DisposeAfterPlatformViewDisposedCount);
+		Assert.Equal(1, platformView.DisposeCount);
+		Assert.Equal(1, containerView.DisposeCount);
+		Assert.Same(replacement, ((Element)page).Handler);
+	}
+
+	[Fact]
+	public void StackDisposedDistinctContainerUsesRecordedOwnershipAfterHandlerDisconnects()
+	{
+		var platformView = new FakeModalPageRealizer.FakePlatformView();
+		var containerView = new FakeModalPageRealizer.FakePlatformView();
+		var oldHandler = new NativeFaithfulDisposableContainerHandler(platformView, containerView)
+		{
+			ClearContainerOnDisconnect = true,
+		};
+		var target = StubMauiContext.WithHandlers(new StubHandlersFactory(() => oldHandler));
+		var page = new ContentPage();
+		var realizer = new TizenModalPageRealizer();
+		var captured = realizer.Realize(page, target);
+
+		oldHandler.DisconnectHandler();
+		Assert.Null(oldHandler.PlatformView);
+		Assert.Null(oldHandler.ContainerView);
+		var replacement = new StubViewHandler(page, mauiContext: target);
+		((Element)page).Handler = replacement;
+		containerView.Dispose();
+
+		realizer.Release(page, captured, platformViewDisposed: true);
+
+		Assert.Equal(1, oldHandler.DisposeAfterPlatformViewDisposedAttemptCount);
+		Assert.Equal(1, oldHandler.DisposeAfterPlatformViewDisposedCount);
 		Assert.Equal(1, oldHandler.DisposeCount);
 		Assert.Equal(1, platformView.DisposeCount);
 		Assert.Equal(1, containerView.DisposeCount);
