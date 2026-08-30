@@ -1038,5 +1038,200 @@
         "replace": "if (!_valid || _width == width)"
       }
     ]
+  },
+  {
+    "id": "controls-modal-package-gate",
+    "file": "eng/targets/MauiControlsApiGate.targets",
+    "filter": "FullyQualifiedName~ControlsPackIsBlockedWhenPinnedMauiLacksModalContracts",
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "expected": "ControlsPackIsBlockedWhenPinnedMauiLacksModalContracts",
+    "replacements": [
+      {
+        "search": "<Error Condition=\"'$(_MauiTizenModalPublicContractsAvailable)' != 'true' AND '$(MauiTizenModalPublicContractsVerifiedAvailable)' != 'true'\"\n           Code=\"MAUITIZEN0104\"",
+        "replace": "<Error Condition=\"false\"\n           Code=\"MAUITIZEN0104\""
+      }
+    ]
+  },
+  {
+    "id": "controls-long-press-package-gate",
+    "file": "eng/targets/MauiControlsApiGate.targets",
+    "filter": "FullyQualifiedName~ControlsPackIsBlockedWhenPinnedMauiLacksLongPressSendApis",
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "expected": "ControlsPackIsBlockedWhenPinnedMauiLacksLongPressSendApis",
+    "replacements": [
+      {
+        "search": "<Error Condition=\"'$(_MauiTizenLongPressSendApisAvailable)' != 'true' AND '$(MauiTizenLongPressSendApisVerifiedAvailable)' != 'true'\"\n           Code=\"MAUITIZEN0105\"",
+        "replace": "<Error Condition=\"false\"\n           Code=\"MAUITIZEN0105\""
+      }
+    ]
+  },
+  {
+    "id": "alert-dialog-construction-completion",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Alerts/TizenAlertManagerSubscription.cs",
+    "filter": "FullyQualifiedName~DialogConstructionFailureFaultsTheExactRequestAndDoesNotWedgeTheNextOne",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "DialogConstructionFailureFaultsTheExactRequestAndDoesNotWedgeTheNextOne",
+    "replacements": [
+      {
+        "search": "catch (Exception ex)\n\t\t\t{\n\t\t\t\tcompletion.TrySetException(ex);\n\t\t\t\treturn;\n\t\t\t}\n\n\t\t\tvar teardown",
+        "replace": "catch (Exception)\n\t\t\t{\n\t\t\t\treturn;\n\t\t\t}\n\n\t\t\tvar teardown"
+      }
+    ]
+  },
+  {
+    "id": "tap-detector-configuration-snapshot",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Gestures/TizenGestureHandlers.cs",
+    "filter": "FullyQualifiedName~TapCountChangesAfterAttachmentKeepTheNativeConfiguration",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "TapCountChangesAfterAttachmentKeepTheNativeConfiguration",
+    "replacements": [
+      {
+        "search": "if (args.TapCount != _requiredTapCount)",
+        "replace": "if (args.TapCount != Recognizer.NumberOfTapsRequired)"
+      }
+    ]
+  },
+  {
+    "id": "tertiary-pointer-fabrication",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Gestures/ITizenGestureDispatcher.cs",
+    "filter": "FullyQualifiedName~Tertiary",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "Tertiary",
+    "replacements": [
+      {
+        "search": "TizenPointerButton.Tertiary => null,",
+        "replace": "TizenPointerButton.Tertiary => ButtonsMask.Primary,"
+      }
+    ]
+  },
+  {
+    "id": "gesture-clear-ownership-before-cleanup",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Gestures/TizenGestureDetector.cs",
+    "filter": "FullyQualifiedName~ManagerDisposeClearsOwnershipAndAttemptsEveryCompositeChild",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "ManagerDisposeClearsOwnershipAndAttemptsEveryCompositeChild",
+    "replacements": [
+      {
+        "search": "\t\t\t_handlers.Clear();\n\n\t\t\tvar cleanup",
+        "replace": "\t\t\t// mutation: ownership retained during throwing cleanup\n\n\t\t\tvar cleanup"
+      }
+    ]
+  },
+  {
+    "id": "gesture-construction-detector-disposal",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Gestures/TizenGestureDetector.cs",
+    "filter": "FullyQualifiedName~HandlerConstructionFailureStillDisposesTheNativeDetector",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "HandlerConstructionFailureStillDisposesTheNativeDetector",
+    "replacements": [
+      {
+        "search": "\t\t\t\t\tdetector.Dispose();",
+        "replace": "\t\t\t\t\t// mutation: construction failure leaks the detector"
+      }
+    ]
+  },
+  {
+    "id": "modal-inflight-generation",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Modal/TizenModalNavigationPlatform.cs",
+    "filter": "FullyQualifiedName~DisposeDuringPushLeavesTheInFlightOperationOwningItsViewUntilLateCompletion",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "DisposeDuringPushLeavesTheInFlightOperationOwningItsViewUntilLateCompletion",
+    "replacements": [
+      {
+        "search": "if (_disposed || tracked.Generation != generation)\n\t\t\t{\n\t\t\t\tvar invalidationFailure",
+        "replace": "if (generation == long.MinValue)\n\t\t\t{\n\t\t\t\tvar invalidationFailure"
+      }
+    ]
+  },
+  {
+    "id": "modal-realization-owned-handler-cleanup",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Modal/TizenModalNavigationPlatform.cs",
+    "filter": "FullyQualifiedName~SetVirtualViewFailureDisposesTheOwnedHandlerAndNativeView",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "SetVirtualViewFailureDisposesTheOwnedHandlerAndNativeView",
+    "replacements": [
+      {
+        "search": "catch (Exception realizationFailure) when (handler is not null && ownsHandler)",
+        "replace": "catch (Exception realizationFailure) when (handler is not null && ownsHandler && handler.GetHashCode() == int.MinValue)"
+      }
+    ]
+  },
+  {
+    "id": "modal-live-entry-rollback",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Modal/TizenModalNavigationPlatform.cs",
+    "filter": "FullyQualifiedName~FailedPopAndFailedIdentityRemovalPreserveTrackingForRetry",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "FailedPopAndFailedIdentityRemovalPreserveTrackingForRetry",
+    "replacements": [
+      {
+        "search": "\t\t\tif (removal.IsAbsent)\n\t\t\t{\n\t\t\t\treleaseFailure = ReleaseTrackedModal",
+        "replace": "\t\t\tif (removal.IsAbsent || !removal.IsAbsent)\n\t\t\t{\n\t\t\t\treleaseFailure = ReleaseTrackedModal"
+      }
+    ]
+  },
+  {
+    "id": "modal-framework-dispose-no-throw",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Modal/TizenModalNavigationPlatform.cs",
+    "filter": "FullyQualifiedName~FrameworkDisposeAttemptsEveryCleanupLogsFailuresAndReturns",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "FrameworkDisposeAttemptsEveryCleanupLogsFailuresAndReturns",
+    "replacements": [
+      {
+        "search": "\t\tvoid ReportTeardownFailure(Exception failure, Page page)\n\t\t{\n\t\t\ttry\n\t\t\t{\n\t\t\t\tif (_logger is not null)",
+        "replace": "\t\tvoid ReportTeardownFailure(Exception failure, Page page)\n\t\t{\n\t\t\tthrow failure;\n#pragma warning disable CS0162\n\t\t\ttry\n\t\t\t{\n\t\t\t\tif (_logger is not null)"
+      }
+    ]
+  },
+  {
+    "id": "modal-placeholder-live-entry",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Modal/TizenModalHost.cs",
+    "filter": "FullyQualifiedName~FailedIdentityRemovalKeepsThePlaceholderLiveForTheNextRetry",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "FailedIdentityRemovalKeepsThePlaceholderLiveForTheNextRetry",
+    "replacements": [
+      {
+        "search": "\t\t\tif (removal.IsAbsent)\n\t\t\t{\n\t\t\t\t_activePlaceholders.Remove",
+        "replace": "\t\t\tif (removal.IsAbsent || !removal.IsAbsent)\n\t\t\t{\n\t\t\t\t_activePlaceholders.Remove"
+      }
+    ]
+  },
+  {
+    "id": "native-gesture-adapter-unsubscribe",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Nui/NuiGestureDetectorFactory.cs",
+    "filter": "FullyQualifiedName~NuiGestureAdaptersUnsubscribeDetachAndDisposeIndependently",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "expected": "NuiGestureAdaptersUnsubscribeDetachAndDisposeIndependently",
+    "replacements": [
+      {
+        "search": "\t\t\t\tUnsubscribeNativeEvents,\n\t\t\t\tDetach,\n\t\t\t\tNativeDetector.Dispose",
+        "replace": "\t\t\t\tDetach,\n\t\t\t\tNativeDetector.Dispose"
+      }
+    ]
+  },
+  {
+    "id": "modal-placeholder-push-rollback-tracking",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Modal/TizenModalHost.cs",
+    "filter": "FullyQualifiedName~FailedPushRollbackKeepsTheLivePlaceholderForTheNextRetry",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "FailedPushRollbackKeepsTheLivePlaceholderForTheNextRetry",
+    "replacements": [
+      {
+        "search": "\t\t\t\telse\n\t\t\t\t{\n\t\t\t\t\t_activePlaceholders.Remove(placeholder);\n\t\t\t\t\t_pendingPlaceholders.Add(placeholder);\n\t\t\t\t}\n\n\t\t\t\tvar pushCleanupFailure",
+        "replace": "\t\t\t\telse\n\t\t\t\t{\n\t\t\t\t\t_activePlaceholders.Remove(placeholder);\n\t\t\t\t}\n\n\t\t\t\tvar pushCleanupFailure"
+      }
+    ]
+  },
+  {
+    "id": "gesture-framework-dispose-no-throw",
+    "file": "src/Maui.Tizen.Controls/Core/Platform/Gestures/TizenGesturePlatformManager.cs",
+    "filter": "FullyQualifiedName~ManagerDisposeClearsOwnershipAndAttemptsEveryCompositeChild",
+    "project": "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj",
+    "expected": "ManagerDisposeClearsOwnershipAndAttemptsEveryCompositeChild",
+    "replacements": [
+      {
+        "search": "\t\t\tcatch (Exception ex)\n\t\t\t{\n\t\t\t\ttry\n\t\t\t\t{\n\t\t\t\t\tif (_logger is not null)",
+        "replace": "\t\t\tcatch (Exception ex)\n\t\t\t{\n\t\t\t\tthrow;\n#pragma warning disable CS0162\n\t\t\t\ttry\n\t\t\t\t{\n\t\t\t\t\tif (_logger is not null)"
+      }
+    ]
   }
 ]

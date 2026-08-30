@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.ExceptionServices;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Controls;
@@ -20,6 +22,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// </remarks>
 	public sealed class TizenModalPageRealizer : ITizenModalPageRealizer
 	{
+		readonly ConditionalWeakTable<object, IElementHandler> _owners = new();
+
 		/// <inheritdoc/>
 		public object Realize(Page page, IMauiContext mauiContext)
 		{
@@ -30,6 +34,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			// element-level member is used here to stay compatible with any handler shape.
 			var element = (Element)page;
 			var handler = element.Handler;
+			var ownsHandler = false;
 
 			// A page can be reused across windows - popped from one and pushed modally on another.
 			// Its existing handler is bound to the ORIGINATING window's IMauiContext, and reusing
@@ -37,38 +42,66 @@ namespace Microsoft.Maui.Platforms.Tizen
 			// fresh one against the target context.
 			if (handler is not null && !ReferenceEquals(handler.MauiContext, mauiContext))
 			{
-				handler.DisconnectHandler();
-				element.Handler = null;
+				var cleanupFailure = ReleaseHandlerOwnership(element, handler);
+				if (cleanupFailure is not null)
+				{
+					ExceptionDispatchInfo.Capture(cleanupFailure).Throw();
+				}
+
 				handler = null;
 			}
 
-			if (handler is null)
+			try
 			{
-				handler = mauiContext.Handlers.GetHandler(page.GetType())
-					?? throw new InvalidOperationException(
-						$"No handler is registered for '{page.GetType()}', so it cannot be presented modally.");
+				if (handler is null)
+				{
+					handler = mauiContext.Handlers.GetHandler(page.GetType())
+						?? throw new InvalidOperationException(
+							$"No handler is registered for '{page.GetType()}', so it cannot be presented modally.");
 
-				handler.SetMauiContext(mauiContext);
-				element.Handler = handler;
+					ownsHandler = true;
+					handler.SetMauiContext(mauiContext);
+					element.Handler = handler;
+				}
+				else
+				{
+					// Same context, but re-apply it so a handler that was created without one - or
+					// whose context was cleared on disconnect - is always realized against the target.
+					handler.SetMauiContext(mauiContext);
+				}
+
+				if (!ReferenceEquals(handler.VirtualView, page))
+				{
+					handler.SetVirtualView(page);
+				}
+
+				var platformView = (handler as IViewHandler)?.ContainerView
+					?? handler.PlatformView;
+
+				if (platformView is null)
+				{
+					throw new InvalidOperationException(
+						$"The handler for '{page.GetType()}' produced no platform view, so it cannot be presented modally.");
+				}
+
+				_owners.Remove(platformView);
+				_owners.Add(platformView, handler);
+				return platformView;
 			}
-			else
+			catch (Exception realizationFailure) when (handler is not null && ownsHandler)
 			{
-				// Same context, but re-apply it so a handler that was created without one - or
-				// whose context was cleared on disconnect - is always realized against the target.
-				handler.SetMauiContext(mauiContext);
+				var cleanupFailure = ReleaseHandlerOwnership(element, handler);
+				if (cleanupFailure is not null)
+				{
+					throw new AggregateException(
+						"Modal page realization and owned-handler cleanup both failed.",
+						realizationFailure,
+						cleanupFailure);
+				}
+
+				ExceptionDispatchInfo.Capture(realizationFailure).Throw();
+				throw new InvalidOperationException("Unreachable.");
 			}
-
-			if (!ReferenceEquals(handler.VirtualView, page))
-			{
-				handler.SetVirtualView(page);
-			}
-
-			var platformView = (handler as IViewHandler)?.ContainerView
-				?? handler.PlatformView;
-
-			return platformView
-				?? throw new InvalidOperationException(
-					$"The handler for '{page.GetType()}' produced no platform view, so it cannot be presented modally.");
 		}
 
 		/// <inheritdoc/>
@@ -77,7 +110,15 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ArgumentNullException.ThrowIfNull(page);
 			ArgumentNullException.ThrowIfNull(platformView);
 
-			var handler = page.Handler;
+			var handler = _owners.TryGetValue(platformView, out var owner)
+				? owner
+				: page.Handler;
+			_owners.Remove(platformView);
+
+			if (handler is not null && ReferenceEquals(page.Handler, handler))
+			{
+				((Element)page).Handler = null;
+			}
 
 			if (platformViewDisposed)
 			{
@@ -90,8 +131,71 @@ namespace Microsoft.Maui.Platforms.Tizen
 			else
 			{
 				handler?.DisconnectHandler();
-				(platformView as IDisposable)?.Dispose();
+
+				if (!platformViewDisposed)
+				{
+					(platformView as IDisposable)?.Dispose();
+				}
 			}
+		}
+
+		static Exception? ReleaseHandlerOwnership(Element element, IElementHandler handler)
+		{
+			List<Exception>? failures = null;
+			object? platformView = null;
+
+			try
+			{
+				platformView = handler.PlatformView;
+			}
+			catch (Exception ex)
+			{
+				(failures ??= new()).Add(ex);
+			}
+
+			if (ReferenceEquals(element.Handler, handler))
+			{
+				element.Handler = null;
+			}
+
+			if (handler is IDisposable disposableHandler)
+			{
+				try
+				{
+					disposableHandler.Dispose();
+				}
+				catch (Exception ex)
+				{
+					(failures ??= new()).Add(ex);
+				}
+			}
+			else
+			{
+				try
+				{
+					handler.DisconnectHandler();
+				}
+				catch (Exception ex)
+				{
+					(failures ??= new()).Add(ex);
+				}
+
+				try
+				{
+					(platformView as IDisposable)?.Dispose();
+				}
+				catch (Exception ex)
+				{
+					(failures ??= new()).Add(ex);
+				}
+			}
+
+			return failures switch
+			{
+				null => null,
+				{ Count: 1 } => failures[0],
+				_ => new AggregateException("One or more modal handler cleanup operations failed.", failures),
+			};
 		}
 	}
 
@@ -116,12 +220,28 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// </remarks>
 	public sealed class TizenModalNavigationPlatform : IModalNavigationPlatform
 	{
+		sealed class TrackedModal
+		{
+			public required Page Page { get; init; }
+			public required object PlatformView { get; init; }
+			public long Generation { get; set; }
+			public bool OperationOwned { get; set; }
+			public bool Released { get; set; }
+		}
+
+		readonly record struct RemovalResult(
+			bool IsAbsent,
+			bool PlatformViewDisposed,
+			Exception? Failure);
+
 		readonly IModalNavigationHost _host;
 		readonly ITizenNavigationStack _stack;
 		readonly ITizenModalPageRealizer _realizer;
-		readonly Dictionary<Page, object> _platformViews = new();
+		readonly ILogger<TizenModalNavigationPlatform>? _logger;
+		readonly Dictionary<Page, TrackedModal> _platformViews = new();
 		readonly List<Page> _presentationOrder = new();
 
+		long _nextGeneration;
 		bool _disposed;
 
 		/// <summary>
@@ -143,7 +263,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 			_stack = stack ?? throw new ArgumentNullException(nameof(stack));
 			_realizer = realizer ?? throw new ArgumentNullException(nameof(realizer));
 			_ = backButton;
-			_ = logger;
+			_logger = logger;
 		}
 
 		/// <inheritdoc/>
@@ -161,46 +281,66 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ArgumentNullException.ThrowIfNull(modal);
 			ObjectDisposedException.ThrowIf(_disposed, this);
 
+			if (_platformViews.ContainsKey(modal))
+			{
+				throw new InvalidOperationException("The modal page is already being presented.");
+			}
+
 			var platformView = _realizer.Realize(modal, _host.MauiContext);
+			var generation = ++_nextGeneration;
+			var tracked = new TrackedModal
+			{
+				Page = modal,
+				PlatformView = platformView,
+				Generation = generation,
+				OperationOwned = true,
+			};
+
+			if (!_platformViews.TryAdd(modal, tracked))
+			{
+				try
+				{
+					_realizer.Release(modal, platformView, platformViewDisposed: false);
+				}
+				catch (Exception releaseFailure)
+				{
+					throw new AggregateException(
+						"The modal was already tracked and releasing the duplicate realization failed.",
+						new InvalidOperationException("The modal page is already being presented."),
+						releaseFailure);
+				}
+
+				throw new InvalidOperationException("The modal page is already being presented.");
+			}
+
+			_presentationOrder.Add(modal);
 
 			try
 			{
 				await _stack.PushAsync(platformView, animated && !_host.IsBatchPushing).ConfigureAwait(true);
-				_platformViews.Add(modal, platformView);
-				_presentationOrder.Add(modal);
 			}
 			catch (Exception pushFailure)
 			{
-				var cleanupFailures = new List<Exception>();
-				var platformViewDisposed = false;
-
-				try
-				{
-					platformViewDisposed = await RemovePlatformViewAsync(platformView).ConfigureAwait(true);
-				}
-				catch (Exception ex)
-				{
-					cleanupFailures.Add(ex);
-				}
-
-				try
-				{
-					_realizer.Release(modal, platformView, platformViewDisposed);
-				}
-				catch (Exception ex)
-				{
-					cleanupFailures.Add(ex);
-				}
-
-				if (cleanupFailures.Count > 0)
-				{
-					cleanupFailures.Insert(0, pushFailure);
-					throw new AggregateException("The modal push and its rollback both failed.", cleanupFailures);
-				}
-
-				ExceptionDispatchInfo.Capture(pushFailure).Throw();
-				throw new InvalidOperationException("Unreachable.");
+				var cleanupFailure = await CleanupTrackedModalAsync(tracked).ConfigureAwait(true);
+				ThrowCombined(
+					"The modal push and its rollback both failed.",
+					pushFailure,
+					cleanupFailure);
 			}
+
+			if (_disposed || tracked.Generation != generation)
+			{
+				var invalidationFailure = _disposed
+					? new ObjectDisposedException(nameof(TizenModalNavigationPlatform))
+					: new InvalidOperationException("The modal push was superseded by a newer transition.");
+				var cleanupFailure = await CleanupTrackedModalAsync(tracked).ConfigureAwait(true);
+				ThrowCombined(
+					"The modal push was invalidated and its rollback failed.",
+					invalidationFailure,
+					cleanupFailure);
+			}
+
+			tracked.OperationOwned = false;
 		}
 
 		/// <inheritdoc/>
@@ -217,71 +357,75 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			// A batch pop dismisses several modals at once, for example a Shell pop-to-root.
 			// Animating the intermediate ones makes them flash on screen.
-			_platformViews.TryGetValue(modal, out var platformView);
+			if (!_platformViews.TryGetValue(modal, out var tracked))
+			{
+				return;
+			}
+
+			if (tracked.OperationOwned)
+			{
+				throw new InvalidOperationException("The modal page already has an active native transition.");
+			}
+
+			var generation = ++_nextGeneration;
+			tracked.Generation = generation;
+			tracked.OperationOwned = true;
 
 			Exception? popFailure = null;
-			var platformViewDisposed = platformView is not null && _stack.IsDisposed(platformView);
+			RemovalResult removal;
 
 			try
 			{
-				if (platformView is not null && _stack.Contains(platformView))
+				if (_stack.Contains(tracked.PlatformView))
 				{
-					if (ReferenceEquals(_stack.Top, platformView))
+					if (ReferenceEquals(_stack.Top, tracked.PlatformView))
 					{
 						await _stack.PopAsync(animated && !_host.IsBatchPopping).ConfigureAwait(true);
-						platformViewDisposed = true;
 					}
 					else
 					{
-						platformViewDisposed = _stack.Remove(platformView);
+						_stack.Remove(tracked.PlatformView);
 					}
 				}
+
+				removal = ConfirmPlatformViewAbsent(tracked.PlatformView);
 			}
 			catch (Exception ex)
 			{
 				popFailure = ex;
-
-				if (platformView is not null)
-				{
-					try
-					{
-						platformViewDisposed = await RemovePlatformViewAsync(platformView).ConfigureAwait(true);
-					}
-					catch (Exception cleanupFailure)
-					{
-						popFailure = new AggregateException(
-							"The modal pop and its rollback both failed.",
-							ex,
-							cleanupFailure);
-					}
-				}
-			}
-			finally
-			{
-				_platformViews.Remove(modal);
-				_presentationOrder.Remove(modal);
-
-				try
-				{
-					if (platformView is not null)
-					{
-						_realizer.Release(modal, platformView, platformViewDisposed);
-					}
-				}
-				catch (Exception releaseFailure)
-				{
-					popFailure = popFailure is null
-						? releaseFailure
-						: new AggregateException(
-							"The modal pop and handler release both failed.",
-							popFailure,
-							releaseFailure);
-				}
+				removal = await RemovePlatformViewAsync(tracked.PlatformView).ConfigureAwait(true);
 			}
 
-			if (popFailure is not null)
+			Exception? invalidationFailure = null;
+			if (_disposed || tracked.Generation != generation)
 			{
-				ExceptionDispatchInfo.Capture(popFailure).Throw();
+				invalidationFailure = _disposed
+					? new ObjectDisposedException(nameof(TizenModalNavigationPlatform))
+					: new InvalidOperationException("The modal pop was superseded by a newer transition.");
+			}
+
+			Exception? releaseFailure = null;
+			if (removal.IsAbsent)
+			{
+				releaseFailure = ReleaseTrackedModal(tracked, removal.PlatformViewDisposed);
+			}
+			else
+			{
+				// The native entry is still live. Restore operation ownership to the platform so a
+				// later reconciliation pop or framework Dispose can retry without touching a live
+				// view that the stack still owns.
+				tracked.OperationOwned = false;
+			}
+
+			var failure = CombineFailures(
+				"The modal pop and cleanup failed.",
+				popFailure,
+				removal.Failure,
+				invalidationFailure,
+				releaseFailure);
+			if (failure is not null)
+			{
+				ExceptionDispatchInfo.Capture(failure).Throw();
 			}
 		}
 
@@ -297,92 +441,232 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <inheritdoc/>
 		public void Dispose()
 		{
-			if (_disposed)
-			{
-				return;
-			}
-
-			List<Exception>? failures = null;
-
 			_disposed = true;
+			var tracked = _presentationOrder
+				.AsEnumerable()
+				.Reverse()
+				.Select(page => _platformViews[page])
+				.ToArray();
 
-			foreach (var page in _presentationOrder.AsEnumerable().Reverse())
+			foreach (var modal in tracked)
 			{
-				var platformView = _platformViews[page];
-				var platformViewDisposed = false;
+				modal.Generation = ++_nextGeneration;
 
+				// The async operation that currently owns this entry must observe the generation
+				// invalidation after its await and perform the rollback. Releasing here would race
+				// a native transition that still has the view.
+				if (modal.OperationOwned || modal.Released)
+				{
+					continue;
+				}
+
+				RemovalResult removal;
 				try
 				{
-					var containsPlatformView = _stack.Contains(platformView);
-					platformViewDisposed = _stack.IsDisposed(platformView);
-
-					if (containsPlatformView)
+					if (_stack.Contains(modal.PlatformView))
 					{
-						platformViewDisposed = _stack.Remove(platformView);
+						_stack.Remove(modal.PlatformView);
 					}
+
+					removal = ConfirmPlatformViewAbsent(modal.PlatformView);
 				}
 				catch (Exception ex)
 				{
-					(failures ??= new()).Add(ex);
+					removal = new RemovalResult(false, false, ex);
 				}
 
-				try
+				if (!removal.IsAbsent)
 				{
-					_realizer.Release(page, platformView, platformViewDisposed);
+					ReportTeardownFailure(
+						removal.Failure ?? new InvalidOperationException(
+							"The native modal entry remained in the stack during teardown."),
+						modal.Page);
+					continue;
 				}
-				catch (Exception ex)
+
+				if (removal.Failure is not null)
 				{
-					(failures ??= new()).Add(ex);
+					ReportTeardownFailure(removal.Failure, modal.Page);
 				}
-			}
 
-			_platformViews.Clear();
-			_presentationOrder.Clear();
-
-			if (failures is not null)
-			{
-				throw new AggregateException("One or more Tizen modal pages failed during window teardown.", failures);
+				var releaseFailure = ReleaseTrackedModal(modal, removal.PlatformViewDisposed);
+				if (releaseFailure is not null)
+				{
+					ReportTeardownFailure(releaseFailure, modal.Page);
+				}
 			}
 		}
 
-		async Task<bool> RemovePlatformViewAsync(object platformView)
+		async Task<Exception?> CleanupTrackedModalAsync(TrackedModal tracked)
 		{
-			if (!_stack.Contains(platformView))
+			var removal = await RemovePlatformViewAsync(tracked.PlatformView).ConfigureAwait(true);
+
+			if (!removal.IsAbsent)
 			{
-				return _stack.IsDisposed(platformView);
+				tracked.OperationOwned = false;
+				return removal.Failure ?? new InvalidOperationException(
+					"The native modal entry could not be confirmed absent.");
 			}
 
-			if (ReferenceEquals(_stack.Top, platformView))
+			return CombineFailures(
+				"The modal rollback and release failed.",
+				removal.Failure,
+				ReleaseTrackedModal(tracked, removal.PlatformViewDisposed));
+		}
+
+		async Task<RemovalResult> RemovePlatformViewAsync(object platformView)
+		{
+			Exception? failure = null;
+
+			try
 			{
-				try
+				if (!_stack.Contains(platformView))
 				{
-					await _stack.PopAsync(false).ConfigureAwait(true);
-					return _stack.IsDisposed(platformView);
+					return ConfirmPlatformViewAbsent(platformView);
 				}
-				catch (Exception retryFailure)
+
+				if (ReferenceEquals(_stack.Top, platformView))
 				{
 					try
 					{
-						if (_stack.Contains(platformView))
-						{
-							return _stack.Remove(platformView);
-						}
-
-						return _stack.IsDisposed(platformView);
+						await _stack.PopAsync(false).ConfigureAwait(true);
 					}
-					catch (Exception removeFailure)
+					catch (Exception popFailure)
 					{
-						throw new AggregateException(
-							"The nonanimated modal rollback and identity removal both failed.",
-							retryFailure,
-							removeFailure);
+						failure = popFailure;
+
+						try
+						{
+							if (_stack.Contains(platformView))
+							{
+								_stack.Remove(platformView);
+							}
+						}
+						catch (Exception removeFailure)
+						{
+							failure = CombineFailures(
+								"The nonanimated modal rollback and identity removal both failed.",
+								popFailure,
+								removeFailure);
+						}
 					}
 				}
+				else
+				{
+					_stack.Remove(platformView);
+				}
 			}
-			else
+			catch (Exception ex)
 			{
-				return _stack.Remove(platformView);
+				failure = CombineFailures(
+					"The modal identity removal failed.",
+					failure,
+					ex);
 			}
+
+			var confirmed = ConfirmPlatformViewAbsent(platformView);
+			return confirmed with
+			{
+				Failure = CombineFailures(
+					"The modal removal and absence verification failed.",
+					failure,
+					confirmed.Failure),
+			};
+		}
+
+		RemovalResult ConfirmPlatformViewAbsent(object platformView)
+		{
+			try
+			{
+				if (_stack.Contains(platformView))
+				{
+					return new RemovalResult(false, false, null);
+				}
+
+				return new RemovalResult(true, _stack.IsDisposed(platformView), null);
+			}
+			catch (Exception ex)
+			{
+				return new RemovalResult(false, false, ex);
+			}
+		}
+
+		Exception? ReleaseTrackedModal(TrackedModal tracked, bool platformViewDisposed)
+		{
+			if (tracked.Released)
+			{
+				return null;
+			}
+
+			tracked.Released = true;
+			tracked.OperationOwned = false;
+			_platformViews.Remove(tracked.Page);
+			_presentationOrder.Remove(tracked.Page);
+
+			try
+			{
+				_realizer.Release(tracked.Page, tracked.PlatformView, platformViewDisposed);
+				return null;
+			}
+			catch (Exception ex)
+			{
+				return ex;
+			}
+		}
+
+		void ReportTeardownFailure(Exception failure, Page page)
+		{
+			try
+			{
+				if (_logger is not null)
+				{
+					_logger.LogError(
+						failure,
+						"Failed to clean up Tizen modal page {ModalPage} during framework teardown.",
+						page);
+				}
+				else
+				{
+					Trace.TraceError(
+						"Failed to clean up Tizen modal page {0} during framework teardown: {1}",
+						page,
+						failure);
+				}
+			}
+			catch
+			{
+				// Framework teardown must not fail because a logger or trace listener failed.
+			}
+		}
+
+		static void ThrowCombined(string message, Exception primary, Exception? secondary)
+		{
+			if (secondary is null)
+			{
+				ExceptionDispatchInfo.Capture(primary).Throw();
+			}
+
+			throw new AggregateException(message, primary, secondary);
+		}
+
+		static Exception? CombineFailures(string message, params Exception?[] failures)
+		{
+			var present = new List<Exception>();
+			foreach (var failure in failures)
+			{
+				if (failure is not null
+					&& !present.Any(existing => ReferenceEquals(existing, failure)))
+				{
+					present.Add(failure);
+				}
+			}
+
+			return present.Count switch
+			{
+				0 => null,
+				1 => present[0],
+				_ => new AggregateException(message, present),
+			};
 		}
 	}
 

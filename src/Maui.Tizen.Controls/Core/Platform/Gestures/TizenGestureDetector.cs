@@ -65,22 +65,66 @@ namespace Microsoft.Maui.Platforms.Tizen
 			switch (recognizer)
 			{
 				case TapGestureRecognizer tap:
-					return Create(TizenGestureKind.Tap, tap, (d) => new TizenTapGestureHandler(tap, d, _dispatcher, _scaler));
+					{
+						var configuration = new TizenNativeGestureConfiguration(
+							tap.NumberOfTapsRequired,
+							requiredTouchCount: 1);
+						return Create(
+							TizenGestureKind.Tap,
+							tap,
+							configuration,
+							d => new TizenTapGestureHandler(
+								tap,
+								d,
+								_dispatcher,
+								_scaler,
+								configuration.RequiredTapCount));
+					}
 
 				case SwipeGestureRecognizer swipe:
-					return Create(TizenGestureKind.Swipe, swipe, (d) => new TizenSwipeGestureHandler(swipe, d, _dispatcher, _scaler));
+					return Create(
+						TizenGestureKind.Swipe,
+						swipe,
+						new TizenNativeGestureConfiguration(1, 1),
+						d => new TizenSwipeGestureHandler(swipe, d, _dispatcher, _scaler));
 
 				case PanGestureRecognizer pan:
-					return Create(TizenGestureKind.Pan, pan, (d) => new TizenPanGestureHandler(pan, d, _dispatcher, _scaler));
+					{
+						var configuration = new TizenNativeGestureConfiguration(
+							requiredTapCount: 1,
+							TizenPanGestureHandler.GetRequiredTouchPoints(pan));
+						return Create(
+							TizenGestureKind.Pan,
+							pan,
+							configuration,
+							d => new TizenPanGestureHandler(
+								pan,
+								d,
+								_dispatcher,
+								_scaler,
+								configuration.RequiredTouchCount));
+					}
 
 				case PinchGestureRecognizer pinch:
-					return Create(TizenGestureKind.Pinch, pinch, (d) => new TizenPinchGestureHandler(pinch, d, _dispatcher, _scaler));
+					return Create(
+						TizenGestureKind.Pinch,
+						pinch,
+						new TizenNativeGestureConfiguration(1, 2),
+						d => new TizenPinchGestureHandler(pinch, d, _dispatcher, _scaler));
 
 				case LongPressGestureRecognizer longPress:
-					return Create(TizenGestureKind.LongPress, longPress, (d) => new TizenLongPressGestureHandler(longPress, d, _dispatcher, _scaler));
+					return Create(
+						TizenGestureKind.LongPress,
+						longPress,
+						new TizenNativeGestureConfiguration(1, longPress.NumberOfTouchesRequired),
+						d => new TizenLongPressGestureHandler(longPress, d, _dispatcher, _scaler));
 
 				case PointerGestureRecognizer pointer:
-					return Create(TizenGestureKind.Pointer, pointer, (d) => new TizenPointerGestureHandler(pointer, d, _dispatcher, _scaler));
+					return Create(
+						TizenGestureKind.Pointer,
+						pointer,
+						new TizenNativeGestureConfiguration(1, 1),
+						d => new TizenPointerGestureHandler(pointer, d, _dispatcher, _scaler));
 
 				default:
 					return null;
@@ -90,11 +134,36 @@ namespace Microsoft.Maui.Platforms.Tizen
 		TizenGestureHandler? Create(
 			TizenGestureKind kind,
 			IGestureRecognizer recognizer,
+			TizenNativeGestureConfiguration configuration,
 			Func<ITizenNativeGestureDetector, TizenGestureHandler> create)
 		{
-			var detector = _detectors.CreateDetector(kind, recognizer);
+			var detector = _detectors.CreateDetector(kind, recognizer, configuration);
 
-			return detector is null ? null : create(detector);
+			if (detector is null)
+			{
+				return null;
+			}
+
+			try
+			{
+				return create(detector);
+			}
+			catch (Exception creationFailure)
+			{
+				try
+				{
+					detector.Dispose();
+				}
+				catch (Exception disposeFailure)
+				{
+					throw new AggregateException(
+						"Gesture handler construction and native detector disposal both failed.",
+						creationFailure,
+						disposeFailure);
+				}
+
+				throw;
+			}
 		}
 	}
 
@@ -116,6 +185,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 		IViewHandler? _handler;
 		bool _inputTransparent;
 		bool _isEnabled;
+		bool _clearing;
 		bool _disposed;
 
 		/// <summary>
@@ -205,12 +275,35 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </summary>
 		public void Clear()
 		{
-			foreach (var handler in _handlers.Values)
+			if (_clearing)
 			{
-				handler.Dispose();
+				return;
 			}
 
+			_clearing = true;
+			var handlers = new List<TizenGestureHandler>(_handlers.Values);
+
+			// Transfer ownership before invoking cleanup. A reentrant collection change or a
+			// throwing detector cannot rediscover an entry that teardown already owns.
 			_handlers.Clear();
+
+			var cleanup = new Action[handlers.Count];
+			for (var i = 0; i < handlers.Count; i++)
+			{
+				var handler = handlers[i];
+				cleanup[i] = handler.Dispose;
+			}
+
+			try
+			{
+				TizenGestureCleanup.Run(
+					"One or more gesture handlers failed during teardown.",
+					cleanup);
+			}
+			finally
+			{
+				_clearing = false;
+			}
 		}
 
 		/// <inheritdoc/>
@@ -222,13 +315,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 
 			_disposed = true;
-			Clear();
 			_handler = null;
+			Clear();
 		}
 
 		void AddGesture(IGestureRecognizer gesture)
 		{
-			if (_disposed || _handlers.ContainsKey(gesture))
+			if (_disposed || _clearing || _handlers.ContainsKey(gesture))
 			{
 				return;
 			}

@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
+using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Internals;
 using Microsoft.Maui.Controls.Platform;
@@ -29,6 +31,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 	public sealed class TizenGesturePlatformManager : IGesturePlatformManager
 	{
 		readonly Lazy<TizenGestureDetector> _gestureDetector;
+		readonly ILogger<TizenGesturePlatformManager>? _logger;
 
 		IViewHandler? _handler;
 		IList<IGestureRecognizer>? _gestureRecognizers;
@@ -39,10 +42,21 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </summary>
 		/// <param name="handler">The handler connection this manager serves.</param>
 		/// <param name="handlerFactory">Creates the per-recognizer gesture handlers.</param>
-		public TizenGesturePlatformManager(IViewHandler handler, ITizenGestureHandlerFactory handlerFactory)
+		public TizenGesturePlatformManager(
+			IViewHandler handler,
+			ITizenGestureHandlerFactory handlerFactory)
+			: this(handler, handlerFactory, logger: null)
+		{
+		}
+
+		internal TizenGesturePlatformManager(
+			IViewHandler handler,
+			ITizenGestureHandlerFactory handlerFactory,
+			ILogger<TizenGesturePlatformManager>? logger)
 		{
 			_handler = handler ?? throw new ArgumentNullException(nameof(handler));
 			ArgumentNullException.ThrowIfNull(handlerFactory);
+			_logger = logger;
 
 			// Created lazily so that a view with no gesture recognizers never allocates native
 			// detectors, matching the original backend.
@@ -71,14 +85,51 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			_disposed = true;
 
-			SetupElement(Element, null);
+			var element = Element;
+			var gestureRecognizers = _gestureRecognizers;
+			_handler = null;
+			_gestureRecognizers = null;
+
+			var cleanup = new List<Action>();
+			if (gestureRecognizers is INotifyCollectionChanged observable)
+			{
+				cleanup.Add(() => observable.CollectionChanged -= OnGestureRecognizerCollectionChanged);
+			}
+
+			if (element is not null)
+			{
+				cleanup.Add(() => element.PropertyChanged -= OnElementPropertyChanged);
+			}
 
 			if (_gestureDetector.IsValueCreated)
 			{
-				_gestureDetector.Value.Dispose();
+				cleanup.Add(_gestureDetector.Value.Dispose);
 			}
 
-			_handler = null;
+			try
+			{
+				TizenGestureCleanup.Run(
+					"One or more gesture platform manager cleanup operations failed.",
+					cleanup.ToArray());
+			}
+			catch (Exception ex)
+			{
+				try
+				{
+					if (_logger is not null)
+					{
+						_logger.LogError(ex, "Gesture platform manager cleanup failed.");
+					}
+					else
+					{
+						Trace.TraceError("Gesture platform manager cleanup failed: {0}", ex);
+					}
+				}
+				catch
+				{
+					// Framework teardown must not fail because a logger or trace listener failed.
+				}
+			}
 		}
 
 		void SetupElement(VisualElement? oldElement, VisualElement? newElement)
@@ -198,14 +249,29 @@ namespace Microsoft.Maui.Platforms.Tizen
 	public sealed class TizenGesturePlatformManagerFactory : IGesturePlatformManagerFactory
 	{
 		readonly ITizenGestureHandlerFactory _handlerFactory;
+		readonly ILoggerFactory? _loggerFactory;
 
 		/// <summary>
 		/// Initializes a new instance of the <see cref="TizenGesturePlatformManagerFactory"/> class.
 		/// </summary>
 		/// <param name="handlerFactory">Creates the per-recognizer gesture handlers.</param>
-		public TizenGesturePlatformManagerFactory(ITizenGestureHandlerFactory handlerFactory)
+		public TizenGesturePlatformManagerFactory(
+			ITizenGestureHandlerFactory handlerFactory)
+			: this(handlerFactory, loggerFactory: null)
+		{
+		}
+
+		/// <summary>
+		/// Initializes a new instance with logging for framework-owned teardown failures.
+		/// </summary>
+		/// <param name="handlerFactory">Creates the per-recognizer gesture handlers.</param>
+		/// <param name="loggerFactory">Creates the per-manager logger.</param>
+		public TizenGesturePlatformManagerFactory(
+			ITizenGestureHandlerFactory handlerFactory,
+			ILoggerFactory? loggerFactory)
 		{
 			_handlerFactory = handlerFactory ?? throw new ArgumentNullException(nameof(handlerFactory));
+			_loggerFactory = loggerFactory;
 		}
 
 		/// <inheritdoc/>
@@ -217,7 +283,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			ArgumentNullException.ThrowIfNull(handler);
 
-			return new TizenGesturePlatformManager(handler, _handlerFactory);
+			return new TizenGesturePlatformManager(
+				handler,
+				_handlerFactory,
+				_loggerFactory?.CreateLogger<TizenGesturePlatformManager>());
 		}
 	}
 }

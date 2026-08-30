@@ -76,6 +76,18 @@ internal sealed class FakeAlertDialogFactory : ITizenAlertDialogFactory
 
 	public Exception? AlertDialogDisposeFailure { get; set; }
 
+	public Exception? AlertDialogCreationFailure { get; set; }
+
+	public Exception? ActionSheetCreationFailure { get; set; }
+
+	public Exception? PromptCreationFailure { get; set; }
+
+	public bool ReturnNullAlertDialog { get; set; }
+
+	public bool ReturnNullActionSheetDialog { get; set; }
+
+	public bool ReturnNullPromptDialog { get; set; }
+
 	/// <summary>
 	/// Runs dialog task continuations inline, matching NUI popup close ordering.
 	/// </summary>
@@ -101,6 +113,17 @@ internal sealed class FakeAlertDialogFactory : ITizenAlertDialogFactory
 	{
 		BeforeCreateAlertDialog?.Invoke();
 		AlertRequests.Add(arguments);
+
+		if (AlertDialogCreationFailure is not null)
+		{
+			throw AlertDialogCreationFailure;
+		}
+
+		if (ReturnNullAlertDialog)
+		{
+			return null!;
+		}
+
 		return LastAlert = new FakeAlertDialog<bool>(UseSynchronousDialogContinuations)
 		{
 			DisposeFailure = AlertDialogDisposeFailure,
@@ -110,12 +133,34 @@ internal sealed class FakeAlertDialogFactory : ITizenAlertDialogFactory
 	public ITizenAlertDialog<string?> CreateActionSheetDialog(ActionSheetArguments arguments)
 	{
 		ActionSheetRequests.Add(arguments);
+
+		if (ActionSheetCreationFailure is not null)
+		{
+			throw ActionSheetCreationFailure;
+		}
+
+		if (ReturnNullActionSheetDialog)
+		{
+			return null!;
+		}
+
 		return LastActionSheet = new FakeAlertDialog<string?>(UseSynchronousDialogContinuations);
 	}
 
 	public ITizenAlertDialog<string?> CreatePromptDialog(PromptArguments arguments)
 	{
 		PromptRequests.Add(arguments);
+
+		if (PromptCreationFailure is not null)
+		{
+			throw PromptCreationFailure;
+		}
+
+		if (ReturnNullPromptDialog)
+		{
+			return null!;
+		}
+
 		return LastPrompt = new FakeAlertDialog<string?>(UseSynchronousDialogContinuations);
 	}
 
@@ -224,7 +269,32 @@ internal sealed class FakeWindowProvider : ITizenPlatformWindowProvider
 /// </summary>
 internal sealed class FakeNativeGestureDetector : ITizenNativeGestureDetector
 {
-	public event EventHandler<TizenGestureEventArgs>? Detected;
+	EventHandler<TizenGestureEventArgs>? _detected;
+
+	public event EventHandler<TizenGestureEventArgs>? Detected
+	{
+		add
+		{
+			SubscribeCount++;
+
+			if (SubscribeFailure is not null)
+			{
+				throw SubscribeFailure;
+			}
+
+			_detected += value;
+		}
+		remove
+		{
+			UnsubscribeCount++;
+			_detected -= value;
+
+			if (UnsubscribeFailure is not null)
+			{
+				throw UnsubscribeFailure;
+			}
+		}
+	}
 
 	public bool IsAttached { get; private set; }
 
@@ -235,6 +305,20 @@ internal sealed class FakeNativeGestureDetector : ITizenNativeGestureDetector
 	public int AttachCount { get; private set; }
 
 	public int DetachCount { get; private set; }
+
+	public int DisposeCount { get; private set; }
+
+	public int SubscribeCount { get; private set; }
+
+	public int UnsubscribeCount { get; private set; }
+
+	public Exception? SubscribeFailure { get; set; }
+
+	public Exception? UnsubscribeFailure { get; set; }
+
+	public Exception? DetachFailure { get; set; }
+
+	public Exception? DisposeFailure { get; set; }
 
 	public void Attach(object platformView)
 	{
@@ -258,13 +342,27 @@ internal sealed class FakeNativeGestureDetector : ITizenNativeGestureDetector
 		IsAttached = false;
 		AttachedView = null;
 		DetachCount++;
+
+		if (DetachFailure is not null)
+		{
+			throw DetachFailure;
+		}
 	}
 
-	public void Dispose() => Disposed = true;
+	public void Dispose()
+	{
+		Disposed = true;
+		DisposeCount++;
+
+		if (DisposeFailure is not null)
+		{
+			throw DisposeFailure;
+		}
+	}
 
 	public TizenGestureEventArgs Raise(TizenGestureEventArgs args)
 	{
-		Detected?.Invoke(this, args);
+		_detected?.Invoke(this, args);
 		return args;
 	}
 }
@@ -278,9 +376,14 @@ internal sealed class FakeNativeGestureDetectorFactory : ITizenNativeGestureDete
 
 	public List<FakeNativeGestureDetector> Created { get; } = new();
 
-	public List<(TizenGestureKind Kind, IGestureRecognizer Recognizer, FakeNativeGestureDetector Detector)> Requests { get; } = new();
+	public List<(TizenGestureKind Kind, IGestureRecognizer Recognizer, TizenNativeGestureConfiguration Configuration, FakeNativeGestureDetector Detector)> Requests { get; } = new();
 
-	public ITizenNativeGestureDetector? CreateDetector(TizenGestureKind kind, IGestureRecognizer recognizer)
+	public Action<FakeNativeGestureDetector>? ConfigureDetector { get; set; }
+
+	public ITizenNativeGestureDetector? CreateDetector(
+		TizenGestureKind kind,
+		IGestureRecognizer recognizer,
+		TizenNativeGestureConfiguration configuration)
 	{
 		if (_unsupported.Contains(kind))
 		{
@@ -288,8 +391,9 @@ internal sealed class FakeNativeGestureDetectorFactory : ITizenNativeGestureDete
 		}
 
 		var detector = new FakeNativeGestureDetector();
+		ConfigureDetector?.Invoke(detector);
 		Created.Add(detector);
-		Requests.Add((kind, recognizer, detector));
+		Requests.Add((kind, recognizer, configuration, detector));
 		return detector;
 	}
 }

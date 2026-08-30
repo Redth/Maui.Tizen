@@ -163,7 +163,7 @@ Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector.Detach() -> void
 Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector.Detected -> System.EventHandler<Microsoft.Maui.Platforms.Tizen.TizenGestureEventArgs!>?
 Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector.IsAttached.get -> bool
 Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetectorFactory
-Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetectorFactory.CreateDetector(Microsoft.Maui.Platforms.Tizen.TizenGestureKind kind, Microsoft.Maui.Controls.IGestureRecognizer! recognizer) -> Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector?
+Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetectorFactory.CreateDetector(Microsoft.Maui.Platforms.Tizen.TizenGestureKind kind, Microsoft.Maui.Controls.IGestureRecognizer! recognizer, Microsoft.Maui.Platforms.Tizen.TizenNativeGestureConfiguration configuration) -> Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector?
 Microsoft.Maui.Platforms.Tizen.ITizenNavigationStack
 Microsoft.Maui.Platforms.Tizen.ITizenNavigationStack.Contains(object! platformView) -> bool
 Microsoft.Maui.Platforms.Tizen.ITizenNavigationStack.Count.get -> int
@@ -191,7 +191,7 @@ Microsoft.Maui.Platforms.Tizen.Nui.NuiAlertDialogFactory.CreateBusyIndicator() -
 Microsoft.Maui.Platforms.Tizen.Nui.NuiAlertDialogFactory.CreatePromptDialog(Microsoft.Maui.Controls.Internals.PromptArguments! arguments) -> Microsoft.Maui.Platforms.Tizen.ITizenAlertDialog<string?>!
 Microsoft.Maui.Platforms.Tizen.Nui.NuiAlertDialogFactory.NuiAlertDialogFactory() -> void
 Microsoft.Maui.Platforms.Tizen.Nui.NuiGestureDetectorFactory
-Microsoft.Maui.Platforms.Tizen.Nui.NuiGestureDetectorFactory.CreateDetector(Microsoft.Maui.Platforms.Tizen.TizenGestureKind kind, Microsoft.Maui.Controls.IGestureRecognizer! recognizer) -> Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector?
+Microsoft.Maui.Platforms.Tizen.Nui.NuiGestureDetectorFactory.CreateDetector(Microsoft.Maui.Platforms.Tizen.TizenGestureKind kind, Microsoft.Maui.Controls.IGestureRecognizer! recognizer, Microsoft.Maui.Platforms.Tizen.TizenNativeGestureConfiguration configuration) -> Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector?
 Microsoft.Maui.Platforms.Tizen.Nui.NuiGestureDetectorFactory.NuiGestureDetectorFactory() -> void
 Microsoft.Maui.Platforms.Tizen.Nui.NuiNavigationStack
 Microsoft.Maui.Platforms.Tizen.Nui.NuiNavigationStack.Contains(object! platformView) -> bool
@@ -430,6 +430,7 @@ Microsoft.Maui.Platforms.Tizen.TizenGesturePlatformManager.TizenGesturePlatformM
 Microsoft.Maui.Platforms.Tizen.TizenGesturePlatformManagerFactory
 Microsoft.Maui.Platforms.Tizen.TizenGesturePlatformManagerFactory.CreateGesturePlatformManager(Microsoft.Maui.IViewHandler! handler) -> Microsoft.Maui.Controls.Platform.IGesturePlatformManager!
 Microsoft.Maui.Platforms.Tizen.TizenGesturePlatformManagerFactory.TizenGesturePlatformManagerFactory(Microsoft.Maui.Platforms.Tizen.ITizenGestureHandlerFactory! handlerFactory) -> void
+Microsoft.Maui.Platforms.Tizen.TizenGesturePlatformManagerFactory.TizenGesturePlatformManagerFactory(Microsoft.Maui.Platforms.Tizen.ITizenGestureHandlerFactory! handlerFactory, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory) -> void
 Microsoft.Maui.Platforms.Tizen.TizenGesturePosition
 Microsoft.Maui.Platforms.Tizen.TizenGesturePosition.Local.get -> Microsoft.Maui.Graphics.Point
 Microsoft.Maui.Platforms.Tizen.TizenGesturePosition.Local.init -> void
@@ -446,6 +447,7 @@ Microsoft.Maui.Platforms.Tizen.TizenGestureState.Started = 1 -> Microsoft.Maui.P
 Microsoft.Maui.Platforms.Tizen.TizenLongPressGestureHandler
 Microsoft.Maui.Platforms.Tizen.TizenLongPressGestureHandler.TizenLongPressGestureHandler(Microsoft.Maui.Controls.LongPressGestureRecognizer! recognizer, Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector! detector, Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher! dispatcher, Microsoft.Maui.Platforms.Tizen.ITizenPixelScaler! scaler) -> void
 Microsoft.Maui.Platforms.Tizen.TizenModalHost
+Microsoft.Maui.Platforms.Tizen.TizenModalHost.Dispose() -> void
 Microsoft.Maui.Platforms.Tizen.TizenModalHost.RunModalAsync(System.Func<System.Threading.Tasks.Task!>! dialogOperation) -> System.Threading.Tasks.Task!
 Microsoft.Maui.Platforms.Tizen.TizenModalHost.TizenModalHost(Microsoft.Maui.Platforms.Tizen.ITizenNavigationStack! stack, Microsoft.Extensions.Logging.ILogger<Microsoft.Maui.Platforms.Tizen.TizenModalHost!>? logger = null) -> void
 Microsoft.Maui.Platforms.Tizen.TizenModalNavigationPlatform
@@ -462,6 +464,11 @@ Microsoft.Maui.Platforms.Tizen.TizenModalPageRealizer
 Microsoft.Maui.Platforms.Tizen.TizenModalPageRealizer.Realize(Microsoft.Maui.Controls.Page! page, Microsoft.Maui.IMauiContext! mauiContext) -> object!
 Microsoft.Maui.Platforms.Tizen.TizenModalPageRealizer.Release(Microsoft.Maui.Controls.Page! page, object! platformView, bool platformViewDisposed) -> void
 Microsoft.Maui.Platforms.Tizen.TizenModalPageRealizer.TizenModalPageRealizer() -> void
+Microsoft.Maui.Platforms.Tizen.TizenNativeGestureConfiguration
+Microsoft.Maui.Platforms.Tizen.TizenNativeGestureConfiguration.RequiredTapCount.get -> int
+Microsoft.Maui.Platforms.Tizen.TizenNativeGestureConfiguration.RequiredTouchCount.get -> int
+Microsoft.Maui.Platforms.Tizen.TizenNativeGestureConfiguration.TizenNativeGestureConfiguration() -> void
+Microsoft.Maui.Platforms.Tizen.TizenNativeGestureConfiguration.TizenNativeGestureConfiguration(int requiredTapCount, int requiredTouchCount) -> void
 Microsoft.Maui.Platforms.Tizen.TizenPanGestureHandler
 Microsoft.Maui.Platforms.Tizen.TizenPanGestureHandler.TizenPanGestureHandler(Microsoft.Maui.Controls.PanGestureRecognizer! recognizer, Microsoft.Maui.Platforms.Tizen.ITizenNativeGestureDetector! detector, Microsoft.Maui.Platforms.Tizen.ITizenGestureDispatcher! dispatcher, Microsoft.Maui.Platforms.Tizen.ITizenPixelScaler! scaler) -> void
 Microsoft.Maui.Platforms.Tizen.TizenPinchGestureHandler

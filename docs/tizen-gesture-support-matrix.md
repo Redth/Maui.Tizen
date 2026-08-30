@@ -83,6 +83,10 @@ non-public in the consumed binary. The upstream API is already merged; both test
 package containing it is pinned, and the only change needed is to complete
 `TizenGestureDispatcher` — no handler, detector or lifecycle code has to move.
 
+Packing `Maui.Tizen.Controls` is independently blocked with `MAUITIZEN0105` until both send methods
+are public in the actual pinned binary. The gate inspects metadata from
+`Microsoft.Maui.Controls.dll`; the merged upstream source alone is not treated as availability.
+
 ### Position resolution
 
 The new tap and pointer members take a `Func<IElement?, Point?> getPosition` rather than a plain
@@ -264,6 +268,10 @@ configuration.
 
 `PlatformPointerEventArgs` is left `null`. NUI reports no platform-native pointer event object, so
 supplying a fabricated value would be misleading.
+
+NUI's tertiary/middle mouse button is also not fabricated. MAUI's `ButtonsMask` exposes only
+`Primary` and `Secondary`, so tertiary taps and pointer activity are dropped. Touch and unknown
+button values remain primary, matching MAUI's touch-based backends.
 
 ### Drag and drop
 

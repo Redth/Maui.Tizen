@@ -82,6 +82,10 @@ Until the seam is adopted and published, .NET MAUI will not resolve
 `IModalNavigationPlatformFactory` — the registration is real and tested, but it binds the
 provisional interface, not one the framework knows about.
 
+Packing `Maui.Tizen.Controls` is also blocked with `MAUITIZEN0104` while the three contracts are
+absent from the actual pinned `Microsoft.Maui.Controls.dll`. This is a metadata inspection of the
+consumed binary, not an assumption based on upstream source status.
+
 ### What the Tizen implementation does
 
 `TizenModalNavigationPlatform` is the port of `ModalNavigationManager.Tizen.cs` reshaped onto the
@@ -98,6 +102,17 @@ seam:
 Deliberately **absent** from the port:
 
 - `SendDisappearing()` / `SendAppearing()` — the framework raises these itself under the seam.
+
+Animated push and pop transitions retain explicit operation ownership and generations. Window
+teardown invalidates in-flight work but does not release a view still owned by a native transition;
+the completing operation observes invalidation, confirms native removal, and releases exactly
+once. Failed identity removal leaves the live entry tracked for reconciliation or a later
+best-effort teardown retry.
+
+Framework-owned `Dispose` attempts every tracked cleanup and reports failures through the
+configured logger (or diagnostics fallback) without throwing into `Window.Destroying` or handler
+replacement. Caller-owned push/pop operations still surface their own transition and cleanup
+failures.
   Keeping them would fire the page lifecycle events twice.
 - `_platformModalPages.Add/Remove` — the framework owns the platform stack and updates it *before*
   awaiting the platform, which is why `PushModalAsync` receives a page that is already on

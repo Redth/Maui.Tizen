@@ -136,9 +136,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			var mask = ToButtonsMask(button);
 
-			if (!recognizer.Buttons.HasFlag(mask))
+			if (mask is null || !recognizer.Buttons.HasFlag(mask.Value))
 			{
-				// The recognizer asked for a different button, so this tap is not for it.
+				// MAUI has no tertiary/middle ButtonsMask. Dropping it is safer than fabricating
+				// a primary click and running an action the recognizer did not request.
 				return;
 			}
 
@@ -280,8 +281,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			var mask = ToButtonsMask(button);
 
+			if (mask is null)
+			{
+				return;
+			}
+
 			if ((action is TizenPointerAction.Pressed or TizenPointerAction.Released)
-				&& !recognizer.Buttons.HasFlag(mask))
+				&& !recognizer.Buttons.HasFlag(mask.Value))
 			{
 				return;
 			}
@@ -291,19 +297,19 @@ namespace Microsoft.Maui.Platforms.Tizen
 			switch (action)
 			{
 				case TizenPointerAction.Entered:
-					recognizer.SendPointerEntered(view, getPosition, button: mask);
+					recognizer.SendPointerEntered(view, getPosition, button: mask.Value);
 					break;
 				case TizenPointerAction.Moved:
-					recognizer.SendPointerMoved(view, getPosition, button: mask);
+					recognizer.SendPointerMoved(view, getPosition, button: mask.Value);
 					break;
 				case TizenPointerAction.Pressed:
-					recognizer.SendPointerPressed(view, getPosition, button: mask);
+					recognizer.SendPointerPressed(view, getPosition, button: mask.Value);
 					break;
 				case TizenPointerAction.Released:
-					recognizer.SendPointerReleased(view, getPosition, button: mask);
+					recognizer.SendPointerReleased(view, getPosition, button: mask.Value);
 					break;
 				case TizenPointerAction.Exited:
-					recognizer.SendPointerExited(view, getPosition, button: mask);
+					recognizer.SendPointerExited(view, getPosition, button: mask.Value);
 					break;
 			}
 		}
@@ -314,13 +320,13 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// <remarks>
 		/// Touch input carries no button, and NUI reports it as <c>MouseButton.Invalid</c>. It is
 		/// mapped to <see cref="ButtonsMask.Primary"/>, matching how .NET MAUI's own touch-based
-		/// backends report a finger press. Anything NUI cannot classify is treated the same way
-		/// rather than being reported as a secondary click, so a stray unknown value can never
-		/// fabricate a right-click.
+		/// backends report a finger press. Tertiary/middle is returned as unsupported because MAUI
+		/// has no matching mask; it must never be fabricated as a primary click.
 		/// </remarks>
-		internal static ButtonsMask ToButtonsMask(TizenPointerButton button) => button switch
+		internal static ButtonsMask? ToButtonsMask(TizenPointerButton button) => button switch
 		{
 			TizenPointerButton.Secondary => ButtonsMask.Secondary,
+			TizenPointerButton.Tertiary => null,
 			_ => ButtonsMask.Primary,
 		};
 

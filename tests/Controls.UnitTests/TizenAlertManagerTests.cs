@@ -194,6 +194,31 @@ public class TizenAlertManagerTests
 	}
 
 	[Fact]
+	public async Task ConstructionFailureDoesNotBlockQueueProgressionAcrossWindowPageReplacement()
+	{
+		var fixture = new Fixture();
+		fixture.Manager.Subscribe();
+		var expected = new InvalidOperationException("create failed");
+		fixture.Dialogs.AlertDialogCreationFailure = expected;
+		var failed = Alert();
+
+		fixture.Manager.RequestAlert(fixture.Page, failed);
+
+		Assert.Same(
+			expected,
+			await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(failed.Result.Task)));
+
+		fixture.Manager.Unsubscribe();
+		fixture.Manager.Subscribe();
+		fixture.Dialogs.AlertDialogCreationFailure = null;
+		var next = Alert();
+		fixture.Manager.RequestAlert(fixture.Page, next);
+		fixture.Dialogs.LastAlert!.CompleteWith(true);
+
+		Assert.True(await Completed(next.Result.Task));
+	}
+
+	[Fact]
 	public async Task DisposeDismissesDialogsOwnedByDetachedSubscriptions()
 	{
 		var fixture = new Fixture();

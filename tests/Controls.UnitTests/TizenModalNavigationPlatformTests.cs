@@ -1,5 +1,6 @@
 using System;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Maui.Controls;
@@ -357,6 +358,138 @@ public class TizenModalNavigationPlatformTests
 	}
 
 	[Fact]
+	public async Task DisposeDuringPushLeavesTheInFlightOperationOwningItsViewUntilLateCompletion()
+	{
+		var (platform, host, stack, realizer, _) = Build();
+		var blocker = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		stack.PushBlocker = blocker;
+		var modal = new ContentPage();
+		host.RecordPush(modal);
+
+		var push = platform.PushModalAsync(modal, animated: true);
+		await stack.PushStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+		platform.Dispose();
+
+		Assert.Empty(realizer.Released);
+		Assert.Equal(0, realizer.DisposeCountFor(modal));
+
+		blocker.SetResult(null);
+		await Assert.ThrowsAsync<ObjectDisposedException>(() => push);
+
+		Assert.Equal(modal, Assert.Single(realizer.Released));
+		Assert.Equal(1, realizer.DisposeCountFor(modal));
+
+		platform.Dispose();
+		Assert.Equal(1, realizer.DisposeCountFor(modal));
+	}
+
+	[Fact]
+	public async Task DisposeDuringPopDefersReleaseUntilTheNativePopCompletes()
+	{
+		var (platform, host, stack, realizer, _) = Build();
+		var modal = new ContentPage();
+		host.RecordPush(modal);
+		await platform.PushModalAsync(modal, false);
+		var blocker = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+		stack.PopBlocker = blocker;
+		host.RecordPop(modal);
+
+		var pop = platform.PopModalAsync(modal, animated: true);
+		await stack.PopStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+		platform.Dispose();
+		Assert.Empty(realizer.Released);
+
+		blocker.SetResult(null);
+		await Assert.ThrowsAsync<ObjectDisposedException>(() => pop);
+
+		Assert.Equal(modal, Assert.Single(realizer.Released));
+		Assert.Equal(1, realizer.DisposeCountFor(modal));
+
+		platform.Dispose();
+		Assert.Equal(1, realizer.DisposeCountFor(modal));
+	}
+
+	[Fact]
+	public async Task FailedPopAndFailedIdentityRemovalPreserveTrackingForRetry()
+	{
+		var (platform, host, stack, realizer, _) = Build();
+		using var _platform = platform;
+		var modal = new ContentPage();
+		host.RecordPush(modal);
+		await platform.PushModalAsync(modal, false);
+		var platformView = realizer.PlatformViewFor(modal);
+		stack.PopFailure = new InvalidOperationException("pop failed");
+		stack.RemoveFailures.Add(platformView);
+		host.RecordPop(modal);
+
+		await Assert.ThrowsAsync<AggregateException>(() => platform.PopModalAsync(modal, false));
+
+		Assert.True(stack.Contains(platformView));
+		Assert.Empty(realizer.Released);
+		Assert.Equal(0, realizer.DisposeCountFor(modal));
+
+		stack.PopFailure = null;
+		stack.RemoveFailures.Clear();
+		await platform.PopModalAsync(modal, false);
+
+		Assert.False(stack.Contains(platformView));
+		Assert.Equal(modal, Assert.Single(realizer.Released));
+		Assert.Equal(1, realizer.DisposeCountFor(modal));
+	}
+
+	[Fact]
+	public async Task FrameworkDisposeAttemptsEveryCleanupLogsFailuresAndReturns()
+	{
+		var host = new FakeModalNavigationHost(StubMauiContext.Empty()) { CurrentPage = new ContentPage() };
+		var stack = new FakeNavigationStack();
+		var realizer = new FakeModalPageRealizer();
+		var logger = new RecordingLogger<TizenModalNavigationPlatform>();
+		var platform = new TizenModalNavigationPlatform(host, stack, realizer, logger: logger);
+		var first = new ContentPage();
+		var second = new ContentPage();
+		host.RecordPush(first);
+		await platform.PushModalAsync(first, false);
+		host.RecordPush(second);
+		await platform.PushModalAsync(second, false);
+		var secondView = realizer.PlatformViewFor(second);
+		stack.RemoveFailures.Add(secondView);
+
+		var failure = Record.Exception(platform.Dispose);
+
+		Assert.Null(failure);
+		Assert.Contains(first, realizer.Released);
+		Assert.DoesNotContain(second, realizer.Released);
+		Assert.True(stack.Contains(secondView));
+		Assert.Contains(logger.Entries, entry => entry.Level == LogLevel.Error);
+
+		stack.RemoveFailures.Clear();
+		failure = Record.Exception(platform.Dispose);
+
+		Assert.Null(failure);
+		Assert.Contains(second, realizer.Released);
+		Assert.Equal(1, realizer.DisposeCountFor(first));
+		Assert.Equal(1, realizer.DisposeCountFor(second));
+	}
+
+	[Fact]
+	public async Task FrameworkDisposeStillReturnsWhenFailureLoggingThrows()
+	{
+		var host = new FakeModalNavigationHost(StubMauiContext.Empty()) { CurrentPage = new ContentPage() };
+		var stack = new FakeNavigationStack();
+		var realizer = new FakeModalPageRealizer();
+		var logger = new RecordingLogger<TizenModalNavigationPlatform> { ThrowOnLog = true };
+		var platform = new TizenModalNavigationPlatform(host, stack, realizer, logger: logger);
+		var modal = new ContentPage();
+		host.RecordPush(modal);
+		await platform.PushModalAsync(modal, false);
+		stack.RemoveFailures.Add(realizer.PlatformViewFor(modal));
+
+		Assert.Null(Record.Exception(platform.Dispose));
+	}
+
+	[Fact]
 	public async Task DisposeRemovesBuriedModalViewsAndReleasesEveryHandler()
 	{
 		var (platform, host, stack, realizer, _) = Build();
@@ -490,6 +623,96 @@ public class TizenModalNavigationPlatformTests
 		realizer.Realize(page, target);
 
 		Assert.Same(page, ((Element)page).Handler!.VirtualView);
+	}
+
+	[Fact]
+	public void SetVirtualViewFailureDisposesTheOwnedHandlerAndNativeView()
+	{
+		var nativeView = new FakeModalPageRealizer.FakePlatformView();
+		var handler = new StubViewHandler(platformView: nativeView)
+		{
+			SetVirtualViewFailure = new InvalidOperationException("bind failed"),
+		};
+		var target = StubMauiContext.WithHandlers(new StubHandlersFactory(() => handler));
+		var page = new ContentPage();
+		var realizer = new TizenModalPageRealizer();
+
+		Assert.Throws<InvalidOperationException>(() => realizer.Realize(page, target));
+
+		Assert.True(handler.Disposed);
+		Assert.True(handler.Disconnected);
+		Assert.True(nativeView.Disposed);
+		Assert.Null(((Element)page).Handler);
+	}
+
+	[Fact]
+	public void MissingPlatformViewDisposesTheOwnedHandlerAndClearsThePage()
+	{
+		var handler = new StubViewHandler();
+		handler.PlatformView = null;
+		var target = StubMauiContext.WithHandlers(new StubHandlersFactory(() => handler));
+		var page = new ContentPage();
+		var realizer = new TizenModalPageRealizer();
+
+		Assert.Throws<InvalidOperationException>(() => realizer.Realize(page, target));
+
+		Assert.True(handler.Disposed);
+		Assert.True(handler.Disconnected);
+		Assert.Null(((Element)page).Handler);
+	}
+
+	[Fact]
+	public void CrossWindowRecontextualizationDisposesTheOriginatingHandlerAndNativeView()
+	{
+		var realizer = new TizenModalPageRealizer();
+		var originating = StubMauiContext.WithHandlers();
+		var target = StubMauiContext.WithHandlers();
+		var nativeView = new FakeModalPageRealizer.FakePlatformView();
+		var page = new ContentPage();
+		var staleHandler = new StubViewHandler(page, platformView: nativeView, mauiContext: originating);
+		((Element)page).Handler = staleHandler;
+
+		realizer.Realize(page, target);
+
+		Assert.True(staleHandler.Disposed);
+		Assert.True(nativeView.Disposed);
+		Assert.NotSame(staleHandler, ((Element)page).Handler);
+	}
+
+	[Fact]
+	public void ReleaseClearsAndDisposesTheOwnedHandlerSoThePageCanBeRealizedAgain()
+	{
+		var realizer = new TizenModalPageRealizer();
+		var target = StubMauiContext.WithHandlers();
+		var page = new ContentPage();
+		var platformView = realizer.Realize(page, target);
+		var handler = Assert.IsType<StubViewHandler>(((Element)page).Handler);
+
+		realizer.Release(page, platformView, platformViewDisposed: false);
+
+		Assert.True(handler.Disposed);
+		Assert.Null(((Element)page).Handler);
+
+		var secondPlatformView = realizer.Realize(page, target);
+		Assert.NotSame(platformView, secondPlatformView);
+	}
+
+	[Fact]
+	public void ReleaseDisposesTheCapturedHandlerWithoutClearingANewerPageHandler()
+	{
+		var realizer = new TizenModalPageRealizer();
+		var target = StubMauiContext.WithHandlers();
+		var page = new ContentPage();
+		var platformView = realizer.Realize(page, target);
+		var original = Assert.IsType<StubViewHandler>(((Element)page).Handler);
+		var replacement = new StubViewHandler(page, mauiContext: target);
+		((Element)page).Handler = replacement;
+
+		realizer.Release(page, platformView, platformViewDisposed: false);
+
+		Assert.True(original.Disposed);
+		Assert.False(replacement.Disposed);
+		Assert.Same(replacement, ((Element)page).Handler);
 	}
 
 }

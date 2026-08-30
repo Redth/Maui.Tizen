@@ -248,15 +248,26 @@ public class TizenGestureDispatcherTests
 		Assert.True(raised);
 	}
 
+	[Fact]
+	public void TertiaryTapIsDroppedRatherThanFabricatedAsPrimary()
+	{
+		var dispatcher = new TizenGestureDispatcher();
+		var recognizer = new TapGestureRecognizer { Buttons = ButtonsMask.Primary };
+		var raised = false;
+		recognizer.Tapped += (_, _) => raised = true;
+
+		dispatcher.SendTapped(recognizer, View, At(Point.Zero), TizenPointerButton.Tertiary);
+
+		Assert.False(raised);
+	}
+
 	[Theory]
 	[InlineData(TizenPointerButton.Unknown, ButtonsMask.Primary)]
 	[InlineData(TizenPointerButton.Primary, ButtonsMask.Primary)]
 	[InlineData(TizenPointerButton.Secondary, ButtonsMask.Secondary)]
-	[InlineData(TizenPointerButton.Tertiary, ButtonsMask.Primary)]
-	public void ButtonsMapOntoMauiMasks(TizenPointerButton button, ButtonsMask expected)
+	[InlineData(TizenPointerButton.Tertiary, null)]
+	public void ButtonsMapOntoMauiMasks(TizenPointerButton button, ButtonsMask? expected)
 	{
-		// Tertiary has no MAUI equivalent, so it degrades to Primary rather than being reported
-		// as a secondary click.
 		Assert.Equal(expected, TizenGestureDispatcher.ToButtonsMask(button));
 	}
 
@@ -322,6 +333,29 @@ public class TizenGestureDispatcherTests
 		recognizer.PointerPressed += (_, _) => raised = true;
 
 		dispatcher.SendPointer(recognizer, View, TizenPointerAction.Pressed, At(Point.Zero), TizenPointerButton.Secondary);
+
+		Assert.False(raised);
+	}
+
+	[Theory]
+	[InlineData(TizenPointerAction.Moved)]
+	[InlineData(TizenPointerAction.Pressed)]
+	[InlineData(TizenPointerAction.Released)]
+	public void TertiaryPointerActivityIsDroppedRatherThanFabricatedAsPrimary(TizenPointerAction action)
+	{
+		var dispatcher = new TizenGestureDispatcher();
+		var recognizer = new PointerGestureRecognizer { Buttons = ButtonsMask.Primary };
+		var raised = false;
+		recognizer.PointerMoved += (_, _) => raised = true;
+		recognizer.PointerPressed += (_, _) => raised = true;
+		recognizer.PointerReleased += (_, _) => raised = true;
+
+		dispatcher.SendPointer(
+			recognizer,
+			View,
+			action,
+			At(Point.Zero),
+			TizenPointerButton.Tertiary);
 
 		Assert.False(raised);
 	}

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Controls;
 
 namespace Microsoft.Maui.Platforms.Tizen.UnitTests;
@@ -50,6 +51,18 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 
 	public int PopFailuresBeforeMutationRemaining { get; set; }
 
+	public HashSet<object> RemoveFailures { get; } = new();
+
+	public bool FailEveryRemove { get; set; }
+
+	public TaskCompletionSource<object?>? PushBlocker { get; set; }
+
+	public TaskCompletionSource<object?>? PopBlocker { get; set; }
+
+	public TaskCompletionSource<object?> PushStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+	public TaskCompletionSource<object?> PopStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
 	public List<FakePlaceholder> Placeholders { get; } = new();
 
 	public object CreatePlaceholder()
@@ -81,6 +94,12 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 			await Task.Yield();
 		}
 
+		if (PushBlocker is not null)
+		{
+			PushStarted.TrySetResult(null);
+			await PushBlocker.Task;
+		}
+
 		if (PushFailure is not null && !MutateBeforePushFailure)
 		{
 			throw PushFailure;
@@ -94,10 +113,16 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 		}
 	}
 
-	public Task PopAsync(bool animated)
+	public async Task PopAsync(bool animated)
 	{
 		Operations.Add($"Pop({animated})");
 		PopAnimations.Add(animated);
+
+		if (PopBlocker is not null)
+		{
+			PopStarted.TrySetResult(null);
+			await PopBlocker.Task;
+		}
 
 		if (PopFailure is not null
 			&& (!MutateBeforePopFailure || PopFailuresBeforeMutationRemaining > 0))
@@ -107,7 +132,7 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 				PopFailuresBeforeMutationRemaining--;
 			}
 
-			return Task.FromException(PopFailure);
+			throw PopFailure;
 		}
 
 		if (_entries.Count > 0)
@@ -121,12 +146,21 @@ internal sealed class FakeNavigationStack : ITizenNavigationStack
 			}
 		}
 
-		return PopFailure is null ? Task.CompletedTask : Task.FromException(PopFailure);
+		if (PopFailure is not null)
+		{
+			throw PopFailure;
+		}
 	}
 
 	public bool Remove(object platformView)
 	{
 		Operations.Add("Remove");
+
+		if (FailEveryRemove || RemoveFailures.Contains(platformView))
+		{
+			throw new InvalidOperationException("remove failed");
+		}
+
 		var isTop = ReferenceEquals(Top, platformView);
 		var removed = _entries.Remove(platformView);
 
@@ -201,6 +235,7 @@ internal sealed class FakeModalPageRealizer : ITizenModalPageRealizer
 
 	public List<Page> Released { get; } = new();
 	public List<(Page Page, bool PlatformViewDisposed)> Releases { get; } = new();
+	public Dictionary<Page, Exception> ReleaseFailures { get; } = new();
 
 	public object Realize(Page page, IMauiContext mauiContext)
 	{
@@ -214,6 +249,11 @@ internal sealed class FakeModalPageRealizer : ITizenModalPageRealizer
 	{
 		Released.Add(page);
 		Releases.Add((page, platformViewDisposed));
+
+		if (ReleaseFailures.TryGetValue(page, out var failure))
+		{
+			throw failure;
+		}
 
 		if (!platformViewDisposed)
 		{
@@ -231,6 +271,32 @@ internal sealed class FakeModalPageRealizer : ITizenModalPageRealizer
 		public int DisposeCount { get; private set; }
 
 		public void Dispose() => DisposeCount++;
+	}
+}
+
+internal sealed class RecordingLogger<T> : ILogger<T>
+{
+	public List<(LogLevel Level, Exception? Exception, string Message)> Entries { get; } = new();
+
+	public bool ThrowOnLog { get; set; }
+
+	public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+	public bool IsEnabled(LogLevel logLevel) => true;
+
+	public void Log<TState>(
+		LogLevel logLevel,
+		EventId eventId,
+		TState state,
+		Exception? exception,
+		Func<TState, Exception?, string> formatter)
+	{
+		if (ThrowOnLog)
+		{
+			throw new InvalidOperationException("logger failed");
+		}
+
+		Entries.Add((logLevel, exception, formatter(state, exception)));
 	}
 }
 

@@ -9,7 +9,7 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests;
 /// view. It deliberately does not implement .NET MAUI's <c>IPlatformViewHandler</c>, which is the
 /// exact shape the Tizen gesture infrastructure must work without.
 /// </summary>
-internal sealed class StubViewHandler : IViewHandler
+internal class StubViewHandler : IViewHandler, IDisposable
 {
 	public StubViewHandler(IView? virtualView = null, object? platformView = null, object? containerView = null, IMauiContext? mauiContext = null)
 	{
@@ -33,7 +33,21 @@ internal sealed class StubViewHandler : IViewHandler
 
 	public bool Disconnected { get; private set; }
 
-	public void DisconnectHandler() => Disconnected = true;
+	public bool Disposed { get; private set; }
+
+	public int DisposeCount { get; private set; }
+
+	public Exception? SetVirtualViewFailure { get; set; }
+
+	public virtual void DisconnectHandler() => Disconnected = true;
+
+	public void Dispose()
+	{
+		Disposed = true;
+		DisposeCount++;
+		DisconnectHandler();
+		(PlatformView as IDisposable)?.Dispose();
+	}
 
 	public Size GetDesiredSize(double widthConstraint, double heightConstraint) => Size.Zero;
 
@@ -45,9 +59,17 @@ internal sealed class StubViewHandler : IViewHandler
 	{
 	}
 
-	public void SetMauiContext(IMauiContext mauiContext) => MauiContext = mauiContext;
+	public virtual void SetMauiContext(IMauiContext mauiContext) => MauiContext = mauiContext;
 
-	public void SetVirtualView(IElement view) => VirtualView = view as IView;
+	public virtual void SetVirtualView(IElement view)
+	{
+		if (SetVirtualViewFailure is not null)
+		{
+			throw SetVirtualViewFailure;
+		}
+
+		VirtualView = view as IView;
+	}
 
 	public void UpdateValue(string property)
 	{
@@ -78,8 +100,8 @@ internal sealed class StubMauiContext : IMauiContext
 		new(new ServiceCollection().BuildServiceProvider());
 
 	/// <summary>Creates a context that can realize page handlers.</summary>
-	public static StubMauiContext WithHandlers() =>
-		new(new ServiceCollection().BuildServiceProvider(), new StubHandlersFactory());
+	public static StubMauiContext WithHandlers(IMauiHandlersFactory? handlers = null) =>
+		new(new ServiceCollection().BuildServiceProvider(), handlers ?? new StubHandlersFactory());
 
 	/// <summary>
 	/// Creates a context over a fresh DI scope, mirroring the per-window scope .NET MAUI creates.
@@ -97,12 +119,17 @@ internal sealed class StubMauiContext : IMauiContext
 /// </summary>
 internal sealed class StubHandlersFactory : IMauiHandlersFactory
 {
+	readonly Func<IElementHandler>? _createHandler;
+
+	public StubHandlersFactory(Func<IElementHandler>? createHandler = null) =>
+		_createHandler = createHandler;
+
 	public int Created { get; private set; }
 
 	public IElementHandler? GetHandler(Type type)
 	{
 		Created++;
-		return new StubViewHandler();
+		return _createHandler?.Invoke() ?? new StubViewHandler();
 	}
 
 	public IElementHandler? GetHandler<T>() where T : IElement => GetHandler(typeof(T));

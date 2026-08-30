@@ -108,7 +108,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 
 			// The original NUI implementation reports "cancel" as the result when the alert is
 			// dismissed without a selection.
-			_ = ShowAsync(_dialogs.CreateAlertDialog(arguments), arguments.SetResult, static () => false, arguments.Result);
+			_ = ShowAsync(
+				() => _dialogs.CreateAlertDialog(arguments),
+				arguments.SetResult,
+				static () => false,
+				arguments.Result);
 		}
 
 		/// <inheritdoc/>
@@ -122,7 +126,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 
 			var cancel = arguments.Cancel;
-			_ = ShowAsync(_dialogs.CreateActionSheetDialog(arguments), arguments.SetResult, () => cancel, arguments.Result);
+			_ = ShowAsync(
+				() => _dialogs.CreateActionSheetDialog(arguments),
+				arguments.SetResult,
+				() => cancel,
+				arguments.Result);
 		}
 
 		/// <inheritdoc/>
@@ -135,7 +143,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
-			_ = ShowAsync(_dialogs.CreatePromptDialog(arguments), arguments.SetResult, static () => (string?)null, arguments.Result);
+			_ = ShowAsync(
+				() => _dialogs.CreatePromptDialog(arguments),
+				arguments.SetResult,
+				static () => (string?)null,
+				arguments.Result);
 		}
 
 		/// <inheritdoc/>
@@ -308,11 +320,28 @@ namespace Microsoft.Maui.Platforms.Tizen
 		}
 
 		async Task ShowAsync<TResult>(
-			ITizenAlertDialog<TResult> dialog,
+			Func<ITizenAlertDialog<TResult>> createDialog,
 			Action<TResult> setResult,
 			Func<TResult> canceledResult,
 			TaskCompletionSource<TResult> completion)
 		{
+			ITizenAlertDialog<TResult> dialog;
+
+			try
+			{
+				// Factory execution belongs to the same completion boundary as OpenAsync. A
+				// constructor can throw (or a custom factory can return null) before any native
+				// callback exists, and the request's Result TCS must still complete exactly once.
+				dialog = createDialog()
+					?? throw new InvalidOperationException(
+						$"{nameof(ITizenAlertDialogFactory)} returned a null dialog.");
+			}
+			catch (Exception ex)
+			{
+				completion.TrySetException(ex);
+				return;
+			}
+
 			var teardown = new DialogTeardown();
 
 			if (!TrackDialog(dialog, teardown))

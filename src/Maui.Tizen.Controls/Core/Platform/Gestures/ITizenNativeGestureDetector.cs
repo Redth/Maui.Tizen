@@ -56,16 +56,50 @@ namespace Microsoft.Maui.Platforms.Tizen
 		/// </summary>
 		/// <param name="kind">The kind of gesture the detector should report.</param>
 		/// <param name="recognizer">The recognizer the detector will feed.</param>
-		ITizenNativeGestureDetector? CreateDetector(TizenGestureKind kind, IGestureRecognizer recognizer);
+		/// <param name="configuration">
+		/// Immutable recognizer settings captured before native detector construction. Native and
+		/// managed handlers must use this same snapshot.
+		/// </param>
+		ITizenNativeGestureDetector? CreateDetector(
+			TizenGestureKind kind,
+			IGestureRecognizer recognizer,
+			TizenNativeGestureConfiguration configuration);
 	}
 
 	internal sealed class UnsupportedTizenNativeGestureDetectorFactory : ITizenNativeGestureDetectorFactory
 	{
-		public ITizenNativeGestureDetector? CreateDetector(TizenGestureKind kind, IGestureRecognizer recognizer)
+		public ITizenNativeGestureDetector? CreateDetector(
+			TizenGestureKind kind,
+			IGestureRecognizer recognizer,
+			TizenNativeGestureConfiguration configuration)
 		{
 			ArgumentNullException.ThrowIfNull(recognizer);
 			return null;
 		}
+	}
+
+	/// <summary>
+	/// Immutable recognizer settings shared by native detector construction and managed dispatch.
+	/// </summary>
+	public readonly struct TizenNativeGestureConfiguration
+	{
+		readonly int _requiredTapCount;
+		readonly int _requiredTouchCount;
+
+		/// <summary>Initializes a new configuration snapshot.</summary>
+		/// <param name="requiredTapCount">The required tap count, or one when not applicable.</param>
+		/// <param name="requiredTouchCount">The required touch count, or one when not applicable.</param>
+		public TizenNativeGestureConfiguration(int requiredTapCount, int requiredTouchCount)
+		{
+			_requiredTapCount = requiredTapCount;
+			_requiredTouchCount = requiredTouchCount;
+		}
+
+		/// <summary>Gets the tap count captured for the detector.</summary>
+		public int RequiredTapCount => Math.Max(1, _requiredTapCount);
+
+		/// <summary>Gets the touch count captured for the detector.</summary>
+		public int RequiredTouchCount => Math.Max(1, _requiredTouchCount);
 	}
 
 	/// <summary>

@@ -14,6 +14,8 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// </remarks>
 	public sealed class TizenTapGestureHandler : TizenGestureHandler
 	{
+		readonly int _requiredTapCount;
+
 		/// <summary>
 		/// Initializes a new instance of the <see cref="TizenTapGestureHandler"/> class.
 		/// </summary>
@@ -26,8 +28,24 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ITizenNativeGestureDetector detector,
 			ITizenGestureDispatcher dispatcher,
 			ITizenPixelScaler scaler)
+			: this(
+				recognizer,
+				detector,
+				dispatcher,
+				scaler,
+				Math.Max(1, recognizer.NumberOfTapsRequired))
+		{
+		}
+
+		internal TizenTapGestureHandler(
+			TapGestureRecognizer recognizer,
+			ITizenNativeGestureDetector detector,
+			ITizenGestureDispatcher dispatcher,
+			ITizenPixelScaler scaler,
+			int requiredTapCount)
 			: base(recognizer, detector, dispatcher, scaler)
 		{
+			_requiredTapCount = Math.Max(1, requiredTapCount);
 		}
 
 		new TapGestureRecognizer Recognizer => (TapGestureRecognizer)base.Recognizer;
@@ -40,7 +58,7 @@ namespace Microsoft.Maui.Platforms.Tizen
 				return;
 			}
 
-			if (args.TapCount != Recognizer.NumberOfTapsRequired)
+			if (args.TapCount != _requiredTapCount)
 			{
 				return;
 			}
@@ -78,9 +96,24 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ITizenNativeGestureDetector detector,
 			ITizenGestureDispatcher dispatcher,
 			ITizenPixelScaler scaler)
+			: this(
+				recognizer,
+				detector,
+				dispatcher,
+				scaler,
+				GetRequiredTouchPoints(recognizer))
+		{
+		}
+
+		internal TizenPanGestureHandler(
+			PanGestureRecognizer recognizer,
+			ITizenNativeGestureDetector detector,
+			ITizenGestureDispatcher dispatcher,
+			ITizenPixelScaler scaler,
+			int requiredTouchPoints)
 			: base(recognizer, detector, dispatcher, scaler)
 		{
-			_requiredTouchPoints = GetRequiredTouchPoints(recognizer);
+			_requiredTouchPoints = Math.Max(1, requiredTouchPoints);
 		}
 
 		new PanGestureRecognizer Recognizer => (PanGestureRecognizer)base.Recognizer;

@@ -109,6 +109,32 @@ public class TizenModalHostTests
 	}
 
 	[Fact]
+	public async Task FailedIdentityRemovalKeepsThePlaceholderLiveForTheNextRetry()
+	{
+		var stack = new FakeNavigationStack();
+		using var host = new TizenModalHost(stack);
+		FakePlaceholder? first = null;
+
+		await Assert.ThrowsAsync<AggregateException>(() => host.RunModalAsync(async () =>
+		{
+			first = Assert.IsType<FakePlaceholder>(stack.Top);
+			await stack.PushAsync(new object(), false);
+			stack.RemoveFailures.Add(first);
+		}));
+
+		Assert.NotNull(first);
+		Assert.True(stack.Contains(first!));
+		Assert.Equal(0, first!.DisposeCount);
+
+		stack.RemoveFailures.Clear();
+		await host.RunModalAsync(() => Task.CompletedTask);
+
+		Assert.False(stack.Contains(first));
+		Assert.Equal(1, first.DisposeCount);
+		Assert.Equal(1, stack.Count);
+	}
+
+	[Fact]
 	public async Task NestedDialogsStayBalanced()
 	{
 		var stack = new FakeNavigationStack();
@@ -183,6 +209,34 @@ public class TizenModalHostTests
 		Assert.Equal(0, stack.Count);
 		Assert.True(Assert.Single(stack.Placeholders).Disposed);
 		Assert.Equal(1, Assert.Single(stack.Placeholders).DisposeCount);
+	}
+
+	[Fact]
+	public async Task FailedPushRollbackKeepsTheLivePlaceholderForTheNextRetry()
+	{
+		var stack = new FakeNavigationStack
+		{
+			PushFailure = new InvalidOperationException("stack push failed"),
+			MutateBeforePushFailure = true,
+			PopFailure = new InvalidOperationException("stack pop failed"),
+			FailEveryRemove = true,
+		};
+		using var host = new TizenModalHost(stack);
+
+		await Assert.ThrowsAsync<AggregateException>(
+			() => host.RunModalAsync(() => Task.CompletedTask));
+
+		var first = Assert.Single(stack.Placeholders);
+		Assert.True(stack.Contains(first));
+		Assert.Equal(0, first.DisposeCount);
+
+		stack.PushFailure = null;
+		stack.PopFailure = null;
+		stack.FailEveryRemove = false;
+		await host.RunModalAsync(() => Task.CompletedTask);
+
+		Assert.False(stack.Contains(first));
+		Assert.Equal(1, first.DisposeCount);
 	}
 
 	[Fact]

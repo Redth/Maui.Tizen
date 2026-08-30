@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Internals;
 using Microsoft.Maui.Controls.Platform;
@@ -110,6 +111,29 @@ public class TizenGesturePlatformManagerTests
 
 		Assert.Equal(2, detectors.Created.Count);
 		Assert.All(detectors.Created, d => Assert.True(d.IsAttached));
+	}
+
+	[Fact]
+	public void NativeTapDetectorAndManagedHandlerShareOneConfigurationSnapshot()
+	{
+		var (factory, detectors) = CreateFactory();
+		var recognizer = new TapGestureRecognizer { NumberOfTapsRequired = 2 };
+		var handler = new StubViewHandler(ViewWith(recognizer));
+
+		using var manager = factory.CreateGesturePlatformManager(handler);
+		recognizer.NumberOfTapsRequired = 1;
+
+		var request = Assert.Single(detectors.Requests);
+		Assert.Equal(2, request.Configuration.RequiredTapCount);
+	}
+
+	[Fact]
+	public void DefaultNativeGestureConfigurationUsesSafeSingleCounts()
+	{
+		var configuration = default(TizenNativeGestureConfiguration);
+
+		Assert.Equal(1, configuration.RequiredTapCount);
+		Assert.Equal(1, configuration.RequiredTouchCount);
 	}
 
 	[Fact]
@@ -389,6 +413,112 @@ public class TizenGesturePlatformManagerTests
 
 		manager.Dispose();
 		manager.Dispose();
+	}
+
+	[Fact]
+	public void HandlerDisposeAttemptsUnsubscribeDetachAndNativeDisposeWhenEachThrows()
+	{
+		var detector = new FakeNativeGestureDetector();
+		var handler = new TizenPanGestureHandler(
+			new PanGestureRecognizer(),
+			detector,
+			new RecordingGestureDispatcher(),
+			new TizenPixelScaler());
+		handler.Attach(new StubViewHandler(new Label()));
+		var unsubscribe = new InvalidOperationException("unsubscribe");
+		var detach = new InvalidOperationException("detach");
+		var dispose = new InvalidOperationException("dispose");
+		detector.UnsubscribeFailure = unsubscribe;
+		detector.DetachFailure = detach;
+		detector.DisposeFailure = dispose;
+
+		var failure = Assert.Throws<AggregateException>(handler.Dispose);
+
+		Assert.Contains(unsubscribe, failure.InnerExceptions);
+		Assert.Contains(detach, failure.InnerExceptions);
+		Assert.Contains(dispose, failure.InnerExceptions);
+		Assert.Equal(1, detector.UnsubscribeCount);
+		Assert.Equal(1, detector.DetachCount);
+		Assert.Equal(1, detector.DisposeCount);
+		Assert.False(detector.IsAttached);
+		Assert.True(detector.Disposed);
+	}
+
+	[Fact]
+	public void ManagerDisposeClearsOwnershipAndAttemptsEveryCompositeChild()
+	{
+		var detectors = new FakeNativeGestureDetectorFactory();
+		var created = 0;
+		detectors.ConfigureDetector = detector =>
+		{
+			if (created++ == 0)
+			{
+				detector.DetachFailure = new InvalidOperationException("first detach");
+				detector.DisposeFailure = new InvalidOperationException("first dispose");
+			}
+		};
+		var handlerFactory = new TizenGestureHandlerFactory(
+			detectors,
+			new RecordingGestureDispatcher(),
+			new TizenPixelScaler());
+		var view = ViewWith(new PanGestureRecognizer());
+		((IGestureController)view).CompositeGestureRecognizers.Add(new PointerGestureRecognizer());
+		var logger = new RecordingLogger<TizenGesturePlatformManager>();
+		var manager = new TizenGesturePlatformManager(new StubViewHandler(view), handlerFactory, logger);
+
+		var failure = Record.Exception(manager.Dispose);
+
+		Assert.Null(failure);
+		Assert.Equal(2, detectors.Created.Count);
+		Assert.All(detectors.Created, detector => Assert.True(detector.Disposed));
+		Assert.Equal(0, manager.GestureDetector!.Count);
+		Assert.Contains(logger.Entries, entry => entry.Level == LogLevel.Error);
+
+		view.GestureRecognizers.Add(new PinchGestureRecognizer());
+		Assert.Equal(2, detectors.Created.Count);
+	}
+
+	[Fact]
+	public void ManagerDisposeStillReturnsWhenFailureLoggingThrows()
+	{
+		var detectors = new FakeNativeGestureDetectorFactory
+		{
+			ConfigureDetector = detector =>
+				detector.DisposeFailure = new InvalidOperationException("dispose"),
+		};
+		var handlerFactory = new TizenGestureHandlerFactory(
+			detectors,
+			new RecordingGestureDispatcher(),
+			new TizenPixelScaler());
+		var logger = new RecordingLogger<TizenGesturePlatformManager> { ThrowOnLog = true };
+		var manager = new TizenGesturePlatformManager(
+			new StubViewHandler(ViewWith(new PanGestureRecognizer())),
+			handlerFactory,
+			logger);
+
+		Assert.Null(Record.Exception(manager.Dispose));
+		Assert.True(Assert.Single(detectors.Created).Disposed);
+	}
+
+	[Fact]
+	public void HandlerConstructionFailureStillDisposesTheNativeDetector()
+	{
+		var detectors = new FakeNativeGestureDetectorFactory
+		{
+			ConfigureDetector = detector =>
+				detector.SubscribeFailure = new InvalidOperationException("subscribe"),
+		};
+		var factory = new TizenGestureHandlerFactory(
+			detectors,
+			new RecordingGestureDispatcher(),
+			new TizenPixelScaler());
+
+		Assert.Throws<InvalidOperationException>(
+			() => factory.CreateHandler(new PanGestureRecognizer()));
+
+		var detector = Assert.Single(detectors.Created);
+		Assert.True(detector.Disposed);
+		Assert.Equal(1, detector.DisposeCount);
 	}
 
 	[Fact]

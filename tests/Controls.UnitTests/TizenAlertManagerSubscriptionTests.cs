@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Internals;
@@ -242,6 +243,97 @@ public class TizenAlertManagerSubscriptionTests
 		await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(args.Result.Task));
 	}
 
+	[Theory]
+	[InlineData(DialogKind.Alert)]
+	[InlineData(DialogKind.ActionSheet)]
+	[InlineData(DialogKind.Prompt)]
+	public async Task DialogConstructionFailureFaultsTheExactRequestAndDoesNotWedgeTheNextOne(DialogKind dialogKind)
+	{
+		var fixture = new Fixture();
+		var expected = new InvalidOperationException($"create {dialogKind}");
+
+		Task failed = dialogKind switch
+		{
+			DialogKind.Alert => RequestAlertWithCreationFailure(fixture, expected),
+			DialogKind.ActionSheet => RequestActionSheetWithCreationFailure(fixture, expected),
+			DialogKind.Prompt => RequestPromptWithCreationFailure(fixture, expected),
+			_ => throw new ArgumentOutOfRangeException(nameof(dialogKind)),
+		};
+
+		var actual = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(failed));
+		Assert.Same(expected, actual);
+
+		var next = Alert();
+		fixture.Subscription.OnAlertRequested(fixture.Page, next);
+		fixture.Dialogs.LastAlert!.CompleteWith(true);
+
+		Assert.True(await Completed(next.Result.Task));
+	}
+
+	[Theory]
+	[InlineData(DialogKind.Alert)]
+	[InlineData(DialogKind.ActionSheet)]
+	[InlineData(DialogKind.Prompt)]
+	public async Task NullDialogFactoryResultFaultsTheExactRequest(DialogKind dialogKind)
+	{
+		var fixture = new Fixture();
+		Task failed;
+
+		switch (dialogKind)
+		{
+			case DialogKind.Alert:
+				fixture.Dialogs.ReturnNullAlertDialog = true;
+				var alert = Alert();
+				fixture.Subscription.OnAlertRequested(fixture.Page, alert);
+				failed = alert.Result.Task;
+				break;
+			case DialogKind.ActionSheet:
+				fixture.Dialogs.ReturnNullActionSheetDialog = true;
+				var actionSheet = ActionSheet();
+				fixture.Subscription.OnActionSheetRequested(fixture.Page, actionSheet);
+				failed = actionSheet.Result.Task;
+				break;
+			case DialogKind.Prompt:
+				fixture.Dialogs.ReturnNullPromptDialog = true;
+				var prompt = Prompt();
+				fixture.Subscription.OnPromptRequested(fixture.Page, prompt);
+				failed = prompt.Result.Task;
+				break;
+			default:
+				throw new ArgumentOutOfRangeException(nameof(dialogKind));
+		}
+
+		var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(failed));
+		Assert.Contains("returned a null dialog", failure.Message, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public async Task SynchronousResultContinuationRunsOnceForConstructionFailure()
+	{
+		var fixture = new Fixture();
+		var expected = new InvalidOperationException("construction failed");
+		fixture.Dialogs.AlertDialogCreationFailure = expected;
+		var args = Alert();
+		var continuationCount = 0;
+		var continuation = args.Result.Task.ContinueWith(
+			_ => Interlocked.Increment(ref continuationCount),
+			CancellationToken.None,
+			TaskContinuationOptions.ExecuteSynchronously,
+			TaskScheduler.Default);
+
+		var requestFailure = Record.Exception(
+			() => fixture.Subscription.OnAlertRequested(fixture.Page, args));
+
+		Assert.Null(requestFailure);
+		Assert.Same(
+			expected,
+			await Assert.ThrowsAsync<InvalidOperationException>(() => Completed(args.Result.Task)));
+		await Completed(continuation);
+
+		fixture.Subscription.Dispose();
+		Assert.Equal(1, continuationCount);
+	}
+
 	[Fact]
 	public async Task ModalStackFailureCancelsTheCallerInsteadOfHanging()
 	{
@@ -263,6 +355,33 @@ public class TizenAlertManagerSubscriptionTests
 		subscription.OnAlertRequested(page, args);
 
 		Assert.False(await Completed(args.Result.Task));
+	}
+
+	static Task RequestAlertWithCreationFailure(Fixture fixture, Exception failure)
+	{
+		fixture.Dialogs.AlertDialogCreationFailure = failure;
+		var args = Alert();
+		fixture.Subscription.OnAlertRequested(fixture.Page, args);
+		fixture.Dialogs.AlertDialogCreationFailure = null;
+		return args.Result.Task;
+	}
+
+	static Task RequestActionSheetWithCreationFailure(Fixture fixture, Exception failure)
+	{
+		fixture.Dialogs.ActionSheetCreationFailure = failure;
+		var args = ActionSheet();
+		fixture.Subscription.OnActionSheetRequested(fixture.Page, args);
+		fixture.Dialogs.ActionSheetCreationFailure = null;
+		return args.Result.Task;
+	}
+
+	static Task RequestPromptWithCreationFailure(Fixture fixture, Exception failure)
+	{
+		fixture.Dialogs.PromptCreationFailure = failure;
+		var args = Prompt();
+		fixture.Subscription.OnPromptRequested(fixture.Page, args);
+		fixture.Dialogs.PromptCreationFailure = null;
+		return args.Result.Task;
 	}
 
 	[Fact]

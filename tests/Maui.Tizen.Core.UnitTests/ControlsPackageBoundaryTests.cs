@@ -189,6 +189,50 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Fact]
+		public void ControlsPackIsBlockedWhenPinnedMauiLacksModalContracts()
+		{
+			var result = RunMauiControlsApiPackGuard();
+
+			Assert.NotEqual(0, result.ExitCode);
+			Assert.Contains("MAUITIZEN0104", result.Output, StringComparison.Ordinal);
+			Assert.Contains("dotnet/maui#37853", result.Output, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void ControlsPackIsBlockedWhenPinnedMauiLacksLongPressSendApis()
+		{
+			var result = RunMauiControlsApiPackGuard(modalAvailable: true);
+
+			Assert.NotEqual(0, result.ExitCode);
+			Assert.DoesNotContain("MAUITIZEN0104", result.Output, StringComparison.Ordinal);
+			Assert.Contains("MAUITIZEN0105", result.Output, StringComparison.Ordinal);
+			Assert.Contains("dotnet/maui#37861", result.Output, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void ControlsPackAllowsExplicitlyVerifiedMauiContractAvailability()
+		{
+			var result = RunMauiControlsApiPackGuard(
+				modalAvailable: true,
+				longPressAvailable: true);
+
+			Assert.Equal(0, result.ExitCode);
+			Assert.DoesNotContain("MAUITIZEN0104", result.Output, StringComparison.Ordinal);
+			Assert.DoesNotContain("MAUITIZEN0105", result.Output, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void MauiControlsApiPackGuardDoesNotBlockUnrelatedPackages()
+		{
+			var result = RunMauiControlsApiPackGuard(
+				project: "src/Maui.Tizen.Core/Maui.Tizen.Core.csproj");
+
+			Assert.Equal(0, result.ExitCode);
+			Assert.DoesNotContain("MAUITIZEN0104", result.Output, StringComparison.Ordinal);
+			Assert.DoesNotContain("MAUITIZEN0105", result.Output, StringComparison.Ordinal);
+		}
+
+		[Fact]
 		public void ControlsEvaluatesSharedTizenPolicyDefaults()
 		{
 			Assert.Equal("0.9.2", MSBuildEvaluation.GetProperty(ControlsProduct, "TizenUIExtensionsPackageVersion"));
@@ -291,6 +335,52 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 			startInfo.ArgumentList.Add("-p:TizenWorkloadAvailable=true");
 			if (isShippable.HasValue)
 				startInfo.ArgumentList.Add($"-p:TizenUIExtensionsIsShippable={isShippable.Value.ToString().ToLowerInvariant()}");
+
+			using var process = Process.Start(startInfo)
+				?? throw new InvalidOperationException("Failed to start dotnet msbuild.");
+
+			var output = process.StandardOutput.ReadToEnd();
+			var error = process.StandardError.ReadToEnd();
+			process.WaitForExit();
+
+			return (process.ExitCode, output + error);
+		}
+
+		static (int ExitCode, string Output) RunMauiControlsApiPackGuard(
+			bool? modalAvailable = null,
+			bool? longPressAvailable = null,
+			string project = ControlsProduct)
+		{
+			var dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") is { Length: > 0 } host
+				? host
+				: "dotnet";
+
+			var startInfo = new ProcessStartInfo(dotnet)
+			{
+				WorkingDirectory = RepositoryRoot,
+				RedirectStandardOutput = true,
+				RedirectStandardError = true,
+			};
+
+			startInfo.ArgumentList.Add("msbuild");
+			startInfo.ArgumentList.Add(Path.Combine(RepositoryRoot, project));
+			startInfo.ArgumentList.Add("-t:BlockControlsPackOnUnavailableMauiPublicContracts");
+			startInfo.ArgumentList.Add("-nologo");
+			startInfo.ArgumentList.Add("-p:TargetFramework=net11.0");
+			startInfo.ArgumentList.Add("-p:TizenWorkloadAvailable=true");
+			startInfo.ArgumentList.Add("-p:BuildProjectReferences=false");
+
+			if (modalAvailable.HasValue)
+			{
+				startInfo.ArgumentList.Add(
+					$"-p:MauiTizenModalPublicContractsVerifiedAvailable={modalAvailable.Value.ToString().ToLowerInvariant()}");
+			}
+
+			if (longPressAvailable.HasValue)
+			{
+				startInfo.ArgumentList.Add(
+					$"-p:MauiTizenLongPressSendApisVerifiedAvailable={longPressAvailable.Value.ToString().ToLowerInvariant()}");
+			}
 
 			using var process = Process.Start(startInfo)
 				?? throw new InvalidOperationException("Failed to start dotnet msbuild.");

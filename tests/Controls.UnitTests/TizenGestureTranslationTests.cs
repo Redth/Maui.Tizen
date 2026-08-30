@@ -126,6 +126,29 @@ public class TizenGestureTranslationTests
 	}
 
 	[Fact]
+	public void TapCountChangesAfterAttachmentKeepTheNativeConfiguration()
+	{
+		var recognizer = new TapGestureRecognizer { NumberOfTapsRequired = 2 };
+		var (handler, detector, dispatcher, _) = Build(
+			(d, disp, s) => new TizenTapGestureHandler(recognizer, d, disp, s));
+		using var _handler = handler;
+
+		recognizer.NumberOfTapsRequired = 1;
+		detector.Raise(new TizenGestureEventArgs(TizenGestureKind.Tap, TizenGestureState.Finished)
+		{
+			TapCount = 1,
+			LocalPosition = new Point(10, 10),
+		});
+		detector.Raise(new TizenGestureEventArgs(TizenGestureKind.Tap, TizenGestureState.Finished)
+		{
+			TapCount = 2,
+			LocalPosition = new Point(20, 20),
+		});
+
+		Assert.Equal(new Point(10, 10), Assert.Single(dispatcher.Taps));
+	}
+
+	[Fact]
 	public void EachPanGetsItsOwnGestureIdAndFreshTotals()
 	{
 		var recognizer = new PanGestureRecognizer();

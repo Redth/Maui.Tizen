@@ -53,14 +53,18 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 
 		public void Detach()
 		{
-			if (_attachedView is null)
+			var view = _attachedView;
+			_attachedView = null;
+
+			if (view is null)
 			{
 				return;
 			}
 
-			OnDetaching(_attachedView);
-			NativeDetector.Detach(_attachedView);
-			_attachedView = null;
+			TizenGestureCleanup.Run(
+				"One or more native detector detach operations failed.",
+				() => OnDetaching(view),
+				() => NativeDetector.Detach(view));
 		}
 
 		public void Dispose()
@@ -71,8 +75,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 			}
 
 			_disposed = true;
-			Detach();
-			NativeDetector.Dispose();
+			Detected = null;
+
+			TizenGestureCleanup.Run(
+				"One or more NUI gesture detector cleanup operations failed.",
+				UnsubscribeNativeEvents,
+				Detach,
+				NativeDetector.Dispose);
 		}
 
 		/// <summary>Called after the detector has been attached to <paramref name="view"/>.</summary>
@@ -85,6 +94,24 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 		/// <param name="view">The native view.</param>
 		protected virtual void OnDetaching(NView view)
 		{
+		}
+
+		/// <summary>Unsubscribes the concrete NUI detector event raised by the adapter.</summary>
+		protected virtual void UnsubscribeNativeEvents()
+		{
+		}
+
+		protected void SubscribeNativeEvents(Action subscribe)
+		{
+			try
+			{
+				subscribe();
+			}
+			catch
+			{
+				NativeDetector.Dispose();
+				throw;
+			}
 		}
 
 		protected TizenGestureEventArgs Raise(TizenGestureEventArgs args)
@@ -116,7 +143,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 		public NuiTapGestureDetector(uint tapsRequired)
 			: base(new TapGestureDetector(tapsRequired == 0 ? 1u : tapsRequired))
 		{
-			((TapGestureDetector)NativeDetector).Detected += OnDetected;
+			SubscribeNativeEvents(
+				() => ((TapGestureDetector)NativeDetector).Detected += OnDetected);
 		}
 
 		void OnDetected(object? source, TapGestureDetector.DetectedEventArgs e)
@@ -133,6 +161,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 				ViewSize = ViewSizeOf(AttachedView),
 			});
 		}
+
+		protected override void UnsubscribeNativeEvents() =>
+			((TapGestureDetector)NativeDetector).Detected -= OnDetected;
 
 		static TizenPointerButton ToButton(Gesture.SourceDataType sourceData) => sourceData switch
 		{
@@ -163,7 +194,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 				detector.SetMaximumTouchesRequired(touchPoints);
 			}
 
-			detector.Detected += OnDetected;
+			SubscribeNativeEvents(() => detector.Detected += OnDetected);
 		}
 
 		void OnDetected(object? source, PanGestureDetector.DetectedEventArgs e)
@@ -182,6 +213,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 			// The ported handlers leave the gesture unconsumed so overlapping gestures keep working.
 			e.Handled = args.Handled;
 		}
+
+		protected override void UnsubscribeNativeEvents() =>
+			((PanGestureDetector)NativeDetector).Detected -= OnDetected;
 	}
 
 	/// <summary>Ported from the NUI <c>PinchGestureHandler</c> detector setup.</summary>
@@ -190,7 +224,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 		public NuiPinchGestureDetector()
 			: base(new PinchGestureDetector())
 		{
-			((PinchGestureDetector)NativeDetector).Detected += OnDetected;
+			SubscribeNativeEvents(
+				() => ((PinchGestureDetector)NativeDetector).Detected += OnDetected);
 		}
 
 		void OnDetected(object? source, PinchGestureDetector.DetectedEventArgs e)
@@ -205,6 +240,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 				ViewSize = ViewSizeOf(AttachedView),
 			});
 		}
+
+		protected override void UnsubscribeNativeEvents() =>
+			((PinchGestureDetector)NativeDetector).Detected -= OnDetected;
 	}
 
 	/// <summary>Ported from the NUI <c>LongPressGestureHandler</c> detector setup.</summary>
@@ -220,7 +258,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 			// exist in TizenFX (verified against Samsung.Tizen.Ref API13 and API15); that code was
 			// never compiled because Tizen was dropped from the MAUI build. See
 			// docs/tizen-gesture-support-matrix.md.
-			((LongPressGestureDetector)NativeDetector).Detected += OnDetected;
+			SubscribeNativeEvents(
+				() => ((LongPressGestureDetector)NativeDetector).Detected += OnDetected);
 		}
 
 		void OnDetected(object? source, LongPressGestureDetector.DetectedEventArgs e)
@@ -237,6 +276,9 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 
 			e.Handled = args.Handled;
 		}
+
+		protected override void UnsubscribeNativeEvents() =>
+			((LongPressGestureDetector)NativeDetector).Detected -= OnDetected;
 	}
 
 	/// <summary>
@@ -298,31 +340,21 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 
 		public void Detach()
 		{
-			if (_view is null)
-			{
-				return;
-			}
-
 			var view = _view;
 			var leaveRequiredLease = _leaveRequiredLease;
 			_view = null;
 			_leaveRequiredLease = null;
 
-			try
+			if (view is null)
 			{
-				view.TouchEvent -= OnTouch;
+				return;
 			}
-			finally
-			{
-				try
-				{
-					view.HoverEvent -= OnHover;
-				}
-				finally
-				{
-					leaveRequiredLease?.Dispose();
-				}
-			}
+
+			TizenGestureCleanup.Run(
+				"One or more NUI pointer detector detach operations failed.",
+				() => view.TouchEvent -= OnTouch,
+				() => view.HoverEvent -= OnHover,
+				() => leaveRequiredLease?.Dispose());
 		}
 
 		public void Dispose()
@@ -333,6 +365,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 			}
 
 			_disposed = true;
+			Detected = null;
 			Detach();
 		}
 
@@ -453,19 +486,22 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 	public sealed class NuiGestureDetectorFactory : ITizenNativeGestureDetectorFactory
 	{
 		/// <inheritdoc/>
-		public ITizenNativeGestureDetector? CreateDetector(TizenGestureKind kind, IGestureRecognizer recognizer)
+		public ITizenNativeGestureDetector? CreateDetector(
+			TizenGestureKind kind,
+			IGestureRecognizer recognizer,
+			TizenNativeGestureConfiguration configuration)
 		{
 			ArgumentNullException.ThrowIfNull(recognizer);
 
 			return kind switch
 			{
-				TizenGestureKind.Tap when recognizer is TapGestureRecognizer tap =>
-					new NuiTapGestureDetector((uint)Math.Max(1, tap.NumberOfTapsRequired)),
+				TizenGestureKind.Tap when recognizer is TapGestureRecognizer =>
+					new NuiTapGestureDetector((uint)configuration.RequiredTapCount),
 
-				TizenGestureKind.Pan when recognizer is PanGestureRecognizer pan =>
+				TizenGestureKind.Pan when recognizer is PanGestureRecognizer =>
 					new NuiPanGestureDetector(
 						kind,
-						(uint)TizenPanGestureHandler.GetRequiredTouchPoints(pan)),
+						(uint)configuration.RequiredTouchCount),
 
 				// Swipe rides on the pan detector because Tizen has no swipe gesture of its own.
 				TizenGestureKind.Swipe when recognizer is SwipeGestureRecognizer =>
@@ -474,8 +510,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Nui
 				TizenGestureKind.Pinch =>
 					new NuiPinchGestureDetector(),
 
-				TizenGestureKind.LongPress when recognizer is LongPressGestureRecognizer longPress =>
-					new NuiLongPressGestureDetector((uint)Math.Max(1, longPress.NumberOfTouchesRequired)),
+				TizenGestureKind.LongPress when recognizer is LongPressGestureRecognizer =>
+					new NuiLongPressGestureDetector((uint)configuration.RequiredTouchCount),
 
 				TizenGestureKind.Pointer =>
 					new NuiPointerGestureDetector(),

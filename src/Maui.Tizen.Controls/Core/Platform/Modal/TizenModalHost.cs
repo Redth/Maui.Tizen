@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -28,10 +30,17 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// rather than only on device.
 	/// </para>
 	/// </remarks>
-	public sealed class TizenModalHost : ITizenModalHost
+	public sealed class TizenModalHost : ITizenModalHost, IDisposable
 	{
+		readonly record struct RemovalResult(
+			bool IsAbsent,
+			bool PlaceholderDisposed,
+			Exception? Failure);
+
 		readonly ITizenNavigationStack _stack;
 		readonly ILogger<TizenModalHost>? _logger;
+		readonly HashSet<object> _activePlaceholders = new();
+		readonly HashSet<object> _pendingPlaceholders = new();
 
 		/// <summary>
 		/// Initializes a new instance of the <see cref="TizenModalHost"/> class.
@@ -49,7 +58,10 @@ namespace Microsoft.Maui.Platforms.Tizen
 		{
 			ArgumentNullException.ThrowIfNull(dialogOperation);
 
+			await RetryPendingPlaceholdersAsync().ConfigureAwait(true);
+
 			var placeholder = _stack.CreatePlaceholder();
+			_activePlaceholders.Add(placeholder);
 
 			// ShownBehindPage is stack-wide state that belongs to whatever is already presented,
 			// not to this dialog. It is set so the placeholder does not hide the page underneath -
@@ -71,34 +83,45 @@ namespace Microsoft.Maui.Platforms.Tizen
 				// Some native stacks mutate before completing their transition task. Remove by
 				// identity even though PushAsync faulted so a half-completed push cannot wedge the
 				// stack.
-				var cleanupFailures = new List<Exception>();
-				var pushPlaceholderDisposed = false;
+				var pushRemoval = await RemovePlaceholderAsync(placeholder).ConfigureAwait(true);
+				Exception? releaseFailure = null;
+				if (pushRemoval.IsAbsent)
+				{
+					_activePlaceholders.Remove(placeholder);
+					_pendingPlaceholders.Remove(placeholder);
 
-				try
-				{
-					pushPlaceholderDisposed = await RemovePlaceholderAsync(placeholder).ConfigureAwait(true);
-				}
-				catch (Exception ex)
-				{
-					cleanupFailures.Add(ex);
-				}
-
-				try
-				{
-					if (!pushPlaceholderDisposed)
+					try
 					{
-						DisposePlaceholder(placeholder);
+						if (!pushRemoval.PlaceholderDisposed)
+						{
+							DisposePlaceholder(placeholder);
+						}
+					}
+					catch (Exception ex)
+					{
+						releaseFailure = ex;
 					}
 				}
-				catch (Exception ex)
+				else
 				{
-					cleanupFailures.Add(ex);
+					_activePlaceholders.Remove(placeholder);
+					_pendingPlaceholders.Add(placeholder);
 				}
 
-				if (cleanupFailures.Count > 0)
+				var pushCleanupFailure = CombineFailures(
+					"The dialog placeholder push rollback failed.",
+					pushRemoval.Failure,
+					pushRemoval.IsAbsent
+						? null
+						: new InvalidOperationException(
+							"The placeholder remained in the native stack after its push failed."),
+					releaseFailure);
+				if (pushCleanupFailure is not null)
 				{
-					cleanupFailures.Insert(0, pushFailure);
-					throw new AggregateException("The dialog placeholder push and its rollback both failed.", cleanupFailures);
+					throw new AggregateException(
+						"The dialog placeholder push and its rollback both failed.",
+						pushFailure,
+						pushCleanupFailure);
 				}
 
 				ExceptionDispatchInfo.Capture(pushFailure).Throw();
@@ -120,56 +143,48 @@ namespace Microsoft.Maui.Platforms.Tizen
 				dialogFailure = ex;
 			}
 
-			Exception? cleanupFailure = null;
-			var placeholderDisposed = false;
-
-			try
+			RemovalResult removal;
+			if (ReferenceEquals(_stack.Top, placeholder))
 			{
-				// Always unwind, otherwise the stack is left permanently unbalanced. The
-				// placeholder may no longer be on top if something else was pushed while the dialog
-				// was open, which is why the non-top case removes it by identity.
+				removal = await RemovePlaceholderAsync(placeholder).ConfigureAwait(true);
+			}
+			else
+			{
+				_logger?.LogDebug(
+					"The dialog placeholder was no longer on top of the navigation stack; removing it by identity instead of popping.");
+				removal = await RemovePlaceholderAsync(placeholder).ConfigureAwait(true);
+			}
+
+			Exception? cleanupFailure = removal.Failure;
+			if (removal.IsAbsent)
+			{
+				_activePlaceholders.Remove(placeholder);
+				_pendingPlaceholders.Remove(placeholder);
+
 				try
 				{
-					if (ReferenceEquals(_stack.Top, placeholder))
+					if (!removal.PlaceholderDisposed)
 					{
-						await _stack.PopAsync(false).ConfigureAwait(true);
-						placeholderDisposed = true;
-					}
-					else
-					{
-						_logger?.LogDebug(
-							"The dialog placeholder was no longer on top of the navigation stack; removing it by identity instead of popping.");
-						if (_stack.Contains(placeholder))
-						{
-							placeholderDisposed = _stack.Remove(placeholder);
-						}
+						DisposePlaceholder(placeholder);
 					}
 				}
-				catch
+				catch (Exception ex)
 				{
-					// PopAsync can remove the top entry and then fault its transition task. Removal
-					// is idempotent and also covers the pre-mutation failure case.
-					placeholderDisposed = await RemovePlaceholderAsync(placeholder).ConfigureAwait(true);
-					throw;
+					cleanupFailure = CombineFailures(
+						"The placeholder removal and disposal both failed.",
+						cleanupFailure,
+						ex);
 				}
 			}
-			catch (Exception ex)
+			else
 			{
-				cleanupFailure = ex;
-			}
-
-			try
-			{
-				if (!placeholderDisposed)
-				{
-					DisposePlaceholder(placeholder);
-				}
-			}
-			catch (Exception ex)
-			{
-				cleanupFailure = cleanupFailure is null
-					? ex
-					: new AggregateException(cleanupFailure, ex);
+				_activePlaceholders.Remove(placeholder);
+				_pendingPlaceholders.Add(placeholder);
+				cleanupFailure = CombineFailures(
+					"The placeholder remained live after cleanup.",
+					cleanupFailure,
+					new InvalidOperationException(
+						"The dialog placeholder remains in the native stack and was kept alive for retry."));
 			}
 
 			if (dialogFailure is not null && cleanupFailure is not null)
@@ -194,44 +209,184 @@ namespace Microsoft.Maui.Platforms.Tizen
 		static void DisposePlaceholder(object placeholder) =>
 			(placeholder as IDisposable)?.Dispose();
 
-		async Task<bool> RemovePlaceholderAsync(object placeholder)
+		/// <inheritdoc/>
+		public void Dispose()
 		{
-			if (!_stack.Contains(placeholder))
-			{
-				return _stack.IsDisposed(placeholder);
-			}
-
-			if (ReferenceEquals(_stack.Top, placeholder))
+			foreach (var placeholder in _activePlaceholders.Concat(_pendingPlaceholders).Distinct().ToArray())
 			{
 				try
 				{
-					await _stack.PopAsync(false).ConfigureAwait(true);
-					return _stack.IsDisposed(placeholder);
+					if (_stack.Contains(placeholder))
+					{
+						_stack.Remove(placeholder);
+					}
+
+					if (_stack.Contains(placeholder))
+					{
+						ReportTeardownFailure(
+							new InvalidOperationException(
+								"The dialog placeholder remained in the native stack during modal-host teardown."));
+						continue;
+					}
+
+					var disposed = _stack.IsDisposed(placeholder);
+					_activePlaceholders.Remove(placeholder);
+					_pendingPlaceholders.Remove(placeholder);
+					if (!disposed)
+					{
+						DisposePlaceholder(placeholder);
+					}
 				}
-				catch (Exception retryFailure)
+				catch (Exception ex)
+				{
+					ReportTeardownFailure(ex);
+				}
+			}
+		}
+
+		void ReportTeardownFailure(Exception failure)
+		{
+			try
+			{
+				if (_logger is not null)
+				{
+					_logger.LogError(
+						failure,
+						"Failed to clean up a dialog placeholder during modal-host teardown.");
+				}
+				else
+				{
+					Trace.TraceError(
+						"Failed to clean up a dialog placeholder during modal-host teardown: {0}",
+						failure);
+				}
+			}
+			catch
+			{
+				// Framework teardown must not fail because a logger or trace listener failed.
+			}
+		}
+
+		async Task RetryPendingPlaceholdersAsync()
+		{
+			foreach (var placeholder in _pendingPlaceholders.ToArray())
+			{
+				var removal = await RemovePlaceholderAsync(placeholder).ConfigureAwait(true);
+				if (!removal.IsAbsent)
+				{
+					ExceptionDispatchInfo.Capture(
+						removal.Failure ?? new InvalidOperationException(
+							"A previous dialog placeholder remains in the native stack.")).Throw();
+				}
+
+				_pendingPlaceholders.Remove(placeholder);
+				if (!removal.PlaceholderDisposed)
+				{
+					DisposePlaceholder(placeholder);
+				}
+
+				if (removal.Failure is not null)
+				{
+					ExceptionDispatchInfo.Capture(removal.Failure).Throw();
+				}
+			}
+		}
+
+		async Task<RemovalResult> RemovePlaceholderAsync(object placeholder)
+		{
+			Exception? failure = null;
+
+			try
+			{
+				if (!_stack.Contains(placeholder))
+				{
+					return ConfirmPlaceholderAbsent(placeholder);
+				}
+
+				if (ReferenceEquals(_stack.Top, placeholder))
 				{
 					try
 					{
-						if (_stack.Contains(placeholder))
-						{
-							return _stack.Remove(placeholder);
-						}
-
-						return _stack.IsDisposed(placeholder);
+						await _stack.PopAsync(false).ConfigureAwait(true);
 					}
-					catch (Exception removeFailure)
+					catch (Exception popFailure)
 					{
-						throw new AggregateException(
-							"The nonanimated placeholder rollback and identity removal both failed.",
-							retryFailure,
-							removeFailure);
+						failure = popFailure;
+
+						try
+						{
+							if (_stack.Contains(placeholder))
+							{
+								_stack.Remove(placeholder);
+							}
+						}
+						catch (Exception removeFailure)
+						{
+							failure = CombineFailures(
+								"The nonanimated placeholder rollback and identity removal both failed.",
+								popFailure,
+								removeFailure);
+						}
 					}
 				}
+				else
+				{
+					_stack.Remove(placeholder);
+				}
 			}
-			else
+			catch (Exception ex)
 			{
-				return _stack.Remove(placeholder);
+				failure = CombineFailures(
+					"The placeholder identity removal failed.",
+					failure,
+					ex);
 			}
+
+			var confirmed = ConfirmPlaceholderAbsent(placeholder);
+			return confirmed with
+			{
+				Failure = CombineFailures(
+					"The placeholder removal and absence verification failed.",
+					failure,
+					confirmed.Failure),
+			};
+		}
+
+		RemovalResult ConfirmPlaceholderAbsent(object placeholder)
+		{
+			try
+			{
+				if (_stack.Contains(placeholder))
+				{
+					return new RemovalResult(false, false, null);
+				}
+
+				return new RemovalResult(true, _stack.IsDisposed(placeholder), null);
+			}
+			catch (Exception ex)
+			{
+				return new RemovalResult(false, false, ex);
+			}
+		}
+
+		static Exception? CombineFailures(string message, params Exception?[] failures)
+		{
+			var present = new List<Exception>();
+			foreach (var failure in failures)
+			{
+				if (failure is not null
+					&& !present.Any(existing => ReferenceEquals(existing, failure)))
+				{
+					present.Add(failure);
+				}
+			}
+
+			return present.Count switch
+			{
+				0 => null,
+				1 => present[0],
+				_ => new AggregateException(message, present),
+			};
 		}
 	}
 }

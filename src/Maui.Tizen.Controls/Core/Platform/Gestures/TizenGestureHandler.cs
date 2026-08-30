@@ -139,16 +139,22 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 
 			_disposed = true;
+			_handler = null;
+			_attachedView = null;
 
 			if (!disposing)
 			{
 				return;
 			}
 
-			_detector.Detected -= OnDetected;
-			Detach();
-			_detector.Dispose();
-			_handler = null;
+			// Clear managed ownership before calling user/native cleanup. Each step is independent:
+			// an event accessor or detach implementation may throw, but must not keep the detector
+			// subscribed, attached, or undisposed and must not leave this handler reusable.
+			TizenGestureCleanup.Run(
+				"One or more native gesture cleanup operations failed.",
+				() => _detector.Detected -= OnDetected,
+				_detector.Detach,
+				_detector.Dispose);
 		}
 
 		/// <summary>
