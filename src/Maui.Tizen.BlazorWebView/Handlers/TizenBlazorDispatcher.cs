@@ -36,13 +36,14 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			public async Task DrainAsync()
 			{
 				var drained = 0;
+				List<Exception>? failures = null;
 				while (true)
 				{
 					Task[] operations;
 					lock (_gate)
 					{
 						if (drained == _operations.Count)
-							return;
+							break;
 
 						operations = _operations.GetRange(
 							drained,
@@ -50,8 +51,32 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 						drained = _operations.Count;
 					}
 
-					await Task.WhenAll(operations).ConfigureAwait(false);
+					try
+					{
+						await Task.WhenAll(operations).ConfigureAwait(false);
+					}
+					catch
+					{
+						foreach (var operation in operations)
+						{
+							if (operation.IsFaulted)
+							{
+								(failures ??= new()).AddRange(
+									operation.Exception!.Flatten().InnerExceptions);
+							}
+							else if (operation.IsCanceled)
+							{
+								(failures ??= new()).Add(new TaskCanceledException(operation));
+							}
+						}
+					}
 				}
+
+				if (failures is { Count: 1 })
+					throw failures[0];
+
+				if (failures is not null)
+					throw new AggregateException("One or more captured dispatcher operations failed.", failures);
 			}
 
 			public void Dispose()

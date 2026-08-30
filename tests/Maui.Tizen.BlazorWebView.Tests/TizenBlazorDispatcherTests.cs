@@ -46,6 +46,38 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			Assert.Same(expected, failure);
 		}
 
+		[Fact]
+		public async Task FaultDoesNotStopDrainBeforeLaterCapturedWorkCompletes()
+		{
+			var dispatcher = new TizenBlazorDispatcher(new InlineDispatcher());
+			var expected = new InvalidOperationException("outer ipc failed");
+			var nestedStarted = new TaskCompletionSource<object?>(
+				TaskCreationOptions.RunContinuationsAsynchronously);
+			var releaseNested = new TaskCompletionSource<object?>(
+				TaskCreationOptions.RunContinuationsAsynchronously);
+			var capture = dispatcher.BeginOperationCapture();
+			_ = dispatcher.InvokeAsync(async () =>
+			{
+				await Task.Yield();
+				_ = dispatcher.InvokeAsync(async () =>
+				{
+					nestedStarted.TrySetResult(null);
+					await releaseNested.Task;
+				});
+				throw expected;
+			});
+			capture.Dispose();
+			await nestedStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+			var drain = capture.DrainAsync();
+			Assert.False(drain.IsCompleted);
+			releaseNested.TrySetResult(null);
+
+			var failure = await Assert.ThrowsAsync<InvalidOperationException>(
+				() => drain);
+			Assert.Same(expected, failure);
+		}
+
 		private sealed class InlineDispatcher : IDispatcher
 		{
 			public bool IsDispatchRequired => false;

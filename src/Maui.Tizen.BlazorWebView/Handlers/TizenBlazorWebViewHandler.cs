@@ -79,13 +79,15 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			public required RootComponentConnection RootComponents { get; init; }
 			public required InterceptedRequestLifetime Requests { get; init; }
 			public required AsyncOperationLifetime Dispatches { get; init; }
+			public required InboundMessageLifetime Messages { get; init; }
 			public required EventHandler<WebViewPageLoadEventArgs> PageLoadFinishedHandler { get; init; }
 
 			public Task RetireAsync() =>
 				Task.WhenAll(
 					RootComponents.RetireAsync(),
 					Requests.RetireAsync(),
-					Dispatches.RetireAsync());
+					Dispatches.RetireAsync(),
+					Messages.DrainAsync());
 		}
 
 		private const string JavaScriptMessageHandlerName = "BlazorHandler";
@@ -489,7 +491,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 				return;
 			}
 
-			var delivery = connection.Dispatches.TryRunAsync(async () =>
+			var delivery = connection.Messages.TryRunAsync(async () =>
 			{
 				await connection.Manager
 					.MessageReceivedAsync(new Uri(source.Url), payload)
@@ -744,6 +746,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 				RootComponents = rootComponents,
 				Requests = requests,
 				Dispatches = new AsyncOperationLifetime(),
+				Messages = new InboundMessageLifetime(),
 				PageLoadFinishedHandler = pageLoadFinished,
 			};
 
