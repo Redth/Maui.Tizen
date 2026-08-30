@@ -1,0 +1,15 @@
+# Package content contract for Maui.Tizen.Build.Tasks
+#
+# Format: '<require|forbid> <glob>' - see Maui.Tizen.TestUtils.PackageContentContract.
+
+# Build tasks are loaded by MSBuild itself, so they target netstandard2.0 and must NOT be
+# placed under lib/: NuGet would then add them as a compile-time reference for consumers.
+require  tasks/**/Maui.Tizen.Build.Tasks.dll
+forbid   lib/**
+
+# The targets that invoke the tasks must be in buildTransitive/ so they flow to consumers
+# through a project reference chain, not just to the direct referencing project.
+require  buildTransitive/**/*.targets
+
+forbid   **/*.pdb
+require  README.md

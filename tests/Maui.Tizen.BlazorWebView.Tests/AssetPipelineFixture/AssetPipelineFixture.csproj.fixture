@@ -1,0 +1,98 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!--
+    Fixture for AssetPipelineTests. Renamed to .csproj at test time and built with a private
+    artifacts path, so it never participates in the repository build or the solution.
+
+    It is a plain net11.0 Razor app - deliberately NOT a Tizen or MAUI project - because the
+    conversion under test only needs the Razor SDK's StaticWebAssets. That keeps the test runnable
+    on a machine with no Samsung workload, which is the entire point.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>$(NoWarn);NETSDK1057</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Brings blazor.webview.js in as a StaticWebAsset from the package's staticwebassets/ folder. -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView" Version="__WEBVIEW_VERSION__" />
+    <!--
+      Consumes the exact provider .props/.targets through a real nupkg so NuGet, not a source-tree
+      import, must generate and activate the buildTransitive imports.
+    -->
+    <PackageReference Include="__PROVIDER_PACKAGE_ID__" Version="__PROVIDER_PACKAGE_VERSION__" />
+  </ItemGroup>
+
+  <!--
+    Stands in for Maui.Tizen.Build.Tasks' MauiTizenCollectProvidedAssets, which runs every target
+    listed in MauiTizenAssetProviderTargets.
+
+    This exists so the REGISTRATION path can be tested in isolation. Nothing else in this fixture
+    runs GetMauiItems, ProcessMauiAssets, ResizetizeCollectItems or _CheckForContent, so the
+    conversion's own BeforeTargets hook never fires when this target is invoked directly - which
+    means assets appearing here can only have come through the provider contract.
+
+    Maui.Tizen.Build.Tasks itself is not referenced because this fixture isolates the provider
+    contract. The provider under test still arrives only through NuGet's generated imports above.
+  -->
+  <Target Name="SimulateAssetProviderContract" DependsOnTargets="$(MauiTizenAssetProviderTargets)" />
+
+  <Target Name="CaptureProviderConfiguration">
+    <ItemGroup>
+      <_ProviderConfiguration Include="BlazorWebView">
+        <BasePath>$(StaticWebAssetBasePath)</BasePath>
+        <ProjectMode>$(StaticWebAssetProjectMode)</ProjectMode>
+      </_ProviderConfiguration>
+    </ItemGroup>
+  </Target>
+
+  <!--
+    Seeds pre-compressed variants so the conversion's AssetRole='Alternative' filter is exercised
+    against real input.
+
+    Why seeded rather than SDK-produced: compressed variants are emitted by the Blazor WebAssembly
+    SDK's publish-time compression targets, which do not exist in a plain Razor app - this fixture
+    is deliberately not a MAUI/Tizen/WASM project so it can run without the Samsung workload. A
+    build of this fixture therefore produces ZERO compressed assets, which previously made the
+    exclusion test vacuous: it asserted that no .gz survived when none had ever been present.
+
+    The metadata below mirrors what the SDK actually emits for a compressed variant (AssetRole,
+    RelatedAsset, and the Content-Encoding trait), so the filter is tested against the shape it
+    will really meet.
+
+    The discriminating case is NOT seeded: wwwroot/data/archive.gz is a genuine user file that the
+    Razor SDK discovers as an ordinary Primary asset. It must survive, which is what proves the
+    filter keys on AssetRole rather than on the file extension.
+  -->
+  <Target Name="SeedCompressedStaticWebAssets"
+          BeforeTargets="ConvertStaticWebAssetsToTizenMauiAssets"
+          DependsOnTargets="StaticWebAssetsPrepareForRun"
+          Condition=" '$(SeedCompressedAssets)' == 'true' ">
+    <ItemGroup>
+      <_SeedPrimary Include="@(StaticWebAsset)" Condition=" '%(StaticWebAsset.AssetRole)' == 'Primary' " />
+
+      <StaticWebAsset Include="@(_SeedPrimary->'%(Identity)')"
+                      Condition=" '@(_SeedPrimary)' != '' ">
+        <RelativePath>%(_SeedPrimary.RelativePath).gz</RelativePath>
+        <AssetRole>Alternative</AssetRole>
+        <RelatedAsset>%(_SeedPrimary.Identity)</RelatedAsset>
+        <AssetTraitName>Content-Encoding</AssetTraitName>
+        <AssetTraitValue>gzip</AssetTraitValue>
+      </StaticWebAsset>
+
+      <StaticWebAsset Include="@(_SeedPrimary->'%(Identity)')"
+                      Condition=" '@(_SeedPrimary)' != '' ">
+        <RelativePath>%(_SeedPrimary.RelativePath).br</RelativePath>
+        <AssetRole>Alternative</AssetRole>
+        <RelatedAsset>%(_SeedPrimary.Identity)</RelatedAsset>
+        <AssetTraitName>Content-Encoding</AssetTraitName>
+        <AssetTraitValue>br</AssetTraitValue>
+      </StaticWebAsset>
+    </ItemGroup>
+  </Target>
+
+</Project>

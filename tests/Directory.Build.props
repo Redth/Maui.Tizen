@@ -1,0 +1,36 @@
+<Project>
+
+  <PropertyGroup>
+    <_ParentDirectoryBuildProps>$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))</_ParentDirectoryBuildProps>
+  </PropertyGroup>
+
+  <Import Project="$(_ParentDirectoryBuildProps)" Condition="'$(_ParentDirectoryBuildProps)' != ''" />
+
+  <PropertyGroup>
+    <!--
+      Host TFM for everything that must build WITHOUT the Samsung Tizen workload.
+      $(DotNetTfm) comes from the repository-root Directory.Build.props, which mirrors
+      eng/baselines.json > target. Deliberately not restated here: a second copy of the
+      TFM contract is exactly the drift RepositoryContractTests exists to prevent.
+    -->
+    <ValidationHostTargetFramework>$(DotNetTfm)</ValidationHostTargetFramework>
+    <TargetFramework Condition="'$(TargetFramework)' == '' and '$(TargetFrameworks)' == ''">$(ValidationHostTargetFramework)</TargetFramework>
+
+    <!--
+      The root props enable XML docs and reference assemblies for shipping code. Test
+      projects opt out: they ship nothing and the doc-comment noise is not worth it on
+      assertion-heavy code.
+    -->
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <EnableDefaultNoneItems>true</EnableDefaultNoneItems>
+
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+
+    <!-- Deterministic execution: no ambient culture drift between runners. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+</Project>

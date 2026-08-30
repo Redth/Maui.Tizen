@@ -106,6 +106,26 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 #endif
 		}
 
+		/// <summary>
+		/// Records a mapper key together with a decision the mapper made.
+		/// </summary>
+		/// <remarks>
+		/// Recording the key alone is not enough for mappers whose <em>argument</em> is the thing
+		/// worth pinning. The background mapper is the case in point: whether it passes
+		/// <c>clearWhenNull</c> decides between clearing a stale colour and repainting every page
+		/// transparent, and both outcomes enter the same mapper - so a key-only assertion cannot
+		/// tell them apart.
+		/// </remarks>
+		/// <param name="handler">The handler.</param>
+		/// <param name="key">The mapper key.</param>
+		/// <param name="detail">The decision to record alongside the key.</param>
+		static void Applied(IViewHandler handler, string key, string detail)
+		{
+#if !TIZEN
+			Platform(handler)?.Record($"{key}:{detail}");
+#endif
+		}
+
 		/// <summary>Maps <see cref="IView.AutomationId"/>.</summary>
 		/// <param name="handler">The handler.</param>
 		/// <param name="view">The view.</param>
@@ -155,9 +175,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <param name="view">The view.</param>
 		public static void MapBackground(IViewHandler handler, IView view)
 		{
+			// clearWhenNull:true - an ordinary view whose Background goes back to null must have
+			// the old native colour cleared, or it stays on screen. TizenPageHandler deliberately
+			// overrides this with clearWhenNull:false; see its MapPageBackground.
 			Applied(handler, nameof(IView.Background));
+			Applied(handler, nameof(IView.Background), "clearWhenNull=True");
 #if TIZEN
-			Platform(handler)?.UpdateBackground(view);
+			Platform(handler)?.UpdateBackground(view, clearWhenNull: true);
 #endif
 		}
 

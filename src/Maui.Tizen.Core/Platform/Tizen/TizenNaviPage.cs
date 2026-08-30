@@ -103,6 +103,59 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 		}
 
+		/// <summary>
+		/// Unparents the content WITHOUT disposing it, and returns it.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// The <see cref="Content"/> setter disposes what it replaces, which is right when this
+		/// page owns the view but wrong when the view belongs to a handler. Ownership here is:
+		/// the handler owns the content, this page owns the <see cref="TitleView"/>.
+		/// </para>
+		/// <para>
+		/// Assigning <c>Content = null</c> to detach therefore disposed the handler's platform view,
+		/// and the handler then disposed it again - a double dispose with no exception at the point
+		/// of the mistake. This is the detach path for that case.
+		/// </para>
+		/// </remarks>
+		/// <returns>The detached content, or <see langword="null"/> if there was none.</returns>
+		public NView? DetachContent()
+			=> DetachContent(resubscribe: true);
+
+		NView? DetachContent(bool resubscribe)
+		{
+			var content = _content;
+
+			if (content is not null)
+			{
+				_children.CollectionChanged -= OnCollectionChanged;
+				try
+				{
+					content.Unparent();
+					_content = null;
+				}
+				finally
+				{
+					if (resubscribe)
+						_children.CollectionChanged += OnCollectionChanged;
+				}
+			}
+
+			return content;
+		}
+
+		protected override void Dispose(global::Tizen.NUI.DisposeTypes type)
+		{
+			if (type == global::Tizen.NUI.DisposeTypes.Explicit)
+			{
+				_children.CollectionChanged -= OnCollectionChanged;
+				DetachContent(resubscribe: false);
+				TitleView = null;
+			}
+
+			base.Dispose(type);
+		}
+
 		IList<NView> IContainable<NView>.Children => _children;
 
 		void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)

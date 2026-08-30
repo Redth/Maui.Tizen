@@ -46,6 +46,77 @@ jobs:
           ContinuousIntegrationBuild: true
 
   # ---------------------------------------------------------------------------
+  # Hosted validation lane.
+  #
+  # Everything the validation harness can prove without a Tizen workload or a device:
+  # repository contract consistency, packaging and package-content contracts, dependency
+  # policy, MSBuild/buildTransitive behaviour, handler/DI/Essentials convention engines,
+  # the DevFlow API contract, and consumer restore.
+  #
+  # Suites here skip individual tests when their subject does not exist yet, and every skip
+  # carries a reason naming what is missing and which lane covers it. The run summary lists
+  # them, because a suite that quietly skips everything is the failure mode this lane exists
+  # to prevent.
+  # ---------------------------------------------------------------------------
+  hosted-validation:
+    name: Hosted validation (no Tizen workload)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Run hosted validation suites
+        run: ./eng/validation/run-hosted-validation.sh
+        env:
+          ContinuousIntegrationBuild: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosted-validation-results
+          path: artifacts/test-results/
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # Device lane status, surfaced on every build.
+  #
+  # The real device lane lives in tizen-device-validation.yml and runs on self-hosted
+  # Samsung infrastructure that is deliberately NOT attached to ordinary pull requests.
+  # This job reports that fact rather than letting the lane silently not exist.
+  # ---------------------------------------------------------------------------
+  device-lane-status:
+    name: Tizen device lane (informational)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Report device lane availability
+        run: |
+          set -euo pipefail
+          {
+            echo "## Tizen device lane"
+            echo
+            if [ "${{ vars.TIZEN_DEVICE_LAB_ENABLED }}" = "true" ]; then
+              echo ":white_check_mark: A device lab is configured for this repository."
+              echo "The lane runs in \`tizen-device-validation.yml\`."
+            else
+              echo ":hourglass: **No device lab is attached — expected for pull requests.**"
+              echo
+              echo "Device-dependent validation (TPK creation, emulator/device deploy and run,"
+              echo "visual baselines, TV remote focus traversal, live handler parity) runs in"
+              echo "\`tizen-device-validation.yml\` on self-hosted Samsung infrastructure."
+              echo
+              echo "It is **not required** for pull requests and **is required** for a release,"
+              echo "through the \`tizen-release\` environment. See \`docs/validation/ci.md\`."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
   # Provenance integrity.
   #
   # The import's value is entirely in the history it preserves. If a future rebase or
@@ -268,18 +339,16 @@ jobs:
   # ---------------------------------------------------------------------------
   # The external gate.
   #
-  # This job does NOT silently skip. It runs on every build and reports, in the job
-  # summary, whether the Samsung .NET 11 workload has shipped yet. The moment it starts
-  # succeeding, this job should be promoted to a required check and the Tizen projects
-  # built for real.
-  #
-  # continue-on-error is used rather than `if:` so the gate stays visible in the checks
-  # list instead of disappearing.
+  # This job runs on every build. While Samsung's .NET 11 manifest is unavailable it
+  # reports that external dependency truthfully and succeeds. The first time either
+  # baseline-derived manifest ID becomes available, the same unconditional step installs
+  # the supported workload and runs the real Tizen restore/build/pack lane. There is no
+  # continue-on-error or conditionally skipped follow-up that can turn that transition
+  # into a false green.
   # ---------------------------------------------------------------------------
   tizen-workload-gate:
     name: Tizen workload availability (external gate)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
 
@@ -288,71 +357,7 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Probe for the Samsung Tizen workload manifest
-        id: probe
-        run: |
-          set -euo pipefail
-
-          # Deliberately NOT `dotnet workload install tizen`.
-          #
-          # The Samsung workload is third-party and side-loaded: its manifest is not
-          # discoverable through the SDK's public workload search on a clean runner, so
-          # `dotnet workload install tizen` cannot succeed here regardless of whether
-          # Samsung has shipped. And `--skip-manifest-update` guarantees failure outright,
-          # because the manifest is precisely what the runner does not yet have.
-          #
-          # A probe that can never succeed is worse than no probe: it reports "blocked"
-          # forever and would keep reporting it for weeks after the gate actually lifts.
-          #
-          # So we ask the question that has a real answer — has Samsung published a
-          # manifest package for this SDK band?
-          #
-          # Two IDs are probed, both DERIVED from eng/baselines.json rather than hardcoded:
-          # the full band (11.0.100-preview.7) and the feature band with the preview
-          # segment stripped (11.0.100), since Samsung may publish against either. NuGet
-          # IDs are case-insensitive, so the lowercase flat-container form covers both
-          # spellings.
-          BAND="$(python3 -c "import json;print(json.load(open('eng/baselines.json'))['target']['sdkBand'])")"
-          FEATURE_BAND="${BAND%%-*}"
-
-          FOUND=false
-          for id in "samsung.net.sdk.tizen.manifest-${BAND}" "samsung.net.sdk.tizen.manifest-${FEATURE_BAND}"; do
-            code="$(curl -s -o /dev/null -w '%{http_code}' "https://api.nuget.org/v3-flatcontainer/${id}/index.json")"
-            echo "  ${id} -> HTTP ${code}"
-            if [ "$code" = "200" ]; then FOUND=true; PUBLISHED_ID="$id"; fi
-          done
-
-          { echo "## Tizen workload gate"; echo; } >> "$GITHUB_STEP_SUMMARY"
-
-          if [ "$FOUND" = "true" ]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-            {
-              echo ":white_check_mark: **Samsung has published \`${PUBLISHED_ID}\` — the gate has lifted.**"
-              echo
-              echo "Next steps:"
-              echo "1. Install the workload through Samsung's supported installer / local manifest path."
-              echo "2. Promote this job to a required check and build the \`net11.0-tizen11.0\` projects."
-              echo "3. Regenerate the API baselines against a real Tizen build."
-            } >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            {
-              echo ":hourglass: **Blocked on an external dependency — this is expected.**"
-              echo
-              echo "No \`11.0.100\`-band Samsung workload manifest is published. Only the"
-              echo "\`9.0.100\` and \`10.0.100\` bands exist on nuget.org."
-              echo
-              echo "Until then, \`net11.0-tizen11.0\` cannot be restored or built by anyone."
-              echo "See \`docs/migration.md\` and \`eng/baselines.json\`."
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Build Tizen projects
-        if: steps.probe.outputs.available == 'true'
-        # Installation goes through Samsung's supported side-load path rather than public
-        # workload search; this step is a placeholder that will fail loudly and visibly
-        # the first time the gate lifts, which is the point at which a human should wire
-        # up the real installer.
-        run: |
-          echo "::notice::Samsung manifest is published. Wire up the supported Samsung installer / local manifest path, then build."
-          exit 1
+      - name: Probe and run the real Tizen lane when available
+        run: ./eng/ci/tizen-workload-gate.sh
+        env:
+          ContinuousIntegrationBuild: true

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+
+  <PropertyGroup Condition=" '$(TizenBlazorWebViewConvertStaticWebAssets)' == 'true' ">
+    <!-- Match the MAUI Blazor Hybrid project model: app assets are rooted at '/'. -->
+    <StaticWebAssetBasePath>/</StaticWebAssetBasePath>
+    <StaticWebAssetProjectMode>Root</StaticWebAssetProjectMode>
+  </PropertyGroup>
+
+  <!--
+    Blazor static web assets -> MauiAsset, for the Tizen backend.
+
+    WHY THIS FILE EXISTS
+
+    A Blazor Hybrid app's wwwroot (index.html, css, and the framework's own
+    _framework/blazor.webview.js) reaches the app as StaticWebAsset items. Something has to convert
+    those into MauiAsset items before the Tizen resource pipeline can package them into res/.
+
+    Upstream performs that conversion in
+    Microsoft.AspNetCore.Components.WebView.Maui's ConvertStaticWebAssetsToMauiAssets target - but
+    that package ships the target in `build/` only, with no `buildTransitive/`. NuGet does not flow
+    `build/` past a direct reference, so an app that gets the MAUI Blazor package transitively
+    (which is exactly what referencing Maui.Tizen.BlazorWebView does) never sees it. The result is
+    a build that succeeds and an app that 404s on every asset including blazor.webview.js, so
+    Blazor never starts.
+
+    Rather than making every consumer add a redundant direct PackageReference and remember why,
+    this package carries the conversion itself, in buildTransitive/ so it actually flows.
+
+    HANDOFF
+
+    This half stops at MauiAsset. Maui.Tizen.Build.Tasks owns the rest:
+        MauiAsset -> (Resizetizer ProcessMauiAssets) -> MauiProcessedAsset -> TizenResource
+    which is why Link is populated below: MauiTizenProcessAssets reads %(Link) to derive
+    TizenTpkFileName. The runtime contract is fixed by TizenAssetFileProvider, which resolves
+    Application.Current.DirectoryInfo.Resource + contentRootDir + subpath, so a HostPage of
+    "wwwroot/index.html" requires res/wwwroot/index.html on device.
+  -->
+
+  <!--
+    Registration, via the asset-provider contract Maui.Tizen.Build.Tasks publishes. That property is
+    expanded at execution time, so this works regardless of which package is imported first, and it
+    avoids naming any Resizetizer-internal target.
+
+    The BeforeTargets list on the target below is kept as a fallback for the case where
+    Maui.Tizen.Build.Tasks is not in the graph at all - the conversion still has to happen for
+    anything else that consumes MauiAsset. MSBuild runs a target at most once per build, so being
+    reached through both routes is harmless.
+  -->
+  <PropertyGroup Condition=" '$(TizenBlazorWebViewConvertStaticWebAssets)' == 'true' ">
+    <MauiTizenAssetProviderTargets>
+      $(MauiTizenAssetProviderTargets);
+      ConvertStaticWebAssetsToTizenMauiAssets;
+    </MauiTizenAssetProviderTargets>
+  </PropertyGroup>
+
+  <Target Name="ConvertStaticWebAssetsToTizenMauiAssets"
+          Condition=" '$(TizenBlazorWebViewConvertStaticWebAssets)' == 'true' "
+          BeforeTargets="GetMauiItems;ProcessMauiAssets;ResizetizeCollectItems;_CheckForContent"
+          DependsOnTargets="ResolveProjectReferences;StaticWebAssetsPrepareForRun">
+
+    <!--
+      PathPrefix is "wwwroot" so the computed TargetPath is wwwroot/index.html rather than
+      index.html. That prefix is not cosmetic: it is the contentRootDir the handler passes to
+      CreateFileProvider, derived from BlazorWebView.HostPage.
+    -->
+    <ComputeStaticWebAssetsTargetPaths Assets="@(StaticWebAsset)" PathPrefix="wwwroot" Condition=" '@(StaticWebAsset)' != '' ">
+      <Output TaskParameter="AssetsWithTargetPath" ItemName="_TizenBlazorStaticWebAssetWithTargetPath" />
+    </ComputeStaticWebAssetsTargetPaths>
+
+    <ItemGroup Condition=" '@(_TizenBlazorStaticWebAssetWithTargetPath)' != '' ">
+      <!--
+        Drop SDK-generated pre-compressed variants. Assets are served from local storage by the
+        request interceptor, which does no content negotiation, so a compressed alternative is never
+        requested and is pure TPK bloat. Mirrors dotnet/maui#33773.
+
+        Filtering on AssetRole alone is deliberate. 'Alternative' means "another encoding of a
+        Primary asset", which is exactly and only the set we want gone, so:
+          - a user file that merely ends in .gz is Primary and survives, and
+          - a compressed variant is dropped even though its Identity is an SDK-generated temp file
+            whose name does not necessarily end in .gz or .br.
+        An earlier version also tested %(Extension), which made the rule depend on the shape of a
+        path the SDK is free to choose, and OR-ed in '$(CompressionEnabled)' != 'false' - a term that
+        is true whenever the property is unset, i.e. almost always, which short-circuited the whole
+        condition and silently included every compressed variant.
+      -->
+      <_TizenBlazorMauiAssetCandidate
+          Include="%(_TizenBlazorStaticWebAssetWithTargetPath.Identity)"
+          Condition=" '%(_TizenBlazorStaticWebAssetWithTargetPath.AssetRole)' != 'Alternative' ">
+        <TargetPath>%(_TizenBlazorStaticWebAssetWithTargetPath.TargetPath)</TargetPath>
+        <!--
+          Carried through deliberately. Maui.Tizen.Build.Tasks re-filters AssetRole='Alternative'
+          before TizenResource as defense in depth, and an item created from %(Identity) inherits
+          no metadata - so without this the downstream guard would see a blank AssetRole on every
+          asset this provider supplies and could never fire. Propagating it means a regression in
+          the filter above is still caught one layer later.
+        -->
+        <AssetRole>%(_TizenBlazorStaticWebAssetWithTargetPath.AssetRole)</AssetRole>
+      </_TizenBlazorMauiAssetCandidate>
+
+      <!--
+        Idempotence. If the MAUI Blazor package's own conversion also ran - because the app
+        references it directly, or because a future version ships buildTransitive/ - those items
+        are already in MauiAsset and must not be added twice, which would produce duplicate
+        resource entries. Remove matches on Identity, which is the physical file path in both cases.
+      -->
+      <_TizenBlazorMauiAssetCandidate Remove="@(MauiAsset)" />
+
+      <MauiAsset Include="@(_TizenBlazorMauiAssetCandidate)">
+        <Link>%(_TizenBlazorMauiAssetCandidate.TargetPath)</Link>
+      </MauiAsset>
+    </ItemGroup>
+
+    <ItemGroup>
+      <_TizenBlazorStaticWebAssetWithTargetPath Remove="@(_TizenBlazorStaticWebAssetWithTargetPath)" />
+      <_TizenBlazorMauiAssetCandidate Remove="@(_TizenBlazorMauiAssetCandidate)" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    Razor files are compiled, not content. Without this they are packaged as resources and shipped
+    inside the TPK as source. Mirrors the equivalent block in the MAUI Blazor targets.
+  -->
+  <ItemGroup Condition=" '$(DesignTimeBuild)' != 'true' and '$(TizenBlazorWebViewConvertStaticWebAssets)' == 'true' ">
+    <AvailableItemName Include="RazorComponent" />
+  </ItemGroup>
+
+  <Target Name="_RemoveTizenBlazorStaticWebAssetsDevelopmentManifest" BeforeTargets="GetCopyToOutputDirectoryItems">
+    <!-- The development manifest is a build artifact; shipping it would have it loaded in production. -->
+    <ItemGroup>
+      <ContentWithTargetPath Remove="$(StaticWebAssetDevelopmentManifestPath)" Condition=" '$(StaticWebAssetDevelopmentManifestPath)' != '' " />
+    </ItemGroup>
+  </Target>
+
+</Project>

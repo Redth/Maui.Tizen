@@ -1,0 +1,42 @@
+<Project>
+
+  <!--
+    Reference implementation of the buildTransitive contract that the shipping Maui.Tizen
+    packages must satisfy. Maui.Tizen.Build.Tests.MSBuildBehaviorTests asserts the behaviour
+    described here, so the rules are executable rather than merely documented.
+
+    Two properties of this file are load-bearing:
+
+      1. Defaults are CONDITIONAL. Unconditional assignment in a transitive targets file makes
+         the setting impossible for a consumer to override, and the failure is remote and
+         confusing because the value is assigned from inside a package.
+
+      2. A missing workload is REPORTED, not thrown. Evaluation must succeed even without the
+         Samsung workload, otherwise IDE project load, restore and `-getProperty` all break for
+         anyone who merely references the package. Only a real Tizen build should fail.
+  -->
+
+  <PropertyGroup>
+    <TizenManifestApiVersion Condition="'$(TizenManifestApiVersion)' == ''">11</TizenManifestApiVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <_MauiTizenWorkloadManifestDir>$(NetCoreRoot)sdk-manifests/</_MauiTizenWorkloadManifestDir>
+    <MauiTizenWorkloadAvailable Condition="'$(MauiTizenWorkloadAvailable)' == '' AND Exists('$(_MauiTizenWorkloadManifestDir)$(NETCoreSdkVersion)/samsung.net.sdk.tizen/WorkloadManifest.json')">true</MauiTizenWorkloadAvailable>
+    <MauiTizenWorkloadAvailable Condition="'$(MauiTizenWorkloadAvailable)' == ''">false</MauiTizenWorkloadAvailable>
+
+    <MauiTizenWorkloadGateMessage Condition="'$(MauiTizenWorkloadAvailable)' != 'true'">The Samsung Tizen workload (samsung.net.sdk.tizen) is not installed, so Tizen target frameworks cannot be built. Note that the 'maui-tizen' workload does not provide Tizen platform packs.</MauiTizenWorkloadGateMessage>
+    <MauiTizenWorkloadGateMessage Condition="'$(MauiTizenWorkloadAvailable)' == 'true'">The Samsung Tizen workload (samsung.net.sdk.tizen) is installed.</MauiTizenWorkloadGateMessage>
+  </PropertyGroup>
+
+  <!--
+    Fails only when a Tizen build is actually attempted without the workload.
+    Deliberately a target, not a top-level <Error>, so evaluation stays clean.
+  -->
+  <Target Name="_MauiTizenVerifyWorkload"
+          BeforeTargets="BeforeBuild"
+          Condition="'$(IsTizenProject)' == 'true' AND '$(MauiTizenWorkloadAvailable)' != 'true'">
+    <Error Code="MAUITIZEN0001" Text="$(MauiTizenWorkloadGateMessage)" />
+  </Target>
+
+</Project>

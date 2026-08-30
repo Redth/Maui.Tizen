@@ -1,10 +1,14 @@
 using System;
 using System.Linq;
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Hosting;
+using Microsoft.Maui.Controls.Internals;
+using Microsoft.Maui.Controls.Platform;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Hosting;
+using Microsoft.Maui.Platforms.Tizen.Controls;
 using Microsoft.Maui.Platforms.Tizen.Handlers;
 using Microsoft.Maui.Platforms.Tizen.Hosting;
 using Xunit;
@@ -31,30 +35,69 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 	/// mapper to be typed against <c>ILabelHandler</c>.
 	/// </para>
 	/// </remarks>
+	[Collection(StaticMapperCollection.Name)]
 	public class ControlsRegistrationTests
 	{
+		/// <summary>
+		/// Builds an app through the PRODUCTION path only.
+		/// </summary>
+		/// <remarks>
+		/// This used to register the Tizen handlers by hand, which made every assertion below
+		/// vacuous: it proved the handlers work when someone wires them up, not that anything
+		/// wires them up. Under ConfigureTizenControls alone, Label resolved to MAUI's neutral
+		/// LabelHandler - the whole backend was unreachable from a real app and these tests were
+		/// green throughout.
+		///
+		/// Nothing is registered here that an application would not get from the two calls.
+		/// </remarks>
 		static MauiApp BuildControlsApp()
 		{
 			var builder = MauiApp.CreateBuilder();
-			builder.UseMauiApp<ControlsApp>();
-			builder.ConfigureTizen();
-			builder.ConfigureMauiHandlers(handlers =>
-			{
-				handlers.AddHandler<Label, TizenLabelHandler>();
-				handlers.AddHandler<ContentPage, TizenPageHandler>();
-				handlers.AddHandler<Microsoft.Maui.Controls.Layout, TizenLayoutHandler>();
-				handlers.AddHandler<Window, TizenWindowHandler>();
-			});
+			builder.UseMauiAppTizenControls<ControlsApp>();
 
 			return builder.Build();
 		}
 
 		[Theory]
+		[InlineData(typeof(ActivityIndicator), typeof(TizenActivityIndicatorHandler))]
+		[InlineData(typeof(Button), typeof(TizenButtonHandler))]
+		[InlineData(typeof(CheckBox), typeof(TizenCheckBoxHandler))]
+		[InlineData(typeof(DatePicker), typeof(TizenDatePickerHandler))]
+		[InlineData(typeof(Editor), typeof(TizenEditorHandler))]
+		[InlineData(typeof(Entry), typeof(TizenEntryHandler))]
 		[InlineData(typeof(Label), typeof(TizenLabelHandler))]
+		[InlineData(typeof(Picker), typeof(TizenPickerHandler))]
+		[InlineData(typeof(ProgressBar), typeof(TizenProgressBarHandler))]
+		[InlineData(typeof(RadioButton), typeof(TizenRadioButtonHandler))]
+		[InlineData(typeof(SearchBar), typeof(TizenSearchBarHandler))]
+		[InlineData(typeof(Slider), typeof(TizenSliderHandler))]
+		[InlineData(typeof(Stepper), typeof(TizenStepperHandler))]
+		[InlineData(typeof(Switch), typeof(TizenSwitchHandler))]
+		[InlineData(typeof(TimePicker), typeof(TizenTimePickerHandler))]
+		[InlineData(typeof(Application), typeof(TizenApplicationHandler))]
+		[InlineData(typeof(ContentView), typeof(TizenContentViewHandler))]
 		[InlineData(typeof(ContentPage), typeof(TizenPageHandler))]
 		[InlineData(typeof(VerticalStackLayout), typeof(TizenLayoutHandler))]
 		[InlineData(typeof(Grid), typeof(TizenLayoutHandler))]
 		[InlineData(typeof(Window), typeof(TizenWindowHandler))]
+		[InlineData(typeof(ScrollView), typeof(TizenScrollViewHandler))]
+		[InlineData(typeof(Border), typeof(TizenBorderHandler))]
+		[InlineData(typeof(Image), typeof(TizenImageHandler))]
+		[InlineData(typeof(ImageButton), typeof(TizenImageButtonHandler))]
+		[InlineData(typeof(GraphicsView), typeof(TizenGraphicsViewHandler))]
+		[InlineData(typeof(RefreshView), typeof(TizenRefreshViewHandler))]
+		[InlineData(typeof(SwipeView), typeof(TizenSwipeViewHandler))]
+		[InlineData(typeof(IndicatorView), typeof(TizenIndicatorViewHandler))]
+		[InlineData(typeof(SwipeItemView), typeof(TizenSwipeItemViewHandler))]
+		[InlineData(typeof(SwipeItem), typeof(TizenSwipeItemMenuItemHandler))]
+		[InlineData(typeof(BoxView), typeof(TizenBoxViewHandler))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Ellipse), typeof(TizenShapeViewHandler))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Line), typeof(TizenLineHandler))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Path), typeof(TizenPathHandler))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Polygon), typeof(TizenPolygonHandler))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Polyline), typeof(TizenPolylineHandler))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Rectangle), typeof(TizenRectangleHandler))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.RoundRectangle), typeof(TizenRoundRectangleHandler))]
 		public void ControlsTypeResolvesToTheTizenHandler(Type controlType, Type expectedHandler)
 		{
 			using var app = BuildControlsApp();
@@ -65,8 +108,39 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Theory]
+		[InlineData(typeof(ActivityIndicator))]
+		[InlineData(typeof(Button))]
+		[InlineData(typeof(CheckBox))]
+		[InlineData(typeof(DatePicker))]
+		[InlineData(typeof(Editor))]
+		[InlineData(typeof(Entry))]
 		[InlineData(typeof(Label))]
+		[InlineData(typeof(Picker))]
+		[InlineData(typeof(ProgressBar))]
+		[InlineData(typeof(RadioButton))]
+		[InlineData(typeof(SearchBar))]
+		[InlineData(typeof(Slider))]
+		[InlineData(typeof(Stepper))]
+		[InlineData(typeof(Switch))]
+		[InlineData(typeof(TimePicker))]
 		[InlineData(typeof(VerticalStackLayout))]
+		[InlineData(typeof(ScrollView))]
+		[InlineData(typeof(Border))]
+		[InlineData(typeof(Image))]
+		[InlineData(typeof(ImageButton))]
+		[InlineData(typeof(GraphicsView))]
+		[InlineData(typeof(RefreshView))]
+		[InlineData(typeof(SwipeView))]
+		[InlineData(typeof(IndicatorView))]
+		[InlineData(typeof(SwipeItemView))]
+		[InlineData(typeof(BoxView))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Ellipse))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Line))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Path))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Polygon))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Polyline))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.Rectangle))]
+		[InlineData(typeof(Microsoft.Maui.Controls.Shapes.RoundRectangle))]
 		public void ResolvedControlsHandlerIsConstructible(Type controlType)
 		{
 			using var app = BuildControlsApp();
@@ -75,6 +149,59 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 
 			Assert.NotNull(handler);
 			Assert.IsAssignableFrom<IViewHandler>(handler);
+		}
+
+		[Fact]
+		public void ExactlyOnePublicConfigureTizenControlsExtensionShips()
+		{
+			var methods = typeof(TizenControlsMauiAppBuilderExtensions).Assembly
+				.GetExportedTypes()
+				.SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static))
+				.Where(method => method.Name == nameof(TizenControlsMauiAppBuilderExtensions.ConfigureTizenControls))
+				.Where(method =>
+				{
+					var parameters = method.GetParameters();
+					return parameters.Length == 1 && parameters[0].ParameterType == typeof(MauiAppBuilder);
+				})
+				.ToArray();
+
+			Assert.Single(methods);
+			Assert.Equal(typeof(TizenControlsMauiAppBuilderExtensions), methods[0].DeclaringType);
+		}
+
+		[Fact]
+		public void UnifiedControlsStartupRegistersPresentationServicesExactlyOnce()
+		{
+			var builder = MauiApp.CreateBuilder();
+			builder.UseMauiAppTizenControls<ControlsApp>();
+
+			Assert.Single(builder.Services, service => service.ServiceType == typeof(IAlertManager));
+			Assert.Single(builder.Services, service => service.ServiceType == typeof(IGesturePlatformManagerFactory));
+			Assert.Single(builder.Services, service => service.ServiceType == typeof(IModalNavigationPlatformFactory));
+
+			Assert.Equal(
+				typeof(TizenAlertManager),
+				Assert.Single(builder.Services, service => service.ServiceType == typeof(IAlertManager)).ImplementationType);
+			Assert.Equal(
+				typeof(TizenGesturePlatformManagerFactory),
+				Assert.Single(builder.Services, service => service.ServiceType == typeof(IGesturePlatformManagerFactory)).ImplementationType);
+			Assert.Equal(
+				typeof(TizenModalNavigationPlatformFactory),
+				Assert.Single(builder.Services, service => service.ServiceType == typeof(IModalNavigationPlatformFactory)).ImplementationType);
+		}
+
+		[Fact]
+		public void ReapplyingUnifiedControlsStartupDoesNotDuplicatePresentationServices()
+		{
+			var builder = MauiApp.CreateBuilder();
+			builder.UseMauiApp<ControlsApp>();
+
+			builder.ConfigureTizenControls();
+			builder.ConfigureTizenControls();
+
+			Assert.Single(builder.Services, service => service.ServiceType == typeof(IAlertManager));
+			Assert.Single(builder.Services, service => service.ServiceType == typeof(IGesturePlatformManagerFactory));
+			Assert.Single(builder.Services, service => service.ServiceType == typeof(IModalNavigationPlatformFactory));
 		}
 
 		[Fact]
@@ -91,16 +218,56 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		[Fact]
 		public void NoParallelTizenHandlerInterfacesRemain()
 		{
-			// ITizenApplicationHandler is the sole survivor, and only because MAUI Core ships no
-			// IApplicationHandler to implement instead.
-			var backendInterfaces = typeof(TizenLabelHandler).Assembly
+			// Scoped to actual HANDLER contracts - interfaces deriving from IElementHandler -
+			// rather than to every exported ITizen* type.
+			//
+			// The wider form asserted an exact list of all exported ITizen* interfaces, which made
+			// it fail for any downstream wave that added an unrelated ITizen* SERVICE interface.
+			// That is a real cost with no benefit: a service interface cannot be a parallel handler
+			// hierarchy, which is the only thing this test exists to prevent. The exported
+			// inventory is pinned separately by TizenPublicInterfaceInventoryTests, which is named
+			// for what it actually does.
+			var handlerInterfaces = typeof(TizenLabelHandler).Assembly
 				.GetExportedTypes()
-				.Where(t => t.IsInterface && t.Name.StartsWith("ITizen", StringComparison.Ordinal))
+				.Where(t => t.IsInterface)
+				.Where(t => typeof(IElementHandler).IsAssignableFrom(t))
+				.Where(t => t != typeof(IElementHandler))
 				.Select(t => t.Name)
 				.OrderBy(n => n, StringComparer.Ordinal)
 				.ToArray();
 
-			Assert.Equal(new[] { "ITizenApplicationHandler", "ITizenPlatformViewHandler" }, backendInterfaces);
+			// ITizenApplicationHandler survives only because MAUI Core ships no IApplicationHandler
+			// to implement instead; ITizenPlatformViewHandler because MAUI's IPlatformViewHandler
+			// exists only inside the net*-tizen build and re-declaring the name would be CS0433.
+			// Every other handler contract is MAUI's own.
+			Assert.Equal(new[] { "ITizenApplicationHandler", "ITizenPlatformViewHandler" }, handlerInterfaces);
+		}
+
+		[Fact]
+		public void NoTizenPrefixedInterfaceShadowsAMauiHandlerInterface()
+		{
+			// The substance behind the name. A parallel hierarchy would show up as a Tizen-prefixed
+			// interface whose name matches one MAUI already ships - ITizenLabelHandler alongside
+			// ILabelHandler - which is what forced handlers to choose between the two and blocked
+			// Controls mapper composition.
+			var mauiHandlerInterfaces = typeof(ILabelHandler).Assembly
+				.GetExportedTypes()
+				.Where(t => t.IsInterface && typeof(IElementHandler).IsAssignableFrom(t))
+				.Select(t => t.Name)
+				.ToHashSet(StringComparer.Ordinal);
+
+			Assert.NotEmpty(mauiHandlerInterfaces);
+
+			var shadowing = typeof(TizenLabelHandler).Assembly
+				.GetExportedTypes()
+				.Where(t => t.IsInterface && t.Name.StartsWith("ITizen", StringComparison.Ordinal))
+				// ITizenLabelHandler shadows ILabelHandler.
+				.Where(t => mauiHandlerInterfaces.Contains("I" + t.Name["ITizen".Length..]))
+				.Select(t => t.Name)
+				.OrderBy(n => n, StringComparer.Ordinal)
+				.ToArray();
+
+			Assert.Empty(shadowing);
 		}
 
 		[Fact]

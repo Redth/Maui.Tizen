@@ -1,11 +1,46 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!-- Read by TizenPackage.props during import; setting it afterwards is too late. -->
+    <MauiTizenGeneratesDocumentation>true</MauiTizenGeneratesDocumentation>
+    <DefineConstants>$(DefineConstants);TIZEN_API15</DefineConstants>
+  </PropertyGroup>
+
   <Import Project="$(MSBuildThisFileDirectory)../../eng/targets/TizenPackage.props" />
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Essentials.Sources.props" />
 
   <PropertyGroup>
-    <RootNamespace>Microsoft.Maui.ApplicationModel</RootNamespace>
+    <RootNamespace>Microsoft.Maui.Platforms.Tizen.Essentials</RootNamespace>
     <Description>Tizen platform implementation for .NET MAUI Essentials: sensors, device info, connectivity, storage, media, and application model APIs.</Description>
+
+    <!--
+      The imported dotnet/maui `*.tizen.cs` fragments have been reworked into independently
+      named classes that implement the public Essentials contracts. The exact shipping closure
+      is shared with both verification lanes through eng/Maui.Tizen.Essentials.Sources.props.
+
+      The originals are not lost: see PROVENANCE.md and
+      `git log` with a deleted-paths filter on this directory. They are just no longer
+      what ships. They were `partial` halves of Microsoft.Maui.Essentials types and could
+      never have compiled from here.
+
+      This project is still gated on the Samsung .NET 11 workload and will fail with
+      MAUITIZEN0001 until it ships. That gate is deliberate; do not add a neutral
+      net11.0 fallback here. The workload-free verification of these same sources lives
+      in src/Maui.Tizen.Essentials.HostVerification, which packs nothing.
+    -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <IsPackable>true</IsPackable>
+    <IsAotCompatible Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+
+    <!-- Required by [LibraryImport] source generation (TizenDeviceDisplay power lock). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="@(MauiTizenEssentialsCompile)" />
+    <None Remove="@(Compile)" />
+  </ItemGroup>
 
   <ItemGroup>
     <!--
@@ -15,6 +50,41 @@
       all. See eng/baselines.json > requiredAncestor.
     -->
     <PackageReference Include="Microsoft.Maui.Essentials" />
+    <!-- MauiAppBuilder, used by AddTizenEssentials. -->
+    <PackageReference Include="Microsoft.Maui.Core" />
+  </ItemGroup>
+
+  <!--
+    PublicAPI baselines.
+
+    Opted in explicitly, per eng/targets/TizenPackage.props: the automatic `PublicAPI/**` glob was
+    removed because it attached upstream's monolithic per-assembly baseline to our split assembly.
+
+    The inherited PublicAPI/net-tizen files describe the whole of upstream's
+    Microsoft.Maui.Essentials surface. This assembly exports Microsoft.Maui.Platforms.Tizen.Essentials.*
+    plus one Microsoft.Maui.Hosting extensions class and consumes the rest from the published
+    package, so leaving them attached would fail the build with RS0017 for every inherited entry
+    absent here and RS0016 for everything this assembly does export.
+
+    They stay on disk as the imported provenance record consumed by eng/api-baselines/, and are
+    simply detached here in favour of baselines describing this assembly. See PublicAPI/slice/README.md.
+
+    tests/Maui.Tizen.Essentials.RefPackCompile runs the analyzer over these same sources with these
+    same baselines, which is the only place it can execute until the Samsung workload ships.
+  -->
+  <PropertyGroup>
+    <EnablePublicApiAnalyzer>true</EnablePublicApiAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Remove="PublicAPI/net-tizen/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Remove="PublicAPI/net-tizen/PublicAPI.Unshipped.txt" />
+    <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Maui.Tizen.Essentials.HostVerification" />
   </ItemGroup>
 
 </Project>

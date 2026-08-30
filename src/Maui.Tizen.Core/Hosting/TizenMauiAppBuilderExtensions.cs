@@ -33,7 +33,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 	/// <summary>
 	/// Host-builder entry points for the Tizen backend.
 	/// </summary>
-	public static class TizenMauiAppBuilderExtensions
+	public static partial class TizenMauiAppBuilderExtensions
 	{
 		/// <summary>
 		/// Configures the app class and wires up every Tizen service this backend provides.
@@ -113,7 +113,39 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 		{
 			ArgumentNullException.ThrowIfNull(builder);
 
-			builder.ConfigureMauiHandlers(handlers => handlers.AddTizenHandlers());
+			builder.ConfigureMauiHandlers(handlers =>
+			{
+				handlers.AddTizenHandlers();
+
+				// The Wave A control handlers (button, entry, editor, check box, switch, slider,
+				// progress bar, activity indicator, picker, date/time picker, search bar, stepper,
+				// radio button). Without this they are never registered in a real app, however
+				// thoroughly they are unit tested - the tests called AddTizenControlHandlers
+				// themselves and so never exercised the composition root.
+				handlers.AddTizenControlHandlers();
+			});
+
+			// Services the control handlers resolve: the font manager they use to turn a MAUI Font
+			// into a NUI family name, and the modal host the pickers open through. Registered with
+			// TryAdd, so a host that supplies its own keeps it.
+			builder.Services.AddTizenControlServices();
+
+			// Implemented by the TizenFX-only Wave B source group. The partial call disappears from
+			// host lanes that cannot load NUI types, while product and ref-pack lanes register every
+			// Wave B handler and platform font service through this single composition root.
+			ConfigurePlatformContent(builder);
+
+			// The composition root for image sources. Without this call the Tizen services are
+			// never registered - and the failure is silent rather than loud, because MAUI's neutral
+			// package already registers FileImageSourceService, StreamImageSourceService,
+			// FontImageSourceService and UriImageSourceService by default. Every source type
+			// therefore still resolves; it just resolves to an implementation that produces no
+			// image on Tizen, so images are simply blank with nothing thrown and nothing logged.
+			//
+			// This is the single hook: the image workstream should extend AddTizenImageSources with
+			// the font and URI services rather than adding a second entry point a host has to
+			// remember to call.
+			builder.ConfigureImageSources(sources => sources.AddTizenImageSources());
 
 			var services = builder.Services;
 
@@ -170,6 +202,8 @@ namespace Microsoft.Maui.Platforms.Tizen.Hosting
 
 			return builder;
 		}
+
+		static partial void ConfigurePlatformContent(MauiAppBuilder builder);
 
 		/// <summary>
 		/// Bridges the Tizen application lifecycle onto the cross-platform <see cref="IWindow"/>

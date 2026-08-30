@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Platforms.Tizen;
@@ -39,7 +40,11 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		where TVirtualView : class, IView
 		where TPlatformView : TizenNativeView
 	{
-		bool _disposed;
+		const int NotDisposed = 0;
+		const int Disposing = 1;
+		const int Disposed = 2;
+
+		int _disposeState;
 
 		/// <summary>Initializes a new instance of the handler.</summary>
 		/// <param name="mapper">The property mapper.</param>
@@ -50,7 +55,7 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		}
 
 		/// <summary>Finalizes the handler.</summary>
-		~TizenViewHandler() => Dispose(disposing: false);
+		~TizenViewHandler() => DisposeHandler(disposing: false);
 
 		TizenNativeView? ITizenPlatformViewHandler.PlatformView =>
 			((IElementHandler)this).PlatformView as TizenNativeView;
@@ -193,10 +198,13 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		protected override void DisconnectHandler(TPlatformView platformView)
 		{
 #if TIZEN
-			platformView.FocusGained -= OnFocusGained;
-			platformView.FocusLost -= OnFocusLost;
-#endif
+			TizenCleanup.Run(
+				() => platformView.FocusGained -= OnFocusGained,
+				() => platformView.FocusLost -= OnFocusLost,
+				() => base.DisconnectHandler(platformView));
+#else
 			base.DisconnectHandler(platformView);
+#endif
 		}
 
 		/// <summary>Called after the platform view gains focus.</summary>
@@ -228,25 +236,43 @@ namespace Microsoft.Maui.Platforms.Tizen.Handlers
 		/// <inheritdoc />
 		public void Dispose()
 		{
-			Dispose(disposing: true);
-			GC.SuppressFinalize(this);
+			try
+			{
+				DisposeHandler(disposing: true);
+			}
+			finally
+			{
+				GC.SuppressFinalize(this);
+			}
 		}
 
 		/// <summary>Releases resources held by the handler.</summary>
 		/// <param name="disposing">Whether managed resources should be released.</param>
 		protected virtual void Dispose(bool disposing)
 		{
-			if (_disposed)
-				return;
-
 			if (disposing)
 			{
 				var platformView = ((IElementHandler)this).PlatformView as IDisposable;
-				((IElementHandler)this).DisconnectHandler();
-				platformView?.Dispose();
-			}
 
-			_disposed = true;
+				TizenCleanup.Run(
+					() => ((IElementHandler)this).DisconnectHandler(),
+					() => platformView?.Dispose());
+			}
+		}
+
+		void DisposeHandler(bool disposing)
+		{
+			if (Interlocked.CompareExchange(ref _disposeState, Disposing, NotDisposed) != NotDisposed)
+				return;
+
+			try
+			{
+				Dispose(disposing);
+			}
+			finally
+			{
+				Volatile.Write(ref _disposeState, Disposed);
+			}
 		}
 	}
 }

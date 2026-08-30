@@ -1,0 +1,22 @@
+#nullable enable
+Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler
+Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler.TizenBlazorWebViewHandler() -> void
+Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler.TizenBlazorWebViewHandler(Microsoft.Maui.IPropertyMapper? mapper, Microsoft.Maui.CommandMapper? commandMapper = null) -> void
+Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewServiceCollectionExtensions
+Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenWebViewManager
+Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenWebViewManager.ContentRootRelativeToAppRoot.get -> string!
+Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenWebViewManager.TizenWebViewManager(Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler! handler, Tizen.NUI.BaseComponents.WebView! webview, System.IServiceProvider! provider, Microsoft.AspNetCore.Components.Dispatcher! dispatcher, Microsoft.Extensions.FileProviders.IFileProvider! fileProvider, Microsoft.AspNetCore.Components.Web.JSComponentConfigurationStore! jsComponents, string! contentRootRelativeToAppRoot, string! hostPageRelativePath) -> void
+override Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler.ConnectHandler(Tizen.NUI.BaseComponents.WebView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler.CreatePlatformView() -> Tizen.NUI.BaseComponents.WebView!
+override Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler.DisconnectHandler(Tizen.NUI.BaseComponents.WebView! platformView) -> void
+override Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenWebViewManager.NavigateCore(System.Uri! absoluteUri) -> void
+override Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenWebViewManager.SendMessage(string! message) -> void
+static Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler.MapHostPage(Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler! handler, Microsoft.AspNetCore.Components.WebView.Maui.IBlazorWebView! webView) -> void
+static Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler.MapRootComponents(Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler! handler, Microsoft.AspNetCore.Components.WebView.Maui.IBlazorWebView! webView) -> void
+static Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewServiceCollectionExtensions.AddTizenBlazorWebView(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.AspNetCore.Components.WebView.Maui.IMauiBlazorWebViewBuilder!
+static Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewServiceCollectionExtensions.UseTizenBlazorWebView(this Microsoft.AspNetCore.Components.WebView.Maui.IMauiBlazorWebViewBuilder! builder) -> Microsoft.AspNetCore.Components.WebView.Maui.IMauiBlazorWebViewBuilder!
+static readonly Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler.TizenBlazorWebViewCommandMapper -> Microsoft.Maui.CommandMapper<Microsoft.AspNetCore.Components.WebView.Maui.IBlazorWebView!, Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler!>!
+static readonly Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler.TizenBlazorWebViewMapper -> Microsoft.Maui.PropertyMapper<Microsoft.AspNetCore.Components.WebView.Maui.IBlazorWebView!, Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler!>!
+virtual Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler.CreateFileProvider(string! contentRootDir) -> Microsoft.Extensions.FileProviders.IFileProvider!
+virtual Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler.GetResourceDirectory() -> string!
+virtual Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler.TryDispatchAsync(System.Action<System.IServiceProvider!>! workItem) -> System.Threading.Tasks.Task<bool>!

@@ -1,0 +1,133 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!--
+    Host-side verification lane for Maui.Tizen.BlazorWebView.
+
+    src/Maui.Tizen.BlazorWebView targets net11.0-tizen11.0 and cannot be restored until Samsung
+    publishes the 11.0.100 workload manifest.     This project compiles the SAME BlazorWebView sources on a plain net11.0 host, consumes Core
+    through its workload-free product-assembly lane, and runs tests against that real boundary.
+
+    It combines the two roles that the core backend splits across Maui.Tizen.Core.RefPackCompile and
+    Maui.Tizen.Core.UnitTests, because BlazorWebView does not need the split:
+
+      * Like RefPackCompile, it defines TIZEN and compiles against the REAL TizenFX reference
+        assemblies from Samsung.Tizen.Ref.API15, so every NUI call site is type-checked rather than
+        taken on faith.
+
+      * Like the unit lane, it EXECUTES tests - for registration order, the asset file provider,
+        request mapping, the static content cache, handler lifecycle and the package contract. None
+        of that code calls into native NUI, so reference assemblies are sufficient: they carry full
+        metadata and no ReferenceAssemblyAttribute, which is what lets Tizen-derived types load and
+        be reflected over.
+
+    It is NOT a neutral fallback for the product: IsPackable is false and nothing it produces ships.
+  -->
+
+  <Import Project="$(RepositoryRoot)eng/Maui.props" />
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.BlazorWebView.Sources.props" />
+
+  <PropertyGroup>
+    <TargetFramework>$(DotNetTfm)</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+    <AssemblyName>Maui.Tizen.BlazorWebView.Tests</AssemblyName>
+    <RootNamespace>Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests</RootNamespace>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <NoWarn>$(NoWarn);CS1591;NU1701</NoWarn>
+
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+
+    <!-- Exercise the `#if TIZEN` branches, exactly as the core's compile-validation lane does. -->
+    <DefineConstants>$(DefineConstants);TIZEN;PLATFORM</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" />
+    <PackageReference Include="Microsoft.Maui.Core" />
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Microsoft.Maui.Graphics" />
+
+    <!--
+      PackageDownload rather than PackageReference: Samsung.Tizen.Ref.API15 is published with package
+      type DotnetPlatform and Tizen.UIExtensions.NUI publishes no net11.0-compatible assets, so a
+      normal reference fails restore (NU1213 / NU1202). We only want the files on disk.
+    -->
+    <PackageDownload Include="$(TizenReferencePackId)" Version="[$(TizenReferencePackVersion)]" />
+    <PackageDownload Include="Tizen.UIExtensions.NUI" Version="[$(TizenUIExtensionsPackageVersion)]" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup Label="Sources under test">
+    <!--
+      Consume the workload-free Core compile lane through a real assembly boundary. Source-including
+      Core here would merge two product assemblies, duplicate the now-complete Controls-aware Core
+      closure, and let Blazor tests compile against internals that package consumers cannot access.
+    -->
+    <Compile Include="@(MauiTizenBlazorWebViewCompile)" LinkBase="BlazorWebView" />
+
+    <Compile Include="@(MauiTizenBlazorWebViewSampleCompile)" LinkBase="Sample" />
+    <RazorComponent Include="@(MauiTizenBlazorWebViewSampleRazor)" LinkBase="Sample" />
+    <None Include="@(MauiTizenBlazorWebViewSampleContent)" LinkBase="Sample/wwwroot" CopyToOutputDirectory="PreserveNewest" />
+
+    <Compile Include="*.cs" />
+    <!-- Fixture project + wwwroot for AssetPipelineTests; copied to temp and built by the test. -->
+    <None Include="AssetPipelineFixture/**/*" CopyToOutputDirectory="PreserveNewest" LinkBase="AssetPipelineFixture" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Label="Build configuration under test">
+    <None Include="$(MauiTizenBlazorWebViewDir)Maui.Tizen.BlazorWebView.csproj" Link="ProductProject/Maui.Tizen.BlazorWebView.csproj" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(RepositoryRoot)Directory.Packages.props" Link="ProductProject/Directory.Packages.props" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(RepositoryRoot)Directory.Build.targets" Link="ProductProject/Directory.Build.targets" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(RepositoryRoot)eng/targets/TizenPackage.props" Link="ProductProject/TizenPackage.props" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(RepositoryRoot)eng/Maui.props" Link="ProductProject/Maui.props" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(RepositoryRoot)eng/baselines.json" Link="ProductProject/baselines.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(RepositoryRoot)eng/Maui.Tizen.BlazorWebView.Sources.props" Link="ProductProject/Maui.Tizen.BlazorWebView.Sources.props" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="_AddTizenReferenceAssemblies" BeforeTargets="ResolveAssemblyReferences">
+    <PropertyGroup>
+      <_TizenRefPackDir>$(NuGetPackageRoot)$(TizenReferencePackId.ToLowerInvariant())/$(TizenReferencePackVersion)/ref/net8.0/</_TizenRefPackDir>
+      <_TizenUIExtensionsDir>$(NuGetPackageRoot)tizen.uiextensions.nui/$(TizenUIExtensionsPackageVersion)/lib/tizen10.0/</_TizenUIExtensionsDir>
+    </PropertyGroup>
+
+    <Error Condition="!Exists('$(_TizenRefPackDir)Tizen.NUI.dll')"
+           Code="MAUITIZEN0102"
+           Text="Could not find Tizen.NUI.dll under '$(_TizenRefPackDir)'. Expected it from $(TizenReferencePackId) $(TizenReferencePackVersion); run 'dotnet restore' for this project first." />
+
+    <ItemGroup>
+      <!--
+        Private=true, unlike the core's compile-only lane: this project actually runs, and the xunit
+        runner resolves every referenced assembly during discovery. A reference left out of the output
+        makes the whole test assembly silently skip with "could not find dependent assembly".
+
+        Copying Tizen.UIExtensions.NUI is safe even though its nuspec declares a .NET 6-era
+        Microsoft.Maui.Graphics (see eng/Maui.props): only the file needs to be resolvable. Nothing in
+        these tests loads a type from it, and it is never packed - IsPackable is false here.
+      -->
+      <Reference Include="$(_TizenRefPackDir)Tizen.NUI.dll" Private="true" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.Applications.Common.dll" Private="true" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.NUI.Components.dll" Private="true" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.Applications.UI.dll" Private="true" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.Log.dll" Private="true" />
+      <Reference Include="$(_TizenRefPackDir)Tizen.dll" Private="true" />
+      <Reference Include="$(_TizenUIExtensionsDir)Tizen.UIExtensions.NUI.dll" Private="true" Condition="Exists('$(_TizenUIExtensionsDir)Tizen.UIExtensions.NUI.dll')" />
+      <Reference Include="$(_TizenUIExtensionsDir)Tizen.UIExtensions.Common.dll" Private="true" Condition="Exists('$(_TizenUIExtensionsDir)Tizen.UIExtensions.Common.dll')" />
+    </ItemGroup>
+  </Target>
+
+</Project>

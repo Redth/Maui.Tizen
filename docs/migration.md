@@ -6,17 +6,18 @@ Extracting the .NET MAUI Tizen backend from `dotnet/maui` into this repository.
 
 | Phase | Scope | Status |
 |---|---|---|
-| **0** | Freeze baselines; inventory and disposition manifests; API baselines | Contract landed; generated data in progress |
+| **0** | Freeze baselines; inventory and disposition manifests; API baselines | **Complete** |
 | **1** | History-preserving import; repository scaffolding; docs; CI | **Complete** |
-| 2 | Handler implementation (`Maui.Tizen.Core`, `Maui.Tizen.Controls`) | Not started |
-| 3 | Essentials implementation | Not started |
+| **2** | Handler implementation (`Maui.Tizen.Core`, `Maui.Tizen.Controls`) | **Core and Waves A/B/C merged** |
+| **3** | Essentials implementation | **Implemented and host/API15 tested; two external MAUI API blockers remain** |
 | **4a** | **Build pipeline: `Maui.Tizen.Build.Tasks`, `Maui.Tizen.Templates`** | **Implemented, packed and validated** — see below |
-| 4b | BlazorWebView, Maps | Not started |
-| 5 | Device tests, samples, publishing | Not started |
+| **4b** | BlazorWebView, Maps | **BlazorWebView merged; Maps disposition complete with no API15 implementation** |
+| 5 | Device tests, packaging and publishing | Not started |
 
-Phases 2, 3, 4b and 5 are **blocked on an external dependency** — see below. Phase 4a is not:
-the build tasks target `netstandard2.0` and the template package is content, so both build, pack
-and are exercised end to end today.
+The Samsung workload blocks real Tizen-TFM builds, TPK packaging and device execution. It does not
+block implementation or the workload-free Build.Tasks/Templates packages: host-executable
+coordinators, API15 ref-pack builds, source/convention guards, mutation tests and package transport
+all run without it.
 
 ### Phase 4a — what is actually done
 
@@ -55,7 +56,10 @@ around. It is handled as follows:
 - **Never faked.** There is no neutral `net11.0` fallback. A neutral build would be green
   and useless — assemblies that compile but cannot run on Tizen.
 - **Never silently skipped.** The `tizen-workload-gate` CI job runs on every build and
-  reports its status in the job summary. It does not disappear from the checks list.
+  reports its status in the job summary. When both expected manifest IDs return 404 it is
+  an informational success. When either exists, the same unconditional step installs the
+  workload and runs the real Tizen lane; there is no `continue-on-error` or skipped
+  follow-up step that can hide a failure.
 - **Explicit at build time.** Building a Tizen project without the workload fails with
   `MAUITIZEN0001`, which explains the situation rather than surfacing a raw
   `NETSDK1139` about an unknown target platform.
@@ -68,7 +72,9 @@ The lane in `eng/build-workload-free.sh` (required in CI) genuinely exercises:
 - central package management and package source mapping
 - MSBuild conventions and the workload gate itself
 - consistency between `Directory.Build.props`, `global.json` and `eng/baselines.json`
-- the repository invariant and build-pipeline test suites, built and executed on `net11.0`
+- the complete Core/Waves, Essentials and BlazorWebView host suites plus API15 ref-pack lanes
+- package/source/PublicAPI/analyzer closure checks and locked Essentials/Wave B/Wave C mutations
+- the repository invariant, build-pipeline, migration-tooling and consumer suites
 - the packable projects' shape: the produced template nupkg is installed into an isolated
   template hive and instantiated, and the generated project's package references are restored
   cold against the approved feeds
@@ -81,18 +87,75 @@ The same lane runs on Linux in a container through
 [`eng/run-linux-checks.sh`](../eng/run-linux-checks.sh), which is what covers SkiaSharp's
 platform-specific native resolution before CI does.
 
-So when the workload does ship, the workload is the *only* thing that needs to start
-working.
+Hosted validation also runs validation, build, convention, DevFlow and consumer suites. Device
+behaviour, shipping packages and visual baselines remain explicitly gated rather than inferred.
 
 ### When the gate lifts
 
-1. The `tizen-workload-gate` job's feed probe starts finding an `11.0.100`-band manifest.
-2. Install through Samsung's supported installer / local manifest path — **not** public
-   workload search. The Samsung manifest is third-party and side-loaded, so
-   `dotnet workload install tizen` cannot discover it on a clean runner.
-3. Promote that job to a required check and build the Tizen projects for real.
-4. Regenerate API baselines against a real Tizen build.
-5. Begin Phase 2.
+The transition is automatic and fail-closed:
+
+1. `eng/ci/tizen-workload-gate.sh` probes the preview and stable feature-band manifest IDs,
+   both derived from `eng/baselines.json`.
+2. A 404 for both remains an informational external-gate success. Network errors,
+   malformed responses, and unexpected status codes fail because availability is unknown.
+3. When either package exists, CI runs Samsung's commit-pinned supported installer with the
+   exact published manifest version, then verifies the installed manifest through the
+   repository's `_DetectTizenWorkload` target.
+4. `eng/build-tizen.sh` restores, builds, and invokes Pack for every actual
+   `net11.0-tizen11.0` product project. Any install, restore, build, or pack failure fails
+   the workflow.
+5. After that lane is green, regenerate API baselines against the real Tizen build and run the
+   device/profile/visual/package gates.
+
+### SecureStorage data migration
+
+The standalone Essentials package stores secure values under
+`maui.tizen.securestorage:~v2~<base64url-utf8-key>`. The escaped-version delimiter cannot collide
+with the first standalone package's alias encoder. Strict UTF-8 makes the encoding injective and
+rejects unpaired UTF-16 surrogates before any store mutation. The result contains no whitespace or
+padding rejected by Tizen's secure repository. Aliases are never truncated or hashed to fit a
+native limit; Tizen's argument error is surfaced instead.
+
+`GetAsync` performs a one-way, per-key compatibility migration in this order: v2 alias, the first
+standalone package's escaped namespaced alias, then the in-box backend's exact raw alias. A legacy
+value is copied to v2. Invalid-format legacy probes, including whitespace raw aliases Tizen cannot
+read, are treated as absent rather than as storage failures. Raw aliases are never deleted because
+the application-wide secure repository cannot prove that alias is owned by SecureStorage. A
+migration save failure is surfaced and leaves the legacy value intact.
+
+`SetAsync` stages the new bytes under a versioned transaction alias before removing either owned
+generation. A failed commit restores the prior v1/v2 aliases; if restoration itself fails, the
+staged bytes remain recoverable by the next read. Successful replacement removes duplicate v1 and
+transaction aliases. `Remove` deletes both owned generations, and `RemoveAll` deletes unqualified
+owned aliases plus qualified aliases whose owner exactly matches the current package id; a foreign
+package using the same raw prefix is preserved. Both removal paths write tombstones in the
+application preference store.
+Those tombstones suppress legacy fallback, so an unowned raw alias cannot
+resurrect a removed SecureStorage value. There is no safe way to distinguish an old SecureStorage
+raw alias from certificates, keys, or another component's data in the shared repository. Tombstones
+are persistent and may accumulate: removing one while its shadowed raw alias still exists would
+make deleted data readable again.
+
+### Preferences data migration
+
+Preferences now use a versioned `maui.tizen.preferences:v2:` physical namespace with distinct
+default-store and named-store prefixes. This fixes two collisions in the old flat layout: a default
+key such as `a~b` could alias named store `a`, key `b`, and clearing the default store called Tizen's
+application-wide `RemoveAll`, deleting every named store too.
+
+Reads prefer the v2 key and fall back to the exact legacy alias used by the in-box backend and the
+first standalone package revision. A successful legacy read copies the value into v2. The old alias
+is intentionally retained because the legacy layout is ambiguous: deleting `a~b` cannot prove
+whether it belonged to the default store or a named store. Per-key `Remove`/null `Set` and
+per-store `Clear` write v2 tombstones instead of deleting ambiguous aliases, so later reads cannot
+resurrect removed data or cross-delete another logical store. `Clear` removes only the selected
+store's unambiguous v2 entries and never performs a native global clear.
+
+Tizen's native preference store supports only its documented primitive types. `long` and
+`DateTime` therefore use invariant versioned strings, `DateTimeOffset` uses a tagged round-trip
+string, and `float` is stored as `double` with a checked exact conversion on read. Compatibility
+reads migrate the earlier unsupported direct representations when encountered in development or
+legacy stores.
 
 ### Target contract provenance
 
@@ -197,7 +260,7 @@ The 87 files that exist only at `9.0.120` break down as:
 |---|---|
 | **Compatibility layer** | .NET MAUI 11 drops it. Audit each of the 70 files; `move` only what net11 Tizen handlers genuinely require, `exclude` the rest. Expected outcome: the package is deleted entirely. |
 | **Graphics** | `Microsoft.Maui.Graphics` is upstreamed from its own repository and carries one Tizen view here. Likely `keep-upstream` — contribute the view back rather than shipping a package. |
-| **Documentation warnings** | `CS1591` is suppressed in `TizenPackage.props` while projects compile nothing. The inherited sources are not uniformly documented, so flipping a project to compile would otherwise fail on hundreds of missing-comment errors under warnings-as-errors. Remove the suppression per project as its documentation is completed. |
+| **Documentation warnings** | Shipping Core, Controls and Essentials explicitly opt into XML documentation before importing `TizenPackage.props`; projects that still compile nothing retain the no-documentation default. `CS1591` remains suppressed until package-by-package documentation completion. |
 | **`Tizen.UIExtensions`** | Needs republishing to drop its .NET 6-era `Microsoft.Maui.Graphics` dependencies. No API surface change expected. |
 
 ## The import
@@ -219,17 +282,18 @@ graph LR
     F["Phase 0-1<br/>Foundation<br/><b>done</b>"] --> I["Inventory + API baselines"]
     F --> B["Phase 4a<br/>Build.Tasks, Templates<br/><b>done</b>"]
     F --> G{{"Samsung workload<br/><b>external gate</b>"}}
-    I --> H["Phase 2<br/>Handlers"]
-    G --> H
-    G --> E["Phase 3<br/>Essentials"]
-    H --> X["Phase 4b<br/>BlazorWebView, Maps"]
+    I --> H["Phase 2<br/>Handlers<br/><b>merged</b>"]
+    I --> E["Phase 3<br/>Essentials<br/><b>implemented</b>"]
+    G --> D["Real Tizen build/device/package gates"]
+    H --> X["Phase 4b<br/>BlazorWebView merged,<br/>Maps disposition done"]
     E --> X
-    B --> P["Phase 5<br/>Device tests, samples,<br/>publishing"]
-    X --> P
+    B --> D
+    X --> D
+    D --> P["Phase 5<br/>publish and transfer"]
 ```
 
-Inventory work and the build pipeline can proceed now — the latter is done. Everything
-downstream of the gate cannot.
+Implementation, package transport and hosted verification proceed now. Only Tizen workload,
+device/visual evidence, shipping package closure and publishing remain downstream of the gate.
 
 ## See also
 

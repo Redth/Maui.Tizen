@@ -1,0 +1,331 @@
+#nullable enable
+abstract Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.IsSupported.get -> bool
+abstract Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.Sensor.get -> TSensor!
+abstract Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.SensorName.get -> string!
+abstract Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.Subscribe(TSensor! sensor, long generation) -> System.Action!
+const Microsoft.Maui.Platforms.Tizen.Essentials.TizenFileMimeTypes.All = "*/*" -> string!
+const Microsoft.Maui.Platforms.Tizen.Essentials.TizenFileMimeTypes.ImageAll = "image/*" -> string!
+const Microsoft.Maui.Platforms.Tizen.Essentials.TizenFileMimeTypes.ImageJpg = "image/jpeg" -> string!
+const Microsoft.Maui.Platforms.Tizen.Essentials.TizenFileMimeTypes.ImagePng = "image/png" -> string!
+const Microsoft.Maui.Platforms.Tizen.Essentials.TizenFileMimeTypes.Pdf = "application/pdf" -> string!
+const Microsoft.Maui.Platforms.Tizen.Essentials.TizenFileMimeTypes.VideoAll = "video/*" -> string!
+Microsoft.Maui.Hosting.TizenEssentialsMauiAppBuilderExtensions
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAccelerometer
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAccelerometer.ReadingChanged -> System.EventHandler<Microsoft.Maui.Devices.Sensors.AccelerometerChangedEventArgs!>?
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAccelerometer.ShakeDetected -> System.EventHandler?
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAccelerometer.TizenAccelerometer() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppActions
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppActions.AppActionActivated -> System.EventHandler<Microsoft.Maui.ApplicationModel.AppActionEventArgs!>?
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppActions.GetAsync() -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Microsoft.Maui.ApplicationModel.AppAction!>!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppActions.IsSupported.get -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppActions.SetAsync(System.Collections.Generic.IEnumerable<Microsoft.Maui.ApplicationModel.AppAction!>! actions) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppActions.TizenAppActions() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppInfo
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppInfo.BuildString.get -> string!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppInfo.Name.get -> string!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppInfo.PackageName.get -> string!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppInfo.PackagingModel.get -> Microsoft.Maui.ApplicationModel.AppPackagingModel
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppInfo.RequestedLayoutDirection.get -> Microsoft.Maui.ApplicationModel.LayoutDirection
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppInfo.RequestedTheme.get -> Microsoft.Maui.ApplicationModel.AppTheme
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppInfo.ShowSettingsUI() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppInfo.TizenAppInfo() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppInfo.Version.get -> System.Version!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppInfo.VersionString.get -> string!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppleSignInAuthenticator
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppleSignInAuthenticator.AuthenticateAsync(Microsoft.Maui.Authentication.AppleSignInAuthenticator.Options? options = null) -> System.Threading.Tasks.Task<Microsoft.Maui.Authentication.WebAuthenticatorResult!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenAppleSignInAuthenticator.TizenAppleSignInAuthenticator() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenBarometer
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenBarometer.ReadingChanged -> System.EventHandler<Microsoft.Maui.Devices.Sensors.BarometerChangedEventArgs!>?
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenBarometer.TizenBarometer() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenBasePlatformPermission
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenBasePlatformPermission.TizenBasePlatformPermission() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenBattery
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenBattery.BatteryInfoChanged -> System.EventHandler<Microsoft.Maui.Devices.BatteryInfoChangedEventArgs!>?
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenBattery.ChargeLevel.get -> double
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenBattery.Dispose() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenBattery.EnergySaverStatus.get -> Microsoft.Maui.Devices.EnergySaverStatus
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenBattery.EnergySaverStatusChanged -> System.EventHandler<Microsoft.Maui.Devices.EnergySaverStatusChangedEventArgs!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenBattery.PowerSource.get -> Microsoft.Maui.Devices.BatteryPowerSource
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenBattery.State.get -> Microsoft.Maui.Devices.BatteryState
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenBattery.TizenBattery() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenBrowser
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenBrowser.OpenAsync(System.Uri! uri, Microsoft.Maui.ApplicationModel.BrowserLaunchOptions! options) -> System.Threading.Tasks.Task<bool>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenBrowser.TizenBrowser() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenClipboard
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenClipboard.ClipboardContentChanged -> System.EventHandler<System.EventArgs!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenClipboard.Dispose() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenClipboard.GetTextAsync() -> System.Threading.Tasks.Task<string?>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenClipboard.HasText.get -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenClipboard.SetTextAsync(string? text) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenClipboard.TizenClipboard() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenCompass
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenCompass.ReadingChanged -> System.EventHandler<Microsoft.Maui.Devices.Sensors.CompassChangedEventArgs!>?
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenCompass.Start(Microsoft.Maui.Devices.Sensors.SensorSpeed sensorSpeed) -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenCompass.Start(Microsoft.Maui.Devices.Sensors.SensorSpeed sensorSpeed, bool applyLowPassFilter) -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenCompass.TizenCompass() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenConnectivity
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenConnectivity.ConnectionProfiles.get -> System.Collections.Generic.IEnumerable<Microsoft.Maui.Networking.ConnectionProfile>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenConnectivity.ConnectivityChanged -> System.EventHandler<Microsoft.Maui.Networking.ConnectivityChangedEventArgs!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenConnectivity.Dispose() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenConnectivity.NetworkAccess.get -> Microsoft.Maui.Networking.NetworkAccess
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenConnectivity.TizenConnectivity() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenContacts
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenContacts.GetAllAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Microsoft.Maui.ApplicationModel.Communication.Contact!>!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenContacts.PickContactAsync() -> System.Threading.Tasks.Task<Microsoft.Maui.ApplicationModel.Communication.Contact?>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenContacts.TizenContacts() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceDisplay
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceDisplay.Dispose() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceDisplay.KeepScreenOn.get -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceDisplay.KeepScreenOn.set -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceDisplay.MainDisplayInfo.get -> Microsoft.Maui.Devices.DisplayInfo
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceDisplay.MainDisplayInfoChanged -> System.EventHandler<Microsoft.Maui.Devices.DisplayInfoChangedEventArgs!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceDisplay.TizenDeviceDisplay() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceInfo
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceInfo.DeviceType.get -> Microsoft.Maui.Devices.DeviceType
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceInfo.Idiom.get -> Microsoft.Maui.Devices.DeviceIdiom
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceInfo.Manufacturer.get -> string!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceInfo.Model.get -> string!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceInfo.Name.get -> string!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceInfo.Platform.get -> Microsoft.Maui.Devices.DevicePlatform
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceInfo.TizenDeviceInfo() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceInfo.Version.get -> System.Version!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceInfo.VersionString.get -> string!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceProfile
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceProfile.Common = 4 -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceProfile
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceProfile.Mobile = 1 -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceProfile
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceProfile.TV = 3 -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceProfile
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceProfile.Unknown = 0 -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceProfile
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceProfile.Wearable = 2 -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceProfile
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenEmail
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenEmail.ComposeAsync() -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenEmail.ComposeAsync(Microsoft.Maui.ApplicationModel.Communication.EmailMessage? message) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenEmail.ComposeAsync(string! subject, string! body, params string![]! to) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenEmail.IsComposeSupported.get -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenEmail.TizenEmail() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenEssentialsSupport
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenFileMimeTypes
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenFilePicker
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenFilePicker.PickAsync(Microsoft.Maui.Storage.PickOptions? options = null) -> System.Threading.Tasks.Task<Microsoft.Maui.Storage.FileResult?>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenFilePicker.PickMultipleAsync(Microsoft.Maui.Storage.PickOptions? options = null) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Microsoft.Maui.Storage.FileResult!>?>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenFilePicker.TizenFilePicker() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenFileSystem
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenFileSystem.AppDataDirectory.get -> string!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenFileSystem.AppPackageFileExistsAsync(string! filename) -> System.Threading.Tasks.Task<bool>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenFileSystem.CacheDirectory.get -> string!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenFileSystem.OpenAppPackageFileAsync(string! filename) -> System.Threading.Tasks.Task<System.IO.Stream!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenFileSystem.TizenFileSystem() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenFlashlight
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenFlashlight.IsSupportedAsync() -> System.Threading.Tasks.Task<bool>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenFlashlight.TizenFlashlight() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenFlashlight.TurnOffAsync() -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenFlashlight.TurnOnAsync() -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGeocoding
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGeocoding.GetLocationsAsync(string! address) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Microsoft.Maui.Devices.Sensors.Location!>!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGeocoding.GetPlacemarksAsync(double latitude, double longitude) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Microsoft.Maui.Devices.Sensors.Placemark!>!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGeocoding.MapServiceToken.get -> string?
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGeocoding.MapServiceToken.set -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGeocoding.TizenGeocoding() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGeolocation
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGeolocation.GetLastKnownLocationAsync() -> System.Threading.Tasks.Task<Microsoft.Maui.Devices.Sensors.Location?>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGeolocation.GetLocationAsync(Microsoft.Maui.Devices.Sensors.GeolocationRequest! request, System.Threading.CancellationToken cancelToken) -> System.Threading.Tasks.Task<Microsoft.Maui.Devices.Sensors.Location?>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGeolocation.IsEnabled.get -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGeolocation.IsListeningForeground.get -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGeolocation.ListeningFailed -> System.EventHandler<Microsoft.Maui.Devices.Sensors.GeolocationListeningFailedEventArgs!>?
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGeolocation.LocationChanged -> System.EventHandler<Microsoft.Maui.Devices.Sensors.GeolocationLocationChangedEventArgs!>?
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGeolocation.StartListeningForegroundAsync(Microsoft.Maui.Devices.Sensors.GeolocationListeningRequest! request) -> System.Threading.Tasks.Task<bool>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGeolocation.StopListeningForeground() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGeolocation.TizenGeolocation() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGyroscope
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGyroscope.ReadingChanged -> System.EventHandler<Microsoft.Maui.Devices.Sensors.GyroscopeChangedEventArgs!>?
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenGyroscope.TizenGyroscope() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenHapticFeedback
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenHapticFeedback.IsSupported.get -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenHapticFeedback.Perform(Microsoft.Maui.Devices.HapticFeedbackType type) -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenHapticFeedback.TizenHapticFeedback() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenLauncher
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenLauncher.CanOpenAsync(System.Uri! uri) -> System.Threading.Tasks.Task<bool>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenLauncher.OpenAsync(Microsoft.Maui.ApplicationModel.OpenFileRequest! request) -> System.Threading.Tasks.Task<bool>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenLauncher.OpenAsync(System.Uri! uri) -> System.Threading.Tasks.Task<bool>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenLauncher.TizenLauncher() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenLauncher.TryOpenAsync(System.Uri! uri) -> System.Threading.Tasks.Task<bool>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenMagnetometer
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenMagnetometer.ReadingChanged -> System.EventHandler<Microsoft.Maui.Devices.Sensors.MagnetometerChangedEventArgs!>?
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenMagnetometer.TizenMagnetometer() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenMap
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenMap.OpenAsync(double latitude, double longitude, Microsoft.Maui.ApplicationModel.MapLaunchOptions! options) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenMap.OpenAsync(Microsoft.Maui.Devices.Sensors.Placemark! placemark, Microsoft.Maui.ApplicationModel.MapLaunchOptions! options) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenMap.TizenMap() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenMap.TryOpenAsync(double latitude, double longitude, Microsoft.Maui.ApplicationModel.MapLaunchOptions! options) -> System.Threading.Tasks.Task<bool>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenMap.TryOpenAsync(Microsoft.Maui.Devices.Sensors.Placemark! placemark, Microsoft.Maui.ApplicationModel.MapLaunchOptions! options) -> System.Threading.Tasks.Task<bool>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenMediaPicker
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenMediaPicker.CapturePhotoAsync(Microsoft.Maui.Media.MediaPickerOptions? options = null) -> System.Threading.Tasks.Task<Microsoft.Maui.Storage.FileResult?>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenMediaPicker.CaptureVideoAsync(Microsoft.Maui.Media.MediaPickerOptions? options = null) -> System.Threading.Tasks.Task<Microsoft.Maui.Storage.FileResult?>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenMediaPicker.IsCaptureSupported.get -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenMediaPicker.PickPhotoAsync(Microsoft.Maui.Media.MediaPickerOptions? options = null) -> System.Threading.Tasks.Task<Microsoft.Maui.Storage.FileResult?>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenMediaPicker.PickPhotosAsync(Microsoft.Maui.Media.MediaPickerOptions? options = null) -> System.Threading.Tasks.Task<System.Collections.Generic.List<Microsoft.Maui.Storage.FileResult!>!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenMediaPicker.PickVideoAsync(Microsoft.Maui.Media.MediaPickerOptions? options = null) -> System.Threading.Tasks.Task<Microsoft.Maui.Storage.FileResult?>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenMediaPicker.PickVideosAsync(Microsoft.Maui.Media.MediaPickerOptions? options = null) -> System.Threading.Tasks.Task<System.Collections.Generic.List<Microsoft.Maui.Storage.FileResult!>!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenMediaPicker.TizenMediaPicker() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenOrientationSensor
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenOrientationSensor.ReadingChanged -> System.EventHandler<Microsoft.Maui.Devices.Sensors.OrientationSensorChangedEventArgs!>?
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenOrientationSensor.TizenOrientationSensor() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPasskeys
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPasskeys.AssertAsync(Microsoft.Maui.Authentication.PasskeyRequestOptions! options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Maui.Authentication.PasskeyAssertionResponse!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPasskeys.CreateAsync(Microsoft.Maui.Authentication.PasskeyCreationOptions! options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Microsoft.Maui.Authentication.PasskeyCreationResponse!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPasskeys.IsSupported.get -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPasskeys.TizenPasskeys() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionKind
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionKind.Requires = 0 -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionKind
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionKind.Ungated = 1 -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionKind
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionKind.Unsupported = 2 -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionKind
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionMapping
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionMapping.Kind.get -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionKind
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionMapping.Privileges.get -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenPrivilege[]!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionMapping.Reason.get -> string?
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionMapping.TizenPermissionMapping() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissions
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissions.CheckStatusAsync<TPermission>() -> System.Threading.Tasks.Task<Microsoft.Maui.ApplicationModel.PermissionStatus>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissions.RequestAsync<TPermission>() -> System.Threading.Tasks.Task<Microsoft.Maui.ApplicationModel.PermissionStatus>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissions.ShouldShowRationale<TPermission>() -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissions.TizenPermissions() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPhoneDialer
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPhoneDialer.IsSupported.get -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPhoneDialer.Open(string! number) -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPhoneDialer.TizenPhoneDialer() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPlacemarkExtensions
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPlatform
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPreferences
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPreferences.Clear(string? sharedName = null) -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPreferences.ContainsKey(string! key, string? sharedName = null) -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPreferences.Get<T>(string! key, T defaultValue, string? sharedName = null) -> T
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPreferences.Remove(string! key, string? sharedName = null) -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPreferences.Set<T>(string! key, T value, string? sharedName = null) -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPreferences.TizenPreferences() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPrivilege
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPrivilege.IsRuntime.get -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPrivilege.IsRuntime.init -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPrivilege.Privilege.get -> string!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPrivilege.Privilege.init -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPrivilege.TizenPrivilege() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenPrivilege.TizenPrivilege(string! Privilege, bool IsRuntime) -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshot
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshot.CaptureAsync() -> System.Threading.Tasks.Task<Microsoft.Maui.Media.IScreenshotResult!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshot.CaptureAsync(Tizen.NUI.BaseComponents.View! view) -> System.Threading.Tasks.Task<Microsoft.Maui.Media.IScreenshotResult?>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshot.CaptureAsync(Tizen.NUI.Window! window) -> System.Threading.Tasks.Task<Microsoft.Maui.Media.IScreenshotResult!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshot.CaptureViewAsync(object! platformView) -> System.Threading.Tasks.Task<Microsoft.Maui.Media.IScreenshotResult?>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshot.Dispose() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshot.IsCaptureSupported.get -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshot.TizenScreenshot() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshotExtensions
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshotResult
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshotResult.CopyToAsync(System.IO.Stream! destination, Microsoft.Maui.Media.ScreenshotFormat format = Microsoft.Maui.Media.ScreenshotFormat.Png, int quality = 100) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshotResult.Height.get -> int
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshotResult.OpenReadAsync(Microsoft.Maui.Media.ScreenshotFormat format = Microsoft.Maui.Media.ScreenshotFormat.Png, int quality = 100) -> System.Threading.Tasks.Task<System.IO.Stream!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshotResult.Width.get -> int
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSecureStorage
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSecureStorage.GetAsync(string! key) -> System.Threading.Tasks.Task<string?>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSecureStorage.Remove(string! key) -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSecureStorage.RemoveAll() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSecureStorage.SetAsync(string! key, string! value) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSecureStorage.TizenSecureStorage() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSemanticScreenReader
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSemanticScreenReader.Announce(string! text) -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSemanticScreenReader.TizenSemanticScreenReader() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.IsCurrentGeneration(long generation) -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.IsMonitoring.get -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.Raise<TArgs>(long generation, System.EventHandler<TArgs!>? handler, TArgs! args) -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.Start(Microsoft.Maui.Devices.Sensors.SensorSpeed sensorSpeed) -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.Stop() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.TizenSensorBase() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.UseSyncContext.get -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensors
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorSpeedExtensions
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorType
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorType.Accelerometer = 0 -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorType
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorType.Barometer = 1 -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorType
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorType.Compass = 2 -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorType
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorType.Gyroscope = 3 -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorType
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorType.Magnetometer = 4 -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorType
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorType.OrientationSensor = 5 -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorType
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenShare
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenShare.RequestAsync(Microsoft.Maui.ApplicationModel.DataTransfer.ShareFileRequest! request) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenShare.RequestAsync(Microsoft.Maui.ApplicationModel.DataTransfer.ShareMultipleFilesRequest! request) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenShare.RequestAsync(Microsoft.Maui.ApplicationModel.DataTransfer.ShareTextRequest! request) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenShare.TizenShare() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSms
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSms.ComposeAsync(Microsoft.Maui.ApplicationModel.Communication.SmsMessage? message) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSms.IsComposeSupported.get -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSms.TizenSms() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenStorageKeyEncoding
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSupportLevel
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSupportLevel.Implemented = 0 -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenSupportLevel
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSupportLevel.Partial = 1 -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenSupportLevel
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSupportLevel.Unsupported = 2 -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenSupportLevel
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenSystemInformation
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenTextToSpeech
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenTextToSpeech.Dispose() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenTextToSpeech.GetLocalesAsync() -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Microsoft.Maui.Media.Locale!>!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenTextToSpeech.GetSupportedVoiceLanguagesAsync() -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenTextToSpeech.SpeakAsync(string! text, Microsoft.Maui.Media.SpeechOptions? options = null, System.Threading.CancellationToken cancelToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenTextToSpeech.SpeakWithVoiceAsync(string! text, string! language, float? rate = null, System.Threading.CancellationToken cancelToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenTextToSpeech.TizenTextToSpeech() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenVibration
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenVibration.Cancel() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenVibration.IsSupported.get -> bool
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenVibration.TizenVibration() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenVibration.Vibrate() -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenVibration.Vibrate(System.TimeSpan duration) -> void
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenWebAuthenticator
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenWebAuthenticator.AuthenticateAsync(Microsoft.Maui.Authentication.WebAuthenticatorOptions! webAuthenticatorOptions) -> System.Threading.Tasks.Task<Microsoft.Maui.Authentication.WebAuthenticatorResult!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenWebAuthenticator.AuthenticateAsync(Microsoft.Maui.Authentication.WebAuthenticatorOptions! webAuthenticatorOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Maui.Authentication.WebAuthenticatorResult!>!
+Microsoft.Maui.Platforms.Tizen.Essentials.TizenWebAuthenticator.TizenWebAuthenticator() -> void
+override Microsoft.Maui.Platforms.Tizen.Essentials.TizenAccelerometer.IsSupported.get -> bool
+override Microsoft.Maui.Platforms.Tizen.Essentials.TizenBarometer.IsSupported.get -> bool
+override Microsoft.Maui.Platforms.Tizen.Essentials.TizenBasePlatformPermission.CheckStatusAsync() -> System.Threading.Tasks.Task<Microsoft.Maui.ApplicationModel.PermissionStatus>!
+override Microsoft.Maui.Platforms.Tizen.Essentials.TizenBasePlatformPermission.EnsureDeclared() -> void
+override Microsoft.Maui.Platforms.Tizen.Essentials.TizenBasePlatformPermission.RequestAsync() -> System.Threading.Tasks.Task<Microsoft.Maui.ApplicationModel.PermissionStatus>!
+override Microsoft.Maui.Platforms.Tizen.Essentials.TizenBasePlatformPermission.ShouldShowRationale() -> bool
+override Microsoft.Maui.Platforms.Tizen.Essentials.TizenCompass.IsSupported.get -> bool
+override Microsoft.Maui.Platforms.Tizen.Essentials.TizenGyroscope.IsSupported.get -> bool
+override Microsoft.Maui.Platforms.Tizen.Essentials.TizenMagnetometer.IsSupported.get -> bool
+override Microsoft.Maui.Platforms.Tizen.Essentials.TizenOrientationSensor.IsSupported.get -> bool
+static Microsoft.Maui.Hosting.TizenEssentialsMauiAppBuilderExtensions.AddTizenEssentials(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Maui.Hosting.TizenEssentialsMauiAppBuilderExtensions.AddTizenEssentials(this Microsoft.Maui.Hosting.MauiAppBuilder! builder) -> Microsoft.Maui.Hosting.MauiAppBuilder!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenEssentialsSupport.NotSupported(string! capability, string! reason) -> Microsoft.Maui.ApplicationModel.FeatureNotSupportedException!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenEssentialsSupport.NotSupportedOnProfile(string! capability, params Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceProfile[]! supportedProfiles) -> Microsoft.Maui.ApplicationModel.FeatureNotSupportedException!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenFilePicker.CreateFileType(params string![]! mimeTypes) -> Microsoft.Maui.Storage.FilePickerFileType!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenFilePicker.ImageFileType.get -> Microsoft.Maui.Storage.FilePickerFileType!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenFilePicker.JpegFileType.get -> Microsoft.Maui.Storage.FilePickerFileType!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenFilePicker.PdfFileType.get -> Microsoft.Maui.Storage.FilePickerFileType!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenFilePicker.PngFileType.get -> Microsoft.Maui.Storage.FilePickerFileType!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenFilePicker.VideoFileType.get -> Microsoft.Maui.Storage.FilePickerFileType!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenFileSystem.GetContentType(string! extension) -> string!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenFileSystem.GetFullAppPackageFilePath(string! filename) -> string!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionMapping.Requires(params Microsoft.Maui.Platforms.Tizen.Essentials.TizenPrivilege[]! privileges) -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionMapping
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionMapping.Ungated(string! reason) -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionMapping
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionMapping.Unsupported(string! reason) -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissionMapping
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissions.EnsureDeclared(System.Collections.Generic.IEnumerable<Microsoft.Maui.Platforms.Tizen.Essentials.TizenPrivilege>! privileges) -> void
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissions.EnsureDeclared<TPermission>() -> void
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissions.EnsureGrantedAsync<TPermission>() -> System.Threading.Tasks.Task<Microsoft.Maui.ApplicationModel.PermissionStatus>!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenPermissions.IsPrivilegeDeclared(string! tizenPrivilege) -> bool
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenPlacemarkExtensions.GetEscapedAddress(this Microsoft.Maui.Devices.Sensors.Placemark! placemark) -> string!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenPlatform.CurrentPackage.get -> Tizen.Applications.Package!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenPlatform.ParseVersion(string? version) -> System.Version!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshot.CaptureTimeout.get -> System.TimeSpan
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshot.CaptureTimeout.set -> void
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshotExtensions.CaptureAsync(this Microsoft.Maui.Media.IScreenshot! screenshot, Tizen.NUI.BaseComponents.View! view) -> System.Threading.Tasks.Task<Microsoft.Maui.Media.IScreenshotResult?>!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenScreenshotExtensions.CaptureAsync(this Microsoft.Maui.Media.IScreenshot! screenshot, Tizen.NUI.Window! window) -> System.Threading.Tasks.Task<Microsoft.Maui.Media.IScreenshotResult!>!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensors.GetDefaultSensor(Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorType type) -> Tizen.Sensor.Sensor!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorSpeedExtensions.ToPlatform(this Microsoft.Maui.Devices.Sensors.SensorSpeed sensorSpeed) -> uint
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenStorageKeyEncoding.Encode(string! value) -> string!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenStorageKeyEncoding.GetFullKey(string! key, string? sharedName) -> string!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenStorageKeyEncoding.GetSharedNamePrefix(string! sharedName) -> string!
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenSystemInformation.CurrentProfile.get -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenDeviceProfile
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenSystemInformation.GetFeatureInfo(string! item) -> string?
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenSystemInformation.GetFeatureInfo<T>(string! item) -> T?
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenSystemInformation.GetSystemInfo(string! item) -> string?
+static Microsoft.Maui.Platforms.Tizen.Essentials.TizenSystemInformation.GetSystemInfo<T>(string! item) -> T?
+virtual Microsoft.Maui.Platforms.Tizen.Essentials.TizenBasePlatformPermission.RequiredPrivileges.get -> Microsoft.Maui.Platforms.Tizen.Essentials.TizenPrivilege[]!
+virtual Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.OnStarted() -> void
+virtual Microsoft.Maui.Platforms.Tizen.Essentials.TizenSensorBase<TSensor>.OnStopped() -> void

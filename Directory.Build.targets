@@ -59,11 +59,11 @@
   <!--
     The explicit external gate.
 
-    The Samsung .NET 11 workload (Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7) is not
-    published. Until it is, Tizen projects cannot build anywhere. This target says so
-    plainly instead of letting the failure surface as NETSDK1013 ("The TargetFramework
-    value 'net11.0-tizen11.0' was not recognized. It may be misspelled."), which sends
-    people looking for a typo that isn't there.
+    A Tizen project cannot build until the matching Samsung .NET 11 workload is installed.
+    This target says so plainly instead of letting the failure surface as NETSDK1013 ("The
+    TargetFramework value 'net11.0-tizen11.0' was not recognized. It may be misspelled."),
+    which sends people looking for a typo that isn't there. CI probes the baseline-derived
+    manifest IDs and installs through Samsung's supported workload installer once published.
 
     BeforeTargets deliberately lists the SDK's own pre-checks so that this error wins the
     race against whichever one fires first. Both are needed, and which one you hit depends
@@ -94,10 +94,8 @@
           Condition="'$(IsTizenProject)' == 'true'">
     <Error Condition="'$(TizenWorkloadAvailable)' != 'true'"
            Code="MAUITIZEN0001"
-           Text="The Samsung Tizen workload for .NET $(DotNetVersion) is not installed, so '$(MSBuildProjectName)' cannot target $(MauiTizenTargetFramework).%0A%0AThis is a known external gate, not a repository defect and not a typo in the target framework: no 11.0.100-band Samsung manifest ('Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7') has been published (only the 9.0.100 and 10.0.100 bands exist). See docs/migration.md and eng/baselines.json.%0A%0ATo build the parts of this repository that do not need the workload, run: eng/build-workload-free.sh%0ATo override detection once the workload ships, pass -p:TizenWorkloadAvailable=true." />
+           Text="The Samsung Tizen workload for .NET $(DotNetVersion) is not installed, so '$(MSBuildProjectName)' cannot target $(MauiTizenTargetFramework).%0A%0AThis is an external workload gate, not a repository defect and not a typo in the target framework. CI probes the manifest IDs derived from eng/baselines.json and installs through Samsung's supported workload installer as soon as either is published. See docs/migration.md.%0A%0ATo build the parts of this repository that do not need the workload, run: eng/build-workload-free.sh%0ATo override detection only for evaluation/tests, pass -p:TizenWorkloadAvailable=true." />
   </Target>
-
-
   <!--
     The neutral-fallback gate.
 
@@ -129,7 +127,7 @@
 
   <!--
     README packing.
-    
+
     Declared here, in .targets, rather than in Directory.Build.props, so that it is
     evaluated unambiguously after the project body has set $(IsPackable). It also works
     from .props - MSBuild evaluates all properties, including the project body, in an
