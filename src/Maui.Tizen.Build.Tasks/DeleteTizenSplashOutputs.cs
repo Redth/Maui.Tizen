@@ -57,10 +57,24 @@ namespace Maui.Tizen.Build.Tasks
 
 		internal static void RejectReparsePoint(string path, string description)
 		{
-			if (!File.Exists(path) && !Directory.Exists(path))
+			FileAttributes attributes;
+			try
+			{
+				// File.GetAttributes inspects the link itself, including when its target is absent.
+				// File.Exists/Directory.Exists both return false for a dangling link and therefore
+				// cannot distinguish it from a genuinely absent output path.
+				attributes = File.GetAttributes(path);
+			}
+			catch (FileNotFoundException)
+			{
 				return;
+			}
+			catch (DirectoryNotFoundException)
+			{
+				return;
+			}
 
-			if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+			if ((attributes & FileAttributes.ReparsePoint) != 0)
 			{
 				throw new IOException(
 					$"The Maui.Tizen {description} '{path}' is a symbolic link or reparse point. "

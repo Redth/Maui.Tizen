@@ -1050,7 +1050,7 @@
           Condition=" '$(_MauiTizenGenerateResources)' == 'true' ">
     <ItemGroup>
       <_MauiTizenPackageDestination Include="@(TizenTpkUserIncludeFiles)"
-                                    TizenPackagePath="%(TizenTpkUserIncludeFiles.TizenTpkSubDir)%(TizenTpkUserIncludeFiles.Filename)%(TizenTpkUserIncludeFiles.Extension)"
+                                    TizenPackagePath="$([System.IO.Path]::Combine('%(TizenTpkUserIncludeFiles.TizenTpkSubDir)', '%(TizenTpkUserIncludeFiles.Filename)%(TizenTpkUserIncludeFiles.Extension)'))"
                                     SourcePath="%(TizenTpkUserIncludeFiles.FullPath)" />
       <_MauiTizenPackageDestination Include="@(TizenResource)"
                                     Condition=" '%(TizenResource.TizenTpkFileName)' != '' "

@@ -247,6 +247,33 @@ public class GenerateTizenSplashScreensTests : TestBase
 	}
 
 	[Fact]
+	public void RefusesToWriteThroughADanglingSplashMapLink()
+	{
+		var (task, engine, intermediate) = CreateTask("splash.png", "#512BD4", "MDPI");
+		var external = CreateTempDirectory();
+		var externalMap = Path.Combine(external, "created-through-link.map");
+		var map = Path.Combine(intermediate, GenerateTizenSplashScreens.SplashMapFileName);
+
+		try
+		{
+			File.CreateSymbolicLink(map, externalMap);
+		}
+		catch (UnauthorizedAccessException)
+		{
+			return;
+		}
+		catch (IOException)
+		{
+			return;
+		}
+
+		Assert.False(File.Exists(externalMap));
+		Assert.False(task.Execute());
+		Assert.Contains("symbolic link or reparse point", engine.AllErrors(), StringComparison.Ordinal);
+		Assert.False(File.Exists(externalMap));
+	}
+
+	[Fact]
 	public void HonoursTheLinkAliasWhenNamingOutputs()
 	{
 		var sourceRoot = CreateTempDirectory();

@@ -944,6 +944,29 @@ public class TizenTargetsTests : TestBase
 		Assert.Contains("res/fonts/TestFont.ttf", result.Output.Replace('\\', '/'), StringComparison.Ordinal);
 	}
 
+	[Fact]
+	public void FreshSplashOutputsUseTheirActualDestinationForConflictValidation()
+	{
+		var app = CreateApp();
+		var conflict = app.WriteText(
+			"generated/splash.mdpi.portrait.png",
+			"not the generated splash");
+		app.WithItem(
+			"TizenTpkUserIncludeFiles",
+			conflict,
+			("TizenTpkSubDir", "shared\\res\\splash\\"));
+		app.Generate();
+
+		var result = app.Build();
+
+		Assert.False(result.Success);
+		Assert.Contains("MAUITIZEN1021", result.Output, StringComparison.Ordinal);
+		Assert.Contains(
+			"shared/res/splash/splash.mdpi.portrait.png",
+			result.Output.Replace('\\', '/'),
+			StringComparison.Ordinal);
+	}
+
 	// =====================================================================================
 	// Manifest incrementality
 	// =====================================================================================
