@@ -22,7 +22,8 @@ the platform. This repository separates the two.
 | Imported history | 1,236 commits, 121 authors, back to 2016 |
 | Files imported | 316 |
 | Repository scaffolding | Complete |
-| Package projects | Core, Controls/Waves, Essentials, alerts/gestures and BlazorWebView have deterministic compiled source closures |
+| Package projects | Core, Controls/Waves, Essentials, alerts/gestures, BlazorWebView, Build.Tasks and Templates have deterministic compiled or packaged closures |
+| Packable today | `Maui.Tizen.Build.Tasks`, `Maui.Tizen.Templates` — neither needs the workload |
 | Published packages | None |
 | Workload-free verification | Host tests, API15 RefPack compilation, PublicAPI/source closure, consumer compile, tooling and mutation suites |
 | **Real Tizen build/package/device lanes** | **Blocked on external dependencies** |
@@ -36,7 +37,9 @@ the platform. This repository separates the two.
 This is deliberately surfaced rather than worked around. There is no neutral `net11.0`
 fallback: it would make CI green while producing assemblies that cannot run on Tizen.
 Building a Tizen project without the workload fails with a `MAUITIZEN0001` error
-explaining exactly this.
+explaining exactly this, and forcing a Tizen project onto a different target framework —
+by environment variable, global property or an outer `Directory.Build.props` — fails with
+`MAUITIZEN0002` rather than quietly producing that neutral build.
 
 Details in [`docs/migration.md`](docs/migration.md).
 
@@ -70,7 +73,9 @@ and application termination attempt all cleanup, report diagnostics, and do not 
 This runs everything that does not need the Tizen workload: compiled Core/Waves/Essentials,
 alerts/gestures and BlazorWebView host suites; API15 Core/Controls/Sample/Essentials/Blazor lanes;
 Controls consumer compile; PublicAPI and source-closure checks; real NuGet buildTransitive probes;
-migration tooling; package policy; and locked negative-control mutations.
+migration tooling; package policy; locked negative-control mutations; and the packable Build.Tasks
+and Templates packages, including isolated template installation/instantiation, package contents,
+incremental resource behavior, and repository-commit provenance.
 `eng/validation/run-hosted-validation.sh` adds repository, package, convention, DevFlow
 and consumer validation. The external-gate job installs through Samsung's supported workload
 installer and runs `eng/build-tizen.sh`; it cannot report success by skipping or masking a failed
@@ -89,10 +94,10 @@ src/
   Maui.Tizen.Maps/           Map handlers and controls
   Maui.Tizen.Graphics/       Skia view (provisional)
   Maui.Tizen.Compatibility/  Provisional; see its README
-  Maui.Tizen.Build.Tasks/    Manifest, resource and splash MSBuild tasks
-  Maui.Tizen.Templates/      dotnet new templates (not yet authored)
+  Maui.Tizen.Build.Tasks/    Manifest, resource and splash MSBuild tasks (packable)
+  Maui.Tizen.Templates/      `dotnet new maui-tizen` template package (packable)
 samples/                     Imported sample applications
-tests/UnitTests/             Repository invariant tests
+tests/UnitTests/             Repository invariant and build-pipeline tests
 eng/
   baselines.json             Pinned upstream baselines
   import/                    Reproducible history import tooling

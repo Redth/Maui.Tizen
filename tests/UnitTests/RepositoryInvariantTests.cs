@@ -512,6 +512,7 @@ public class RepositoryInvariantTests
 			.EnumerateFiles(RepoRoot, "*.csproj", SearchOption.AllDirectories)
 			.Where(p => !p.Contains($"{Path.DirectorySeparatorChar}artifacts{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
 			.Where(p => !p.Contains(fixtures, StringComparison.Ordinal))
+			.Where(p => !IsTemplateContent(p))
 			.Select(p => Path.GetRelativePath(RepoRoot, p))
 			.Where(p => !referenced.Contains(p))
 			.ToList();
@@ -521,6 +522,62 @@ public class RepositoryInvariantTests
 			"These project files are not in Maui.Tizen.slnx. Either add them, or park them as "
 				+ "'.csproj.orphan' and document them in samples/README.md: "
 				+ string.Join(", ", orphans));
+	}
+
+	/// <summary>
+	/// A `dotnet new` template's project file is package CONTENT, not a project.
+	/// </summary>
+	/// <remarks>
+	/// It cannot be added to the solution: it carries unresolved template placeholders (its TFM is
+	/// literally <c>net11.0-tizenTIZEN_PLATFORM_VERSION</c>), so loading it fails by design. It
+	/// equally must not be parked as <c>.csproj.orphan</c>, because the whole point is that
+	/// instantiating the template produces a real <c>.csproj</c>.
+	///
+	/// The orphan rule's concern - that a folder-level build or IDE scan would try to load it -
+	/// does not apply, because Maui.Tizen.Templates sets EnableDefaultItems/EnableDefaultCompileItems
+	/// to false and packs <c>templates/**</c> purely as content. That is asserted by
+	/// <c>TemplateIsShippedAsContentAndNotBuilt</c> below, so this exclusion cannot silently widen
+	/// into "any csproj under any folder named templates".
+	/// </remarks>
+	static bool IsTemplateContent(string projectPath)
+	{
+		for (var directory = Path.GetDirectoryName(projectPath); directory is not null; directory = Path.GetDirectoryName(directory))
+		{
+			// The marker is the template configuration itself, not the folder name.
+			if (Directory.Exists(Path.Combine(directory, ".template.config")))
+				return true;
+
+			if (string.Equals(directory, RepoRoot, StringComparison.Ordinal))
+				break;
+		}
+
+		return false;
+	}
+
+	[Fact]
+	public void TemplateIsShippedAsContentAndNotBuilt()
+	{
+		var templatesProject = ReadRepoFile(Path.Combine("src", "Maui.Tizen.Templates", "Maui.Tizen.Templates.csproj"));
+
+		// Nothing under templates/ may be compiled or globbed as project items.
+		Assert.Contains("<EnableDefaultItems>false</EnableDefaultItems>", templatesProject);
+		Assert.Contains("<EnableDefaultCompileItems>false</EnableDefaultCompileItems>", templatesProject);
+		Assert.Contains("<PackageType>Template</PackageType>", templatesProject);
+		Assert.Contains("templates\\**\\*", templatesProject.Replace('/', '\\'));
+
+		// And every template project file must sit next to a .template.config, which is what
+		// makes the orphan exclusion above legitimate.
+		var templateRoot = Path.Combine(RepoRoot, "src", "Maui.Tizen.Templates", "templates");
+		if (!Directory.Exists(templateRoot))
+			return;
+
+		foreach (var project in Directory.EnumerateFiles(templateRoot, "*.csproj", SearchOption.AllDirectories))
+		{
+			Assert.True(
+				Directory.Exists(Path.Combine(Path.GetDirectoryName(project)!, ".template.config")),
+				$"'{Path.GetRelativePath(RepoRoot, project)}' is under templates/ but has no .template.config beside it, "
+					+ "so it is an orphan project rather than template content.");
+		}
 	}
 
 	[Fact]
@@ -683,5 +740,329 @@ public class RepositoryInvariantTests
 				$"{id} is pinned to MAUI's version stamp ({version}); ASP.NET Core packages "
 					+ "are on their own version line and that version does not exist for them.");
 		}
+	}
+
+	// ---------------------------------------------------------------------
+	// Lane integrity
+	// ---------------------------------------------------------------------
+
+	/// <summary>
+	/// Every explicit failure in the workload-free lane must also be counted.
+	/// </summary>
+	/// <remarks>
+	/// The lane's exit code is driven by a $FAILURES counter. One branch - the README probe
+	/// being unable to read the produced package - printed a red FAIL line and did not
+	/// increment it, so the script reported a failure and exited 0. A check that reports but
+	/// does not enforce is worse than no check, because the red line trains people to ignore it.
+	///
+	/// The `fail` call inside the shared `check` helper is exempt: `check` increments the
+	/// counter itself.
+	/// </remarks>
+	[Fact]
+	public void EveryExplicitFailureInTheWorkloadFreeLaneIsCounted()
+	{
+		var lines = ReadRepoFile("eng/build-workload-free.sh").Replace("\r\n", "\n").Split('\n');
+
+		var uncounted = new List<string>();
+
+		for (var i = 0; i < lines.Length; i++)
+		{
+			var trimmed = lines[i].Trim();
+
+			// The definition of `fail`, its use inside `check`, and the final summary line.
+			if (!trimmed.StartsWith("fail \"", StringComparison.Ordinal))
+				continue;
+			if (trimmed.Contains("$label", StringComparison.Ordinal))
+				continue;
+			if (trimmed.Contains("check(s) failed", StringComparison.Ordinal))
+				continue;
+
+			var next = i + 1 < lines.Length ? lines[i + 1].Trim() : string.Empty;
+
+			if (!next.StartsWith("FAILURES=", StringComparison.Ordinal))
+				uncounted.Add($"line {i + 1}: {trimmed}");
+		}
+
+		Assert.True(
+			uncounted.Count == 0,
+			"These failures are reported but not counted, so the lane would exit 0: "
+				+ string.Join("; ", uncounted));
+	}
+
+	[Fact]
+	public void AFailedCheckDoesNotSkipLaterWorkloadFreeChecks()
+	{
+		var lane = ReadRepoFile("eng/build-workload-free.sh").Replace("\r\n", "\n");
+		var helperStart = lane.IndexOf("pass() {", StringComparison.Ordinal);
+		var helperEnd = lane.IndexOf(
+			"# ---------------------------------------------------------------------------",
+			helperStart,
+			StringComparison.Ordinal);
+
+		Assert.True(helperStart >= 0 && helperEnd > helperStart, "Could not locate the workload-free check helpers.");
+
+		var root = Path.Combine(Path.GetTempPath(), "maui-tizen-check-probe-" + Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(root);
+		var probe = Path.Combine(root, "probe.sh");
+		var quotedRoot = "'" + root.Replace("'", "'\"'\"'", StringComparison.Ordinal) + "'";
+
+		try
+		{
+			File.WriteAllText(
+				probe,
+				"#!/usr/bin/env bash\nset -euo pipefail\n"
+					+ $"REPO_ROOT={quotedRoot}\n"
+					+ lane.Substring(helperStart, helperEnd - helperStart)
+					+ "\ncheck \"forced early failure\" false\n"
+					+ "echo LATER_CHECK_RAN\n"
+					+ "exit \"$FAILURES\"\n");
+
+			var startInfo = new System.Diagnostics.ProcessStartInfo("bash")
+			{
+				RedirectStandardOutput = true,
+				RedirectStandardError = true,
+				UseShellExecute = false,
+			};
+			startInfo.ArgumentList.Add(probe);
+
+			using var process = System.Diagnostics.Process.Start(startInfo)!;
+			var output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
+			process.WaitForExit();
+
+			Assert.Equal(1, process.ExitCode);
+			Assert.Contains("forced early failure", output, StringComparison.Ordinal);
+			Assert.Contains("LATER_CHECK_RAN", output, StringComparison.Ordinal);
+		}
+		finally
+		{
+			Directory.Delete(root, recursive: true);
+		}
+	}
+
+	/// <summary>
+	/// MSBuild fixtures must use the repository's own approved feeds.
+	/// </summary>
+	/// <remarks>
+	/// The fixtures reference the pinned Microsoft.Maui.Resizetizer, which is a net11
+	/// prerelease that exists only on the dotnet11 feed. A fixture NuGet.config listing only
+	/// nuget.org therefore passed on any machine with a warm global packages folder and failed
+	/// on a cold CI agent with NU1101 - a fixture defect that reads as a test failure.
+	/// </remarks>
+	[Fact]
+	public void MSBuildFixturesUseTheRepositoryPackageSources()
+	{
+		var builder = ReadRepoFile(Path.Combine("tests", "UnitTests", "MSBuildProjectBuilder.cs"));
+
+		Assert.Contains("ReadRepositoryNuGetConfig()", builder);
+		Assert.DoesNotContain("<packageSources", builder);
+		Assert.DoesNotContain("api.nuget.org", builder);
+	}
+
+	/// <summary>
+	/// A Tizen project must not be able to fall back to a neutral target framework by accident.
+	/// </summary>
+	[Fact]
+	public void ANonTizenTargetFrameworkOnATizenProjectIsAnError()
+	{
+		var targets = ReadRepoFile("Directory.Build.targets");
+
+		Assert.Contains("MAUITIZEN0002", targets);
+		Assert.Contains("ValidateTizenTargetFramework", targets);
+
+		// The gate has to run before anything that would consume the wrong framework.
+		var gate = Regex.Match(
+			targets,
+			@"<Target Name=""ValidateTizenTargetFramework""(.*?)>",
+			RegexOptions.Singleline);
+
+		Assert.True(gate.Success, "Directory.Build.targets must declare the ValidateTizenTargetFramework target.");
+		Assert.Contains("Restore", gate.Groups[1].Value);
+		Assert.Contains("Build", gate.Groups[1].Value);
+	}
+
+	/// <summary>
+	/// Full-framework MSBuild execution stays a real CI lane rather than a local simulation.
+	/// </summary>
+	/// <remarks>
+	/// The build tasks load native SkiaSharp differently on .NET Framework hosts (Visual Studio,
+	/// MSBuild.exe), where there is no NativeLibrary resolver. That path cannot be executed from
+	/// this test suite - the tests run on .NET, and MSBuild.exe does not exist on macOS or Linux -
+	/// so it is executed on a Windows agent instead of being approximated with a stub host or a
+	/// conditional skip. This test exists so the lane cannot quietly disappear and leave the gap
+	/// unacknowledged.
+	/// </remarks>
+	[Fact]
+	public void FullFrameworkExecutionIsCoveredByADedicatedCIJob()
+	{
+		var workflow = ReadRepoFile(Path.Combine(".github", "workflows", "ci.yml"));
+
+		Assert.Contains("windows-full-framework:", workflow);
+		Assert.Contains("runs-on: windows-latest", workflow);
+
+		// It has to invoke msbuild.exe; `dotnet build` would run on .NET and prove nothing.
+		Assert.Matches(new Regex(@"^\s*msbuild ", RegexOptions.Multiline), workflow);
+	}
+
+	/// <summary>
+	/// The full-framework lane must consume the PACKAGE, not the build output directory.
+	/// </summary>
+	/// <remarks>
+	/// The lane previously built the tasks and pointed <c>_MauiTizenBuildTasksAssembly</c> at
+	/// artifacts/bin/.../netstandard2.0, which carries the whole runtime closure because of
+	/// CopyLocalLockFileAssemblies. Every dependency therefore resolved from beside the task
+	/// assembly regardless of whether the package shipped it - and the package did not ship
+	/// System.Memory and its three companions, which .NET Framework MSBuild does not provide.
+	/// The only lane that could have observed the gap was arranged so that it could not, which
+	/// is the failure mode this test pins shut.
+	/// </remarks>
+	[Fact]
+	public void TheFullFrameworkLaneConsumesTheProducedPackage()
+	{
+		var workflow = ReadRepoFile(Path.Combine(".github", "workflows", "ci.yml"));
+
+		var job = workflow[workflow.IndexOf("windows-full-framework:", StringComparison.Ordinal)..];
+
+		// Comment lines are stripped: the job explains the defect below in prose, and naming a
+		// thing in order to say it must not be used is not the same as using it.
+		var executable = string.Join(
+			'\n',
+			job.Replace("\r\n", "\n").Split('\n').Where(l => !l.TrimStart().StartsWith("#", StringComparison.Ordinal)));
+
+		Assert.Contains("dotnet pack src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj", executable);
+		Assert.Contains("""<PackageReference Include="Maui.Tizen.Build.Tasks" Version="$version" />""", executable);
+
+		// No redirect to a build output folder, and no import of the source-tree targets: both
+		// would bypass exactly what the package has to get right.
+		Assert.DoesNotContain("_MauiTizenBuildTasksAssembly", executable);
+		Assert.DoesNotContain("Maui.Tizen.Build.Tasks.targets", executable);
+	}
+
+	[Fact]
+	public void TheRealSampleUsesPackageBasedResizetizerSupport()
+	{
+		var project = ReadRepoFile("samples/Maui.Tizen.Sample/Maui.Tizen.Sample.csproj");
+
+		Assert.Contains("""<PackageReference Include="Microsoft.Maui.Resizetizer" PrivateAssets="all" />""", project);
+		Assert.DoesNotContain("<UseMaui>true</UseMaui>", project, StringComparison.Ordinal);
+	}
+
+	// ---------------------------------------------------------------------
+	// Provenance wiring
+	//
+	// The DECISION these guard is executed for real by PackageInputCleanlinessTests, which runs
+	// eng/check-package-inputs-clean.sh against purpose-built repositories. What is left to pin is
+	// the WIRING: that the lane consults the gate at all, that the local-validation override
+	// cannot survive into CI, and that the container run is handed a verified revision instead of
+	// silently losing its repository identity. Those are properties of how the scripts are
+	// assembled, so they are asserted as such.
+	// ---------------------------------------------------------------------
+
+	/// <summary>
+	/// The lane must consult the cleanliness gate before claiming provenance.
+	/// </summary>
+	[Fact]
+	public void TheLaneGatesProvenanceOnCommittedPackageInputs()
+	{
+		var lane = ReadRepoFile("eng/build-workload-free.sh");
+
+		Assert.Contains("eng/check-package-inputs-clean.sh", lane);
+
+		// Fail-closed: a dirty tree without the override is a counted failure, not a warning.
+		Assert.Contains("package inputs do not match HEAD, so the packages cannot claim its provenance", lane);
+	}
+
+	/// <summary>
+	/// The dirty-provenance override must be refused on CI and release runs.
+	/// </summary>
+	/// <remarks>
+	/// An escape hatch that works everywhere is not an escape hatch, it is the new default. This
+	/// one exists so an in-progress patch can still be validated locally; the moment it can be set
+	/// in CI or on a publishing run it stops being a provenance gate at all.
+	/// </remarks>
+	[Fact]
+	public void TheDirtyProvenanceOverrideIsRefusedOnAutomatedRuns()
+	{
+		var lane = ReadRepoFile("eng/build-workload-free.sh");
+
+		var refusal = Regex.Match(
+			lane,
+			@"if \[\[ ""\$ALLOW_DIRTY_PROVENANCE"" == ""1"" && \$IS_AUTOMATED_RUN -eq 1 \]\]; then(?<body>.*?)\nfi",
+			RegexOptions.Singleline);
+
+		Assert.True(refusal.Success, "eng/build-workload-free.sh no longer refuses the dirty-provenance override on automated runs.");
+		Assert.Contains("the override is refused", refusal.Groups["body"].Value);
+		Assert.Contains("ALLOW_DIRTY_PROVENANCE=0", refusal.Groups["body"].Value);
+
+		// CI, GitHub Actions and an explicit release run all count as automated.
+		Assert.Contains("${CI:-}", lane);
+		Assert.Contains("${GITHUB_ACTIONS:-}", lane);
+		Assert.Contains("${MAUI_TIZEN_RELEASE:-0}", lane);
+	}
+
+	/// <summary>
+	/// The container lane must be handed a verified revision, and must not be handed a broken
+	/// repository instead.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// eng/run-linux-checks.sh copies the working tree into a container, and the lane inside it
+	/// needs the repository identity to stamp packages with. Excluding only <c>.git/</c> was
+	/// subtly wrong for this repository: development happens in git WORKTREES, where <c>.git</c>
+	/// is a FILE pointing into the main repository's <c>.git/worktrees</c>. A directory-only
+	/// pattern let that file through, and git inside the container then followed a pointer to a
+	/// path that does not exist - which fails in a way that reads as a broken checkout rather than
+	/// a missing exclusion.
+	/// </para>
+	/// <para>
+	/// Both spellings are excluded and the revision is resolved and verified on the host instead.
+	/// The cleanliness VERDICT travels with it, because passing the revision alone would just move
+	/// the false provenance claim across the container boundary.
+	/// </para>
+	/// </remarks>
+	[Fact]
+	public void TheLinuxContainerRunReceivesAVerifiedRevision()
+	{
+		var script = ReadRepoFile("eng/run-linux-checks.sh");
+
+		Assert.Contains("--exclude '.git'", script);
+		Assert.Contains("--exclude '.git/'", script);
+
+		Assert.Contains("MAUI_TIZEN_SOURCE_REVISION=$SOURCE_REVISION", script);
+		Assert.Contains("MAUI_TIZEN_SOURCE_REVISION_STATE=$SOURCE_REVISION_STATE", script);
+		Assert.Contains("eng/check-package-inputs-clean.sh", script);
+
+		// And the lane consumes exactly those, rejecting anything that is not a full commit id.
+		var lane = ReadRepoFile("eng/build-workload-free.sh");
+		Assert.Contains("MAUI_TIZEN_SOURCE_REVISION:-", lane);
+		Assert.Contains("MAUI_TIZEN_SOURCE_REVISION_STATE:-", lane);
+		Assert.Contains("^[0-9a-f]{40}$", lane);
+	}
+
+	/// <summary>
+	/// Every script the provenance story depends on must be present and executable.
+	/// </summary>
+	[Theory]
+	[InlineData("eng/check-package-inputs-clean.sh")]
+	[InlineData("eng/run-linux-checks.sh")]
+	[InlineData("eng/build-workload-free.sh")]
+	public void ProvenanceScriptsAreValidShell(string relativePath)
+	{
+		var path = Path.Combine(RepoRoot, relativePath);
+		Assert.True(File.Exists(path), $"{relativePath} is missing.");
+
+		var startInfo = new System.Diagnostics.ProcessStartInfo("bash")
+		{
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			UseShellExecute = false,
+		};
+		startInfo.ArgumentList.Add("-n");
+		startInfo.ArgumentList.Add(path);
+
+		using var process = System.Diagnostics.Process.Start(startInfo)!;
+		var log = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
+		process.WaitForExit();
+
+		Assert.True(process.ExitCode == 0, $"{relativePath} is not valid shell:{Environment.NewLine}{log}");
 	}
 }

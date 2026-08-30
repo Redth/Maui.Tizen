@@ -176,6 +176,172 @@ jobs:
           exit $fail
 
   # ---------------------------------------------------------------------------
+  # Full-framework MSBuild.
+  #
+  # THE ACKNOWLEDGED GAP, RUN FOR REAL RATHER THAN SIMULATED.
+  #
+  # Maui.Tizen.Build.Tasks runs inside whatever MSBuild host loads it. Visual Studio and
+  # MSBuild.exe are .NET FRAMEWORK hosts, where System.Runtime.InteropServices.NativeLibrary
+  # does not exist, so the resolver the tasks register on .NET cannot be used and the native
+  # SkiaSharp binary has to be preloaded through the OS loader instead. That difference is
+  # not observable from the test suite: the tests run on .NET, and MSBuild.exe does not exist
+  # on macOS or Linux.
+  #
+  # SkiaSharpHostTests covers the host-independent half (the candidate list resolves to a
+  # real binary that the OS loader accepts). The remaining half - the tasks actually
+  # executing under MSBuild.exe - can only be run on a Windows agent, so it is run on a
+  # Windows agent. It is deliberately NOT faked locally with a stub host or a conditional
+  # skip: a green check that proves nothing is worse than a missing one.
+  #
+  # What it runs is the PACKAGE, not the source tree: the probe project references the nupkg
+  # this job packs, so the buildTransitive auto-import, the packaged task assembly path and
+  # the shipped managed dependency closure are all exercised as a consumer would get them.
+  #
+  # ENFORCEMENT of that closure does not live here. `PackageContentTests` reads the produced
+  # package's assemblies and fails the required workload-free lane if any reference resolves
+  # neither inside the package nor from the MSBuild host, which is a check that runs on every
+  # platform. This job is the EXECUTION proof of the same property on the host where it
+  # actually matters. The probe pins the repository SDK explicitly before invoking Visual
+  # Studio MSBuild, so this is a required execution proof rather than an advisory smoke test.
+  # ---------------------------------------------------------------------------
+  windows-full-framework:
+    name: Build tasks under full-framework MSBuild (final lane)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Pack the tasks
+        # PACK, not just build.
+        #
+        # This lane used to build the tasks and then point the probe project's
+        # _MauiTizenBuildTasksAssembly at artifacts/bin/.../netstandard2.0. That directory
+        # holds the FULL runtime closure (CopyLocalLockFileAssemblies), so the probe loaded
+        # System.Memory and friends from beside the task assembly whether or not the package
+        # shipped them - and the package did not. The one lane that could have caught the
+        # gap was arranged so that it could not.
+        run: dotnet pack src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj -c Release -o "${{ runner.temp }}/local-feed"
+
+      - name: Rasterize through MSBuild.exe
+        shell: pwsh
+        run: |
+          # A minimal project that opts into the external-backend contract and drives the
+          # image, splash and manifest generators - i.e. the code paths that call into
+          # native SkiaSharp from inside the task assembly.
+          #
+          # The backend arrives as a PackageReference to the nupkg produced above, so what
+          # runs here is the packaged layout: NuGet's automatic buildTransitive import, the
+          # task assembly at the path the packaged targets compute, and the managed
+          # dependency closure the package ships. On .NET Framework MSBuild that closure is
+          # not optional - System.Memory, System.Buffers, System.Numerics.Vectors and
+          # System.Runtime.CompilerServices.Unsafe are provided by the .NET MSBuild's shared
+          # framework and by nothing here.
+          $ErrorActionPreference = 'Stop'
+
+          $feed = Join-Path $env:RUNNER_TEMP 'local-feed'
+          $nupkg = Get-ChildItem $feed -Filter 'Maui.Tizen.Build.Tasks.*.nupkg' |
+            Where-Object { $_.Name -notlike '*.symbols.nupkg' } |
+            Select-Object -First 1
+          if (-not $nupkg) { throw "No Maui.Tizen.Build.Tasks package was produced in $feed." }
+
+          $version = $nupkg.BaseName -replace '^Maui\.Tizen\.Build\.Tasks\.', ''
+          Write-Host "Consuming Maui.Tizen.Build.Tasks $version from $feed"
+
+          $probe = Join-Path $env:RUNNER_TEMP 'fullframework-probe'
+          New-Item -ItemType Directory -Force -Path $probe | Out-Null
+          Copy-Item global.json (Join-Path $probe 'global.json')
+          Set-Content (Join-Path $probe 'Directory.Build.props')   '<Project />'
+          Set-Content (Join-Path $probe 'Directory.Build.targets') '<Project />'
+
+          # The repository's own feeds plus the local one, mapped so the local feed can only
+          # ever serve this repository's package IDs.
+          $config = Get-Content nuget.config -Raw
+          $config = $config -replace '</packageSources>', ("    <add key=""local"" value=""$feed"" />`r`n  </packageSources>")
+          $config = $config -replace '</packageSourceMapping>', ("    <packageSource key=""local"">`r`n      <package pattern=""Maui.Tizen.*"" />`r`n    </packageSource>`r`n  </packageSourceMapping>")
+          Set-Content (Join-Path $probe 'NuGet.config') $config
+
+          $app = Join-Path $probe 'TizenApp'
+          New-Item -ItemType Directory -Force -Path (Join-Path $app 'Resources\AppIcon') | Out-Null
+          New-Item -ItemType Directory -Force -Path (Join-Path $app 'Resources\Splash') | Out-Null
+          New-Item -ItemType Directory -Force -Path (Join-Path $app 'Platforms\Tizen') | Out-Null
+
+          $svg = '<?xml version="1.0" encoding="UTF-8" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect width="128" height="128" fill="#512BD4" /></svg>'
+          Set-Content (Join-Path $app 'Resources\AppIcon\appicon.svg') $svg
+          Set-Content (Join-Path $app 'Resources\Splash\splash.svg')   $svg
+          Set-Content (Join-Path $app 'Program.cs') 'internal class Program { private static void Main() { } }'
+
+          @'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest package="maui-application-id-placeholder" version="0.0.0" api-version="11" xmlns="http://tizen.org/ns/packages">
+            <profile name="common" />
+            <ui-application appid="maui-application-id-placeholder" exec="TizenApp.dll" multiple="false" nodisplay="false" taskmanage="true" type="dotnet" launch_mode="single">
+              <label>maui-application-title-placeholder</label>
+              <icon>maui-appicon-placeholder</icon>
+            </ui-application>
+          </manifest>
+          '@ | Set-Content (Join-Path $app 'Platforms\Tizen\tizen-manifest.xml')
+
+          $resizetizer = ([xml](Get-Content Directory.Packages.props)).
+            SelectSingleNode("//PackageVersion[@Include='Microsoft.Maui.Resizetizer']").Version
+          $expectedSdk = (Get-Content global.json -Raw | ConvertFrom-Json).sdk.version
+
+          # No Import of this package and no _MauiTizenBuildTasksAssembly override: the
+          # buildTransitive auto-import is part of what is being tested.
+          @"
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net11.0</TargetFramework>
+              <OutputType>Exe</OutputType>
+              <ResizetizerPlatformType>tizen</ResizetizerPlatformType>
+              <ApplicationId>com.contoso.fullframework</ApplicationId>
+              <ApplicationTitle>Contoso</ApplicationTitle>
+              <ExpectedSdkVersion>$expectedSdk</ExpectedSdkVersion>
+            </PropertyGroup>
+            <ItemGroup>
+              <PackageReference Include="Microsoft.Maui.Resizetizer" Version="$resizetizer" />
+              <PackageReference Include="Maui.Tizen.Build.Tasks" Version="$version" />
+            </ItemGroup>
+            <ItemGroup>
+              <MauiIcon Include="Resources\AppIcon\appicon.svg" Color="#512BD4" />
+              <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
+            </ItemGroup>
+            <Target Name="VerifyResolvedSdk" BeforeTargets="PrepareForBuild">
+              <Error Condition="'`$(NETCoreSdkVersion)' != '`$(ExpectedSdkVersion)'"
+                     Text="Visual Studio MSBuild resolved SDK '`$(NETCoreSdkVersion)', expected '`$(ExpectedSdkVersion)' from global.json." />
+            </Target>
+          </Project>
+          "@ | Set-Content (Join-Path $app 'TizenApp.csproj')
+
+          # An isolated packages folder: the produced package's version does not change
+          # between runs, so a shared folder could serve an older extraction of it.
+          $env:NUGET_PACKAGES = Join-Path $env:RUNNER_TEMP 'packages'
+
+          dotnet restore (Join-Path $app 'TizenApp.csproj')
+          if ($LASTEXITCODE -ne 0) { throw 'restore failed' }
+
+          # msbuild.exe, NOT dotnet build: running it on .NET would exercise the host this
+          # lane exists to be different from.
+          msbuild (Join-Path $app 'TizenApp.csproj') /nologo /v:m /nodeReuse:false
+          if ($LASTEXITCODE -ne 0) { throw 'full-framework MSBuild build failed' }
+
+          $generated = Join-Path $app 'obj\Debug\net11.0\maui-tizen'
+          $splash = Get-ChildItem (Join-Path $generated 'splash') -Filter *.png -ErrorAction SilentlyContinue
+          if (-not $splash) { throw 'No splash screens were rasterized under full-framework MSBuild.' }
+
+          $manifest = Get-Content (Join-Path $generated 'tizen-manifest.xml') -Raw
+          if ($manifest -match 'maui-application-id-placeholder') {
+            throw 'The generated manifest still contains placeholder tokens.'
+          }
+
+          Write-Host "Rasterized $($splash.Count) splash screen(s) under full-framework MSBuild."
+
+  # ---------------------------------------------------------------------------
   # The external gate.
   #
   # This job runs on every build. While Samsung's .NET 11 manifest is unavailable it

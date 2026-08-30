@@ -1,0 +1,8 @@
+Place custom font files (for example OpenSans-Regular.ttf) in this directory.
+
+They are picked up by the following `MauiFont` build item within your .csproj file:
+
+    <MauiFont Include="Resources\Fonts\*" />
+
+Fonts are copied into the TPK under res/fonts and registered through ConfigureFonts
+in MauiProgram.cs.

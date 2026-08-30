@@ -156,12 +156,53 @@ The missing workload is instead surfaced as an explicit error (`MAUITIZEN0001`).
 | `Maui.Tizen.Maps` | Map handlers and controls | Skeleton |
 | `Maui.Tizen.Graphics` | Skia view | **Provisional** — likely `keep-upstream` |
 | `Maui.Tizen.Compatibility` | — | **Provisional** — likely deleted |
-| `Maui.Tizen.Build.Tasks` | Manifest/resource/splash MSBuild tasks | Blocked on shared Resizetizer types |
-| `Maui.Tizen.Templates` | `dotnet new` templates | Not yet authored |
+| `Maui.Tizen.Build.Tasks` | Manifest/resource/splash MSBuild tasks | Ships — built, packed and tested by the workload-free lane |
+| `Maui.Tizen.Templates` | `dotnet new` templates | Ships — `maui-tizen`, packed and instantiated by tests |
 
 "Skeleton" means the project declares its identity, dependencies and packing metadata but
 compiles no sources yet — see `eng/targets/TizenPackage.props` for why that is deliberate
 rather than unfinished.
+
+## Build host matrix
+
+Everything above is about the *device*. This is about the *machine running the build*:
+`Maui.Tizen.Build.Tasks` rasterizes icons and composes splash screens in-process with SkiaSharp, so
+it needs a native Skia binary for the host, and the package carries them itself rather than relying
+on a `runtimes/` graph an MSBuild task load cannot use.
+
+| Build host RID | Native shipped in `Maui.Tizen.Build.Tasks` | Status |
+|---|---|---|
+| `osx-x64`, `osx-arm64` | `buildTransitive/libSkiaSharp.dylib` (universal binary) | Supported |
+| `win-x64` | `buildTransitive/x64/libSkiaSharp.dll` | Supported |
+| `win-x86` | `buildTransitive/x86/libSkiaSharp.dll` | Supported |
+| `win-arm64` | `buildTransitive/arm64/libSkiaSharp.dll` | Supported |
+| `linux-x64` | `buildTransitive/x64/libSkiaSharp.so` | Supported |
+| `linux-arm64` | `buildTransitive/arm64/libSkiaSharp.so` | Supported |
+| `linux-arm` | `buildTransitive/arm/libSkiaSharp.so` | Supported |
+| `linux-musl-x64` | `buildTransitive/musl-x64/libSkiaSharp.so` | Supported |
+| `linux-musl-arm64` | *(none exists)* | **Not supported** |
+
+`linux-musl-arm64` — Alpine on ARM64 — is not a supported build host, and the reason is upstream:
+`SkiaSharp.NativeAssets.Linux.NoDependencies` 3.116.1 ships `linux-arm`, `linux-arm64`,
+`linux-musl-x64` and `linux-x64`, and no musl ARM64 binary at all. The glibc `linux-arm64` build is
+not a substitute; loading it on musl fails inside SkiaSharp's static initializer with a message that
+names neither Skia nor the C library. Both producing `Maui.Tizen.Build.Tasks` and consuming its
+buildTransitive targets on such a host therefore fail fast and by name with
+**`MAUITIZEN1012`**, instead of producing or executing a package that breaks later.
+`MAUITIZEN1011` covers the neighbouring case where a binary is configured but absent.
+
+The host RID is read from `RuntimeInformation.RuntimeIdentifier` rather than composed from
+`linux-{arch}`, because composing it is what produces a glibc binary on a musl host in the first
+place.
+
+Both MSBuild flavours are in scope: `dotnet build` (MSBuild on .NET) and `msbuild.exe` (MSBuild on
+.NET Framework, which is what Visual Studio runs). The task assembly targets `netstandard2.0` so it
+loads in either, and the package ships its **whole managed closure** — SkiaSharp plus
+`System.Memory`, `System.Buffers`, `System.Numerics.Vectors` and
+`System.Runtime.CompilerServices.Unsafe` — beside the task, because only the .NET MSBuild's shared
+framework provides those for free. `PackageContentTests` asserts both halves of this table: that
+every path named here is in the package, and that the package ships nothing this table does not
+mention.
 
 ## Third-party boundary
 

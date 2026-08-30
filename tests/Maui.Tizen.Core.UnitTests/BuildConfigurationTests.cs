@@ -51,49 +51,45 @@ namespace Microsoft.Maui.Platforms.Tizen.UnitTests
 		}
 
 		[Fact]
-		public void TheManifestIconExists()
+		public void TheManifestIconsAreResolvedFromMauiIcon()
 		{
-			// The manifest declares <icon>appicon.png</icon>. An unresolvable icon reference is not
-			// a build error, so the .tpk would have shipped without one and nobody would have known
-			// until they looked at a device.
 			var manifest = File.ReadAllText(Path.Combine(
 				RepositoryRoot, "samples/Maui.Tizen.Sample/Platforms/Tizen/tizen-manifest.xml"));
+			var icons = Regex.Matches(manifest, @"<icon(?:\s[^>]*)?>([^<]+)</icon>")
+				.Select(match => match.Groups[1].Value)
+				.ToArray();
+			var mauiIcons = MSBuildEvaluation.GetItemRelativePaths(Sample, "MauiIcon");
 
-			var icon = Regex.Match(manifest, @"<icon>([^<]+)</icon>");
-
-			Assert.True(icon.Success, "The manifest declares no icon.");
-
-			var iconPath = Path.Combine(
-				RepositoryRoot, "samples/Maui.Tizen.Sample/Platforms/Tizen", icon.Groups[1].Value);
-
-			Assert.True(File.Exists(iconPath), $"The manifest references '{icon.Groups[1].Value}', which does not exist.");
+			Assert.Equal(3, icons.Length);
+			Assert.All(icons, icon => Assert.Equal("maui-appicon-placeholder", icon));
+			Assert.Contains(
+				mauiIcons,
+				icon => icon.EndsWith("Resources/AppIcon/appicon.svg", StringComparison.Ordinal));
 		}
 
 		[Fact]
-		public void TheManifestIconIsARealPng()
+		public void TheMauiIconSourcesAreRealSvgFiles()
 		{
-			// A zero-byte placeholder would satisfy the existence check and still ship a broken
-			// icon, so the header and dimensions are verified.
-			var bytes = File.ReadAllBytes(Path.Combine(
-				RepositoryRoot, "samples/Maui.Tizen.Sample/Platforms/Tizen/appicon.png"));
-
-			Assert.True(bytes.Length > 100, "The icon is implausibly small.");
-			Assert.Equal(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }, bytes.Take(8));
-
-			// IHDR width/height are big-endian at offsets 16 and 20.
-			var width = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
-			var height = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
-
-			Assert.Equal(117, width);
-			Assert.Equal(117, height);
+			foreach (var relativePath in new[]
+			{
+				"samples/Maui.Tizen.Sample/Resources/AppIcon/appicon.svg",
+				"samples/Maui.Tizen.Sample/Resources/AppIcon/appiconfg.svg",
+			})
+			{
+				var path = Path.Combine(RepositoryRoot, relativePath);
+				Assert.True(File.Exists(path), $"The MauiIcon source '{relativePath}' does not exist.");
+				Assert.Contains("<svg", File.ReadAllText(path), StringComparison.OrdinalIgnoreCase);
+			}
 		}
 
 		[Fact]
-		public void TheIconIsCopiedToTheOutputForPackaging()
+		public void TheObsoletePlatformPngIsNotPackagedAlongsideGeneratedIcons()
 		{
 			var none = MSBuildEvaluation.GetItemRelativePaths(Sample, "None");
 
-			Assert.Contains(none, p => p.EndsWith("Platforms/Tizen/appicon.png", StringComparison.Ordinal));
+			Assert.DoesNotContain(
+				none,
+				path => path.EndsWith("Platforms/Tizen/appicon.png", StringComparison.Ordinal));
 		}
 
 		[Theory]

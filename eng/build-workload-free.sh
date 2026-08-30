@@ -43,9 +43,9 @@ CHECK_LOG="$CHECK_LOG_DIR/check.$$.log"
 mkdir -p "$CHECK_LOG_DIR"
 trap 'rm -f "$CHECK_LOG"' EXIT
 
-# check <label> <command...> — runs the command, reports, and returns its status so
-# callers can branch (e.g. to skip tests after a failed build).
-check() {
+# check_result <label> <command...> — runs the command, reports, and returns its status
+# so callers can branch (e.g. to skip tests after a failed build).
+check_result() {
   local label="$1"; shift
   if "$@" >"$CHECK_LOG" 2>&1; then
     pass "$label"
@@ -59,8 +59,117 @@ check() {
   return 1
 }
 
+# Most checks are independent and must not stop the lane before later package/provenance checks run.
+check() {
+  check_result "$@" || true
+}
+
+# ---------------------------------------------------------------------------
+# Package output for this lane.
+#
+# ISOLATED, and emptied on every run.
+#
+# Packing used to land in the shared $(PackageOutputPath) (artifacts/packages/), which every
+# other pack in the repository also writes to, and the README probe then picked its package
+# with `ls -t | head -1`. That reads whatever happened to be newest: a package from a
+# different branch, from before a fix, or from a partially completed run. The check would
+# then pass or fail on the strength of an artifact this run did not produce - and because
+# the version string never changes, the file name gives nothing away.
+#
+# A private directory that starts empty means every assertion below is about THIS run's
+# output, and the provenance check that follows can hold the packages to the current commit.
+# ---------------------------------------------------------------------------
+PACK_OUTPUT="$REPO_ROOT/artifacts/packages/workload-free"
+rm -rf "$PACK_OUTPUT"
+mkdir -p "$PACK_OUTPUT"
+
 info "SDK"
 "$DOTNET" --version | sed 's/^/  /'
+
+# ---------------------------------------------------------------------------
+# 0b. Source identity, and whether it can honestly be claimed.
+#
+# Every package this lane produces carries a <repository commit="..."> stamp, and section 5c
+# below asserts it. That assertion is a claim about which sources a binary came from, and it is
+# only true when the sources that were packed are the ones that commit names.
+#
+# Two things could make it false, and both were previously invisible:
+#
+#   * An uncommitted edit to a package input. The lane packed the working tree and stamped it
+#     with HEAD, so the package pointed confidently at a tree that does not contain the edit.
+#     That is worse than an unstamped package: nothing looks wrong.
+#
+#   * No git metadata at all. eng/run-linux-checks.sh copies the working tree into a container
+#     WITHOUT .git, so `git rev-parse HEAD` failed there and the documented Linux command could
+#     not complete the run. The revision is passed in instead, together with the cleanliness
+#     verdict computed on the host, so the claim is still anchored to something verified rather
+#     than assumed.
+#
+# The override exists so an in-progress patch can still be validated locally. It never applies in
+# CI or on a release run, and it never upgrades the provenance claim - a dirty run reports the
+# gate, drops a NOT-RELEASABLE marker beside the packages, and refuses to say the packages match
+# a clean HEAD.
+# ---------------------------------------------------------------------------
+info "Source identity"
+
+ALLOW_DIRTY_PROVENANCE="${MAUI_TIZEN_ALLOW_DIRTY_PROVENANCE:-0}"
+IS_AUTOMATED_RUN=0
+if [[ -n "${CI:-}" || -n "${GITHUB_ACTIONS:-}" || "${MAUI_TIZEN_RELEASE:-0}" == "1" ]]; then
+  IS_AUTOMATED_RUN=1
+fi
+
+if [[ "$ALLOW_DIRTY_PROVENANCE" == "1" && $IS_AUTOMATED_RUN -eq 1 ]]; then
+  fail "MAUI_TIZEN_ALLOW_DIRTY_PROVENANCE is set on a CI or release run; the override is refused"
+  FAILURES=$((FAILURES + 1))
+  ALLOW_DIRTY_PROVENANCE=0
+fi
+
+SOURCE_REVISION=""
+SOURCE_REVISION_STATE="unknown"
+# Passed to every pack only when this run has no git metadata of its own; see below.
+PACK_PROVENANCE_ARGS=()
+
+if SOURCE_REVISION="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null)" && [[ -n "$SOURCE_REVISION" ]]; then
+  if "$REPO_ROOT/eng/check-package-inputs-clean.sh" "$REPO_ROOT" >/tmp/mt-clean.$$ 2>&1; then
+    SOURCE_REVISION_STATE="clean"
+    pass "package inputs match HEAD $SOURCE_REVISION"
+  else
+    SOURCE_REVISION_STATE="dirty"
+    sed 's/^/        /' /tmp/mt-clean.$$
+  fi
+  rm -f /tmp/mt-clean.$$
+else
+  # No usable git metadata: this is the container lane. Use the revision the host verified and
+  # hand it to pack explicitly, because SourceLink has nothing to derive it from here.
+  SOURCE_REVISION="${MAUI_TIZEN_SOURCE_REVISION:-}"
+  SOURCE_REVISION_STATE="${MAUI_TIZEN_SOURCE_REVISION_STATE:-unknown}"
+
+  if [[ ! "$SOURCE_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+    fail "no git metadata and MAUI_TIZEN_SOURCE_REVISION is not a full 40-character commit id (got '${SOURCE_REVISION:-<empty>}')"
+    FAILURES=$((FAILURES + 1))
+    SOURCE_REVISION=""
+  else
+    PACK_PROVENANCE_ARGS=("-p:RepositoryCommit=$SOURCE_REVISION")
+    if [[ "$SOURCE_REVISION_STATE" == "clean" ]]; then
+      pass "using verified revision $SOURCE_REVISION passed in from the host"
+    else
+      note "using revision $SOURCE_REVISION passed in from the host, verified state '$SOURCE_REVISION_STATE'"
+    fi
+  fi
+fi
+
+if [[ "$SOURCE_REVISION_STATE" != "clean" && -n "$SOURCE_REVISION" ]]; then
+  if [[ "$ALLOW_DIRTY_PROVENANCE" == "1" ]]; then
+    note "package inputs are '$SOURCE_REVISION_STATE'. MAUI_TIZEN_ALLOW_DIRTY_PROVENANCE=1 lets the"
+    note "  lane continue for local validation, but the packages it produces are NOT releasable and"
+    note "  their commit stamp is NOT a provenance claim."
+    printf 'This directory was produced by eng/build-workload-free.sh with\nMAUI_TIZEN_ALLOW_DIRTY_PROVENANCE=1 from package inputs that did not match\n%s.\n\nThe repository commit stamp in these packages does not identify their sources.\nDo not publish them.\n' \
+      "$SOURCE_REVISION" > "$PACK_OUTPUT/NOT-RELEASABLE.txt"
+  else
+    fail "package inputs do not match HEAD, so the packages cannot claim its provenance (set MAUI_TIZEN_ALLOW_DIRTY_PROVENANCE=1 for local validation only)"
+    FAILURES=$((FAILURES + 1))
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 # 1. JSON well-formedness.
@@ -121,6 +230,7 @@ check "Wave C mutation runner is syntactically valid" bash -n eng/tests/run-wave
 info "Workload-independent projects"
 WORKLOAD_FREE_PROJECTS=(
   "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj"
+  "src/Maui.Tizen.Templates/Maui.Tizen.Templates.csproj"
   "src/Maui.Tizen.Essentials.HostVerification/Maui.Tizen.Essentials.HostVerification.csproj"
   "tests/UnitTests/Maui.Tizen.UnitTests.csproj"
 
@@ -193,7 +303,7 @@ WORKLOAD_FREE_PROJECTS=(
 BUILD_OK=1
 for proj in "${WORKLOAD_FREE_PROJECTS[@]}"; do
   check "restore $(basename "$proj")" "$DOTNET" restore "$proj"
-  if check "build   $(basename "$proj")" "$DOTNET" build "$proj" --no-restore -c Release; then
+  if check_result "build   $(basename "$proj")" "$DOTNET" build "$proj" --no-restore -c Release; then
     :
   else
     BUILD_OK=0
@@ -223,18 +333,31 @@ check "restore package graph probe" "$DOTNET" restore eng/tests/PackageGraphProb
 # about incorrectly in either direction.
 # ---------------------------------------------------------------------------
 info "Packing"
-if check "pack README probe" "$DOTNET" pack eng/tests/PackReadmeProbe/PackReadmeProbe.csproj --no-restore -c Release; then
-  README_NUPKG="$(ls -t "$REPO_ROOT"/artifacts/packages/Maui.Tizen.Internal.PackReadmeProbe.*.nupkg 2>/dev/null | head -1 || true)"
-  # NOTE: `unzip -l ... | grep -q` is deliberately avoided. Under `set -o pipefail`,
-  # grep -q exits on first match and closes the pipe, so unzip can die with SIGPIPE and
-  # poison the pipeline's status - reporting a missing README for a package that contains
-  # one. That is the same failure that once made the CI provenance check report a present
-  # commit as missing; `grep -c` consumes all input, so there is no early close.
+if check_result "pack README probe" "$DOTNET" pack eng/tests/PackReadmeProbe/PackReadmeProbe.csproj --no-restore -c Release "-p:PackageOutputPath=$PACK_OUTPUT" ${PACK_PROVENANCE_ARGS[@]+"${PACK_PROVENANCE_ARGS[@]}"}; then
+  README_NUPKG="$(ls -t "$PACK_OUTPUT"/Maui.Tizen.Internal.PackReadmeProbe.*.nupkg 2>/dev/null | head -1 || true)"
+  # Read the archive with python3 rather than unzip. python3 is already a hard dependency
+  # of this script, whereas unzip is not present in the dotnet/sdk container images - and a
+  # missing unzip is indistinguishable from a missing README, so this check reported a
+  # present README as absent. That is precisely the failure mode the original note here
+  # warned about (a present thing reported missing), reintroduced through the tool rather
+  # than the pipeline. A read error now fails loudly and separately instead.
   README_COUNT=0
+  README_PROBE_STATUS=0
   if [[ -n "$README_NUPKG" ]]; then
-    README_COUNT="$(unzip -l "$README_NUPKG" 2>/dev/null | grep -c 'README\.md' || true)"
+    README_COUNT="$(python3 -c "
+import sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as archive:
+    print(sum(1 for n in archive.namelist() if n.rsplit('/', 1)[-1] == 'README.md'))
+" "$README_NUPKG" 2>/dev/null)" || README_PROBE_STATUS=$?
   fi
-  if [[ "$README_COUNT" -gt 0 ]]; then
+  if [[ "$README_PROBE_STATUS" -ne 0 || -z "$README_COUNT" ]]; then
+    # Counted as a failure. It previously was not: this branch reported FAIL and left
+    # $FAILURES untouched, so a probe that could not read the package printed a red line
+    # and the script still exited 0 - the exact "reported but not enforced" shape this
+    # lane exists to avoid.
+    fail "could not read '$README_NUPKG' to verify its README (the package may be fine; the probe failed)"
+    FAILURES=$((FAILURES + 1))
+  elif [[ "$README_COUNT" -gt 0 ]]; then
     pass "packed nupkg contains README.md"
   else
     fail "packed nupkg is missing README.md (NU5039 risk: the README Pack item did not apply)"
@@ -317,7 +440,90 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 5a. CI workload transition regressions.
+# 5b. Packable shape.
+#
+# Maui.Tizen.Build.Tasks and Maui.Tizen.Templates both ship content in unusual places
+# (buildTransitive/ and content/ rather than lib/), which NuGet will happily pack wrong
+# without complaining. Packing here means the layout is validated on every run rather
+# than at publish time; the package-content tests above then assert the entries.
+# ---------------------------------------------------------------------------
+info "Package shape"
+for proj in "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj" "src/Maui.Tizen.Templates/Maui.Tizen.Templates.csproj"; do
+  check "pack    $(basename "$proj")" "$DOTNET" pack "$proj" --no-build -c Release "-p:PackageOutputPath=$PACK_OUTPUT" ${PACK_PROVENANCE_ARGS[@]+"${PACK_PROVENANCE_ARGS[@]}"}
+done
+
+# ---------------------------------------------------------------------------
+# 5c. Provenance of the packages just produced.
+#
+# Every package carries a <repository commit="..."> stamp, and consumers use it to find the
+# sources a binary came from. A stamp that does not match the commit being built is worse
+# than none: it points confidently at the wrong tree.
+#
+# The isolated output directory above is what makes this checkable - in a shared directory
+# the newest matching file may be from another branch entirely, and the assertion would be
+# about that package instead. Here every .nupkg present was produced by this run, so all of
+# them must name this revision.
+#
+# It also catches the case where the stamp goes missing altogether (SourceLink failing to
+# resolve the git directory in a worktree or a shallow CI clone, say), because a package
+# with no repository element fails the comparison rather than skipping it.
+#
+# The revision comes from section 0b, which is also where it was decided whether naming it is
+# a PROVENANCE CLAIM (the packed inputs are committed and match) or merely a CONSISTENCY check
+# (a dirty local run under the override). The two are reported differently on purpose: a green
+# line that means "these packages are what commit X contains" and a green line that means
+# "these packages all agree on a label" are not the same statement, and printing the second as
+# if it were the first is how a provenance check becomes decoration.
+# ---------------------------------------------------------------------------
+info "Package provenance"
+if [[ -n "$SOURCE_REVISION" ]]; then
+  if [[ "$SOURCE_REVISION_STATE" == "clean" ]]; then
+    PROVENANCE_LABEL="packed nuspec repository commit is $SOURCE_REVISION"
+  else
+    PROVENANCE_LABEL="packed nuspecs agree on $SOURCE_REVISION (NOT a provenance claim: inputs are '$SOURCE_REVISION_STATE')"
+  fi
+
+  check "$PROVENANCE_LABEL" env "MAUI_TIZEN_HEAD=$SOURCE_REVISION" "MAUI_TIZEN_PACK_OUTPUT=$PACK_OUTPUT" python3 - <<'PY'
+import glob, os, re, sys, zipfile
+
+expected = os.environ["MAUI_TIZEN_HEAD"]
+output = os.environ["MAUI_TIZEN_PACK_OUTPUT"]
+
+packages = sorted(
+    p for p in glob.glob(os.path.join(output, "*.nupkg"))
+    if not p.endswith(".symbols.nupkg")
+)
+
+if not packages:
+    sys.exit(f"no packages were produced in '{output}'")
+
+problems = []
+for package in packages:
+    with zipfile.ZipFile(package) as archive:
+        names = [n for n in archive.namelist() if n.endswith(".nuspec")]
+        if not names:
+            problems.append(f"{os.path.basename(package)}: no .nuspec")
+            continue
+        nuspec = archive.read(names[0]).decode("utf-8-sig")
+
+    match = re.search(r'<repository\b[^>]*\bcommit="([0-9a-f]+)"', nuspec)
+    if not match:
+        problems.append(f"{os.path.basename(package)}: no repository commit stamp")
+    elif match.group(1) != expected:
+        problems.append(f"{os.path.basename(package)}: stamped {match.group(1)}, expected {expected}")
+
+if problems:
+    sys.exit("stale or missing provenance:\n  " + "\n  ".join(problems))
+
+print(f"{len(packages)} package(s) stamped with {expected}")
+PY
+else
+  fail "no verified source revision, so package provenance could not be checked"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# ---------------------------------------------------------------------------
+# 5d. CI workload transition regressions.
 #
 # The external gate must stay informational while both baseline-derived manifest IDs are
 # definitively unavailable, then become a mandatory real restore/build/pack lane as soon
@@ -332,7 +538,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 5b. Snapshot verification regressions.
+# 5e. Snapshot verification regressions.
 #
 # eng/scripts/lib/Snapshot.ps1's Test-SnapshotIntegrity is what stands between "we downloaded
 # the right dotnet/maui commit" and "we scanned whatever happened to be on disk". These
@@ -346,7 +552,9 @@ else
   fail "snapshot verification regressions failed"
   FAILURES=$((FAILURES + 1))
 fi
-# 5b. BlazorWebView host-side verification.
+
+# ---------------------------------------------------------------------------
+# 5f. BlazorWebView host-side verification.
 #
 # Unlike the invariant tests, these exercise real backend behaviour: registration order,
 # the asset file provider, request mapping and the static content cache. They can run
@@ -364,7 +572,8 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
-# 7. Parity determinism.
+# ---------------------------------------------------------------------------
+# 5g. Parity determinism.
 #
 # The full suite above is NOT sufficient evidence that parity generation is deterministic. MAUI's
 # neutral mappers are mutated at runtime by Controls' RemapForControls, so a parity test can pass

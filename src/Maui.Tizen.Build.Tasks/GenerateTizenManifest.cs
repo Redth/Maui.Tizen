@@ -1,13 +1,25 @@
-﻿#nullable enable
+#nullable enable
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
 
-namespace Microsoft.Maui.Resizetizer
+namespace Maui.Tizen.Build.Tasks
 {
+	/// <summary>
+	/// Rewrites the user authored <c>tizen-manifest.xml</c> with the single project identity
+	/// (application id, version, title) and the generated icon / splash resources.
+	/// </summary>
+	/// <remarks>
+	/// Ported from <c>GenerateTizenManifest</c> in dotnet/maui. The upstream task discovered splash
+	/// entries through a static field mutated by the splash task in the same MSBuild node, which
+	/// breaks whenever either target is skipped for being up to date. This port takes the splash
+	/// entries explicitly, either as items or through the map file persisted by
+	/// <see cref="GenerateTizenSplashScreens"/>.
+	/// </remarks>
 	public class GenerateTizenManifest : Task
 	{
 		const string ApplicationIdPlaceholder = "maui-application-id-placeholder";
@@ -47,10 +59,17 @@ namespace Microsoft.Maui.Resizetizer
 
 		public ITaskItem[]? SplashScreen { get; set; }
 
+		/// <summary>
+		/// Splash entries with <c>Resolution</c> and <c>Orientation</c> metadata, as produced by
+		/// <see cref="GenerateTizenSplashScreens"/>.
+		/// </summary>
+		public ITaskItem[]? SplashScreenEntries { get; set; }
+
+		/// <summary>Fallback source for splash entries on incremental builds.</summary>
+		public string? SplashScreenMapFile { get; set; }
+
 		[Output]
 		public ITaskItem GeneratedTizenManifest { get; set; } = null!;
-
-		string? _tizenManifestFilePath;
 
 		public override bool Execute()
 		{
@@ -58,11 +77,19 @@ namespace Microsoft.Maui.Resizetizer
 			{
 				Directory.CreateDirectory(IntermediateOutputPath);
 
-				_tizenManifestFilePath = Path.Combine(Environment.CurrentDirectory, TizenManifestFile);
+				var sourceManifest = Path.IsPathRooted(TizenManifestFile)
+					? TizenManifestFile
+					: Path.Combine(Environment.CurrentDirectory, TizenManifestFile);
+
+				if (!File.Exists(sourceManifest))
+				{
+					Log.LogError($"The Tizen manifest '{sourceManifest}' could not be found. Add a 'Platforms/Tizen/tizen-manifest.xml' file or set the 'TizenManifestFile' property.");
+					return false;
+				}
 
 				var targetFilename = Path.Combine(IntermediateOutputPath, GeneratedFilename);
 
-				var manifest = XDocument.Load(_tizenManifestFilePath);
+				var manifest = XDocument.Load(sourceManifest);
 
 				UpdateManifest(manifest);
 
@@ -84,19 +111,19 @@ namespace Microsoft.Maui.Resizetizer
 			var manifest = tizenManifest.Root;
 			var uiApplication = manifest.Element(xmlns + UiApplicationName);
 
-			if (manifest == null || uiApplication == null)
+			if (uiApplication == null)
 			{
+				Log.LogWarning($"The Tizen manifest does not contain a '{UiApplicationName}' element; no single project values were applied.");
 				return;
 			}
 
 			UpdateSharedManifest(xmlns, manifest);
-
 			UpdateSharedResources(xmlns, manifest);
 		}
 
 		void UpdateSharedManifest(XNamespace xmlns, XElement manifest)
 		{
-			var uiApplication = manifest.Element(xmlns + UiApplicationName);
+			var uiApplication = manifest.Element(xmlns + UiApplicationName)!;
 
 			if (!string.IsNullOrEmpty(ApplicationId))
 			{
@@ -107,14 +134,9 @@ namespace Microsoft.Maui.Resizetizer
 			if (!string.IsNullOrEmpty(ApplicationDisplayVersion))
 			{
 				if (TryMergeVersionNumbers(ApplicationDisplayVersion, out var finalVersion))
-				{
 					UpdateElementAttribute(manifest, VersionName, finalVersion, ManifestVersionPlaceholder);
-				}
 				else
-				{
 					Log.LogWarning($"ApplicationDisplayVersion '{ApplicationDisplayVersion}' was not a valid version for Tizen");
-				}
-
 			}
 
 			if (!string.IsNullOrEmpty(ApplicationTitle))
@@ -125,39 +147,44 @@ namespace Microsoft.Maui.Resizetizer
 					label = new XElement(xmlns + LabelName);
 					uiApplication.AddFirst(label);
 				}
+
 				UpdateElementValue(label, ApplicationTitle, LabelPlaceholder);
 			}
 		}
 
 		void UpdateSharedResources(XNamespace xmlns, XElement manifestElement)
 		{
-			var uiApplicationElement = manifestElement.Element(xmlns + UiApplicationName);
-			var appIconInfo = AppIcon?.Length > 0 ? ResizeImageInfo.Parse(AppIcon[0]) : null;
+			var uiApplicationElement = manifestElement.Element(xmlns + UiApplicationName)!;
+			var appIconInfo = AppIcon?.Length > 0 ? TizenImageInfo.Parse(AppIcon[0]) : null;
 
 			if (appIconInfo != null)
 			{
-				var xiconName = xmlns + IconName;
-				var iconElements = uiApplicationElement.Elements(xiconName);
+				var iconElements = uiApplicationElement.Elements(xmlns + IconName);
+				var iconPlaceholderElements = iconElements.Where(d => d.Value == AppIconPlaceholder).ToList();
 
-				var iconPlaceholderElements = iconElements.Where(d => d.Value == AppIconPlaceholder);
 				foreach (var icon in iconPlaceholderElements)
 				{
-					if (icon.Attribute(DpiName) == null)
+					var dpiAttribute = icon.Attribute(DpiName);
+					if (dpiAttribute == null)
 					{
-						var defaultDpi = DpiPath.Tizen.AppIcon.Where(n => n.Path.EndsWith(IconDefaultDpiType)).FirstOrDefault();
-						icon.Value = IconDefaultDpiType + "/" + appIconInfo.OutputName + defaultDpi.FileSuffix + IconImageExtension;
+						var defaultDpi = TizenDpiPath.AppIcon.FirstOrDefault(n => n.Path.EndsWith(IconDefaultDpiType, StringComparison.Ordinal));
+						icon.Value = IconDefaultDpiType + "/" + appIconInfo.OutputName + defaultDpi?.FileSuffix + IconImageExtension;
 					}
 					else
 					{
-						string dpiValue = icon.Attribute(DpiName).Value;
-						string fileSuffix = dpiValue == IconDefaultDpiType ? "xhigh" : "high";
-						icon.Value = dpiValue + "/" + appIconInfo.OutputName + fileSuffix + IconImageExtension;
+						// Note: the upstream implementation concatenated the suffix without the
+						// separating '.', producing "appiconxhigh.png" while the Resizetizer writes
+						// "appicon.xhigh.png" (the suffix comes from the DpiPath scale suffix
+						// ".high" / ".xhigh"). This port emits the name that actually exists.
+						var dpiValue = dpiAttribute.Value;
+						var fileSuffix = dpiValue == IconDefaultDpiType ? "xhigh" : "high";
+						icon.Value = dpiValue + "/" + appIconInfo.OutputName + "." + fileSuffix + IconImageExtension;
 					}
 				}
 			}
-			var splashInfo = SplashScreen?.Length > 0 ? ResizeImageInfo.Parse(SplashScreen[0]) : null;
 
-			if (splashInfo != null)
+			var splashEntries = GetSplashEntries();
+			if (SplashScreen?.Length > 0 && splashEntries.Count > 0)
 			{
 				var splashscreensElement = uiApplicationElement.Element(xmlns + SplashScreensName);
 				if (splashscreensElement == null)
@@ -166,42 +193,52 @@ namespace Microsoft.Maui.Resizetizer
 					uiApplicationElement.Add(splashscreensElement);
 				}
 
-				foreach (var image in TizenSplashUpdater.splashDpiMap)
+				foreach (var entry in splashEntries)
 				{
-					var splashElements = splashscreensElement.Elements(xmlns + SplashScreenName).Where(
-						d => d.Attribute("type")?.Value == "img"
-						&& d.Attribute(DpiName)?.Value == image.Key.Resolution
-						&& d.Attribute("orientation")?.Value == image.Key.Orientation
+					var existing = splashscreensElement.Elements(xmlns + SplashScreenName).Where(d =>
+						d.Attribute("type")?.Value == "img"
+						&& d.Attribute(DpiName)?.Value == entry.Resolution
+						&& d.Attribute("orientation")?.Value == entry.Orientation
 						&& d.Attribute("indicator-display")?.Value == "false");
-					if (!splashElements.Any())
-					{
-						var splashscreenElement = new XElement(xmlns + SplashScreenName);
-						splashscreenElement.SetAttributeValue("src", image.Value);
-						splashscreenElement.SetAttributeValue("type", "img");
-						splashscreenElement.SetAttributeValue(DpiName, image.Key.Resolution);
-						splashscreenElement.SetAttributeValue("orientation", image.Key.Orientation);
-						splashscreenElement.SetAttributeValue("indicator-display", "false");
-						splashscreensElement.Add(splashscreenElement);
-					}
+
+					if (existing.Any())
+						continue;
+
+					var splashscreenElement = new XElement(xmlns + SplashScreenName);
+					splashscreenElement.SetAttributeValue("src", entry.Source);
+					splashscreenElement.SetAttributeValue("type", "img");
+					splashscreenElement.SetAttributeValue(DpiName, entry.Resolution);
+					splashscreenElement.SetAttributeValue("orientation", entry.Orientation);
+					splashscreenElement.SetAttributeValue("indicator-display", "false");
+					splashscreensElement.Add(splashscreenElement);
 				}
 			}
 		}
 
-		void UpdateElementAttribute(XElement element, XName attrName, string? value, string? placeholder)
+		IReadOnlyList<(string Resolution, string Orientation, string Source)> GetSplashEntries()
+		{
+			if (SplashScreenEntries?.Length > 0)
+			{
+				return SplashScreenEntries
+					.Select(i => (i.GetMetadata("Resolution"), i.GetMetadata("Orientation"), i.ItemSpec.Replace('\\', '/')))
+					.Where(e => !string.IsNullOrEmpty(e.Item1) && !string.IsNullOrEmpty(e.Item2))
+					.ToList();
+			}
+
+			return GenerateTizenSplashScreens.ReadMap(SplashScreenMapFile);
+		}
+
+		static void UpdateElementAttribute(XElement element, XName attrName, string? value, string? placeholder)
 		{
 			var attr = element.Attribute(attrName);
 			if (attr == null || string.IsNullOrEmpty(attr.Value) || attr.Value == placeholder)
-			{
 				element.SetAttributeValue(attrName, value);
-			}
 		}
 
-		void UpdateElementValue(XElement element, string? value, string? placeholder)
+		static void UpdateElementValue(XElement element, string? value, string? placeholder)
 		{
 			if (string.IsNullOrEmpty(element.Value) || element.Value == placeholder)
-			{
 				element.Value = value;
-			}
 		}
 
 		public static bool TryMergeVersionNumbers(string? displayVersion, out string? finalVersion)
@@ -230,8 +267,6 @@ namespace Microsoft.Maui.Resizetizer
 		}
 
 		static bool VerifyTizenVersion(int x, int y, int z)
-		{
-			return (x < 0 || x > 255 || y < 0 || y > 255 || z < 0 || z > 65535) ? false : true;
-		}
+			=> !(x < 0 || x > 255 || y < 0 || y > 255 || z < 0 || z > 65535);
 	}
 }

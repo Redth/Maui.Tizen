@@ -1,0 +1,93 @@
+<Project>
+
+  <!--
+    TEST FIXTURE. This is not a shipping file and is imported by nothing except
+    tests/UnitTests/TizenBlazorAssetHandoffTests.cs.
+
+    It is a stand-in for "some package registers an asset provider", using the same public seam as
+    the real provider under src/Maui.Tizen.BlazorWebView/buildTransitive. It remains independent
+    on purpose: these tests validate the generic Build.Tasks contract, while the Blazor product's
+    own tests validate its implementation. Maui.Tizen.BlazorWebView is currently non-packable, so
+    no released package exposes that implementation yet.
+
+    What these tests actually own is the half on this side of the boundary:
+
+        MauiAsset -> (Resizetizer ProcessMauiAssets) -> MauiProcessedAsset -> TizenResource
+                  -> res/wwwroot/... in the TPK
+
+    plus the MauiTizenAssetProviderTargets seam itself and the de-duplication of resources by
+    destination path.
+
+    The runtime contract they encode is fixed by TizenAssetFileProvider, which resolves
+    Application.Current.DirectoryInfo.Resource + contentRootDir + subpath: a HostPage of
+    "wwwroot/index.html" therefore requires res/wwwroot/index.html on device, and nested paths
+    must survive the pipeline rather than being flattened.
+  -->
+
+  <PropertyGroup>
+    <!--
+      Root project mode with a "/" base path is what MAUI Blazor Hybrid apps use, so that app
+      assets are addressed as /index.html rather than under a package base path.
+    -->
+    <StaticWebAssetBasePath Condition="'$(StaticWebAssetBasePath)' == ''">/</StaticWebAssetBasePath>
+    <StaticWebAssetProjectMode Condition="'$(StaticWebAssetProjectMode)' == ''">Root</StaticWebAssetProjectMode>
+  </PropertyGroup>
+
+  <!--
+    Register with Maui.Tizen.Build.Tasks rather than hooking a Resizetizer target directly. The
+    seam guarantees ordering relative to Tizen asset processing without this package needing to
+    know Resizetizer's internal target names.
+  -->
+  <PropertyGroup>
+    <MauiTizenAssetProviderTargets>
+      $(MauiTizenAssetProviderTargets);
+      MauiTizenBlazorConvertStaticWebAssetsToMauiAssets;
+    </MauiTizenAssetProviderTargets>
+  </PropertyGroup>
+
+  <Target Name="MauiTizenBlazorConvertStaticWebAssetsToMauiAssets"
+          DependsOnTargets="ResolveProjectReferences;StaticWebAssetsPrepareForRun">
+
+    <!--
+      ComputeStaticWebAssetsTargetPaths is the SDK's own task. Using it rather than hand-computing
+      BasePath + RelativePath matters: package-provided assets carry fingerprint expressions in
+      their relative path (blazor.webview.js is literally
+      "blazor.webview#[.{fingerprint}]?.js" with a BasePath of "_framework"), and this task is what
+      resolves them to the path the browser will actually request.
+    -->
+    <ComputeStaticWebAssetsTargetPaths Assets="@(StaticWebAsset)" PathPrefix="wwwroot">
+      <Output TaskParameter="AssetsWithTargetPath" ItemName="_MauiTizenStaticWebAssetWithTargetPath" />
+    </ComputeStaticWebAssetsTargetPaths>
+
+    <ItemGroup>
+      <!--
+        Real Razor builds create Alternative assets only during WebAssembly publish, not during
+        this host-side build. Seed SDK-shaped items when requested so the tests exercise the
+        compression filter rather than passing over an empty Alternative set.
+      -->
+      <_MauiTizenStaticWebAssetWithTargetPath Include="$(SeedAlternativeAssetPath)"
+                                              Condition="'$(SeedCompressedAssets)' == 'true'"
+                                              AssetRole="Alternative"
+                                              TargetPath="wwwroot/app.generated.js.gz" />
+      <_MauiTizenStaticWebAssetWithTargetPath Include="$(SeedPrimaryGzipAssetPath)"
+                                              Condition="'$(SeedCompressedAssets)' == 'true'"
+                                              AssetRole="Primary"
+                                              TargetPath="wwwroot/data/archive.gz" />
+
+      <!--
+        Precompressed variants are identified by AssetRole, not by physical extension. The SDK
+        may give an Alternative asset a generated identity that does not end in .gz or .br, while
+        a user-authored file named archive.gz remains a Primary asset and must survive.
+      -->
+      <MauiAsset Include="%(_MauiTizenStaticWebAssetWithTargetPath.Identity)"
+                 Condition="'%(_MauiTizenStaticWebAssetWithTargetPath.AssetRole)' != 'Alternative'">
+        <!-- Link is what the Resizetizer turns into the processed asset path, and what
+             Maui.Tizen.Build.Tasks then maps onto TizenTpkFileName. -->
+        <Link>%(_MauiTizenStaticWebAssetWithTargetPath.TargetPath)</Link>
+        <TargetPath>%(_MauiTizenStaticWebAssetWithTargetPath.TargetPath)</TargetPath>
+        <AssetRole>%(_MauiTizenStaticWebAssetWithTargetPath.AssetRole)</AssetRole>
+      </MauiAsset>
+    </ItemGroup>
+  </Target>
+
+</Project>
