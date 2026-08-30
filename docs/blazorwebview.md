@@ -124,7 +124,8 @@ Everything above the native boundary was ported as-is from `dotnet/maui` `net11.
   manager. Key parsing reads only the numeric key, so another component appending to the user agent
   cannot break routing. JavaScript bridge messages carry a separate connection generation tag, so a
   late renderer acknowledgement can finish retirement without being delivered to a replacement manager;
-  accepted message and public-dispatch work is leased ahead of manager disposal.
+  the Tizen Blazor dispatcher captures the actual nested asynchronous IPC task, and accepted message and
+  public-dispatch work remains leased until that task completes ahead of manager disposal.
 - **`WebResourceRequested` is not raised.** `IBlazorWebView` inherits it from
   `IWebRequestInterceptingWebView`, but `WebResourceRequestedEventArgs` has only `internal` constructors
   and no Tizen shape, so a third-party backend cannot construct the argument. Static content is still

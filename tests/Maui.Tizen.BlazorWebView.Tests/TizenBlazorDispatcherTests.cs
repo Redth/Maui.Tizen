@@ -1,0 +1,64 @@
+using System;
+using System.Threading.Tasks;
+using Microsoft.Maui.Dispatching;
+using Xunit;
+
+namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
+{
+	public class TizenBlazorDispatcherTests
+	{
+		[Fact]
+		public async Task OperationCaptureWaitsForNestedAsyncDispatcherWork()
+		{
+			var dispatcher = new TizenBlazorDispatcher(new InlineDispatcher());
+			var started = new TaskCompletionSource<object?>(
+				TaskCreationOptions.RunContinuationsAsynchronously);
+			var release = new TaskCompletionSource<object?>(
+				TaskCreationOptions.RunContinuationsAsynchronously);
+			var capture = dispatcher.BeginOperationCapture();
+			var operation = dispatcher.InvokeAsync(async () =>
+			{
+				started.TrySetResult(null);
+				await release.Task;
+			});
+			capture.Dispose();
+			await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+			var drain = capture.DrainAsync();
+			Assert.False(drain.IsCompleted);
+			release.TrySetResult(null);
+
+			await Task.WhenAll(operation, drain).WaitAsync(TimeSpan.FromSeconds(10));
+		}
+
+		[Fact]
+		public async Task OperationCapturePropagatesNestedDispatcherFailure()
+		{
+			var dispatcher = new TizenBlazorDispatcher(new InlineDispatcher());
+			var expected = new InvalidOperationException("ipc failed");
+			var capture = dispatcher.BeginOperationCapture();
+			_ = dispatcher.InvokeAsync(() => Task.FromException(expected));
+			capture.Dispose();
+
+			var failure = await Assert.ThrowsAsync<InvalidOperationException>(
+				() => capture.DrainAsync());
+
+			Assert.Same(expected, failure);
+		}
+
+		private sealed class InlineDispatcher : IDispatcher
+		{
+			public bool IsDispatchRequired => false;
+
+			public bool Dispatch(Action action)
+			{
+				action();
+				return true;
+			}
+
+			public bool DispatchDelayed(TimeSpan delay, Action action) => Dispatch(action);
+
+			public IDispatcherTimer CreateTimer() => throw new NotSupportedException();
+		}
+	}
+}

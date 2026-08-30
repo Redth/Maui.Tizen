@@ -26,6 +26,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 		private readonly TizenBlazorWebViewHandler _handler;
 		private readonly NWebView _webview;
 		private readonly string _contentRootRelativeToAppRoot;
+		private readonly TizenBlazorDispatcher? _tizenDispatcher;
 
 		/// <summary>
 		/// Initializes a new instance of <see cref="TizenWebViewManager"/>.
@@ -52,6 +53,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			_handler = handler ?? throw new ArgumentNullException(nameof(handler));
 			_webview = webview ?? throw new ArgumentNullException(nameof(webview));
 			_contentRootRelativeToAppRoot = contentRootRelativeToAppRoot;
+			_tizenDispatcher = dispatcher as TizenBlazorDispatcher;
 		}
 
 		/// <summary>
@@ -85,14 +87,24 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 		internal async Task MessageReceivedAsync(Uri uri, string message)
 		{
+			TizenBlazorDispatcher.OperationCapture? capture = null;
 			await Dispatcher
-				.InvokeAsync(() => MessageReceivedInternal(uri, message))
+				.InvokeAsync(() =>
+				{
+					if (_tizenDispatcher is null)
+					{
+						MessageReceivedInternal(uri, message);
+						return;
+					}
+
+					using var current = _tizenDispatcher.BeginOperationCapture();
+					capture = current;
+					MessageReceivedInternal(uri, message);
+				})
 				.ConfigureAwait(false);
 
-			// WebViewManager.MessageReceived queues its own dispatcher work and returns void. A second
-			// dispatch is a FIFO barrier that keeps the connection lease alive until that queued IPC
-			// processing has run.
-			await Dispatcher.InvokeAsync(static () => { }).ConfigureAwait(false);
+			if (capture is not null)
+				await capture.DrainAsync().ConfigureAwait(false);
 		}
 	}
 }

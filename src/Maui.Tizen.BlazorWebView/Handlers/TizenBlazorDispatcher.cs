@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Maui.Dispatching;
 
@@ -16,7 +18,59 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 	/// </remarks>
 	internal sealed class TizenBlazorDispatcher : Microsoft.AspNetCore.Components.Dispatcher
 	{
+		internal sealed class OperationCapture : IDisposable
+		{
+			private readonly object _gate = new();
+			private readonly TizenBlazorDispatcher _owner;
+			private readonly OperationCapture? _previous;
+			private readonly List<Task> _operations = new();
+
+			public OperationCapture(
+				TizenBlazorDispatcher owner,
+				OperationCapture? previous)
+			{
+				_owner = owner;
+				_previous = previous;
+			}
+
+			public async Task DrainAsync()
+			{
+				var drained = 0;
+				while (true)
+				{
+					Task[] operations;
+					lock (_gate)
+					{
+						if (drained == _operations.Count)
+							return;
+
+						operations = _operations.GetRange(
+							drained,
+							_operations.Count - drained).ToArray();
+						drained = _operations.Count;
+					}
+
+					await Task.WhenAll(operations).ConfigureAwait(false);
+				}
+			}
+
+			public void Dispose()
+			{
+				if (ReferenceEquals(_owner._operationCapture.Value, this))
+					_owner._operationCapture.Value = _previous;
+			}
+
+			internal void Track(Task operation)
+			{
+				lock (_gate)
+				{
+					_operations.Add(operation);
+				}
+			}
+		}
+
 		private readonly IDispatcher _dispatcher;
+		private readonly AsyncLocal<OperationCapture?> _operationCapture = new();
 
 		public TizenBlazorDispatcher(IDispatcher dispatcher)
 		{
@@ -27,10 +81,29 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 		public override Task InvokeAsync(Action workItem) => _dispatcher.DispatchAsync(workItem);
 
-		public override Task InvokeAsync(Func<Task> workItem) => _dispatcher.DispatchAsync(workItem);
+		public override Task InvokeAsync(Func<Task> workItem) =>
+			Track(_dispatcher.DispatchAsync(workItem));
 
 		public override Task<TResult> InvokeAsync<TResult>(Func<TResult> workItem) => _dispatcher.DispatchAsync(workItem);
 
-		public override Task<TResult> InvokeAsync<TResult>(Func<Task<TResult>> workItem) => _dispatcher.DispatchAsync(workItem);
+		public override Task<TResult> InvokeAsync<TResult>(Func<Task<TResult>> workItem)
+		{
+			var operation = _dispatcher.DispatchAsync(workItem);
+			Track(operation);
+			return operation;
+		}
+
+		internal OperationCapture BeginOperationCapture()
+		{
+			var capture = new OperationCapture(this, _operationCapture.Value);
+			_operationCapture.Value = capture;
+			return capture;
+		}
+
+		private Task Track(Task operation)
+		{
+			_operationCapture.Value?.Track(operation);
+			return operation;
+		}
 	}
 }
