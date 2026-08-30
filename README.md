@@ -47,7 +47,7 @@ Additional publication gates remain explicit:
 - dotnet/maui#37861 is merged, but its public long-press send APIs are absent from the pinned
   MAUI package.
 - `Maui.Tizen.BlazorWebView` remains non-packable until `Maui.Tizen.Core` is enabled in the
-  produced package closure; `MAUITIZEN0106` fails closed if that dependency gate is bypassed.
+  produced package closure; `MAUITIZEN0107` fails closed if that dependency gate is bypassed.
 - Device, lifecycle/input and visual-baseline evidence needs the Samsung workload and provisioned
   mobile/TV runners.
 

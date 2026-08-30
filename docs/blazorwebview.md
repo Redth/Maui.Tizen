@@ -118,10 +118,12 @@ Everything above the native boundary was ported as-is from `dotnet/maui` `net11.
   NUI WebView and restores the original user agent on disconnect. Without that, a
   disconnect/reconnect cycle would deliver every JS message twice and append a second routing suffix to
   the user agent.
-- **Routing keys are unique.** The key that routes an intercepted request back to its owning handler
-  comes from a monotonic counter, not `GetHashCode` — two live handlers can share a hash code, which
-  would serve one BlazorWebView's content into another. Key parsing reads only the key, so another
-  component appending to the user agent cannot break routing.
+- **Routing keys are unique per connection.** Each connection registers an immutable router and a
+  monotonic key, not the mutable handler itself. A request resolved immediately before disconnect
+  therefore retains the retired request lifetime and is ignored rather than entering a replacement
+  manager. Key parsing reads only the numeric key, so another component appending to the user agent
+  cannot break routing. JavaScript bridge messages carry a separate connection generation tag, so a
+  late renderer acknowledgement can finish retirement without being delivered to a replacement manager.
 - **`WebResourceRequested` is not raised.** `IBlazorWebView` inherits it from
   `IWebRequestInterceptingWebView`, but `WebResourceRequestedEventArgs` has only `internal` constructors
   and no Tizen shape, so a third-party backend cannot construct the argument. Static content is still
@@ -129,9 +131,13 @@ Everything above the native boundary was ported as-is from `dotnet/maui` `net11.
   `WebResourceRequestedTests` pins this and fails if MAUI ever makes the type constructible.
 - **Disposal is now generation-owned.** Each connection owns its manager, root-component reconciler,
   request lease, response cache and pending host-page loads. Disconnect retires that generation before
-  unregistering routing, waits for active reconciliation and interception callbacks before disposing its
-  manager, and cannot let an old pass mutate a later connection. Disposal remains asynchronous by
-  default and can be made blocking with the `BlazorWebView.UseBlockingDisposal` `AppContext` switch.
+  unregistering routing, cancels reconciliation waits that depend on JavaScript acknowledgement, drains
+  active interception callbacks, and then disposes its manager. Replacing the handler's virtual view
+  fully retires the old generation before starting one bound to the replacement's host page, services,
+  `JSComponents`, cache policy and `StartPath`. Disposal remains asynchronous by default and can be made
+  blocking with the `BlazorWebView.UseBlockingDisposal` `AppContext` switch.
+- **Public dispatch is generation-leased.** `TryDispatchAsync` rejects work after retirement and an
+  accepted dispatch keeps the manager/service scope alive until the callback completes.
 - **Every host-page route is bootstrapped, not just `/`.** Blazor's `Blazor.start()` is injected on any
   document load the request processor answered with the host page — so deep client-side routes
   (`/CustomStart/SomeData`), dotted configured routes (`/orders/v1.2`) and URLs carrying a query or
@@ -150,7 +156,8 @@ Everything above the native boundary was ported as-is from `dotnet/maui` `net11.
   collection the application had emptied. Passes are now serialized and coalesced by
   `CoalescingReconciler`, and each pass re-reads the desired collection, so the last pass always observes
   the final state. Mounted state and reconciliation are per connection; replacing the collection removes
-  the prior manager registrations before adding the new desired set.
+  the prior manager registrations before adding the new desired set. Reconciliation failures are always
+  observed and logged rather than escaping later as unobserved task exceptions.
 
 
 ## Repository layout
@@ -183,7 +190,7 @@ arrangement, focus propagation and disposal, and the dispatcher is reached throu
 
 The project is deliberately `IsPackable=false` until `Maui.Tizen.Core` is enabled as a produced package;
 a `ProjectReference` becomes a NuGet dependency and does not embed the Core assembly. An explicit
-`MAUITIZEN0106` guard also fails if someone locally overrides `IsPackable` without declaring the Core
+`MAUITIZEN0107` guard also fails if someone locally overrides `IsPackable` without declaring the Core
 package closure shippable. The separate `MAUITIZEN0101` guard remains because Core currently depends on
 `Tizen.UIExtensions.NUI` 0.9.2, which declares a .NET 6-era `Microsoft.Maui.Graphics` dependency.
 

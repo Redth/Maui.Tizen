@@ -38,7 +38,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		}
 
 		[Fact]
-		public async Task RetirementWaitsForAnActivePassAndRejectsLaterRequests()
+		public async Task RetirementCancelsAnActiveManagerWaitAndRejectsLaterRequests()
 		{
 			var addStarted = new TaskCompletionSource<object?>(
 				TaskCreationOptions.RunContinuationsAsynchronously);
@@ -59,11 +59,11 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			await addStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
 			var retirement = connection.RetireAsync();
-			Assert.False(retirement.IsCompleted);
 			connection.UpdateDesired(new[] { Component("#late", typeof(int)) });
+			await retirement.WaitAsync(TimeSpan.FromSeconds(10));
 
 			releaseAdd.TrySetResult(null);
-			await retirement.WaitAsync(TimeSpan.FromSeconds(10));
+			await Task.Yield();
 
 			Assert.Equal(1, addCount);
 			Assert.Empty(connection.Mounted);
@@ -93,9 +93,10 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			oldConnection.UpdateDesired(new[] { Component("#app", typeof(string)) });
 			await oldStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
 			var retirement = oldConnection.RetireAsync();
+			await retirement.WaitAsync(TimeSpan.FromSeconds(10));
 			newConnection.UpdateDesired(new[] { replacement });
 			releaseOld.TrySetResult(null);
-			await retirement.WaitAsync(TimeSpan.FromSeconds(10));
+			await Task.Yield();
 
 			Assert.Empty(oldConnection.Mounted);
 			Assert.Equal(new[] { replacement }, newConnection.Mounted);

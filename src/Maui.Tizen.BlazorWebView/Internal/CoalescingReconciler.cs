@@ -38,6 +38,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 		private readonly object _gate = new();
 		private readonly Func<Task> _reconcile;
 		private readonly Func<Func<Task>, Task> _dispatch;
+		private readonly Action<Exception> _reportFailure;
 
 		/// <summary>Non-zero when a pass is owed. Written from any thread.</summary>
 		private int _requested;
@@ -51,10 +52,14 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 		/// rather than closing over a snapshot.
 		/// </param>
 		/// <param name="dispatch">Queues work onto the dispatcher that owns the reconciled state.</param>
-		public CoalescingReconciler(Func<Task> reconcile, Func<Func<Task>, Task> dispatch)
+		public CoalescingReconciler(
+			Func<Task> reconcile,
+			Func<Func<Task>, Task> dispatch,
+			Action<Exception>? reportFailure = null)
 		{
 			_reconcile = reconcile ?? throw new ArgumentNullException(nameof(reconcile));
 			_dispatch = dispatch ?? throw new ArgumentNullException(nameof(dispatch));
+			_reportFailure = reportFailure ?? (_ => { });
 		}
 
 		/// <summary>Number of passes that have run. For tests asserting coalescing.</summary>
@@ -75,7 +80,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 
 			// Do not dispatch under the lock. A dispatcher can run inline when the caller already has
 			// access, and RunAsync takes the same lock.
-			_ = _dispatch(RunAsync);
+			Schedule();
 		}
 
 		/// <summary>
@@ -131,6 +136,10 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 					await _reconcile();
 				}
 			}
+			catch (Exception ex)
+			{
+				ReportFailure(ex);
+			}
 			finally
 			{
 				lock (_gate)
@@ -145,7 +154,42 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 				// A request can arrive after the final flag read but before _running is cleared. Its
 				// scheduled drain observes _running and returns, so explicitly schedule the owed pass.
 				if (reschedule)
-					_ = _dispatch(RunAsync);
+					Schedule();
+			}
+		}
+
+		private void Schedule()
+		{
+			try
+			{
+				var task = _dispatch(RunAsync);
+				if (!task.IsCompletedSuccessfully)
+				{
+					_ = task.ContinueWith(
+						static (completed, state) =>
+							((CoalescingReconciler)state!).ReportFailure(
+								completed.Exception!.GetBaseException()),
+						this,
+						CancellationToken.None,
+						TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+						TaskScheduler.Default);
+				}
+			}
+			catch (Exception ex)
+			{
+				ReportFailure(ex);
+			}
+		}
+
+		private void ReportFailure(Exception exception)
+		{
+			try
+			{
+				_reportFailure(exception);
+			}
+			catch
+			{
+				// Error reporting must not create another unobserved dispatcher failure.
 			}
 		}
 	}

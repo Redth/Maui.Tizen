@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal;
 using Tizen.NUI;
@@ -78,6 +79,29 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		}
 
 		[Fact]
+		public void AlreadyResolvedRouterDoesNotChangeWhenTheRoutingKeyIsReused()
+		{
+			var key = NextKey();
+			var oldRouter = new FakeRouter();
+			var replacement = new FakeRouter();
+			WebRequestInterceptionCoordinator.RegisterRouteForTesting(key, oldRouter);
+			var resolvedBeforeReplacement = WebRequestInterceptionCoordinator.ResolveRouter(AgentFor(key));
+
+			WebRequestInterceptionCoordinator.Unregister(key);
+			WebRequestInterceptionCoordinator.RegisterRouteForTesting(key, replacement);
+
+			try
+			{
+				Assert.Same(oldRouter, resolvedBeforeReplacement);
+				Assert.Same(replacement, WebRequestInterceptionCoordinator.ResolveRouter(AgentFor(key)));
+			}
+			finally
+			{
+				WebRequestInterceptionCoordinator.Unregister(key);
+			}
+		}
+
+		[Fact]
 		public void CollectedHandlersDoNotResolveAndArePruned()
 		{
 			// Routes hold weak references so a handler that goes away cannot be resurrected by an
@@ -113,11 +137,15 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		}
 
 		[Fact]
-		public void HandlerImplementsTheRoutingContract()
+		public void RoutingContractIsOwnedByAConnectionScopedRouter()
 		{
-			// The handler must be reachable through the coordinator, not by the coordinator knowing
-			// about the handler type.
-			Assert.True(typeof(ITizenInterceptedRequestRouter).IsAssignableFrom(typeof(TizenBlazorWebViewHandler)));
+			var router = typeof(TizenBlazorWebViewHandler).GetNestedType(
+				"ConnectionRequestRouter",
+				BindingFlags.NonPublic);
+
+			Assert.NotNull(router);
+			Assert.True(typeof(ITizenInterceptedRequestRouter).IsAssignableFrom(router));
+			Assert.False(typeof(ITizenInterceptedRequestRouter).IsAssignableFrom(typeof(TizenBlazorWebViewHandler)));
 		}
 
 		// ---- Rooting of the native registration owner ----------------------------------------------

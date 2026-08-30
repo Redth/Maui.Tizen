@@ -32,6 +32,7 @@
 
   <ItemGroup>
     <ProjectReference Include="$(RepositoryRoot)src/Maui.Tizen.BlazorWebView/Maui.Tizen.BlazorWebView.csproj" />
+    <PackageReference Include="Microsoft.Maui.Controls" />
   </ItemGroup>
 
   <!--

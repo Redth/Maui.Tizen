@@ -104,7 +104,7 @@
 
   <Target Name="BlockBlazorPackUntilCorePackageIsShippable" BeforeTargets="GenerateNuspec"
           Condition="'$(MauiTizenCorePackageIsShippable)' != 'true'">
-    <Error Code="MAUITIZEN0106"
+    <Error Code="MAUITIZEN0107"
            Text="Refusing to pack $(MSBuildProjectName) because its required Maui.Tizen.Core package is not yet enabled in the produced package closure. Enable and validate the Core package first, then set MauiTizenCorePackageIsShippable=true." />
   </Target>
 

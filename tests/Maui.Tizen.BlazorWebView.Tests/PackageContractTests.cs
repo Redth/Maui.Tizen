@@ -107,7 +107,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			var guard = project.Descendants("Target")
 				.FirstOrDefault(t => t.Attribute("Name")?.Value == "BlockBlazorPackUntilCorePackageIsShippable");
 			Assert.NotNull(guard);
-			Assert.Equal("MAUITIZEN0106", guard!.Descendants("Error").Single().Attribute("Code")?.Value);
+			Assert.Equal("MAUITIZEN0107", guard!.Descendants("Error").Single().Attribute("Code")?.Value);
 		}
 
 		[Fact]
@@ -173,6 +173,9 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			Assert.Null(GetProperty(sample, "UseMaui"));
 			Assert.Null(GetProperty(sample, "SingleProject"));
 			Assert.Equal("Platforms/Tizen/tizen-manifest.xml", GetProperty(sample, "TizenManifestFile"));
+			Assert.Contains(
+				sample.Descendants("PackageReference"),
+				reference => reference.Attribute("Include")?.Value == "Microsoft.Maui.Controls");
 		}
 
 		[Fact]
@@ -196,7 +199,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			var result = RunProductTarget("BlockBlazorPackUntilCorePackageIsShippable");
 
 			Assert.NotEqual(0, result.ExitCode);
-			Assert.Contains("MAUITIZEN0106", result.Output, StringComparison.Ordinal);
+			Assert.Contains("MAUITIZEN0107", result.Output, StringComparison.Ordinal);
 			Assert.Contains("Maui.Tizen.Core", result.Output, StringComparison.Ordinal);
 		}
 
@@ -208,7 +211,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 				"MauiTizenCorePackageIsShippable=true");
 
 			Assert.Equal(0, result.ExitCode);
-			Assert.DoesNotContain("MAUITIZEN0106", result.Output, StringComparison.Ordinal);
+			Assert.DoesNotContain("MAUITIZEN0107", result.Output, StringComparison.Ordinal);
 		}
 
 		[Fact]

@@ -169,6 +169,50 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		}
 
 		[Fact]
+		public void ReplacementConnectionGetsANewRoutingKey()
+		{
+			var handler = new TizenBlazorWebViewHandler();
+			var createRoutingKey = typeof(TizenBlazorWebViewHandler).GetMethod(
+				"CreateRoutingKey",
+				BindingFlags.Instance | BindingFlags.NonPublic);
+			Assert.NotNull(createRoutingKey);
+
+			var first = Assert.IsType<string>(createRoutingKey!.Invoke(handler, null));
+			var second = Assert.IsType<string>(createRoutingKey.Invoke(handler, null));
+
+			Assert.NotEqual(first, second);
+			Assert.True(long.TryParse(first, out _));
+			Assert.True(long.TryParse(second, out _));
+		}
+
+		[Fact]
+		public void JavaScriptBridgeCarriesAndParsesTheConnectionGeneration()
+		{
+			var script = TizenBlazorWebViewHandler.BuildBlazorInitScript(42);
+
+			Assert.Contains("__maui_tizen_connection__=42;", script, StringComparison.Ordinal);
+			Assert.True(TizenBlazorWebViewHandler.TryReadJavaScriptMessage(
+				"__maui_tizen_connection__=42;renderer-message",
+				out var generation,
+				out var payload));
+			Assert.Equal(42, generation);
+			Assert.Equal("renderer-message", payload);
+		}
+
+		[Theory]
+		[InlineData("")]
+		[InlineData("renderer-message")]
+		[InlineData("__maui_tizen_connection__=not-a-number;renderer-message")]
+		[InlineData("__maui_tizen_connection__=42")]
+		public void JavaScriptBridgeRejectsUntaggedOrMalformedMessages(string message)
+		{
+			Assert.False(TizenBlazorWebViewHandler.TryReadJavaScriptMessage(
+				message,
+				out _,
+				out _));
+		}
+
+		[Fact]
 		public void HandlerUsesACommandMapperChainedToTheTizenViewCommandMapper()
 		{
 			// Without a command mapper the base handler receives null and every IView.Invoke is dropped,
@@ -404,6 +448,34 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		}
 
 		[Fact]
+		public void ConnectionReplacementTracksVirtualViewAndHostPageIdentity()
+		{
+			var first = new AspNetCore.Components.WebView.Maui.BlazorWebView();
+			var second = new AspNetCore.Components.WebView.Maui.BlazorWebView();
+
+			Assert.False(TizenBlazorWebViewHandler.NeedsConnectionReplacement(
+				first,
+				"wwwroot/index.html",
+				first,
+				"wwwroot/index.html"));
+			Assert.True(TizenBlazorWebViewHandler.NeedsConnectionReplacement(
+				first,
+				"wwwroot/index.html",
+				second,
+				"wwwroot/index.html"));
+			Assert.True(TizenBlazorWebViewHandler.NeedsConnectionReplacement(
+				first,
+				"wwwroot/index.html",
+				first,
+				"wwwroot/replacement.html"));
+			Assert.True(TizenBlazorWebViewHandler.NeedsConnectionReplacement(
+				first,
+				"wwwroot/index.html",
+				first,
+				null));
+		}
+
+		[Fact]
 		public void PropertyMappersRejectNullArguments()
 		{
 			var handler = new TizenBlazorWebViewHandler();
@@ -435,6 +507,18 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 				() => { _ = TizenBlazorWebViewHandler.AddRootComponentAsync(component, CreateUninitializedWebViewManager()); });
 
 			Assert.Contains(nameof(RootComponent.ComponentType), exception.Message, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void RootComponentCollectionValidationIsSynchronous()
+		{
+			var handler = new TizenBlazorWebViewHandler();
+			var components = CreateRootComponents(new RootComponent { ComponentType = typeof(object) });
+
+			var exception = Assert.Throws<InvalidOperationException>(
+				() => handler.SetRootComponents(components));
+
+			Assert.Contains(nameof(RootComponent.Selector), exception.Message, StringComparison.Ordinal);
 		}
 
 		[Fact]

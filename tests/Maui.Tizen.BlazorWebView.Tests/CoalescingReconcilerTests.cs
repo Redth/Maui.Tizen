@@ -317,5 +317,29 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			Assert.Throws<ArgumentNullException>(() => new CoalescingReconciler(null!, _ => Task.CompletedTask));
 			Assert.Throws<ArgumentNullException>(() => new CoalescingReconciler(() => Task.CompletedTask, null!));
 		}
+
+		[Fact]
+		public void ReconciliationFailuresAreReportedAndDoNotBlockALaterPass()
+		{
+			var attempts = 0;
+			var failures = new List<Exception>();
+			var expected = new InvalidOperationException("reconcile failed");
+			var reconciler = new CoalescingReconciler(
+				() =>
+				{
+					attempts++;
+					return attempts == 1
+						? Task.FromException(expected)
+						: Task.CompletedTask;
+				},
+				work => work(),
+				failures.Add);
+
+			reconciler.Request();
+			reconciler.Request();
+
+			Assert.Equal(2, attempts);
+			Assert.Equal(new[] { expected }, failures);
+		}
 	}
 }

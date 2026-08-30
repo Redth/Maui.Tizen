@@ -98,6 +98,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 				{
 					s_rootedRegistrations.RemoveAll(
 						registration => ReferenceEquals(registration.Mode, s_normalContextMode));
+					s_routes.Remove(routingKey);
 					throw;
 				}
 			}
