@@ -79,6 +79,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			public required RootComponentConnection RootComponents { get; init; }
 			public required InterceptedRequestLifetime Requests { get; init; }
 			public required AsyncOperationLifetime Dispatches { get; init; }
+			public required EventHandler<WebViewPageLoadEventArgs> PageLoadFinishedHandler { get; init; }
 
 			public Task RetireAsync() =>
 				Task.WhenAll(
@@ -87,7 +88,6 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 					Dispatches.RetireAsync());
 		}
 
-		private const string UseBlockingDisposalSwitch = "BlazorWebView.UseBlockingDisposal";
 		private const string JavaScriptMessageHandlerName = "BlazorHandler";
 		private const string JavaScriptMessageGenerationPrefix = "__maui_tizen_connection__=";
 
@@ -264,9 +264,6 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 			base.ConnectHandler(platformView);
 
-			// Subscribe before startup can navigate the platform view.
-			platformView.PageLoadFinished += OnLoadFinished;
-
 			// AddJavaScriptMessageHandler also has no remove counterpart. Installing it twice on the
 			// same NUI WebView - which happens on disconnect/reconnect - would leave a duplicate bridge
 			// delivering every message twice.
@@ -295,7 +292,8 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			var connection = Interlocked.Exchange(ref _connection, null);
 			var retirement = connection?.RetireAsync() ?? Task.CompletedTask;
 
-			platformView.PageLoadFinished -= OnLoadFinished;
+			if (connection is not null)
+				platformView.PageLoadFinished -= connection.PageLoadFinishedHandler;
 
 			// Symmetric with ConnectHandler. The JavaScript bridge and the interception callback cannot
 			// be removed through the NUI API, so the user agent is the one piece of connect-time state
@@ -326,13 +324,6 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 		private void ObserveConnectionDisposal(Task disposalTask)
 		{
-			if (AppContext.TryGetSwitch(UseBlockingDisposalSwitch, out var blockingDisposal) && blockingDisposal)
-			{
-				// Opt-in only: synchronously waiting here can deadlock when disposal needs the UI thread.
-				disposalTask.GetAwaiter().GetResult();
-				return;
-			}
-
 			_ = disposalTask.ContinueWith(
 				static (task, state) => ((TizenBlazorWebViewHandler)state!).ReportLifecycleFailure(
 					task.Exception!,
@@ -357,6 +348,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			}
 
 			WebRequestInterceptionCoordinator.Unregister(connection.RoutingKey);
+			connection.PlatformView.PageLoadFinished -= connection.PageLoadFinishedHandler;
 			RestoreUserAgent(connection.PlatformView);
 
 			var generation = Interlocked.Increment(ref _connectionGeneration);
@@ -397,19 +389,27 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			// The first replacement mapper starts this transition. Yield so the remaining mapped
 			// properties are applied before a fast disposal can restart the manager.
 			await Task.Yield();
-			await DisposeConnectionAsync(connection, retirement).ConfigureAwait(false);
-
-			if (dispatcher is null || generation != Volatile.Read(ref _connectionGeneration))
-				return;
-
-			await dispatcher.DispatchAsync(() =>
+			try
 			{
-				if (generation != Volatile.Read(ref _connectionGeneration))
+				await DisposeConnectionAsync(connection, retirement).ConfigureAwait(false);
+
+				if (dispatcher is null || generation != Volatile.Read(ref _connectionGeneration))
 					return;
 
-				Interlocked.Exchange(ref _connectionTransitioning, 0);
-				StartWebViewCoreIfPossible();
-			}).ConfigureAwait(false);
+				await dispatcher.DispatchAsync(() =>
+				{
+					if (generation != Volatile.Read(ref _connectionGeneration))
+						return;
+
+					Interlocked.Exchange(ref _connectionTransitioning, 0);
+					StartWebViewCoreIfPossible();
+				}).ConfigureAwait(false);
+			}
+			finally
+			{
+				if (generation == Volatile.Read(ref _connectionGeneration))
+					Interlocked.Exchange(ref _connectionTransitioning, 0);
+			}
 		}
 
 		private void RestoreUserAgent(NWebView platformView)
@@ -489,16 +489,33 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 				return;
 			}
 
-			connection.Manager.MessageReceivedInternal(new Uri(source.Url), payload);
+			var delivery = connection.Dispatches.TryRunAsync(async () =>
+			{
+				await connection.Manager
+					.MessageReceivedAsync(new Uri(source.Url), payload)
+					.ConfigureAwait(false);
+				return true;
+			});
+			_ = delivery.ContinueWith(
+				static (task, state) => ((TizenBlazorWebViewHandler)state!).ReportLifecycleFailure(
+					task.Exception!,
+					"Processing a Tizen BlazorWebView JavaScript message failed."),
+				this,
+				CancellationToken.None,
+				TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+				TaskScheduler.Default);
 		}
 
-		private void OnLoadFinished(object? sender, WebViewPageLoadEventArgs e)
+		private void OnLoadFinished(
+			HandlerConnection connection,
+			object? sender,
+			WebViewPageLoadEventArgs e)
 		{
-			var connection = Volatile.Read(ref _connection);
-			if (connection is null || !ReferenceEquals(sender, connection.PlatformView))
+			if (!ReferenceEquals(Volatile.Read(ref _connection), connection)
+				|| (sender is not null && !ReferenceEquals(sender, connection.PlatformView)))
 				return;
 
-			if (ShouldInjectBlazorStart(connection, connection.PlatformView.Url))
+			if (ShouldInjectBlazorStart(connection, e.PageUrl))
 			{
 				connection.PlatformView.EvaluateJavaScript(BuildBlazorInitScript(connection.Generation));
 			}
@@ -710,7 +727,10 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 				rootComponent => RemoveRootComponentAsync(rootComponent, webviewManager),
 				work => webviewManager.Dispatcher.InvokeAsync(work),
 				ReportRootComponentFailure);
-			var connection = new HandlerConnection
+			HandlerConnection? connection = null;
+			EventHandler<WebViewPageLoadEventArgs> pageLoadFinished =
+				(sender, args) => OnLoadFinished(connection!, sender, args);
+			connection = new HandlerConnection
 			{
 				Generation = Interlocked.Increment(ref _nextMessageGeneration),
 				PlatformView = PlatformView,
@@ -724,6 +744,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 				RootComponents = rootComponents,
 				Requests = requests,
 				Dispatches = new AsyncOperationLifetime(),
+				PageLoadFinishedHandler = pageLoadFinished,
 			};
 
 			if (Interlocked.CompareExchange(ref _connection, connection, null) is not null)
@@ -735,6 +756,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 			try
 			{
+				PlatformView.PageLoadFinished += connection.PageLoadFinishedHandler;
 				PlatformView.UserAgent =
 					(_userAgentBeforeConnect ?? PlatformView.UserAgent)
 					+ BlazorWebViewUserAgent.BuildUserAgentSuffix(routingKey);
@@ -760,6 +782,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			}
 			catch
 			{
+				PlatformView.PageLoadFinished -= connection.PageLoadFinishedHandler;
 				WebRequestInterceptionCoordinator.Unregister(routingKey);
 				RestoreUserAgent(PlatformView);
 				if (ReferenceEquals(Interlocked.CompareExchange(ref _connection, null, connection), connection))

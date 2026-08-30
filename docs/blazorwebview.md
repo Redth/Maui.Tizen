@@ -123,7 +123,8 @@ Everything above the native boundary was ported as-is from `dotnet/maui` `net11.
   therefore retains the retired request lifetime and is ignored rather than entering a replacement
   manager. Key parsing reads only the numeric key, so another component appending to the user agent
   cannot break routing. JavaScript bridge messages carry a separate connection generation tag, so a
-  late renderer acknowledgement can finish retirement without being delivered to a replacement manager.
+  late renderer acknowledgement can finish retirement without being delivered to a replacement manager;
+  accepted message and public-dispatch work is leased ahead of manager disposal.
 - **`WebResourceRequested` is not raised.** `IBlazorWebView` inherits it from
   `IWebRequestInterceptingWebView`, but `WebResourceRequestedEventArgs` has only `internal` constructors
   and no Tizen shape, so a third-party backend cannot construct the argument. Static content is still
@@ -134,8 +135,8 @@ Everything above the native boundary was ported as-is from `dotnet/maui` `net11.
   unregistering routing, cancels reconciliation waits that depend on JavaScript acknowledgement, drains
   active interception callbacks, and then disposes its manager. Replacing the handler's virtual view
   fully retires the old generation before starting one bound to the replacement's host page, services,
-  `JSComponents`, cache policy and `StartPath`. Disposal remains asynchronous by default and can be made
-  blocking with the `BlazorWebView.UseBlockingDisposal` `AppContext` switch.
+  `JSComponents`, cache policy and `StartPath`. Disposal is always observed asynchronously; synchronously
+  waiting on the UI dispatcher can deadlock an accepted dispatch or renderer operation.
 - **Public dispatch is generation-leased.** `TryDispatchAsync` rejects work after retirement and an
   accepted dispatch keeps the manager/service scope alive until the callback completes.
 - **Every host-page route is bootstrapped, not just `/`.** Blazor's `Blazor.start()` is injected on any
@@ -143,6 +144,8 @@ Everything above the native boundary was ported as-is from `dotnet/maui` `net11.
   (`/CustomStart/SomeData`), dotted configured routes (`/orders/v1.2`) and URLs carrying a query or
   fragment initialize correctly. Classification uses the parsed path, the configured `StartPath`, and
   an HTML `Accept` header; pending-load keys ignore fragments because HTTP requests never carry them.
+  Load completion uses the event's immutable page URL and a connection-specific event subscription,
+  never the WebView's mutable current URL.
 - **The interception registration is rooted for the process lifetime.** Registering an interception
   callback stores it on a `WebContext` and hands native a pointer to a proxy *owned by that context*, so
   rooting only our own callback is not enough: if the context is collected the proxy dies with it and

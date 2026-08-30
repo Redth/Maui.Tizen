@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Encodings.Web;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebView;
@@ -81,5 +82,17 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 		}
 
 		internal void MessageReceivedInternal(Uri uri, string message) => MessageReceived(uri, message);
+
+		internal async Task MessageReceivedAsync(Uri uri, string message)
+		{
+			await Dispatcher
+				.InvokeAsync(() => MessageReceivedInternal(uri, message))
+				.ConfigureAwait(false);
+
+			// WebViewManager.MessageReceived queues its own dispatcher work and returns void. A second
+			// dispatch is a FIFO barrier that keeps the connection lease alive until that queued IPC
+			// processing has run.
+			await Dispatcher.InvokeAsync(static () => { }).ConfigureAwait(false);
+		}
 	}
 }
