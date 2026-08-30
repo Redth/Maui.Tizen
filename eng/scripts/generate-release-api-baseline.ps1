@@ -140,7 +140,10 @@ try {
 
             foreach ($entry in $archive.Entries) {
                 $normalized = $entry.FullName.Replace('\', '/')
-                if ($normalized -match '^lib/[^/]+/[^/]+\.dll$') {
+                if (
+                    $normalized -match '^lib/[^/]+/[^/]+\.dll$' -or
+                    $normalized -ieq "buildTransitive/$id.dll"
+                ) {
                     $assemblyName = [System.IO.Path]::GetFileName($normalized)
                     $assemblyPath = Join-Path $temporary "$id/$assemblyName"
                     New-Item -ItemType Directory -Path (Split-Path $assemblyPath -Parent) -Force | Out-Null

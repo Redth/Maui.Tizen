@@ -342,6 +342,28 @@ public class ReleaseWorkflowSecurityTests
     }
 
     [Fact]
+    public void StandaloneBaselineIncludesThePublicBuildTasksAssembly()
+    {
+        var generator = File.ReadAllText(
+            Path.Combine(
+                RepoLayout.Root,
+                "eng",
+                "scripts",
+                "generate-release-api-baseline.ps1"));
+        var contract = File.ReadAllText(
+            Path.Combine(RepoLayout.Root, "eng", "release", "release-contract.py"));
+
+        Assert.Contains(
+            "$normalized -ieq \"buildTransitive/$id.dll\"",
+            generator,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "f\"buildtransitive/{package_id}.dll\"",
+            contract,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ReleaseSourceGateChecksTheExactShaAndSupportsOnlyConfiguredBranches()
     {
         var release = ReadWorkflow("release.yml");

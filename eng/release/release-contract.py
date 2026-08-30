@@ -100,8 +100,9 @@ def read_package(path: Path) -> dict[str, Any]:
                 fail(f"{path.name} has no nuspec metadata element")
             repository = metadata_child(metadata, "repository")
             license_element = metadata_child(metadata, "license")
+            package_id = metadata_text(metadata, "id")
             return {
-                "id": metadata_text(metadata, "id"),
+                "id": package_id,
                 "version": metadata_text(metadata, "version"),
                 "authors": metadata_text(metadata, "authors"),
                 "company": metadata_text(metadata, "company"),
@@ -131,8 +132,12 @@ def read_package(path: Path) -> dict[str, Any]:
                     name.replace("\\", "/")
                     for name in names
                     if name.lower().endswith(".dll")
-                    and name.split("/", 1)[0].lower()
-                    in {"lib", "ref", "runtimes", "tasks", "tools"}
+                    and (
+                        name.split("/", 1)[0].lower()
+                        in {"lib", "ref", "runtimes", "tasks", "tools"}
+                        or name.replace("\\", "/").lower()
+                        == f"buildtransitive/{package_id}.dll".lower()
+                    )
                 ),
             }
     except (OSError, zipfile.BadZipFile, ET.ParseError) as exc:

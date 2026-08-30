@@ -729,6 +729,27 @@ BASELINE_GENERATOR_PACKAGES="$TEMP_ROOT/baseline-generator-packages"
 mkdir -p "$BASELINE_GENERATOR_PACKAGES"
 make_package "$BASELINE_GENERATOR_PACKAGES" Maui.Tizen.Build.Tasks "$VERSION" package false
 make_package "$BASELINE_GENERATOR_PACKAGES" Maui.Tizen.Templates "$VERSION" package false
+python3 - "$BASELINE_GENERATOR_PACKAGES/Maui.Tizen.Build.Tasks.${VERSION}.nupkg" <<'PY'
+import sys
+import zipfile
+
+with zipfile.ZipFile(sys.argv[1], "a") as archive:
+    archive.writestr("buildTransitive/Maui.Tizen.Build.Tasks.dll", b"MZ task assembly")
+    archive.writestr("buildTransitive/libSkiaSharp.dll", b"native dependency")
+PY
+expect_success "release package inspection includes only the package-owned buildTransitive task assembly" \
+  python3 - "$CONTRACT" "$BASELINE_GENERATOR_PACKAGES/Maui.Tizen.Build.Tasks.${VERSION}.nupkg" <<'PY'
+import importlib.util
+import pathlib
+import sys
+
+spec = importlib.util.spec_from_file_location("release_contract", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+binaries = module.read_package(pathlib.Path(sys.argv[2]))["binaries"]
+assert "buildTransitive/Maui.Tizen.Build.Tasks.dll" in binaries
+assert "buildTransitive/libSkiaSharp.dll" not in binaries
+PY
 BASELINE_GENERATOR_MANIFEST="$BASELINE_GENERATOR_PACKAGES/release-manifest.json"
 BASELINE_GENERATOR_IDS="$TEMP_ROOT/baseline-generator-package-ids.txt"
 printf '%s\n' Maui.Tizen.Build.Tasks Maui.Tizen.Templates > "$BASELINE_GENERATOR_IDS"
