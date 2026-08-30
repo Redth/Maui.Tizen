@@ -191,7 +191,7 @@ public class TemplateInstantiationTests : TestBase
 	/// </summary>
 	/// <remarks>
 	/// This asserts on the INSTANTIATED file, not the template file. The template file said
-	/// <c>UseMauiAppTizen</c> the whole time; the Template Engine consumed the surrounding
+	/// <c>UseMauiAppTizenControls</c> the whole time; the Template Engine consumed the surrounding
 	/// <c>#if TIZEN</c> as a template conditional, evaluated it false because TIZEN is not a
 	/// template symbol, and emitted the else-branch instead. Only running the generator can see
 	/// that.
@@ -203,7 +203,7 @@ public class TemplateInstantiationTests : TestBase
 		var mauiProgram = File.ReadAllText(Path.Combine(instantiation.ProjectDirectory, "MauiProgram.cs"));
 
 		Assert.Contains("using Microsoft.Maui.Platforms.Tizen.Hosting;", mauiProgram);
-		Assert.Contains(".UseMauiAppTizen<App>()", mauiProgram);
+		Assert.Contains(".UseMauiAppTizenControls<App>()", mauiProgram);
 
 		// UseMauiApp is the MAUI Controls entry point and does not register this backend.
 		Assert.DoesNotContain(".UseMauiApp<App>()", mauiProgram);
@@ -382,8 +382,11 @@ public class TemplateInstantiationTests : TestBase
 		Assert.All(external, r => Assert.NotEqual(PackageVersion, r.Version));
 
 		// Pinned to the same coherent MAUI package set the repository builds against.
-		var maui = Assert.Single(external, r => r.Id == "Microsoft.Maui.Controls");
-		Assert.Equal(MauiPackageVersion, maui.Version);
+		foreach (var id in new[] { "Microsoft.Maui.Controls", "Microsoft.Maui.Resizetizer" })
+		{
+			var maui = Assert.Single(external, reference => reference.Id == id);
+			Assert.Equal(MauiPackageVersion, maui.Version);
+		}
 	}
 
 	// =====================================================================================
@@ -434,8 +437,9 @@ public class TemplateInstantiationTests : TestBase
 	/// <para>
 	/// This is as far as a generated project can be taken before Samsung publishes an
 	/// 11.0.100-band manifest: <c>net11.0-tizen11.0</c> is not a recognized target platform
-	/// without it, and the SDK says so (NETSDK1139) during restore, before NuGet resolves
-	/// anything. That is the honest external gate this repository reports everywhere else.
+	/// without it. Depending on which workload manifests the SDK already carries, this is reported
+	/// either as an unrecognized Tizen platform or as a missing Tizen workload. It must never ask for
+	/// Microsoft's empty <c>maui-tizen</c> alias.
 	/// </para>
 	/// <para>
 	/// What the test adds is the NEGATIVE half: the failure must not be, or be accompanied by, a
@@ -461,8 +465,21 @@ public class TemplateInstantiationTests : TestBase
 				+ "promote the Tizen CI lane and revisit this test; see docs/migration.md."
 				+ Environment.NewLine + output);
 
-		// The gate, reported by the SDK before NuGet resolves anything.
-		Assert.Contains("NETSDK1139", output, StringComparison.Ordinal);
+		var isTizenGate =
+			output.Contains("NETSDK1139", StringComparison.Ordinal)
+			|| output.Contains("MAUITIZEN0001", StringComparison.Ordinal)
+			|| (output.Contains("NETSDK1147", StringComparison.Ordinal)
+				&& output.Contains("tizen", StringComparison.OrdinalIgnoreCase)
+				&& !output.Contains("maui-tizen", StringComparison.OrdinalIgnoreCase));
+		Assert.True(
+			isTizenGate,
+			"Restore did not fail on the Samsung Tizen platform/workload gate."
+				+ Environment.NewLine + output);
+		Assert.DoesNotMatch(
+			new System.Text.RegularExpressions.Regex(
+				@"following workloads? must be installed:[^\r\n]*\bmaui-tizen\b",
+				System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+			output);
 
 		// And no package resolution failure of any kind.
 		foreach (var code in new[] { "NU1101", "NU1102", "NU1103", "NU1202", "NU1213" })
@@ -514,6 +531,7 @@ public class TemplateInstantiationTests : TestBase
 		var restorable = references.Except(gated).ToList();
 		Assert.NotEmpty(restorable);
 		Assert.Contains(restorable, r => r.Id == "Microsoft.Maui.Controls");
+		Assert.Contains(restorable, r => r.Id == "Microsoft.Maui.Resizetizer");
 		Assert.Contains(restorable, r => r.Id == "Maui.Tizen.Build.Tasks");
 
 		var probeRoot = CreateTempDirectory("maui-tizen-reference-probe");
@@ -612,6 +630,18 @@ public class TemplateInstantiationTests : TestBase
 		Assert.Contains("Maui.Tizen.Controls", references);
 		Assert.Contains("Maui.Tizen.Build.Tasks", references);
 		Assert.Contains("Microsoft.Maui.Controls", references);
+		Assert.Contains("Microsoft.Maui.Resizetizer", references);
+	}
+
+	[Fact]
+	public void GeneratedProjectUsesPackageBasedMauiBuildSupport()
+	{
+		var instantiation = Instantiate("ContosoTizenApp");
+		var project = File.ReadAllText(instantiation.ProjectPath);
+
+		Assert.Equal(string.Empty, ReadProperty(project, "UseMaui"));
+		Assert.Equal(string.Empty, ReadProperty(project, "SingleProject"));
+		Assert.Equal("true", ReadProperty(project, "UseMauiTizen"));
 	}
 
 	[Fact]

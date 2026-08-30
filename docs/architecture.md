@@ -186,9 +186,10 @@ on a `runtimes/` graph an MSBuild task load cannot use.
 `SkiaSharp.NativeAssets.Linux.NoDependencies` 3.116.1 ships `linux-arm`, `linux-arm64`,
 `linux-musl-x64` and `linux-x64`, and no musl ARM64 binary at all. The glibc `linux-arm64` build is
 not a substitute; loading it on musl fails inside SkiaSharp's static initializer with a message that
-names neither Skia nor the C library. Building `Maui.Tizen.Build.Tasks` on such a host therefore
-fails fast and by name with **`MAUITIZEN1012`** instead of producing a package that breaks later,
-and `MAUITIZEN1011` covers the neighbouring case where a binary is configured but absent.
+names neither Skia nor the C library. Both producing `Maui.Tizen.Build.Tasks` and consuming its
+buildTransitive targets on such a host therefore fail fast and by name with
+**`MAUITIZEN1012`**, instead of producing or executing a package that breaks later.
+`MAUITIZEN1011` covers the neighbouring case where a binary is configured but absent.
 
 The host RID is read from `RuntimeInformation.RuntimeIdentifier` rather than composed from
 `linux-{arch}`, because composing it is what produces a glibc binary on a musl host in the first

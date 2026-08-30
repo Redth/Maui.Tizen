@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 
 using Maui.Tizen.Build.Tasks;
@@ -38,6 +40,47 @@ public class SkiaSharpHostTests : TestBase
 		SkiaSharpHost.EnsureNativeLibraryResolved();
 
 		Assert.True(SkiaSharpHost.IsRegistered);
+	}
+
+	[Fact]
+	public async Task ConcurrentInitializationPublishesOnlyAfterRegistrationCompletes()
+	{
+		var initializer = new SkiaSharpHost.InitializationGate();
+		using var registrationStarted = new ManualResetEventSlim();
+		using var secondCallStarted = new ManualResetEventSlim();
+		using var releaseRegistration = new ManualResetEventSlim();
+		var registrations = 0;
+
+		var first = Task.Run(() => initializer.Run(() =>
+		{
+			Interlocked.Increment(ref registrations);
+			registrationStarted.Set();
+			releaseRegistration.Wait();
+		}));
+
+		Assert.True(registrationStarted.Wait(TimeSpan.FromSeconds(5)));
+
+		var second = Task.Run(() =>
+		{
+			secondCallStarted.Set();
+			initializer.Run(() => Interlocked.Increment(ref registrations));
+		});
+		Assert.True(secondCallStarted.Wait(TimeSpan.FromSeconds(5)));
+
+		try
+		{
+			Assert.False(initializer.IsInitialized);
+			Assert.Equal(1, Volatile.Read(ref registrations));
+		}
+		finally
+		{
+			releaseRegistration.Set();
+		}
+
+		await Task.WhenAll(first, second);
+
+		Assert.True(initializer.IsInitialized);
+		Assert.Equal(1, registrations);
 	}
 
 	/// <summary>

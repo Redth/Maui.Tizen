@@ -10,9 +10,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
-    <UseMaui>true</UseMaui>
     <UseMauiTizen>true</UseMauiTizen>
-    <SingleProject>true</SingleProject>
 
     <ApplicationTitle>MauiTizenApp</ApplicationTitle>
     <!--
@@ -55,6 +53,7 @@
       Using the backend's version here resolves to nothing at all.
     -->
     <PackageReference Include="Microsoft.Maui.Controls" Version="MAUI_VERSION" />
+    <PackageReference Include="Microsoft.Maui.Resizetizer" Version="MAUI_VERSION" PrivateAssets="all" />
   </ItemGroup>
 
   <!--

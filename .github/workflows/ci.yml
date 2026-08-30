@@ -201,14 +201,12 @@ jobs:
   # package's assemblies and fails the required workload-free lane if any reference resolves
   # neither inside the package nor from the MSBuild host, which is a check that runs on every
   # platform. This job is the EXECUTION proof of the same property on the host where it
-  # actually matters, and it stays advisory only because it depends on the Visual Studio
-  # MSBuild present on the runner image. Promote it to required once it has been stable for
-  # a few runs.
+  # actually matters. The probe pins the repository SDK explicitly before invoking Visual
+  # Studio MSBuild, so this is a required execution proof rather than an advisory smoke test.
   # ---------------------------------------------------------------------------
   windows-full-framework:
     name: Build tasks under full-framework MSBuild (final lane)
     runs-on: windows-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
 
@@ -257,6 +255,7 @@ jobs:
 
           $probe = Join-Path $env:RUNNER_TEMP 'fullframework-probe'
           New-Item -ItemType Directory -Force -Path $probe | Out-Null
+          Copy-Item global.json (Join-Path $probe 'global.json')
           Set-Content (Join-Path $probe 'Directory.Build.props')   '<Project />'
           Set-Content (Join-Path $probe 'Directory.Build.targets') '<Project />'
 
@@ -290,6 +289,7 @@ jobs:
 
           $resizetizer = ([xml](Get-Content Directory.Packages.props)).
             SelectSingleNode("//PackageVersion[@Include='Microsoft.Maui.Resizetizer']").Version
+          $expectedSdk = (Get-Content global.json -Raw | ConvertFrom-Json).sdk.version
 
           # No Import of this package and no _MauiTizenBuildTasksAssembly override: the
           # buildTransitive auto-import is part of what is being tested.
@@ -301,6 +301,7 @@ jobs:
               <ResizetizerPlatformType>tizen</ResizetizerPlatformType>
               <ApplicationId>com.contoso.fullframework</ApplicationId>
               <ApplicationTitle>Contoso</ApplicationTitle>
+              <ExpectedSdkVersion>$expectedSdk</ExpectedSdkVersion>
             </PropertyGroup>
             <ItemGroup>
               <PackageReference Include="Microsoft.Maui.Resizetizer" Version="$resizetizer" />
@@ -310,6 +311,10 @@ jobs:
               <MauiIcon Include="Resources\AppIcon\appicon.svg" Color="#512BD4" />
               <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
             </ItemGroup>
+            <Target Name="VerifyResolvedSdk" BeforeTargets="PrepareForBuild">
+              <Error Condition="'`$(NETCoreSdkVersion)' != '`$(ExpectedSdkVersion)'"
+                     Text="Visual Studio MSBuild resolved SDK '`$(NETCoreSdkVersion)', expected '`$(ExpectedSdkVersion)' from global.json." />
+            </Target>
           </Project>
           "@ | Set-Content (Join-Path $app 'TizenApp.csproj')
 

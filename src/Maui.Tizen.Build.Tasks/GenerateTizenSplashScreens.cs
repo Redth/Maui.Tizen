@@ -83,9 +83,9 @@ namespace Maui.Tizen.Build.Tasks
 			// happens to be.
 			var intermediateFullPath = Path.GetFullPath(IntermediateOutputPath);
 			var splashFullPath = Path.Combine(intermediateFullPath, SplashDirectoryName);
+			SplashScreenMapFile = Path.Combine(intermediateFullPath, SplashMapFileName);
 
-			if (Directory.Exists(splashFullPath))
-				Directory.Delete(splashFullPath, true);
+			DeletePreviouslyOwnedOutputs(SplashScreenMapFile, intermediateFullPath, splashFullPath);
 			Directory.CreateDirectory(splashFullPath);
 
 			var color = splashInfo.Color;
@@ -151,11 +151,33 @@ namespace Maui.Tizen.Build.Tasks
 			// Deterministic ordering keeps generated manifests byte stable between builds.
 			map.Sort(StringComparer.Ordinal);
 
-			SplashScreenMapFile = Path.Combine(intermediateFullPath, SplashMapFileName);
 			File.WriteAllLines(SplashScreenMapFile, map);
 
 			SplashScreens = generated.ToArray();
 			SplashScreenEntries = entries.ToArray();
+		}
+
+		static void DeletePreviouslyOwnedOutputs(string mapFile, string intermediatePath, string splashPath)
+		{
+			foreach (var entry in ReadMap(mapFile))
+			{
+				var relative = entry.Source.Replace('/', Path.DirectorySeparatorChar);
+				var candidate = Path.GetFullPath(Path.Combine(intermediatePath, relative));
+				var splashPrefix = splashPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+					+ Path.DirectorySeparatorChar;
+
+				if (!candidate.StartsWith(
+					splashPrefix,
+					Environment.OSVersion.Platform == PlatformID.Win32NT
+						? StringComparison.OrdinalIgnoreCase
+						: StringComparison.Ordinal))
+				{
+					continue;
+				}
+
+				if (File.Exists(candidate))
+					File.Delete(candidate);
+			}
 		}
 
 		/// <summary>

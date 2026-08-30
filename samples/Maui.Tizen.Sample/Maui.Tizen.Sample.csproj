@@ -72,6 +72,7 @@
 
   <ItemGroup>
     <ProjectReference Include="$(RepositoryRoot)src/Maui.Tizen.Core/Maui.Tizen.Core.csproj" />
+    <PackageReference Include="Microsoft.Maui.Resizetizer" PrivateAssets="all" />
   </ItemGroup>
 
   <PropertyGroup>

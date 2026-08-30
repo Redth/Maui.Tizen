@@ -157,6 +157,63 @@
            Text="Maui.Tizen requires a versioned Tizen target framework. Replace '$(TargetFramework)' with a versioned form such as 'net11.0-tizen10.0'." />
   </Target>
 
+  <!-- =========================== Build-host native validation =========================== -->
+
+  <!--
+    These tasks run in the build host, not on the target Tizen device. Validate the native
+    SkiaSharp binary from the consumer-visible buildTransitive package before any rasterizer task
+    can produce an opaque loader/type-initializer failure.
+
+    The properties are intentionally overridable so package-consumer tests can exercise host/RID
+    mappings that are not the machine running the test. Source-tree consumers override the task
+    assembly path and retain the equivalent producer-project validation.
+  -->
+  <PropertyGroup>
+    <_MauiTizenPackagedBuildTasksAssembly>$(MSBuildThisFileDirectory)Maui.Tizen.Build.Tasks.dll</_MauiTizenPackagedBuildTasksAssembly>
+    <_MauiTizenUsesPackagedBuildTasks Condition=" '$(_MauiTizenBuildTasksAssembly)' == '$(_MauiTizenPackagedBuildTasksAssembly)' ">true</_MauiTizenUsesPackagedBuildTasks>
+
+    <MauiTizenBuildHostArchitecture Condition=" '$(MauiTizenBuildHostArchitecture)' == '' ">$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant())</MauiTizenBuildHostArchitecture>
+    <MauiTizenBuildHostOperatingSystem Condition=" '$(MauiTizenBuildHostOperatingSystem)' == '' And $([MSBuild]::IsOSPlatform('Windows')) ">windows</MauiTizenBuildHostOperatingSystem>
+    <MauiTizenBuildHostOperatingSystem Condition=" '$(MauiTizenBuildHostOperatingSystem)' == '' And $([MSBuild]::IsOSPlatform('OSX')) ">osx</MauiTizenBuildHostOperatingSystem>
+    <MauiTizenBuildHostOperatingSystem Condition=" '$(MauiTizenBuildHostOperatingSystem)' == '' And $([MSBuild]::IsOSPlatform('Linux')) ">linux</MauiTizenBuildHostOperatingSystem>
+    <MauiTizenBuildHostRuntimeIdentifier Condition=" '$(MauiTizenBuildHostRuntimeIdentifier)' == '' And '$(MauiTizenBuildHostOperatingSystem)' == 'windows' ">win-$(MauiTizenBuildHostArchitecture)</MauiTizenBuildHostRuntimeIdentifier>
+    <MauiTizenBuildHostRuntimeIdentifier Condition=" '$(MauiTizenBuildHostRuntimeIdentifier)' == '' And '$(MauiTizenBuildHostOperatingSystem)' == 'osx' ">osx-$(MauiTizenBuildHostArchitecture)</MauiTizenBuildHostRuntimeIdentifier>
+    <MauiTizenBuildHostRuntimeIdentifier Condition=" '$(MauiTizenBuildHostRuntimeIdentifier)' == '' And '$(MauiTizenBuildHostOperatingSystem)' == 'linux' ">$([System.Runtime.InteropServices.RuntimeInformation]::RuntimeIdentifier)</MauiTizenBuildHostRuntimeIdentifier>
+
+    <_MauiTizenPackagedHostIsMusl Condition="$([System.String]::Copy('$(MauiTizenBuildHostRuntimeIdentifier)').StartsWith('linux-musl-'))">true</_MauiTizenPackagedHostIsMusl>
+    <_MauiTizenPackagedHostNative Condition=" '$(MauiTizenBuildHostOperatingSystem)' == 'osx'
+                                               And ('$(MauiTizenBuildHostArchitecture)' == 'x64'
+                                                    Or '$(MauiTizenBuildHostArchitecture)' == 'arm64') ">$(MSBuildThisFileDirectory)libSkiaSharp.dylib</_MauiTizenPackagedHostNative>
+    <_MauiTizenPackagedHostNative Condition=" '$(MauiTizenBuildHostOperatingSystem)' == 'windows'
+                                               And ('$(MauiTizenBuildHostArchitecture)' == 'x64'
+                                                    Or '$(MauiTizenBuildHostArchitecture)' == 'x86'
+                                                    Or '$(MauiTizenBuildHostArchitecture)' == 'arm64') ">$(MSBuildThisFileDirectory)$(MauiTizenBuildHostArchitecture)\libSkiaSharp.dll</_MauiTizenPackagedHostNative>
+    <_MauiTizenPackagedHostNative Condition=" '$(MauiTizenBuildHostOperatingSystem)' == 'linux'
+                                               And '$(_MauiTizenPackagedHostIsMusl)' == 'true'
+                                               And '$(MauiTizenBuildHostArchitecture)' == 'x64' ">$(MSBuildThisFileDirectory)musl-x64\libSkiaSharp.so</_MauiTizenPackagedHostNative>
+    <_MauiTizenPackagedHostNative Condition=" '$(MauiTizenBuildHostOperatingSystem)' == 'linux'
+                                               And '$(_MauiTizenPackagedHostIsMusl)' != 'true'
+                                               And ('$(MauiTizenBuildHostArchitecture)' == 'x64'
+                                                    Or '$(MauiTizenBuildHostArchitecture)' == 'arm64'
+                                                    Or '$(MauiTizenBuildHostArchitecture)' == 'arm') ">$(MSBuildThisFileDirectory)$(MauiTizenBuildHostArchitecture)\libSkiaSharp.so</_MauiTizenPackagedHostNative>
+  </PropertyGroup>
+
+  <Target Name="_MauiTizenValidatePackagedHostNativeSkiaSharp"
+          BeforeTargets="MauiTizenPrepareResources;ResizetizeImages"
+          Condition=" '$(_MauiTizenUsesPackagedBuildTasks)' == 'true'
+                      And '$(ResizetizerPlatformType)' == 'tizen'
+                      And '$(_MauiTizenSkipHostNativeValidation)' != 'true' ">
+    <Error Condition=" '$(_MauiTizenPackagedHostIsMusl)' == 'true' And '$(_MauiTizenPackagedHostNative)' == '' "
+           Code="MAUITIZEN1012"
+           Text="Maui.Tizen.Build.Tasks does not ship a native SkiaSharp binary for build host runtime '$(MauiTizenBuildHostRuntimeIdentifier)' and architecture '$(MauiTizenBuildHostArchitecture)'. A glibc Linux binary cannot be used on a musl host." />
+    <Error Condition=" '$(_MauiTizenPackagedHostNative)' == '' And '$(_MauiTizenPackagedHostIsMusl)' != 'true' "
+           Code="MAUITIZEN1010"
+           Text="Maui.Tizen.Build.Tasks does not support build host OS '$(MauiTizenBuildHostOperatingSystem)', runtime '$(MauiTizenBuildHostRuntimeIdentifier)', architecture '$(MauiTizenBuildHostArchitecture)'." />
+    <Error Condition=" '$(_MauiTizenPackagedHostNative)' != '' And !Exists('$(_MauiTizenPackagedHostNative)') "
+           Code="MAUITIZEN1011"
+           Text="The packaged native SkiaSharp binary for this build host was not found at '$(_MauiTizenPackagedHostNative)'." />
+  </Target>
+
   <!-- ============================== Built-in support probe =============================== -->
 
   <!--
@@ -221,15 +278,6 @@
       <_MauiTizenGenerateResources Condition=" '$(_MauiTizenGenerateResources)' == '' ">false</_MauiTizenGenerateResources>
 
       <!--
-        The Resizetizer's own splash output folder. Its private property is preferred when this
-        file was imported after the Resizetizer's; the literal fallback covers the early-import
-        order, where the property does not exist yet. Only the Tizen-specific 'splash' bucket
-        below it is ever touched.
-      -->
-      <_MauiTizenResizetizerSplashDirectory Condition=" '$(_MauiTizenResizetizerSplashDirectory)' == '' And '$(_MauiIntermediateSplashScreen)' != '' ">$(_MauiIntermediateSplashScreen)splash\</_MauiTizenResizetizerSplashDirectory>
-      <_MauiTizenResizetizerSplashDirectory Condition=" '$(_MauiTizenResizetizerSplashDirectory)' == '' ">$(IntermediateOutputPath)resizetizer\sp\splash\</_MauiTizenResizetizerSplashDirectory>
-
-      <!--
         Splash processing follows the standard MAUI switch, and additionally requires image
         processing.
 
@@ -272,15 +320,11 @@
     them. Recomposing from stale sources produces stale output no matter how correct this
     package's own state tracking is.
 
-    Adding the project's own splash items here puts them in @(MauiImage) while
-    ResizetizeCollectItems is still ahead of us, so its inputs file carries them and its
-    up-to-date check sees their metadata.
-
-    This does NOT replace the later target: splash items contributed by REFERENCED projects only
-    materialize during ResizetizeCollectItems itself, so they cannot be seen from here. The later
-    target excludes anything already present, so the two together cover both sources without ever
-    adding the same image twice (a duplicate would trip the Resizetizer's duplicate-output-name
-    detection).
+    This target also asks referenced projects for their exported MAUI items before
+    ResizetizeCollectItems does. It adds only their splash items to @(MauiImage); it deliberately
+    does not add them to @(MauiSplashScreen), because ResizetizeCollectItems will do that once as
+    part of its normal collection. This makes referenced splash metadata visible to
+    mauiimage.inputs without creating duplicate splash declarations.
 
     Deliberately NOT DependsOnTargets="_MauiTizenResolveBuiltInSupport": that target computes
     $(_MauiTizenSplashScreensExpected) from @(MauiSplashScreen), and MSBuild runs a target at most
@@ -295,10 +339,31 @@
                       And '$(MauiTizenUseBuiltInResizetizerSupport)' != 'true'
                       And '$(MauiTizenUseBuiltInResizetizerSupport)' != 'True'
                       And '$(EnableMauiSplashScreenProcessing)' != 'false'
-                      And '$(EnableMauiImageProcessing)' != 'false'
-                      And '@(MauiSplashScreen)' != '' ">
+                      And '$(EnableMauiImageProcessing)' != 'false' ">
     <ItemGroup>
-      <MauiImage Include="@(MauiSplashScreen)" Exclude="@(MauiImage)" />
+      <_MauiTizenSplashProjectWithOIS Include="@(_ResolvedProjectReferencePaths->HasMetadata('OriginalProjectReferenceItemSpec'))" />
+      <_MauiTizenSplashProjectWithItemSpec Include="@(_MauiTizenSplashProjectWithOIS->'%(OriginalProjectReferenceItemSpec)')" />
+      <_MauiTizenSplashProject Include="@(_MauiTizenSplashProjectWithItemSpec->HasMetadata('NearestTargetFramework'))" />
+      <_MauiTizenSplashProject Include="@(ProjectReference)"
+                               Exclude="@(_MauiTizenSplashProject)"
+                               NearestTargetFramework="$(TargetFramework)" />
+    </ItemGroup>
+
+    <MSBuild Targets="GetMauiItems"
+             Projects="%(_MauiTizenSplashProject.Identity)"
+             BuildInParallel="true"
+             Properties="TargetFramework=%(_MauiTizenSplashProject.NearestTargetFramework);%(_MauiTizenSplashProject.AdditionalProperties)"
+             SkipNonexistentProjects="true"
+             SkipNonexistentTargets="true"
+             Condition=" '@(_MauiTizenSplashProject)' != '' ">
+      <Output TaskParameter="TargetOutputs" ItemName="_MauiTizenEarlyReferencedMauiItem" />
+    </MSBuild>
+
+    <ItemGroup>
+      <_MauiTizenEarlySplashScreen Include="@(MauiSplashScreen)" />
+      <_MauiTizenEarlySplashScreen Include="@(_MauiTizenEarlyReferencedMauiItem)"
+                                   Condition=" '%(_MauiTizenEarlyReferencedMauiItem.ItemGroupName)' == 'MauiSplashScreen' " />
+      <MauiImage Include="@(_MauiTizenEarlySplashScreen)" Exclude="@(MauiImage)" />
     </ItemGroup>
   </Target>
 
@@ -333,10 +398,6 @@
       * EnableMauiSplashScreenProcessing (or EnableMauiImageProcessing) was turned off after a
         build that had them on. Same outcome.
 
-    Both this package's own splash folder and the Resizetizer's Tizen splash bucket are cleaned:
-    when the built-in Tizen branches are active it is the Resizetizer that writes
-    <_MauiIntermediateSplashScreen>splash\, and that folder is equally stale.
-
     Scoped to the externalized path ($(_MauiTizenGenerateResources)), which is the path this
     package owns. While the built-in branches are active the Resizetizer both writes and gates
     its own splash items, so a stale folder there is inert rather than packaged - and taking a
@@ -350,12 +411,21 @@
           BeforeTargets="MauiTizenPrepareResources;_MauiTizenGenerateSplashScreens;_MauiTizenCollectSplashScreenOutputs;MauiTizenGenerateManifest"
           Condition=" '$(_MauiTizenGenerateResources)' == 'true' And '$(_MauiTizenSplashScreensExpected)' != 'true' ">
 
-    <Message Condition=" Exists('$(_MauiTizenSplashDirectory)') Or Exists('$(_MauiTizenSplashMapFile)') Or Exists('$(_MauiTizenResizetizerSplashDirectory)') "
+    <Message Condition=" Exists('$(_MauiTizenSplashMapFile)') "
              Importance="Normal"
              Text="Maui.Tizen: removing stale splash screen artifacts; no splash screen is expected for this build." />
 
-    <RemoveDir Directories="$(_MauiTizenSplashDirectory)" Condition=" Exists('$(_MauiTizenSplashDirectory)') " />
-    <RemoveDir Directories="$(_MauiTizenResizetizerSplashDirectory)" Condition=" Exists('$(_MauiTizenResizetizerSplashDirectory)') " />
+    <ReadLinesFromFile File="$(_MauiTizenSplashMapFile)" Condition=" Exists('$(_MauiTizenSplashMapFile)') ">
+      <Output TaskParameter="Lines" ItemName="_MauiTizenStaleSplashMapLine" />
+    </ReadLinesFromFile>
+    <ItemGroup>
+      <_MauiTizenStaleSplashMapLine>
+        <RelativePath>$([System.Text.RegularExpressions.Regex]::Replace('%(_MauiTizenStaleSplashMapLine.Identity)', '^[^|]*\|[^|]*\|', ''))</RelativePath>
+      </_MauiTizenStaleSplashMapLine>
+      <_MauiTizenStaleOwnedSplash Include="$(MauiTizenIntermediateOutputPath)%(_MauiTizenStaleSplashMapLine.RelativePath)"
+                                  Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('%(_MauiTizenStaleSplashMapLine.Identity)', '^[^|]*\|[^|]*\|splash/[^/\\]+$'))" />
+    </ItemGroup>
+    <Delete Files="@(_MauiTizenStaleOwnedSplash)" />
     <Delete Files="$(_MauiTizenSplashMapFile)" Condition=" Exists('$(_MauiTizenSplashMapFile)') " />
     <!--
       The recorded metadata state goes too. Leaving it behind would make the FIRST build after

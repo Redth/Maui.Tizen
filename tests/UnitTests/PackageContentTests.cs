@@ -117,12 +117,13 @@ public class PackageContentTests : TestBase
 	[Fact]
 	public void MuslHostsDoNotFallBackToAGlibcNative()
 	{
-		var project = File.ReadAllText(Path.Combine(BuildTasksProjectDirectory, "Maui.Tizen.Build.Tasks.csproj"));
+		var targets = ExtractedPackageFiles("Maui.Tizen.Build.Tasks")
+			.Single(file => file.Name == "Maui.Tizen.Build.Tasks.targets");
+		var project = File.ReadAllText(targets.Path);
 
-		Assert.Contains(
-			"'$(_MauiTizenHostIsMusl)' != 'true'",
-			project,
-			StringComparison.Ordinal);
+		Assert.Contains("'$(_MauiTizenPackagedHostIsMusl)' != 'true'", project, StringComparison.Ordinal);
+		Assert.Contains("Code=\"MAUITIZEN1010\"", project, StringComparison.Ordinal);
+		Assert.Contains("Code=\"MAUITIZEN1011\"", project, StringComparison.Ordinal);
 		Assert.Contains("Code=\"MAUITIZEN1012\"", project, StringComparison.Ordinal);
 	}
 
@@ -865,7 +866,7 @@ public class TemplateContentTests : TestBase
 	{
 		var mauiProgram = File.ReadAllText(Path.Combine(TemplateDirectory, "MauiProgram.cs"));
 
-		Assert.Contains("UseMauiAppTizen<App>()", mauiProgram);
+		Assert.Contains("UseMauiAppTizenControls<App>()", mauiProgram);
 		Assert.Contains("using Microsoft.Maui.Platforms.Tizen.Hosting;", mauiProgram);
 
 		// The umbrella namespace the old conditional imported does not exist.

@@ -153,7 +153,7 @@ public class GenerateTizenSplashScreensTests : TestBase
 	}
 
 	[Fact]
-	public void RemovesStaleOutputsOnRerun()
+	public void PreservesUnownedOutputsOnRerun()
 	{
 		var (task, engine, intermediate) = CreateTask("splash.png", "#512BD4", "MDPI");
 		Assert.True(task.Execute(), engine.AllErrors());
@@ -162,7 +162,44 @@ public class GenerateTizenSplashScreensTests : TestBase
 		File.WriteAllText(stale, string.Empty);
 
 		Assert.True(task.Execute(), engine.AllErrors());
-		Assert.False(File.Exists(stale));
+		Assert.True(File.Exists(stale));
+	}
+
+	[Fact]
+	public void RemovesPreviouslyMappedAliasOutputsOnRerun()
+	{
+		var intermediate = CreateTempDirectory();
+
+		GenerateTizenSplashScreens CreateAliasedTask(string alias)
+		{
+			var sourceRoot = CreateTempDirectory();
+			var source = WritePng(Path.Combine(sourceRoot, "source.png"), 64, 64);
+			var processedRoot = CreateTempDirectory();
+			var processed = WritePng(
+				Path.Combine(processedRoot, "res", "contents", "default_All-MDPI", alias + ".png"),
+				64,
+				64);
+
+			var result = new GenerateTizenSplashScreens
+			{
+				MauiSplashScreen = new[] { Item(source, ("Link", alias + ".png"), ("Color", "White")) },
+				ProcessedImages = new[] { Item(processed) },
+				IntermediateOutputPath = intermediate,
+			};
+			result.UseRecordingEngine();
+			return result;
+		}
+
+		var first = CreateAliasedTask("old-name");
+		Assert.True(first.Execute());
+		var oldOutputs = first.SplashScreens.Select(item => item.ItemSpec).ToArray();
+		Assert.All(oldOutputs, path => Assert.True(File.Exists(path)));
+
+		var second = CreateAliasedTask("new-name");
+		Assert.True(second.Execute());
+
+		Assert.All(oldOutputs, path => Assert.False(File.Exists(path)));
+		Assert.All(second.SplashScreens, item => Assert.StartsWith("new-name.", Path.GetFileName(item.ItemSpec), StringComparison.Ordinal));
 	}
 
 	[Fact]

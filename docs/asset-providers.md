@@ -114,14 +114,11 @@ globs or MSBuild snippets to copy into the app project.
 
 ## Worked example: Blazor static web assets
 
-> **Status at this commit.** The Blazor asset provider is **not shipped yet**. There is no
-> `src/Maui.Tizen.BlazorWebView/buildTransitive/` folder and no
-> `Maui.Tizen.BlazorWebView.targets` in this repository, and `Maui.Tizen.BlazorWebView` cannot be
-> packed at all while the Samsung workload gate stands (it imports `eng/targets/TizenPackage.props`
-> and targets `net11.0-tizen11.0`; see [migration.md](migration.md)). What exists here is the
-> *consuming* half — the `MauiTizenAssetProviderTargets` seam and everything downstream of it —
-> plus a test fixture that plays the part of a provider. Do not read this section as a description
-> of files an application can reference today.
+> **Status at this commit.** The Blazor asset provider implementation exists under
+> `src/Maui.Tizen.BlazorWebView/buildTransitive/` and is exercised by that product's tests.
+> `Maui.Tizen.BlazorWebView` is still deliberately non-packable while its Core package closure and
+> the Samsung workload remain unavailable, so no released package exposes the provider yet. The
+> source contract is real; public package consumption remains a release gate.
 
 The intended shape, and the one the seam is designed around, is that `Maui.Tizen.BlazorWebView`
 owns the Blazor half and ships it in its own `buildTransitive` targets. That provider converts Razor
@@ -129,12 +126,11 @@ owns the Blazor half and ships it in its own `buildTransitive` targets. That pro
 task, so that `wwwroot/**` content and the package-provided `_framework/blazor.webview.js` both
 arrive at `res/wwwroot/...`, which is where `TizenAssetFileProvider` serves from.
 
-`tests/UnitTests/fixtures/BlazorAssetProvider.targets` is a **test fixture** written to that shape,
-so `tests/UnitTests/TizenBlazorAssetHandoffTests.cs` can exercise this side of the boundary against
-the real Razor SDK and the real WebView package without waiting for the provider package. It is a
-stand-in for "some package registers an asset provider", not a second implementation of a shipping
-file — there is currently no shipping file for it to disagree with. When the provider does ship,
-it becomes the source of truth and this fixture stays a fixture.
+`tests/UnitTests/fixtures/BlazorAssetProvider.targets` remains an intentionally independent
+**test fixture**, so `tests/UnitTests/TizenBlazorAssetHandoffTests.cs` can exercise the generic
+provider seam against the real Razor SDK without taking a source dependency on the Blazor product.
+The product's own tests validate the real provider; this fixture validates that Build.Tasks accepts
+the documented contract from any provider package.
 
 ### Why the provider has to ship from the Blazor package
 
@@ -147,10 +143,10 @@ application *does* reference is what closes that gap — which is why the provid
 `Maui.Tizen.BlazorWebView` rather than to `Maui.Tizen.Build.Tasks`: the seam is generic, the
 StaticWebAsset knowledge is not.
 
-### Ownership of the unshipped half
+### Ownership and release state
 
-| Concern | Owner | Shipped here? |
+| Concern | Owner | Current state |
 |---|---|---|
-| `StaticWebAsset` -> `MauiAsset` for Blazor | `Maui.Tizen.BlazorWebView` | no — fixture only |
-| The `MauiTizenAssetProviderTargets` seam | `Maui.Tizen.Build.Tasks` | yes |
-| `MauiProcessedAsset` -> `TizenResource` and TPK layout | `Maui.Tizen.Build.Tasks` | yes |
+| `StaticWebAsset` -> `MauiAsset` for Blazor | `Maui.Tizen.BlazorWebView` | implemented and tested; product package currently non-packable |
+| The `MauiTizenAssetProviderTargets` seam | `Maui.Tizen.Build.Tasks` | packaged |
+| `MauiProcessedAsset` -> `TizenResource` and TPK layout | `Maui.Tizen.Build.Tasks` | packaged |

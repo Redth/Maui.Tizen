@@ -25,10 +25,9 @@ namespace Maui.Tizen.UnitTests;
 public class TizenBlazorAssetHandoffTests : TestBase
 {
 	/// <summary>
-	/// A stand-in for a package that registers an asset provider. No shipping implementation of
-	/// this half exists yet - it is intended to live in Maui.Tizen.BlazorWebView, which cannot be
-	/// packed while the Samsung workload gate stands. See the fixture's own header and
-	/// docs/asset-providers.md.
+	/// An independent stand-in for any package that registers an asset provider. The real Blazor
+	/// provider exists under Maui.Tizen.BlazorWebView and has product-level tests; this fixture
+	/// keeps the generic Build.Tasks seam test decoupled from that implementation.
 	/// </summary>
 	private static string AssetProviderFixture =>
 		Path.Combine(RepositoryRoot, "tests", "UnitTests", "fixtures", "BlazorAssetProvider.targets");

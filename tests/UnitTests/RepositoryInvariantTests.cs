@@ -789,6 +789,56 @@ public class RepositoryInvariantTests
 				+ string.Join("; ", uncounted));
 	}
 
+	[Fact]
+	public void AFailedCheckDoesNotSkipLaterWorkloadFreeChecks()
+	{
+		var lane = ReadRepoFile("eng/build-workload-free.sh").Replace("\r\n", "\n");
+		var helperStart = lane.IndexOf("pass() {", StringComparison.Ordinal);
+		var helperEnd = lane.IndexOf(
+			"# ---------------------------------------------------------------------------",
+			helperStart,
+			StringComparison.Ordinal);
+
+		Assert.True(helperStart >= 0 && helperEnd > helperStart, "Could not locate the workload-free check helpers.");
+
+		var root = Path.Combine(Path.GetTempPath(), "maui-tizen-check-probe-" + Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(root);
+		var probe = Path.Combine(root, "probe.sh");
+		var quotedRoot = "'" + root.Replace("'", "'\"'\"'", StringComparison.Ordinal) + "'";
+
+		try
+		{
+			File.WriteAllText(
+				probe,
+				"#!/usr/bin/env bash\nset -euo pipefail\n"
+					+ $"REPO_ROOT={quotedRoot}\n"
+					+ lane.Substring(helperStart, helperEnd - helperStart)
+					+ "\ncheck \"forced early failure\" false\n"
+					+ "echo LATER_CHECK_RAN\n"
+					+ "exit \"$FAILURES\"\n");
+
+			var startInfo = new System.Diagnostics.ProcessStartInfo("bash")
+			{
+				RedirectStandardOutput = true,
+				RedirectStandardError = true,
+				UseShellExecute = false,
+			};
+			startInfo.ArgumentList.Add(probe);
+
+			using var process = System.Diagnostics.Process.Start(startInfo)!;
+			var output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
+			process.WaitForExit();
+
+			Assert.Equal(1, process.ExitCode);
+			Assert.Contains("forced early failure", output, StringComparison.Ordinal);
+			Assert.Contains("LATER_CHECK_RAN", output, StringComparison.Ordinal);
+		}
+		finally
+		{
+			Directory.Delete(root, recursive: true);
+		}
+	}
+
 	/// <summary>
 	/// MSBuild fixtures must use the repository's own approved feeds.
 	/// </summary>
@@ -885,6 +935,15 @@ public class RepositoryInvariantTests
 		// would bypass exactly what the package has to get right.
 		Assert.DoesNotContain("_MauiTizenBuildTasksAssembly", executable);
 		Assert.DoesNotContain("Maui.Tizen.Build.Tasks.targets", executable);
+	}
+
+	[Fact]
+	public void TheRealSampleUsesPackageBasedResizetizerSupport()
+	{
+		var project = ReadRepoFile("samples/Maui.Tizen.Sample/Maui.Tizen.Sample.csproj");
+
+		Assert.Contains("""<PackageReference Include="Microsoft.Maui.Resizetizer" PrivateAssets="all" />""", project);
+		Assert.DoesNotContain("<UseMaui>true</UseMaui>", project, StringComparison.Ordinal);
 	}
 
 	// ---------------------------------------------------------------------

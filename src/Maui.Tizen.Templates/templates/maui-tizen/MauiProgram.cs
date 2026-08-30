@@ -12,14 +12,14 @@ public static class MauiProgram
 		var builder = MauiApp.CreateBuilder();
 
 		builder
-			// Registers the standalone Maui.Tizen backend: handlers, dispatcher, animation
-			// ticker and the Tizen application lifecycle.
+			// Registers the complete standalone Tizen Controls backend: Core handlers,
+			// Essentials, Controls mappings, dispatcher, animation ticker and lifecycle.
 			//
-			// NOTE: this is UseMauiAppTizen, not UseMauiApp. They are different entry points.
+			// NOTE: this is UseMauiAppTizenControls, not the Core-only UseMauiAppTizen.
 			// Never wrap this call in a C# preprocessor conditional - the .NET Template Engine
 			// reads those as TEMPLATE conditionals in template content and strips the branch
 			// before you ever see it. See src/Maui.Tizen.Templates/Maui.Tizen.Templates.csproj.
-			.UseMauiAppTizen<App>()
+			.UseMauiAppTizenControls<App>()
 			.ConfigureFonts(fonts =>
 			{
 				// Drop a .ttf into Resources/Fonts and register it here, for example:

@@ -13,6 +13,8 @@ public sealed class RecordingBuildEngine : IBuildEngine
 {
 	public List<string> Errors { get; } = new();
 
+	public List<string> ErrorCodes { get; } = new();
+
 	public List<string> Warnings { get; } = new();
 
 	public List<string> Messages { get; } = new();
@@ -25,7 +27,11 @@ public sealed class RecordingBuildEngine : IBuildEngine
 
 	public string ProjectFileOfTaskNode => "test.proj";
 
-	public void LogErrorEvent(BuildErrorEventArgs e) => Errors.Add(e.Message ?? string.Empty);
+	public void LogErrorEvent(BuildErrorEventArgs e)
+	{
+		Errors.Add(e.Message ?? string.Empty);
+		ErrorCodes.Add(e.Code ?? string.Empty);
+	}
 
 	public void LogWarningEvent(BuildWarningEventArgs e) => Warnings.Add(e.Message ?? string.Empty);
 

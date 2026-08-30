@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace Maui.Tizen.Build.Tasks
 {
@@ -46,8 +47,7 @@ namespace Maui.Tizen.Build.Tasks
 	/// </remarks>
 	internal static class SkiaSharpHost
 	{
-		static readonly object Gate = new object();
-		static bool _initialized;
+		static readonly InitializationGate Initialization = new InitializationGate();
 
 		/// <summary>The last error encountered while registering, for diagnostics. Null on success.</summary>
 		internal static string? RegistrationError { get; private set; }
@@ -60,16 +60,8 @@ namespace Maui.Tizen.Build.Tasks
 		/// </summary>
 		public static void EnsureNativeLibraryResolved()
 		{
-			if (_initialized)
-				return;
-
-			lock (Gate)
+			Initialization.Run(() =>
 			{
-				if (_initialized)
-					return;
-
-				_initialized = true;
-
 				try
 				{
 					Register();
@@ -80,7 +72,7 @@ namespace Maui.Tizen.Build.Tasks
 					// runtime probing still gets its chance and produces its own error.
 					RegistrationError = ex.Message;
 				}
-			}
+			});
 		}
 
 		static void Register()
@@ -356,6 +348,27 @@ namespace Maui.Tizen.Build.Tasks
 				{
 					yield return "linux-" + architecture;
 					yield return "linux-musl-" + architecture;
+				}
+			}
+		}
+
+		internal sealed class InitializationGate
+		{
+			readonly object _gate = new object();
+			bool _initialized;
+
+			internal bool IsInitialized
+				=> Volatile.Read(ref _initialized);
+
+			internal void Run(Action initialize)
+			{
+				lock (_gate)
+				{
+					if (_initialized)
+						return;
+
+					initialize();
+					Volatile.Write(ref _initialized, true);
 				}
 			}
 		}

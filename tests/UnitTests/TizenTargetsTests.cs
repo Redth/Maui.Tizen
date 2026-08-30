@@ -67,9 +67,10 @@ public class TizenTargetsTests : TestBase
 		string root,
 		(string Name, string Value)[]? icon = null,
 		(string Name, string Value)[]? splash = null,
-		bool withSplash = true)
+		bool withSplash = true,
+		bool lateOptIn = false)
 	{
-		var builder = new MSBuildProjectBuilder(root);
+		var builder = new MSBuildProjectBuilder(root) { LateOptIn = lateOptIn };
 
 		builder
 			.WithProperty("ApplicationId", "com.contoso.tizenapp")
@@ -252,6 +253,77 @@ public class TizenTargetsTests : TestBase
 
 		Assert.Contains(result.ItemsOf("TizenTpkUserIncludeFiles"), i => Path.GetFileName(i.Identity) == "library_image.png");
 		Assert.Contains(result.ItemsOf("TizenResource"), i => Path.GetFileName(i.Identity) == "library_asset.txt");
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void ReferencedSplashMetadataInvalidatesProcessedAndComposedImages(bool lateOptIn)
+	{
+		var root = CreateTempDirectory("maui-tizen-projref-splash-state");
+		var library = new MSBuildProjectBuilder(root, "ResourceLibrary");
+		library.WriteSvg("Resources/Splash/library_splash.svg", "#FFFFFF");
+
+		void WriteLibraryProject(string color, string baseSize)
+		{
+			File.WriteAllText(library.ProjectPath, $"""
+				<Project Sdk="Microsoft.NET.Sdk">
+				  <PropertyGroup>
+				    <TargetFramework>net11.0</TargetFramework>
+				  </PropertyGroup>
+				  <ItemGroup>
+				    <PackageReference Include="Microsoft.Maui.Resizetizer" Version="{ResizetizerPackageVersion}" />
+				  </ItemGroup>
+				  <ItemGroup>
+				    <MauiSplashScreen Include="Resources\Splash\library_splash.svg"
+				                      Link="library_splash.svg"
+				                      Color="{color}"
+				                      BaseSize="{baseSize}" />
+				  </ItemGroup>
+				</Project>
+				""");
+		}
+
+		WriteLibraryProject("#512BD4", "128,128");
+
+		// Write the app sources once, then declare an app whose only splash comes from the library.
+		CreateApp(root: root);
+		var app = RedeclareApp(root, withSplash: false, lateOptIn: lateOptIn);
+		app.WithProjectReference(Path.Combine("..", "ResourceLibrary", "ResourceLibrary.csproj"));
+		app.Generate();
+
+		var first = app.Build();
+		AssertBuildSucceeded(first);
+
+		var firstProcessed = first.ItemsOf("MauiProcessedImage")
+			.Where(item => Path.GetFileName(item.Identity) == "library_splash.png")
+			.ToDictionary(
+				item => item.Identity,
+				item => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(item.Identity))),
+				StringComparer.Ordinal);
+		var firstComposed = HashSplashImages(SplashDirectory(app, first));
+
+		Assert.NotEmpty(firstProcessed);
+		Assert.NotEmpty(firstComposed);
+
+		// Change metadata only. The SVG itself and every app source retain their timestamps.
+		WriteLibraryProject("#00FF00", "64,64");
+
+		var second = app.Build();
+		AssertBuildSucceeded(second);
+
+		var secondProcessed = second.ItemsOf("MauiProcessedImage")
+			.Where(item => Path.GetFileName(item.Identity) == "library_splash.png")
+			.ToDictionary(
+				item => item.Identity,
+				item => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(item.Identity))),
+				StringComparer.Ordinal);
+		var secondComposed = HashSplashImages(SplashDirectory(app, second));
+
+		Assert.Equal(firstProcessed.Keys.OrderBy(path => path), secondProcessed.Keys.OrderBy(path => path));
+		Assert.Contains(firstProcessed, pair => pair.Value != secondProcessed[pair.Key]);
+		Assert.Equal(firstComposed.Keys.OrderBy(path => path), secondComposed.Keys.OrderBy(path => path));
+		Assert.Contains(firstComposed, pair => pair.Value != secondComposed[pair.Key]);
 	}
 
 	/// <summary>
@@ -646,8 +718,8 @@ public class TizenTargetsTests : TestBase
 	/// while the surviving splash map kept the manifest advertising them. Deleting a splash screen
 	/// from a project therefore appeared to do nothing at all.
 	///
-	/// The Resizetizer's own Tizen splash bucket is cleaned for the same reason: when the built-in
-	/// branches are active it is that folder which holds the stale images.
+	/// Cleanup is ownership-based: only paths recorded in the backend map are deleted. Unlisted
+	/// files in either intermediate directory belong to some other tool or to the developer.
 	/// </remarks>
 	[Fact]
 	public void RemovingTheSplashScreenDeletesStaleSplashArtifactsOnTheNextBuild()
@@ -667,8 +739,10 @@ public class TizenTargetsTests : TestBase
 		Assert.True(Directory.GetFiles(splashDirectory, "*.png").Length > 0, "The first build produced no splash screens.");
 		Assert.True(File.Exists(splashMap));
 
-		// A stale image in the Resizetizer's own Tizen splash bucket, which is what the built-in
-		// path writes once the workload exists. It must be cleaned by the same rule.
+		var unownedSplashFile = Path.Combine(splashDirectory, "unowned.png");
+		File.WriteAllText(unownedSplashFile, "not owned by Maui.Tizen");
+
+		// This package does not own the Resizetizer's cache, so it must not recursively remove it.
 		var resizetizerSplash = Path.Combine(withSplash.ProjectDirectory, "obj", "Debug", "net11.0", "resizetizer", "sp", "splash");
 		Directory.CreateDirectory(resizetizerSplash);
 		var resizetizerStale = Path.Combine(resizetizerSplash, "splash.mdpi.portrait.png");
@@ -689,9 +763,12 @@ public class TizenTargetsTests : TestBase
 		var second = withoutSplash.Build();
 		AssertBuildSucceeded(second);
 
-		Assert.False(Directory.Exists(splashDirectory), "Stale generated splash screens survived a build with no MauiSplashScreen.");
+		Assert.DoesNotContain(
+			Directory.GetFiles(splashDirectory, "*.png"),
+			path => !string.Equals(path, unownedSplashFile, StringComparison.Ordinal));
+		Assert.True(File.Exists(unownedSplashFile), "An unowned splash-cache file was deleted.");
 		Assert.False(File.Exists(splashMap), "The stale splash map survived a build with no MauiSplashScreen.");
-		Assert.False(File.Exists(resizetizerStale), "A stale Resizetizer splash artifact survived a build with no MauiSplashScreen.");
+		Assert.True(File.Exists(resizetizerStale), "The backend deleted a cache file owned by Resizetizer.");
 
 		Assert.DoesNotContain(second.ItemsOf("TizenTpkUserIncludeFiles"), i =>
 			i.Metadata1.Replace('\\', '/').TrimEnd('/').EndsWith("res/splash", StringComparison.Ordinal));
@@ -724,6 +801,8 @@ public class TizenTargetsTests : TestBase
 
 		Assert.True(Directory.GetFiles(splashDirectory, "*.png").Length > 0);
 		Assert.Contains("splash-screen", ReadPackagedManifest(enabled, first));
+		var unowned = Path.Combine(splashDirectory, "unowned.txt");
+		File.WriteAllText(unowned, "not owned by Maui.Tizen");
 
 		var disabled = CreateApp(root: root);
 		disabled.WithProperty("EnableMauiSplashScreenProcessing", "false");
@@ -732,7 +811,8 @@ public class TizenTargetsTests : TestBase
 		var second = disabled.Build();
 		AssertBuildSucceeded(second);
 
-		Assert.False(Directory.Exists(splashDirectory), "Splash images survived a build with splash processing disabled.");
+		Assert.Empty(Directory.GetFiles(splashDirectory, "*.png"));
+		Assert.True(File.Exists(unowned), "An unowned splash-cache file was deleted.");
 		Assert.False(File.Exists(splashMap), "The splash map survived a build with splash processing disabled.");
 
 		Assert.DoesNotContain(second.ItemsOf("TizenTpkUserIncludeFiles"), i =>
@@ -814,6 +894,37 @@ public class TizenTargetsTests : TestBase
 			.Count(i => i.Metadata1.Replace('\\', '/') == "shared/dup.txt");
 
 		Assert.Equal(1, matching);
+	}
+
+	[Fact]
+	public void DifferentResourcesCannotClaimTheSameDestination()
+	{
+		var app = CreateApp();
+		var first = app.WriteText("generated/first.txt", "first");
+		var second = app.WriteText("generated/second.txt", "second");
+		app.WithRawProjectContent($"""
+			  <PropertyGroup>
+			    <MauiTizenAssetProviderTargets>
+			      $(MauiTizenAssetProviderTargets);
+			      TestContributeConflict;
+			    </MauiTizenAssetProviderTargets>
+			  </PropertyGroup>
+			  <Target Name="TestContributeConflict">
+			    <ItemGroup>
+			      <MauiAsset Include="{TestBase.Escape(first)}" Link="shared/conflict.txt" />
+			      <MauiAsset Include="{TestBase.Escape(second)}" Link="shared/conflict.txt" />
+			    </ItemGroup>
+			  </Target>
+			""");
+		app.Generate();
+
+		var result = app.Build();
+
+		Assert.False(result.Success);
+		Assert.Contains("MAUITIZEN1021", result.Output, StringComparison.Ordinal);
+		Assert.Contains(first, result.Output, StringComparison.Ordinal);
+		Assert.Contains(second, result.Output, StringComparison.Ordinal);
+		Assert.Contains("shared/conflict.txt", result.Output, StringComparison.Ordinal);
 	}
 
 	// =====================================================================================
@@ -1121,6 +1232,43 @@ public class TizenTargetsTests : TestBase
 			Assert.NotNull(bitmap);
 			Assert.True(bitmap!.Width > 0 && bitmap.Height > 0);
 		}
+	}
+
+	[Fact]
+	public void ThePackagedBackendRejectsUnsupportedMuslArm64BuildHostsByName()
+	{
+		var app = CreateApp();
+		app.ConsumeProducedPackage = true;
+		app.PackagesFolder = CreateTempDirectory("maui-tizen-unsupported-host-packages");
+		app.WithProperty("MauiTizenBuildHostOperatingSystem", "linux");
+		app.WithProperty("MauiTizenBuildHostRuntimeIdentifier", "linux-musl-arm64");
+		app.WithProperty("MauiTizenBuildHostArchitecture", "arm64");
+		app.Generate();
+
+		var result = app.Build();
+
+		Assert.False(result.Success);
+		Assert.Contains("MAUITIZEN1012", result.Output, StringComparison.Ordinal);
+		Assert.DoesNotContain("DllNotFoundException", result.Output, StringComparison.Ordinal);
+		Assert.DoesNotContain("type initializer", result.Output, StringComparison.OrdinalIgnoreCase);
+	}
+
+	[Fact]
+	public void ThePackagedBackendRejectsUnknownBuildHostsByName()
+	{
+		var app = CreateApp();
+		app.ConsumeProducedPackage = true;
+		app.PackagesFolder = CreateTempDirectory("maui-tizen-unknown-host-packages");
+		app.WithProperty("MauiTizenBuildHostOperatingSystem", "freebsd");
+		app.WithProperty("MauiTizenBuildHostRuntimeIdentifier", "freebsd-x64");
+		app.WithProperty("MauiTizenBuildHostArchitecture", "x64");
+		app.Generate();
+
+		var result = app.Build();
+
+		Assert.False(result.Success);
+		Assert.Contains("MAUITIZEN1010", result.Output, StringComparison.Ordinal);
+		Assert.DoesNotContain("DllNotFoundException", result.Output, StringComparison.Ordinal);
 	}
 
 	/// <summary>

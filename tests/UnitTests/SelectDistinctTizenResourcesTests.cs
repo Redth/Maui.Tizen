@@ -54,7 +54,7 @@ public class SelectDistinctTizenResourcesTests : TestBase
 	{
 		var task = Task(
 			Item("a.js", ("TizenTpkFileName", "wwwroot/foo.js"), ("SourcePath", "/first/foo.js")),
-			Item("b.js", ("TizenTpkFileName", "wwwroot/foo.js"), ("SourcePath", "/second/foo.js")));
+			Item("b.js", ("TizenTpkFileName", "wwwroot/foo.js"), ("SourcePath", "/first/foo.js")));
 
 		Assert.True(task.Execute());
 
@@ -65,14 +65,30 @@ public class SelectDistinctTizenResourcesTests : TestBase
 		Assert.Single(task.Duplicates);
 	}
 
+	[Fact]
+	public void RejectsDifferentSourcesForTheSameDestination()
+	{
+		var task = Task(
+			Item("a.js", ("TizenTpkFileName", "wwwroot/foo.js"), ("SourcePath", "/first/foo.js")),
+			Item("b.js", ("TizenTpkFileName", "wwwroot/foo.js"), ("SourcePath", "/second/foo.js")));
+		var engine = (RecordingBuildEngine)task.BuildEngine;
+
+		Assert.False(task.Execute());
+		Assert.Contains("MAUITIZEN1021", engine.ErrorCodes);
+		Assert.Contains(engine.Errors, error =>
+			error.Contains("/first/foo.js", StringComparison.Ordinal)
+			&& error.Contains("/second/foo.js", StringComparison.Ordinal)
+			&& error.Contains("wwwroot/foo.js", StringComparison.Ordinal));
+	}
+
 	[Theory]
 	[InlineData("wwwroot/foo.js", "wwwroot\\foo.js")]
 	[InlineData("wwwroot/foo.js", "/wwwroot/foo.js")]
 	public void CollapsesDestinationsThatDifferOnlyInSeparatorOrLeadingSlash(string first, string second)
 	{
 		var task = Task(
-			Item("a.js", ("TizenTpkFileName", first)),
-			Item("b.js", ("TizenTpkFileName", second)));
+			Item("a.js", ("TizenTpkFileName", first), ("SourcePath", "/same/a.js")),
+			Item("b.js", ("TizenTpkFileName", second), ("SourcePath", "/same/a.js")));
 
 		Assert.True(task.Execute());
 		Assert.Single(task.Filtered);

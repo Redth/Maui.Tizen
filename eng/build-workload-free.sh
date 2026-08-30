@@ -43,9 +43,9 @@ CHECK_LOG="$CHECK_LOG_DIR/check.$$.log"
 mkdir -p "$CHECK_LOG_DIR"
 trap 'rm -f "$CHECK_LOG"' EXIT
 
-# check <label> <command...> — runs the command, reports, and returns its status so
-# callers can branch (e.g. to skip tests after a failed build).
-check() {
+# check_result <label> <command...> — runs the command, reports, and returns its status
+# so callers can branch (e.g. to skip tests after a failed build).
+check_result() {
   local label="$1"; shift
   if "$@" >"$CHECK_LOG" 2>&1; then
     pass "$label"
@@ -57,6 +57,11 @@ check() {
   FAILURES=$((FAILURES + 1))
   rm -f "$CHECK_LOG"
   return 1
+}
+
+# Most checks are independent and must not stop the lane before later package/provenance checks run.
+check() {
+  check_result "$@" || true
 }
 
 # ---------------------------------------------------------------------------
@@ -298,7 +303,7 @@ WORKLOAD_FREE_PROJECTS=(
 BUILD_OK=1
 for proj in "${WORKLOAD_FREE_PROJECTS[@]}"; do
   check "restore $(basename "$proj")" "$DOTNET" restore "$proj"
-  if check "build   $(basename "$proj")" "$DOTNET" build "$proj" --no-restore -c Release; then
+  if check_result "build   $(basename "$proj")" "$DOTNET" build "$proj" --no-restore -c Release; then
     :
   else
     BUILD_OK=0
@@ -328,7 +333,7 @@ check "restore package graph probe" "$DOTNET" restore eng/tests/PackageGraphProb
 # about incorrectly in either direction.
 # ---------------------------------------------------------------------------
 info "Packing"
-if check "pack README probe" "$DOTNET" pack eng/tests/PackReadmeProbe/PackReadmeProbe.csproj --no-restore -c Release "-p:PackageOutputPath=$PACK_OUTPUT" ${PACK_PROVENANCE_ARGS[@]+"${PACK_PROVENANCE_ARGS[@]}"}; then
+if check_result "pack README probe" "$DOTNET" pack eng/tests/PackReadmeProbe/PackReadmeProbe.csproj --no-restore -c Release "-p:PackageOutputPath=$PACK_OUTPUT" ${PACK_PROVENANCE_ARGS[@]+"${PACK_PROVENANCE_ARGS[@]}"}; then
   README_NUPKG="$(ls -t "$PACK_OUTPUT"/Maui.Tizen.Internal.PackReadmeProbe.*.nupkg 2>/dev/null | head -1 || true)"
   # Read the archive with python3 rather than unzip. python3 is already a hard dependency
   # of this script, whereas unzip is not present in the dotnet/sdk container images - and a
