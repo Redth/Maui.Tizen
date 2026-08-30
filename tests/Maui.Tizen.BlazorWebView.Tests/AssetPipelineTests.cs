@@ -2,8 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Security;
 using System.Text.Json;
+using System.Xml.Linq;
 using Xunit;
 
 namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
@@ -33,8 +36,11 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 	public sealed class AssetPipelineTests : IDisposable
 	{
 		private const string TargetName = "ConvertStaticWebAssetsToTizenMauiAssets";
+		private const string ProviderPackageId = "Maui.Tizen.BlazorWebView";
+		private const string ProviderPackageVersion = "0.0.0-test.1";
 
 		private readonly string _workDirectory;
+		private readonly string _providerDirectory;
 		private readonly Lazy<IReadOnlyList<MauiAssetItem>> _assets;
 		private readonly Lazy<IReadOnlyList<MauiAssetItem>> _assetsViaProviderContract;
 		private readonly Lazy<IReadOnlyList<MauiAssetItem>> _assetsWithCompressedVariants;
@@ -42,6 +48,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		public AssetPipelineTests()
 		{
 			_workDirectory = Path.Combine(Path.GetTempPath(), "maui-tizen-assets-" + Guid.NewGuid().ToString("n"));
+			_providerDirectory = _workDirectory + "-provider";
 			_assets = new Lazy<IReadOnlyList<MauiAssetItem>>(() => BuildAndReadMauiAssets(TargetName));
 			_assetsViaProviderContract = new Lazy<IReadOnlyList<MauiAssetItem>>(
 				() => BuildAndReadMauiAssets("SimulateAssetProviderContract"));
@@ -56,6 +63,17 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 				if (Directory.Exists(_workDirectory))
 				{
 					Directory.Delete(_workDirectory, recursive: true);
+				}
+
+				if (Directory.Exists(_providerDirectory))
+				{
+					Directory.Delete(_providerDirectory, recursive: true);
+				}
+
+				var packageCache = _workDirectory + "-packages-cache";
+				if (Directory.Exists(packageCache))
+				{
+					Directory.Delete(packageCache, recursive: true);
 				}
 			}
 			catch (IOException)
@@ -285,6 +303,58 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			Assert.Equal(viaFallback, viaContract);
 		}
 
+		[Fact]
+		public void ProviderPackageContainsTheNuGetBuildTransitiveEntries()
+		{
+			var package = EnsureProviderPackage(FindRepositoryRoot());
+			using var archive = ZipFile.OpenRead(package);
+			var entries = archive.Entries.Select(entry => entry.FullName).ToArray();
+
+			Assert.Contains("buildTransitive/Maui.Tizen.BlazorWebView.props", entries);
+			Assert.Contains("buildTransitive/Maui.Tizen.BlazorWebView.targets", entries);
+		}
+
+		[Fact]
+		public void NuGetGeneratesImportsForTheProviderPackage()
+		{
+			_ = _assetsViaProviderContract.Value;
+			var generatedTargets = Path.Combine(
+				_workDirectory,
+				"obj",
+				"AssetPipelineFixture.csproj.nuget.g.targets");
+			var generatedProps = Path.Combine(
+				_workDirectory,
+				"obj",
+				"AssetPipelineFixture.csproj.nuget.g.props");
+
+			Assert.Contains(
+				"Maui.Tizen.BlazorWebView.targets",
+				File.ReadAllText(generatedTargets),
+				StringComparison.Ordinal);
+			Assert.Contains(
+				"Maui.Tizen.BlazorWebView.props",
+				File.ReadAllText(generatedProps),
+				StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void NuGetImportedProviderConfiguresTheBlazorHybridStaticWebAssetRoot()
+		{
+			var output = BuildAndReadItem(
+				"CaptureProviderConfiguration",
+				"_ProviderConfiguration",
+				seedCompressedAssets: false);
+			using var document = JsonDocument.Parse(output);
+			var configuration = Assert.Single(
+				document.RootElement
+					.GetProperty("Items")
+					.GetProperty("_ProviderConfiguration")
+					.EnumerateArray());
+
+			Assert.Equal("/", configuration.GetProperty("BasePath").GetString());
+			Assert.Equal("Root", configuration.GetProperty("ProjectMode").GetString());
+		}
+
 		private MauiAssetItem? FindByTargetPath(string targetPath) =>
 			_assets.Value.FirstOrDefault(a =>
 				string.Equals(a.TargetPath.Replace('\\', '/'), targetPath, StringComparison.OrdinalIgnoreCase));
@@ -299,7 +369,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		{
 			var repoRoot = FindRepositoryRoot();
 			var fixtureSource = Path.Combine(repoRoot, "tests", "Maui.Tizen.BlazorWebView.Tests", "AssetPipelineFixture");
-			var buildTransitive = Path.Combine(repoRoot, "src", "Maui.Tizen.BlazorWebView", "buildTransitive");
+			var providerPackage = EnsureProviderPackage(repoRoot);
 
 			CopyDirectory(fixtureSource, _workDirectory);
 
@@ -309,8 +379,8 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 				project,
 				template
 					.Replace("__WEBVIEW_VERSION__", ReadPinnedWebViewVersion(repoRoot))
-					.Replace("__TARGETS_PROPS__", Path.Combine(buildTransitive, "Maui.Tizen.BlazorWebView.props"))
-					.Replace("__TARGETS_FILE__", Path.Combine(buildTransitive, "Maui.Tizen.BlazorWebView.targets")));
+					.Replace("__PROVIDER_PACKAGE_ID__", ProviderPackageId)
+					.Replace("__PROVIDER_PACKAGE_VERSION__", ProviderPackageVersion));
 
 			// The fixture builds in a temp directory outside the repository, so the repo-level
 			// nuget.config is NOT found by NuGet's directory walk - it would fall back to the
@@ -319,11 +389,105 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			// point the package cache at a directory under the fixture so a machine-cached copy cannot
 			// stand in for a package the approved feeds do not actually serve.
 			// overwrite: both entry points are materialized into the same work directory.
-			File.Copy(
-				Path.Combine(repoRoot, "nuget.config"),
-				Path.Combine(_workDirectory, "nuget.config"),
-				overwrite: true);
+			WriteNuGetConfig(repoRoot, Path.GetDirectoryName(providerPackage)!);
 			return RunMSBuild(project, target, seedCompressedAssets, itemName);
+		}
+
+		private string EnsureProviderPackage(string repoRoot)
+		{
+			var feed = Path.Combine(_providerDirectory, "feed");
+			var package = Path.Combine(
+				feed,
+				$"{ProviderPackageId}.{ProviderPackageVersion}.nupkg");
+			if (File.Exists(package))
+				return package;
+
+			Directory.CreateDirectory(feed);
+			var buildTransitive = Path.Combine(
+				repoRoot,
+				"src",
+				"Maui.Tizen.BlazorWebView",
+				"buildTransitive");
+			var project = Path.Combine(_providerDirectory, "ProviderPackage.csproj");
+			Directory.CreateDirectory(_providerDirectory);
+			File.WriteAllText(
+				project,
+				$"""
+				<Project Sdk="Microsoft.NET.Sdk">
+				  <PropertyGroup>
+				    <TargetFramework>net11.0</TargetFramework>
+				    <PackageId>{ProviderPackageId}</PackageId>
+				    <Version>{ProviderPackageVersion}</Version>
+				    <Authors>Maui.Tizen Contributors</Authors>
+				    <Description>NuGet transport probe for Maui.Tizen.BlazorWebView buildTransitive assets.</Description>
+				    <IsPackable>true</IsPackable>
+				    <IncludeBuildOutput>false</IncludeBuildOutput>
+				    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+				    <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
+				    <NoWarn>$(NoWarn);NU5128</NoWarn>
+				  </PropertyGroup>
+				  <ItemGroup>
+				    <None Include="{SecurityElement.Escape(Path.Combine(buildTransitive, "Maui.Tizen.BlazorWebView.props"))}"
+				          Pack="true"
+				          PackagePath="buildTransitive/Maui.Tizen.BlazorWebView.props" />
+				    <None Include="{SecurityElement.Escape(Path.Combine(buildTransitive, "Maui.Tizen.BlazorWebView.targets"))}"
+				          Pack="true"
+				          PackagePath="buildTransitive/Maui.Tizen.BlazorWebView.targets" />
+				  </ItemGroup>
+				</Project>
+				""");
+
+			RunDotNet(
+				_providerDirectory,
+				"pack",
+				project,
+				"--nologo",
+				"--output",
+				feed,
+				"-p:ManagePackageVersionsCentrally=false");
+			Assert.True(File.Exists(package), $"Provider package was not produced at '{package}'.");
+			return package;
+		}
+
+		private void WriteNuGetConfig(string repoRoot, string providerFeed)
+		{
+			var document = XDocument.Load(Path.Combine(repoRoot, "nuget.config"));
+			var configuration = document.Root!;
+			var sources = configuration.Element("packageSources")!;
+			sources.Add(new XElement(
+				"add",
+				new XAttribute("key", "provider-probe"),
+				new XAttribute("value", providerFeed)));
+			var mappings = configuration.Element("packageSourceMapping")!;
+			mappings.AddFirst(new XElement(
+				"packageSource",
+				new XAttribute("key", "provider-probe"),
+				new XElement("package", new XAttribute("pattern", ProviderPackageId))));
+			document.Save(Path.Combine(_workDirectory, "nuget.config"));
+		}
+
+		private static void RunDotNet(string workingDirectory, params string[] arguments)
+		{
+			var startInfo = new ProcessStartInfo
+			{
+				FileName = DotNetMuxerPath,
+				RedirectStandardOutput = true,
+				RedirectStandardError = true,
+				WorkingDirectory = workingDirectory,
+			};
+			startInfo.Environment["DOTNET_CLI_USE_MSBUILD_SERVER"] = "0";
+			foreach (var argument in arguments)
+				startInfo.ArgumentList.Add(argument);
+
+			using var process = Process.Start(startInfo)
+				?? throw new InvalidOperationException("Failed to start dotnet.");
+			var stdout = process.StandardOutput.ReadToEnd();
+			var stderr = process.StandardError.ReadToEnd();
+			process.WaitForExit(milliseconds: 10 * 60 * 1000);
+			Assert.True(
+				process.ExitCode == 0,
+				$"dotnet {string.Join(' ', arguments)} failed with exit code {process.ExitCode}."
+					+ Environment.NewLine + stdout + Environment.NewLine + stderr);
 		}
 
 		private static IReadOnlyList<MauiAssetItem> ParseMauiAssets(string output)
@@ -379,7 +543,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			// project folder for content and static web assets, so a package cache under it would be
 			// swept into the very item groups this test asserts on.
 			startInfo.Environment["NUGET_PACKAGES"] =
-				Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(project)!)!, "packages-cache");
+				Path.GetDirectoryName(project)! + "-packages-cache";
 
 			startInfo.ArgumentList.Add("msbuild");
 			startInfo.ArgumentList.Add(project);

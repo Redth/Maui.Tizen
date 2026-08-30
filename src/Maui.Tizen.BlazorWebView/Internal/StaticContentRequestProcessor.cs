@@ -51,6 +51,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 		private readonly TryGetStaticContent _contentLookup;
 		private readonly Func<string, string, string?> _resolveCacheControlOverride;
 		private readonly Action<string>? _onHostPageDocumentServed;
+		private readonly string _startPath;
 		private readonly ILogger _logger;
 
 		public StaticContentRequestProcessor(
@@ -59,13 +60,15 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 			TryGetStaticContent contentLookup,
 			Func<string, string, string?> resolveCacheControlOverride,
 			ILogger? logger = null,
-			Action<string>? onHostPageDocumentServed = null)
+			Action<string>? onHostPageDocumentServed = null,
+			string? startPath = null)
 		{
 			_appOrigin = appOrigin ?? throw new ArgumentNullException(nameof(appOrigin));
 			_cache = cache ?? throw new ArgumentNullException(nameof(cache));
 			_contentLookup = contentLookup ?? throw new ArgumentNullException(nameof(contentLookup));
 			_resolveCacheControlOverride = resolveCacheControlOverride ?? throw new ArgumentNullException(nameof(resolveCacheControlOverride));
 			_onHostPageDocumentServed = onHostPageDocumentServed;
+			_startPath = QueryStringHelper.NormalizePath(startPath);
 			_logger = logger ?? NullLogger.Instance;
 		}
 
@@ -88,7 +91,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 					var cachedRequestUri = QueryStringHelper.RemovePossibleQueryString(url);
 					_logger.HandlingWebRequest(cachedRequestUri);
 					_logger.ResponseContentBeingSent(cachedRequestUri, cachedResponse.StatusCode);
-					if (QueryStringHelper.IsDocumentRequest(PathOf(cachedRequestUri)))
+					if (IsDocumentRequest(cachedRequestUri, request.Headers))
 					{
 						_onHostPageDocumentServed?.Invoke(url);
 					}
@@ -107,8 +110,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 			// whether a request is a document or an asset, which is never correct - see IsDocumentRequest.
 			var originalUrl = url;
 			var requestUri = QueryStringHelper.RemovePossibleQueryString(url);
-			var allowFallbackOnHostPage = QueryStringHelper.IsDocumentRequest(
-				requestUri.Length >= _appOrigin.Length ? requestUri.Substring(_appOrigin.Length - 1) : "/");
+			var allowFallbackOnHostPage = IsDocumentRequest(requestUri, request.Headers);
 			_logger.HandlingWebRequest(requestUri);
 
 			if (!_contentLookup(requestUri, allowFallbackOnHostPage, out var statusCode, out var statusMessage, out var content, out var headers))
@@ -172,6 +174,29 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 		/// <summary>Returns the path portion of an absolute app-origin URL.</summary>
 		private string PathOf(string absoluteUrl) =>
 			absoluteUrl.Length >= _appOrigin.Length ? absoluteUrl.Substring(_appOrigin.Length - 1) : "/";
+
+		private bool IsDocumentRequest(
+			string absoluteUrl,
+			IDictionary<string, string> headers)
+		{
+			var path = QueryStringHelper.NormalizePath(PathOf(absoluteUrl));
+			if (string.Equals(path, _startPath, StringComparison.Ordinal)
+				|| QueryStringHelper.IsDocumentRequest(path))
+			{
+				return true;
+			}
+
+			foreach (var header in headers)
+			{
+				if (header.Key.Equals("Accept", StringComparison.OrdinalIgnoreCase)
+					&& header.Value.Contains("text/html", StringComparison.OrdinalIgnoreCase))
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
 
 		internal static string BuildHeaderBlock(StaticContentResponse response)
 			=> BuildHeaderBlock(response.StatusCode, response.StatusMessage, response.Headers);

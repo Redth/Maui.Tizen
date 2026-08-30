@@ -7,14 +7,12 @@
 // `IMauiBlazorWebViewBuilder.UsePlatformHandler`.
 
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Globalization;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.WebView;
@@ -25,9 +23,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Maui.Dispatching;
 using Microsoft.Maui.Handlers;
-using Microsoft.Maui.Platforms.Tizen.Handlers;
 using Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal;
 using Microsoft.Maui.Platforms.Tizen.BlazorWebView.StaticContent;
+using Microsoft.Maui.Platforms.Tizen.Handlers;
 using Tizen.NUI;
 using NWebView = Tizen.NUI.BaseComponents.WebView;
 
@@ -56,6 +54,20 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 	public class TizenBlazorWebViewHandler : TizenViewHandler<IBlazorWebView, NWebView>, IBlazorWebViewHandler,
 		ITizenInterceptedRequestRouter
 	{
+		private sealed class HandlerConnection
+		{
+			public required NWebView PlatformView { get; init; }
+			public required IBlazorWebView VirtualView { get; init; }
+			public required TizenWebViewManager Manager { get; init; }
+			public required StaticContentResponseCache Cache { get; init; }
+			public required HostPageLoadTracker HostPageLoads { get; init; }
+			public required RootComponentConnection RootComponents { get; init; }
+			public required InterceptedRequestLifetime Requests { get; init; }
+
+			public Task RetireAsync() =>
+				Task.WhenAll(RootComponents.RetireAsync(), Requests.RetireAsync());
+		}
+
 		private const string UseBlockingDisposalSwitch = "BlazorWebView.UseBlockingDisposal";
 		private const string JavaScriptMessageHandlerName = "BlazorHandler";
 
@@ -114,48 +126,16 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 		/// </remarks>
 		private static readonly ConditionalWeakTable<NWebView, object> s_javaScriptBridgeInstalled = new();
 
-		private readonly StaticContentResponseCache _staticContentResponseCache = new();
+		private readonly StaticContentResponseCache _detachedStaticContentResponseCache = new();
 		private readonly string _handlerKey = Interlocked.Increment(ref s_nextHandlerKey).ToString(CultureInfo.InvariantCulture);
 
-		private TizenWebViewManager? _webviewManager;
-		private StaticContentRequestProcessor? _requestProcessor;
+		private HandlerConnection? _connection;
 		private ILogger? _logger;
 		private string? _hostPage;
 		private RootComponentsCollection? _rootComponents;
 
-		/// <summary>
-		/// The components currently mounted in the web view manager.
-		/// </summary>
-		/// <remarks>
-		/// Needed because <see cref="NotifyCollectionChangedAction.Reset"/> - which is what
-		/// <c>Clear()</c> raises - carries neither <c>OldItems</c> nor <c>NewItems</c>. Without a
-		/// snapshot of what is mounted there is nothing to unmount, so the components stay rendered in a
-		/// collection the application believes it emptied. Only ever touched on the Blazor dispatcher.
-		/// </remarks>
-		private readonly List<RootComponent> _mountedRootComponents = new();
-
-		/// <summary>Set when a reconciliation pass is outstanding. Accessed with <see cref="Interlocked"/>.</summary>
-		private CoalescingReconciler? _rootComponentReconciler;
-
 		/// <summary>Whether a pass is in flight. Only ever touched on the Blazor dispatcher.</summary>
 		private string? _userAgentBeforeConnect;
-
-		/// <summary>
-		/// App-origin URLs that were answered with the host page and are awaiting a page-load callback.
-		/// </summary>
-		/// <remarks>
-		/// The Blazor bootstrap script must be evaluated once per host-page document load, and the web
-		/// view finishes loading at the requested URL - <c>/CustomStart/SomeData</c>, <c>/?returnUrl=x</c>
-		/// - not at the app origin. Comparing the finished URL to the origin therefore starts Blazor only
-		/// for a bare root navigation and silently leaves every deep link or query-bearing route rendering
-		/// a static host page that never boots.
-		/// <para>
-		/// Populated from the interception callback (a background thread) and drained on the UI thread, so
-		/// it must be concurrent. Entries are removed when consumed: a repeat navigation to the same route
-		/// serves the host page again and re-adds it.
-		/// </para>
-		/// </remarks>
-		private readonly ConcurrentDictionary<string, byte> _pendingHostPageLoads = new(StringComparer.Ordinal);
 
 		/// <summary>
 		/// This field is part of MAUI infrastructure and is not intended for use by application code.
@@ -211,9 +191,10 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 		internal string HandlerKey => _handlerKey;
 
-		internal StaticContentResponseCache StaticContentResponseCache => _staticContentResponseCache;
+		internal StaticContentResponseCache StaticContentResponseCache =>
+			Volatile.Read(ref _connection)?.Cache ?? _detachedStaticContentResponseCache;
 
-		internal TizenWebViewManager? WebViewManager => _webviewManager;
+		internal TizenWebViewManager? WebViewManager => Volatile.Read(ref _connection)?.Manager;
 
 		private bool RequiredStartupPropertiesSet => _hostPage != null && MauiContext?.Services != null;
 
@@ -275,7 +256,9 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			// delivering every message twice.
 			if (!s_javaScriptBridgeInstalled.TryGetValue(platformView, out _))
 			{
-				platformView.AddJavaScriptMessageHandler(JavaScriptMessageHandlerName, PostMessageFromJS);
+				platformView.AddJavaScriptMessageHandler(
+					JavaScriptMessageHandlerName,
+					message => PostMessageFromJS(platformView, message));
 				s_javaScriptBridgeInstalled.Add(platformView, BridgeInstalledMarker);
 			}
 
@@ -293,6 +276,9 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 		{
 			ArgumentNullException.ThrowIfNull(platformView);
 
+			var connection = Interlocked.Exchange(ref _connection, null);
+			var retirement = connection?.RetireAsync() ?? Task.CompletedTask;
+
 			platformView.PageLoadFinished -= OnLoadFinished;
 
 			// Symmetric with ConnectHandler. The JavaScript bridge and the interception callback cannot
@@ -308,41 +294,44 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 			SetRootComponents(null, clearPrevious: false);
 
-			if (_webviewManager is not null)
+			if (connection is not null)
 			{
 				// Dispose this component's contents so user-written disposal logic and Blazor disposal logic run.
-				var disposalTask = _webviewManager.DisposeAsync().AsTask();
-
-				if (AppContext.TryGetSwitch(UseBlockingDisposalSwitch, out var blockingDisposal) && blockingDisposal)
-				{
-					// Opt-in only: synchronously waiting here can deadlock when disposal needs the UI thread.
-					disposalTask.GetAwaiter().GetResult();
-				}
-				else
-				{
-					_ = disposalTask.ContinueWith(
-						static (task, state) => ((ILogger)state!).LogWarning(task.Exception, "Disposing the Tizen BlazorWebView failed."),
-						Logger,
-						System.Threading.CancellationToken.None,
-						TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
-						TaskScheduler.Default);
-				}
-
-				_webviewManager = null;
+				ObserveConnectionDisposal(DisposeConnectionAsync(connection, retirement));
 			}
 
-			_requestProcessor = null;
-
-			// Dropped rather than drained: the manager it reconciles against is already gone, so a pass
-			// scheduled after this point has nothing to reconcile. A reconnect builds a fresh one.
-			_rootComponentReconciler = null;
-			_pendingHostPageLoads.Clear();
-			_mountedRootComponents.Clear();
-			_staticContentResponseCache.Clear();
+			_detachedStaticContentResponseCache.Clear();
 
 			Logger.TizenHandlerDisconnected(HandlerKey);
 
 			base.DisconnectHandler(platformView);
+		}
+
+		private void ObserveConnectionDisposal(Task disposalTask)
+		{
+			if (AppContext.TryGetSwitch(UseBlockingDisposalSwitch, out var blockingDisposal) && blockingDisposal)
+			{
+				// Opt-in only: synchronously waiting here can deadlock when disposal needs the UI thread.
+				disposalTask.GetAwaiter().GetResult();
+				return;
+			}
+
+			_ = disposalTask.ContinueWith(
+				static (task, state) => ((ILogger)state!).LogWarning(task.Exception, "Disposing the Tizen BlazorWebView failed."),
+				Logger,
+				System.Threading.CancellationToken.None,
+				TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+				TaskScheduler.Default);
+		}
+
+		private static async Task DisposeConnectionAsync(
+			HandlerConnection connection,
+			Task retirement)
+		{
+			await retirement.ConfigureAwait(false);
+			connection.HostPageLoads.Clear();
+			connection.Cache.Clear();
+			await connection.Manager.DisposeAsync().ConfigureAwait(false);
 		}
 
 		/// <summary>
@@ -375,24 +364,33 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 		{
 			ArgumentNullException.ThrowIfNull(workItem);
 
-			if (_webviewManager is null)
+			var connection = Volatile.Read(ref _connection);
+			if (connection is null)
 			{
 				return false;
 			}
 
-			return await _webviewManager.TryDispatchAsync(workItem).ConfigureAwait(false);
+			return await connection.Manager.TryDispatchAsync(workItem).ConfigureAwait(false);
 		}
 
-		private void PostMessageFromJS(string message)
+		private void PostMessageFromJS(NWebView source, string message)
 		{
-			_webviewManager?.MessageReceivedInternal(new Uri(PlatformView.Url), message);
+			var connection = Volatile.Read(ref _connection);
+			if (connection is null || !ReferenceEquals(connection.PlatformView, source))
+				return;
+
+			connection.Manager.MessageReceivedInternal(new Uri(source.Url), message);
 		}
 
 		private void OnLoadFinished(object? sender, WebViewPageLoadEventArgs e)
 		{
-			if (ShouldInjectBlazorStart(PlatformView.Url))
+			var connection = Volatile.Read(ref _connection);
+			if (connection is null || !ReferenceEquals(sender, connection.PlatformView))
+				return;
+
+			if (ShouldInjectBlazorStart(connection, connection.PlatformView.Url))
 			{
-				PlatformView.EvaluateJavaScript(BlazorInitScript);
+				connection.PlatformView.EvaluateJavaScript(BlazorInitScript);
 			}
 		}
 
@@ -406,6 +404,14 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 		/// </remarks>
 		internal bool ShouldInjectBlazorStart(string? url)
 		{
+			var connection = Volatile.Read(ref _connection);
+			return connection is not null
+				? ShouldInjectBlazorStart(connection, url)
+				: IsAppOriginDocumentRoute(url);
+		}
+
+		private bool ShouldInjectBlazorStart(HandlerConnection connection, string? url)
+		{
 			if (string.IsNullOrEmpty(url))
 			{
 				return false;
@@ -413,7 +419,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 			// Recorded by the request processor when we served the host page. Consume it so one served
 			// document produces exactly one bootstrap.
-			if (_pendingHostPageLoads.TryRemove(url, out _))
+			if (connection.HostPageLoads.TryConsume(url))
 			{
 				return true;
 			}
@@ -425,33 +431,28 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			return IsAppOriginDocumentRoute(url);
 		}
 
-		private bool IsAppOriginDocumentRoute(string url)
+		private bool IsAppOriginDocumentRoute(string? url)
 		{
-			if (!url.StartsWith(AppOrigin, StringComparison.OrdinalIgnoreCase))
+			if (string.IsNullOrEmpty(url)
+				|| !url.StartsWith(AppOrigin, StringComparison.OrdinalIgnoreCase))
 			{
 				return false;
 			}
 
-			// Classify on the path alone: a query string never makes a route an asset, and never
-			// prevents one from being the host page.
-			return QueryStringHelper.IsDocumentRequest(QueryStringHelper.RemovePossibleQueryString(url));
+			return QueryStringHelper.IsDocumentRequest(QueryStringHelper.GetPath(url));
 		}
-
-		/// <summary>Records that <paramref name="url"/> was answered with the host page.</summary>
-		internal void OnHostPageDocumentServed(string url) => _pendingHostPageLoads[url] = 0;
-
-		internal bool IsHostPageLoadPending(string url) => _pendingHostPageLoads.ContainsKey(url);
 
 		void ITizenInterceptedRequestRouter.HandleInterceptedRequest(WebHttpRequestInterceptor interceptor)
 		{
-			var processor = _requestProcessor;
-			if (processor is null)
+			var request = new TizenInterceptedRequest(interceptor);
+			var connection = Volatile.Read(ref _connection);
+			if (connection is null)
 			{
-				interceptor.Ignore();
+				request.Ignore();
 				return;
 			}
 
-			processor.Process(new TizenInterceptedRequest(interceptor));
+			connection.Requests.Process(request);
 		}
 
 		/// <summary>
@@ -480,89 +481,19 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 			if (_rootComponents is null)
 			{
+				Volatile.Read(ref _connection)?.RootComponents.UpdateDesired(null);
 				return;
 			}
 
-			if (_rootComponents.Count > 0 && _webviewManager is not null)
-			{
-				_webviewManager.Dispatcher.AssertAccess();
-				foreach (var component in _rootComponents)
-				{
-					_ = AddRootComponentAsync(component, _webviewManager);
-					_mountedRootComponents.Add(component);
-				}
-			}
-
 			_rootComponents.CollectionChanged += OnRootComponentsCollectionChanged;
+			Volatile.Read(ref _connection)?.RootComponents.UpdateDesired(_rootComponents);
 		}
 
 		private void OnRootComponentsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs)
 		{
 			// The event arguments are deliberately ignored. Reconciliation is against the collection's
-			// CURRENT contents, not against a per-event delta - see ReconcileRootComponentsAsync.
-			ScheduleRootComponentReconciliation();
-		}
-
-		/// <summary>
-		/// Requests a reconciliation pass, coalescing with any already pending.
-		/// </summary>
-		/// <remarks>
-		/// Each change previously started its own <c>InvokeAsync</c> carrying a delta snapshotted when the
-		/// event was raised. Those passes then interleaved: with <c>Add</c> immediately followed by
-		/// <c>Clear</c>, the Clear pass computed what to unmount before the Add pass had recorded the new
-		/// component, so the component was mounted and never removed - it stayed rendered in a collection
-		/// the application had emptied. Rapid <c>Replace</c> could similarly leave the outgoing component
-		/// mounted. Passes are therefore serialized, and each one re-reads the desired state instead of
-		/// trusting a snapshot that may already be stale.
-		/// </remarks>
-		private void ScheduleRootComponentReconciliation()
-		{
-			var webviewManager = _webviewManager;
-			if (webviewManager is null)
-			{
-				return;
-			}
-
-			var reconciler = _rootComponentReconciler;
-			if (reconciler is null)
-			{
-				reconciler = new CoalescingReconciler(
-					() => ReconcileRootComponentsAsync(webviewManager),
-					work => webviewManager.Dispatcher.InvokeAsync(work));
-
-				// First writer wins, so concurrent change notifications share one reconciler and therefore
-				// one serialization queue.
-				reconciler = Interlocked.CompareExchange(ref _rootComponentReconciler, reconciler, null) ?? reconciler;
-			}
-
-			reconciler.Request();
-		}
-
-		/// <summary>
-		/// Brings the mounted components in line with the collection's current contents.
-		/// </summary>
-		/// <remarks>
-		/// No <c>ConfigureAwait(false)</c>: the continuation must stay on the Blazor dispatcher, because
-		/// both the web view manager's component registry and <see cref="_mountedRootComponents"/> are
-		/// single-threaded state.
-		/// </remarks>
-		private async Task ReconcileRootComponentsAsync(TizenWebViewManager webviewManager)
-		{
-			var desired = _rootComponents?.ToList() ?? new List<RootComponent>();
-
-			// Removal precedes addition. A Replace that added first would register a second component
-			// against a selector the outgoing one still occupies, which the renderer rejects.
-			foreach (var item in _mountedRootComponents.Except(desired).ToList())
-			{
-				await RemoveRootComponentAsync(item, webviewManager);
-				_mountedRootComponents.Remove(item);
-			}
-
-			foreach (var item in desired.Except(_mountedRootComponents).ToList())
-			{
-				await AddRootComponentAsync(item, webviewManager);
-				_mountedRootComponents.Add(item);
-			}
+			// CURRENT contents, not against a per-event delta.
+			Volatile.Read(ref _connection)?.RootComponents.UpdateDesired(_rootComponents);
 		}
 
 		/// <summary>
@@ -611,7 +542,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 		private void StartWebViewCoreIfPossible()
 		{
-			if (!RequiredStartupPropertiesSet || _webviewManager is not null)
+			if (!RequiredStartupPropertiesSet || Volatile.Read(ref _connection) is not null)
 			{
 				return;
 			}
@@ -627,56 +558,95 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			var contentRootDir = System.IO.Path.GetDirectoryName(_hostPage!) ?? string.Empty;
 			var hostPageRelativePath = System.IO.Path.GetRelativePath(contentRootDir, _hostPage!);
 
-			var fileProvider = VirtualView.CreateFileProvider(contentRootDir);
+			var virtualView = VirtualView;
+			var fileProvider = virtualView.CreateFileProvider(contentRootDir);
 
-			_webviewManager = new TizenWebViewManager(
+			var webviewManager = new TizenWebViewManager(
 				this,
 				PlatformView,
 				services,
 				new TizenBlazorDispatcher(services.GetRequiredService<IDispatcher>()),
 				fileProvider,
-				VirtualView.JSComponents,
+				virtualView.JSComponents,
 				contentRootDir,
 				hostPageRelativePath);
 
-			_requestProcessor = CreateRequestProcessor(_webviewManager);
-
-			VirtualView.BlazorWebViewInitializing(new BlazorWebViewInitializingEventArgs());
-
-			// BlazorWebViewInitializedEventArgs.WebView is declared only in the platform-specific builds of
-			// Microsoft.AspNetCore.Components.WebView.Maui (ANDROID/IOS/MACCATALYST/WINDOWS/TIZEN). The package
-			// this handler compiles against no longer produces a Tizen TFM, so the neutral net11.0 build has no
-			// WebView property to populate. Applications that need the native control can read
-			// ((TizenBlazorWebViewHandler)blazorWebView.Handler).PlatformView instead. See docs/blazorwebview.md.
-			VirtualView.BlazorWebViewInitialized(new BlazorWebViewInitializedEventArgs());
-
-			if (_rootComponents is not null)
+			var cache = new StaticContentResponseCache();
+			var hostPageLoads = new HostPageLoadTracker();
+			var requestProcessor = CreateRequestProcessor(
+				webviewManager,
+				virtualView,
+				cache,
+				hostPageLoads.Record);
+			var rootComponents = new RootComponentConnection(
+				rootComponent => AddRootComponentAsync(rootComponent, webviewManager),
+				rootComponent => RemoveRootComponentAsync(rootComponent, webviewManager),
+				work => webviewManager.Dispatcher.InvokeAsync(work));
+			var connection = new HandlerConnection
 			{
-				foreach (var rootComponent in _rootComponents)
-				{
-					// Since the page isn't loaded yet, this always completes synchronously.
-					_ = AddRootComponentAsync(rootComponent, _webviewManager);
-					_mountedRootComponents.Add(rootComponent);
-				}
+				PlatformView = PlatformView,
+				VirtualView = virtualView,
+				Manager = webviewManager,
+				Cache = cache,
+				HostPageLoads = hostPageLoads,
+				RootComponents = rootComponents,
+				Requests = new InterceptedRequestLifetime(requestProcessor.Process, Logger),
+			};
+
+			if (Interlocked.CompareExchange(ref _connection, connection, null) is not null)
+			{
+				ObserveConnectionDisposal(DisposeConnectionAsync(connection, connection.RetireAsync()));
+				return;
 			}
 
-			Logger.TizenWebViewStarted(contentRootDir, hostPageRelativePath);
+			try
+			{
+				virtualView.BlazorWebViewInitializing(new BlazorWebViewInitializingEventArgs());
 
-			_webviewManager.Navigate(VirtualView.StartPath);
+				// BlazorWebViewInitializedEventArgs.WebView is declared only in the platform-specific builds of
+				// Microsoft.AspNetCore.Components.WebView.Maui (ANDROID/IOS/MACCATALYST/WINDOWS/TIZEN). The package
+				// this handler compiles against no longer produces a Tizen TFM, so the neutral net11.0 build has no
+				// WebView property to populate. Applications that need the native control can read
+				// ((TizenBlazorWebViewHandler)blazorWebView.Handler).PlatformView instead. See docs/blazorwebview.md.
+				virtualView.BlazorWebViewInitialized(new BlazorWebViewInitializedEventArgs());
+
+				rootComponents.UpdateDesired(_rootComponents);
+
+				Logger.TizenWebViewStarted(contentRootDir, hostPageRelativePath);
+
+				webviewManager.Navigate(virtualView.StartPath);
+			}
+			catch
+			{
+				if (ReferenceEquals(Interlocked.CompareExchange(ref _connection, null, connection), connection))
+					ObserveConnectionDisposal(DisposeConnectionAsync(connection, connection.RetireAsync()));
+
+				throw;
+			}
 		}
 
-		private StaticContentRequestProcessor CreateRequestProcessor(TizenWebViewManager webViewManager)
+		private StaticContentRequestProcessor CreateRequestProcessor(
+			TizenWebViewManager webViewManager,
+			IBlazorWebView virtualView,
+			StaticContentResponseCache cache,
+			Action<string> onHostPageDocumentServed)
 			=> new(
 				AppOrigin,
-				_staticContentResponseCache,
+				cache,
 				webViewManager.TryGetResponseContentInternal,
-				(requestUri, contentType) => StaticContentCacheControl.ResolveOverride(VirtualView, requestUri, contentType, Logger),
-				Logger,
-				OnHostPageDocumentServed);
+				(requestUri, contentType) => StaticContentCacheControl.ResolveOverride(
+					virtualView,
+					requestUri,
+					contentType,
+					Logger),
+				logger: Logger,
+				onHostPageDocumentServed: onHostPageDocumentServed,
+				startPath: virtualView.StartPath);
 
 		private sealed class TizenInterceptedRequest : IInterceptedRequest
 		{
 			private readonly WebHttpRequestInterceptor _interceptor;
+			private int _completed;
 
 			public TizenInterceptedRequest(WebHttpRequestInterceptor interceptor)
 			{
@@ -689,9 +659,17 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 
 			public IDictionary<string, string> Headers => _interceptor.Headers;
 
-			public void Ignore() => _interceptor.Ignore();
+			public void Ignore()
+			{
+				if (Interlocked.Exchange(ref _completed, 1) == 0)
+					_interceptor.Ignore();
+			}
 
-			public void SetResponse(string headerBlock, byte[] body) => _interceptor.SetResponse(headerBlock, body);
+			public void SetResponse(string headerBlock, byte[] body)
+			{
+				if (Interlocked.Exchange(ref _completed, 1) == 0)
+					_interceptor.SetResponse(headerBlock, body);
+			}
 		}
 	}
 }

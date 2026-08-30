@@ -30,14 +30,16 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 	/// not better: each new delegate abandons the previous one.
 	/// </para>
 	/// <para>
-	/// This type therefore registers <b>exactly once per <c>WebContext</c></b> and keeps the winning
-	/// delegate strongly rooted in a static field for the lifetime of the process. Handlers register
-	/// themselves for routing instead of registering with the platform.
+	/// The normal-mode Tizen web context is process-global even though each WebView can expose a
+	/// different managed wrapper. This type therefore registers exactly once for that context mode and
+	/// keeps the winning wrapper and delegate strongly rooted for the lifetime of the process. Handlers
+	/// register themselves for routing instead of registering with the platform.
 	/// </para>
 	/// </remarks>
 	internal static class WebRequestInterceptionCoordinator
 	{
 		private static readonly object s_gate = new();
+		private static readonly object s_normalContextMode = new();
 
 		/// <summary>
 		/// Everything native holds a pointer into, rooted for the process lifetime.
@@ -64,7 +66,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 		/// risk - can be exercised on the host, where no real <c>WebContext</c> can be constructed. The
 		/// public <see cref="Register"/> entry point remains strongly typed.
 		/// </para>
-		private static readonly List<(object Context, object Callback)> s_rootedRegistrations = new();
+		private static readonly List<(object Mode, object Context, object Callback)> s_rootedRegistrations = new();
 
 		/// <summary>Handlers eligible to receive routed requests, by routing key.</summary>
 		private static readonly Dictionary<string, WeakReference<ITizenInterceptedRequestRouter>> s_routes =
@@ -83,22 +85,21 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 			{
 				s_routes[routingKey] = new WeakReference<ITizenInterceptedRequestRouter>(router);
 
-				foreach (var registration in s_rootedRegistrations)
-				{
-					if (ReferenceEquals(registration.Context, context))
-					{
-						// Already registered. Re-registering would replace the previous callback and
-						// abandon the proxy native currently points at.
-						return;
-					}
-				}
-
 				NWebContext.HttpRequestInterceptedCallback callback = OnRequestIntercepted;
 
-				// Root the context AND the callback before registering: native takes the pointer to the
-				// context-owned proxy immediately.
-				s_rootedRegistrations.Add((context, callback));
-				context.RegisterHttpRequestInterceptedCallback(callback);
+				if (!TryRootRegistration(s_normalContextMode, context, callback))
+					return;
+
+				try
+				{
+					context.RegisterHttpRequestInterceptedCallback(callback);
+				}
+				catch
+				{
+					s_rootedRegistrations.RemoveAll(
+						registration => ReferenceEquals(registration.Mode, s_normalContextMode));
+					throw;
+				}
 			}
 		}
 
@@ -161,7 +162,18 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 		{
 			lock (s_gate)
 			{
-				s_rootedRegistrations.Add((context, callback));
+				s_rootedRegistrations.Add((new object(), context, callback));
+			}
+		}
+
+		internal static bool RootRegistrationForModeForTesting(
+			object mode,
+			object context,
+			object callback)
+		{
+			lock (s_gate)
+			{
+				return TryRootRegistration(mode, context, callback);
 			}
 		}
 
@@ -220,6 +232,23 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 			}
 
 			router.HandleInterceptedRequest(interceptor);
+		}
+
+		private static bool TryRootRegistration(
+			object mode,
+			object context,
+			object callback)
+		{
+			foreach (var registration in s_rootedRegistrations)
+			{
+				if (ReferenceEquals(registration.Mode, mode))
+					return false;
+			}
+
+			// Root the context AND the callback before registering: native takes the pointer to the
+			// context-owned proxy immediately.
+			s_rootedRegistrations.Add((mode, context, callback));
+			return true;
 		}
 	}
 

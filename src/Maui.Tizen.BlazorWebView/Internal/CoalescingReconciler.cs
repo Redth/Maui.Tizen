@@ -35,14 +35,16 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 	/// </remarks>
 	internal sealed class CoalescingReconciler
 	{
+		private readonly object _gate = new();
 		private readonly Func<Task> _reconcile;
 		private readonly Func<Func<Task>, Task> _dispatch;
 
 		/// <summary>Non-zero when a pass is owed. Written from any thread.</summary>
 		private int _requested;
 
-		/// <summary>Only ever touched on the dispatcher, so it needs no synchronization.</summary>
 		private bool _running;
+		private bool _retired;
+		private TaskCompletionSource<object?>? _idle;
 
 		/// <param name="reconcile">
 		/// Brings actual state in line with desired state. Must re-read desired state on every call
@@ -61,26 +63,67 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 		/// <summary>Requests a pass, coalescing with any already pending or running.</summary>
 		public void Request()
 		{
-			// Mark the work outstanding before scheduling. A change arriving while a pass is running must
-			// still cause another pass, because the running pass may already have read its desired state.
-			Interlocked.Exchange(ref _requested, 1);
+			lock (_gate)
+			{
+				if (_retired)
+					return;
 
+				// Mark the work outstanding before scheduling. A change arriving while a pass is running
+				// must still cause another pass, because the running pass may already have read its desired state.
+				Interlocked.Exchange(ref _requested, 1);
+			}
+
+			// Do not dispatch under the lock. A dispatcher can run inline when the caller already has
+			// access, and RunAsync takes the same lock.
 			_ = _dispatch(RunAsync);
+		}
+
+		/// <summary>
+		/// Rejects future requests and completes after an active reconciliation pass has stopped.
+		/// </summary>
+		public Task RetireAsync()
+		{
+			lock (_gate)
+			{
+				_retired = true;
+				Interlocked.Exchange(ref _requested, 0);
+				return _running ? _idle!.Task : Task.CompletedTask;
+			}
 		}
 
 		private async Task RunAsync()
 		{
-			if (_running)
+			TaskCompletionSource<object?> idle;
+			lock (_gate)
 			{
-				// A pass is already draining. It will observe the flag this call just set.
-				return;
+				if (_retired || _running)
+				{
+					// A pass is already draining. It will observe the flag this call just set.
+					return;
+				}
+
+				_running = true;
+				idle = _idle = new TaskCompletionSource<object?>(
+					TaskCreationOptions.RunContinuationsAsynchronously);
 			}
 
-			_running = true;
+			var reschedule = false;
 			try
 			{
-				while (Interlocked.Exchange(ref _requested, 0) == 1)
+				while (true)
 				{
+					lock (_gate)
+					{
+						if (_retired)
+						{
+							Interlocked.Exchange(ref _requested, 0);
+							break;
+						}
+					}
+
+					if (Interlocked.Exchange(ref _requested, 0) == 0)
+						break;
+
 					PassCount++;
 
 					// No ConfigureAwait(false): the continuation must stay on the dispatcher, because the
@@ -90,7 +133,19 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 			}
 			finally
 			{
-				_running = false;
+				lock (_gate)
+				{
+					_running = false;
+					_idle = null;
+					reschedule = !_retired && Volatile.Read(ref _requested) != 0;
+				}
+
+				idle.TrySetResult(null);
+
+				// A request can arrive after the final flag read but before _running is cleared. Its
+				// scheduled drain observes _running and returns, so explicitly schedule the owed pass.
+				if (reschedule)
+					_ = _dispatch(RunAsync);
 			}
 		}
 	}

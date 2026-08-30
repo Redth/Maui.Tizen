@@ -20,11 +20,12 @@
   <ItemGroup>
     <!-- Brings blazor.webview.js in as a StaticWebAsset from the package's staticwebassets/ folder. -->
     <PackageReference Include="Microsoft.AspNetCore.Components.WebView" Version="__WEBVIEW_VERSION__" />
+    <!--
+      Consumes the exact provider .props/.targets through a real nupkg so NuGet, not a source-tree
+      import, must generate and activate the buildTransitive imports.
+    -->
+    <PackageReference Include="__PROVIDER_PACKAGE_ID__" Version="__PROVIDER_PACKAGE_VERSION__" />
   </ItemGroup>
-
-  <!-- The file under test. -->
-  <Import Project="__TARGETS_PROPS__" />
-  <Import Project="__TARGETS_FILE__" />
 
   <!--
     Stands in for Maui.Tizen.Build.Tasks' MauiTizenCollectProvidedAssets, which runs every target
@@ -35,10 +36,19 @@
     conversion's own BeforeTargets hook never fires when this target is invoked directly - which
     means assets appearing here can only have come through the provider contract.
 
-    Deliberately a stand-in rather than a reference to the real package: depending on another
-    package's sources to test our own registration would couple the two repositories' suites.
+    Maui.Tizen.Build.Tasks itself is not referenced because this fixture isolates the provider
+    contract. The provider under test still arrives only through NuGet's generated imports above.
   -->
   <Target Name="SimulateAssetProviderContract" DependsOnTargets="$(MauiTizenAssetProviderTargets)" />
+
+  <Target Name="CaptureProviderConfiguration">
+    <ItemGroup>
+      <_ProviderConfiguration Include="BlazorWebView">
+        <BasePath>$(StaticWebAssetBasePath)</BasePath>
+        <ProjectMode>$(StaticWebAssetProjectMode)</ProjectMode>
+      </_ProviderConfiguration>
+    </ItemGroup>
+  </Target>
 
   <!--
     Seeds pre-compressed variants so the conversion's AssetRole='Alternative' filter is exercised

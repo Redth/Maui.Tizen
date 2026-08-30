@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <Import Project="$(MSBuildThisFileDirectory)../../eng/targets/TizenPackage.props" />
-  <Import Project="$(RepositoryRoot)eng/Maui.props" />
   <Import Project="$(RepositoryRoot)eng/Maui.Tizen.BlazorWebView.Sources.props" />
 
   <!--
@@ -24,21 +23,15 @@
     <Description>BlazorWebView support for the standalone .NET MAUI Tizen backend. Provides TizenBlazorWebViewHandler, a Tizen NUI WebView backed IBlazorWebViewHandler registered through IMauiBlazorWebViewBuilder.UsePlatformHandler.</Description>
     <PackageTags>$(PackageTags);blazor;blazorwebview;nui;webview</PackageTags>
 
-    <UseMaui>true</UseMaui>
-    <SingleProject>true</SingleProject>
-
     <!-- The reworked sources compile, so docs are generated for them. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
     <!--
-      TizenPackage.props defaults IsPackable to false, because most projects here still hold raw
-      imported sources that do not build. This one compiles and ships public API, so it opts back in
-      explicitly. Without this the project produces no nupkg at all - and since the whole point of the
-      buildTransitive targets below is that they reach consumers through the package, a silently
-      unpackable project would ship nothing and break the asset pipeline for every consumer.
-      PackageContentTests asserts the produced nupkg layout so this cannot regress unnoticed again.
+      The implementation compiles, but Maui.Tizen.Core is not yet an enabled shipping package.
+      Keep this project non-packable until the dependency closure can be produced together. The
+      GenerateNuspec guards below also fail closed if a caller overrides IsPackable locally.
     -->
-    <IsPackable>true</IsPackable>
+    <IsPackable>false</IsPackable>
 
     <!--
       This project compiles and ships public API, so it opts into the analyzer per the contract in
@@ -103,10 +96,16 @@
     pack while that is true; refuse here too, for the same reason and with the same override.
     See eng/Maui.props and docs/net11-status.md.
   -->
-  <Target Name="BlockPackOnUnshippableUIExtensions" BeforeTargets="GenerateNuspec"
+  <Target Name="BlockBlazorPackOnUnshippableUIExtensions" BeforeTargets="GenerateNuspec"
           Condition="'$(TizenUIExtensionsIsShippable)' != 'true'">
     <Error Code="MAUITIZEN0101"
            Text="Refusing to pack $(MSBuildProjectName), which depends on Maui.Tizen.Core and therefore on Tizen.UIExtensions.NUI $(TizenUIExtensionsPackageVersion), which transitively declares Microsoft.Maui.Graphics 6.0.300-rc.3.1336. Bump the Tizen.UIExtensions.NUI PackageVersion in Directory.Packages.props once Samsung republishes it, or pass -p:TizenUIExtensionsIsShippable=true if you have verified the resulting dependency graph." />
+  </Target>
+
+  <Target Name="BlockBlazorPackUntilCorePackageIsShippable" BeforeTargets="GenerateNuspec"
+          Condition="'$(MauiTizenCorePackageIsShippable)' != 'true'">
+    <Error Code="MAUITIZEN0106"
+           Text="Refusing to pack $(MSBuildProjectName) because its required Maui.Tizen.Core package is not yet enabled in the produced package closure. Enable and validate the Core package first, then set MauiTizenCorePackageIsShippable=true." />
   </Target>
 
 </Project>

@@ -22,7 +22,8 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			out FakeContentSource source,
 			out StaticContentResponseCache cache,
 			Func<string, string, string?>? cacheControlOverride = null,
-			List<string>? hostPageDocumentsServed = null)
+			List<string>? hostPageDocumentsServed = null,
+			string? startPath = null)
 		{
 			source = new FakeContentSource();
 			cache = new StaticContentResponseCache();
@@ -34,7 +35,8 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 				capturedSource.TryGetContent,
 				cacheControlOverride ?? ((_, _) => null),
 				logger: null,
-				onHostPageDocumentServed: hostPageDocumentsServed is null ? null : hostPageDocumentsServed.Add);
+				onHostPageDocumentServed: hostPageDocumentsServed is null ? null : hostPageDocumentsServed.Add,
+				startPath: startPath);
 		}
 
 		[Theory]
@@ -178,6 +180,49 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 
 			Assert.False(request.Ignored);
 			Assert.Equal("<html>host</html>", Encoding.UTF8.GetString(request.ResponseBody!));
+		}
+
+		[Fact]
+		public void ConfiguredDottedStartPathReceivesTheHostPage()
+		{
+			const string Url = "http://0.0.0.0/orders/v1.2";
+			var processor = CreateProcessor(
+				out var source,
+				out _,
+				startPath: "/orders/v1.2");
+			source.Add(Url, "<html>host</html>", "text/html");
+
+			var request = new FakeRequest(Url);
+			processor.Process(request);
+
+			Assert.True(source.LastAllowFallbackOnHostPage);
+			Assert.False(request.Ignored);
+		}
+
+		[Fact]
+		public void HtmlAcceptHeaderMakesADottedClientRouteADocument()
+		{
+			const string Url = "http://0.0.0.0/orders/v1.2";
+			var processor = CreateProcessor(out var source, out _);
+			source.Add(Url, "<html>host</html>", "text/html");
+			var request = new FakeRequest(Url);
+			request.Headers["Accept"] = "text/html,application/xhtml+xml";
+
+			processor.Process(request);
+
+			Assert.True(source.LastAllowFallbackOnHostPage);
+		}
+
+		[Fact]
+		public void DottedAssetWithoutHtmlAcceptDoesNotFallBackToTheHostPage()
+		{
+			const string Url = "http://0.0.0.0/css/missing.css";
+			var processor = CreateProcessor(out var source, out _);
+			source.Add(Url, "body{}", "text/css");
+
+			processor.Process(new FakeRequest(Url));
+
+			Assert.False(source.LastAllowFallbackOnHostPage);
 		}
 
 		[Fact]

@@ -30,6 +30,8 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 		/// </remarks>
 		public static bool IsDocumentRequest(string path)
 		{
+			path = GetPath(path);
+
 			if (string.IsNullOrEmpty(path))
 			{
 				return true;
@@ -55,10 +57,36 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal
 				return string.Empty;
 			}
 
-			var indexOfQueryString = url.IndexOf('?', StringComparison.Ordinal);
-			return indexOfQueryString == -1
+			var query = url.IndexOf('?', StringComparison.Ordinal);
+			var fragment = url.IndexOf('#', StringComparison.Ordinal);
+			var delimiter = query < 0
+				? fragment
+				: fragment < 0
+					? query
+					: Math.Min(query, fragment);
+			return delimiter < 0
 				? url
-				: url.Substring(0, indexOfQueryString);
+				: url.Substring(0, delimiter);
+		}
+
+		public static string GetPath(string? url)
+		{
+			if (string.IsNullOrEmpty(url))
+				return string.Empty;
+
+			if (Uri.TryCreate(url, UriKind.Absolute, out var absolute))
+				return absolute.AbsolutePath;
+
+			return RemovePossibleQueryString(url);
+		}
+
+		public static string NormalizePath(string? url)
+		{
+			var path = GetPath(url);
+			if (string.IsNullOrEmpty(path))
+				return "/";
+
+			return path[0] == '/' ? path : "/" + path;
 		}
 	}
 }

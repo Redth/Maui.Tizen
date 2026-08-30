@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project>
 
+  <PropertyGroup Condition=" '$(TizenBlazorWebViewConvertStaticWebAssets)' == 'true' ">
+    <!-- Match the MAUI Blazor Hybrid project model: app assets are rooted at '/'. -->
+    <StaticWebAssetBasePath>/</StaticWebAssetBasePath>
+    <StaticWebAssetProjectMode>Root</StaticWebAssetProjectMode>
+  </PropertyGroup>
+
   <!--
     Blazor static web assets -> MauiAsset, for the Tizen backend.
 

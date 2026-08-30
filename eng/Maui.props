@@ -39,6 +39,13 @@
     <TizenUIExtensionsPackageVersion Condition="'$(TizenUIExtensionsPackageVersion)' == ''">0.9.2</TizenUIExtensionsPackageVersion>
     <TizenUIExtensionsIsShippable Condition="'$(TizenUIExtensionsIsShippable)' == '' AND '$(TizenUIExtensionsPackageVersion)' == '0.9.2'">false</TizenUIExtensionsIsShippable>
     <TizenUIExtensionsIsShippable Condition="'$(TizenUIExtensionsIsShippable)' == ''">true</TizenUIExtensionsIsShippable>
+
+    <!--
+      BlazorWebView has an ordinary package dependency on Maui.Tizen.Core. Keep its pack path closed
+      until Core itself is enabled as a produced package; a project reference cannot embed that
+      assembly into the Blazor package.
+    -->
+    <MauiTizenCorePackageIsShippable Condition="'$(MauiTizenCorePackageIsShippable)' == ''">false</MauiTizenCorePackageIsShippable>
   </PropertyGroup>
 
 </Project>

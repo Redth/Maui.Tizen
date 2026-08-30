@@ -4,7 +4,7 @@ The Tizen backend for [.NET MAUI](https://github.com/dotnet/maui), extracted int
 standalone, externally maintained repository.
 
 > **Status: compiled migration, not yet publishable.** Core, Waves A/B/C, Essentials,
-> alerts, gestures, and the provisional modal adapter are compiled and tested through
+> alerts, gestures, BlazorWebView, and the provisional modal adapter are compiled and tested through
 > workload-free host and API15 reference-pack lanes. No packages are published. See
 > [Current state](#current-state) before filing issues.
 
@@ -22,7 +22,7 @@ the platform. This repository separates the two.
 | Imported history | 1,236 commits, 121 authors, back to 2016 |
 | Files imported | 316 |
 | Repository scaffolding | Complete |
-| Package projects | Core, Controls/Waves, Essentials, alerts and gestures have deterministic compiled source closures |
+| Package projects | Core, Controls/Waves, Essentials, alerts/gestures and BlazorWebView have deterministic compiled source closures |
 | Published packages | None |
 | Workload-free verification | Host tests, API15 RefPack compilation, PublicAPI/source closure, consumer compile, tooling and mutation suites |
 | **Real Tizen build/package/device lanes** | **Blocked on external dependencies** |
@@ -46,6 +46,8 @@ Additional publication gates remain explicit:
 - dotnet/maui#37853 modal contracts have not been adopted in the pinned published MAUI package.
 - dotnet/maui#37861 is merged, but its public long-press send APIs are absent from the pinned
   MAUI package.
+- `Maui.Tizen.BlazorWebView` remains non-packable until `Maui.Tizen.Core` is enabled in the
+  produced package closure; `MAUITIZEN0106` fails closed if that dependency gate is bypassed.
 - Device, lifecycle/input and visual-baseline evidence needs the Samsung workload and provisioned
   mobile/TV runners.
 
@@ -65,10 +67,11 @@ and application termination attempt all cleanup, report diagnostics, and do not 
 ./eng/build-workload-free.sh
 ```
 
-This runs everything that does not need the Tizen workload: compiled Core/Waves/Essentials and
-alerts/gestures host suites, API15 Core/Controls/Sample/Essentials lanes, Controls consumer compile,
-PublicAPI and source-closure checks, migration tooling, package policy, and locked negative-control
-mutations. `eng/validation/run-hosted-validation.sh` adds repository, package, convention, DevFlow
+This runs everything that does not need the Tizen workload: compiled Core/Waves/Essentials,
+alerts/gestures and BlazorWebView host suites; API15 Core/Controls/Sample/Essentials/Blazor lanes;
+Controls consumer compile; PublicAPI and source-closure checks; real NuGet buildTransitive probes;
+migration tooling; package policy; and locked negative-control mutations.
+`eng/validation/run-hosted-validation.sh` adds repository, package, convention, DevFlow
 and consumer validation. The external-gate job installs through Samsung's supported workload
 installer and runs `eng/build-tizen.sh`; it cannot report success by skipping or masking a failed
 real Tizen restore/build/pack.

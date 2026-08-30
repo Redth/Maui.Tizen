@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -91,14 +92,22 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		}
 
 		[Fact]
-		public void PackageOptsBackIntoPacking()
+		public void PackageRemainsNonPackableUntilTheCorePackageShips()
 		{
-			// TizenPackage.props defaults IsPackable to false. This project must opt back in explicitly:
-			// the buildTransitive targets that carry the StaticWebAsset -> MauiAsset conversion only
-			// reach consumers through the produced package, so an unpackable project ships nothing and
-			// silently breaks the asset pipeline for everyone downstream.
-			Assert.Equal("true", GetProperty(LoadProductProject(), "IsPackable"));
+			// A ProjectReference becomes a package dependency; it does not embed Maui.Tizen.Core.
+			// Shipping BlazorWebView before Core is produced would create an unrestorable package.
+			var project = LoadProductProject();
+
 			Assert.Equal("false", GetProperty(LoadBuildConfiguration("TizenPackage.props"), "IsPackable"));
+			Assert.Equal("false", GetProperty(project, "IsPackable"));
+			Assert.Equal(
+				"false",
+				GetProperty(LoadBuildConfiguration("Maui.props"), "MauiTizenCorePackageIsShippable"));
+
+			var guard = project.Descendants("Target")
+				.FirstOrDefault(t => t.Attribute("Name")?.Value == "BlockBlazorPackUntilCorePackageIsShippable");
+			Assert.NotNull(guard);
+			Assert.Equal("MAUITIZEN0106", guard!.Descendants("Error").Single().Attribute("Code")?.Value);
 		}
 
 		[Fact]
@@ -149,6 +158,24 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		}
 
 		[Fact]
+		public void ProductAndSampleDoNotRequireTheMicrosoftMauiWorkload()
+		{
+			var product = LoadProductProject();
+			var sample = XDocument.Load(Path.Combine(
+				FindRepositoryRoot(),
+				"samples",
+				"BlazorWebView",
+				"Maui.Tizen.BlazorWebView.Sample",
+				"Maui.Tizen.BlazorWebView.Sample.csproj"));
+
+			Assert.Null(GetProperty(product, "UseMaui"));
+			Assert.Null(GetProperty(product, "SingleProject"));
+			Assert.Null(GetProperty(sample, "UseMaui"));
+			Assert.Null(GetProperty(sample, "SingleProject"));
+			Assert.Equal("Platforms/Tizen/tizen-manifest.xml", GetProperty(sample, "TizenManifestFile"));
+		}
+
+		[Fact]
 		public void PackageRefusesToPackWhileTizenUIExtensionsIsUnshippable()
 		{
 			// Inherited transitively from the ProjectReference to Maui.Tizen.Core, which depends on
@@ -156,11 +183,32 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			// already refuses to pack for that reason; this project must too, or the blocker leaks into
 			// a published package one level up. See eng/Maui.props.
 			var guard = LoadProductProject().Descendants("Target")
-				.FirstOrDefault(t => t.Attribute("Name")?.Value == "BlockPackOnUnshippableUIExtensions");
+				.FirstOrDefault(t => t.Attribute("Name")?.Value == "BlockBlazorPackOnUnshippableUIExtensions");
 
 			Assert.NotNull(guard);
 			Assert.Equal("'$(TizenUIExtensionsIsShippable)' != 'true'", guard!.Attribute("Condition")?.Value);
 			Assert.Equal("MAUITIZEN0101", guard.Descendants("Error").FirstOrDefault()?.Attribute("Code")?.Value);
+		}
+
+		[Fact]
+		public void CorePackageClosureGuardFailsClosed()
+		{
+			var result = RunProductTarget("BlockBlazorPackUntilCorePackageIsShippable");
+
+			Assert.NotEqual(0, result.ExitCode);
+			Assert.Contains("MAUITIZEN0106", result.Output, StringComparison.Ordinal);
+			Assert.Contains("Maui.Tizen.Core", result.Output, StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void CorePackageClosureGuardAllowsAnExplicitlyVerifiedClosure()
+		{
+			var result = RunProductTarget(
+				"BlockBlazorPackUntilCorePackageIsShippable",
+				"MauiTizenCorePackageIsShippable=true");
+
+			Assert.Equal(0, result.ExitCode);
+			Assert.DoesNotContain("MAUITIZEN0106", result.Output, StringComparison.Ordinal);
 		}
 
 		[Fact]
@@ -172,6 +220,29 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 				.ToArray();
 
 			Assert.Contains("../Maui.Tizen.Core/Maui.Tizen.Core.csproj", references);
+		}
+
+		[Fact]
+		public void HostLaneConsumesCoreThroughTheProductAssemblyBoundary()
+		{
+			var lane = XDocument.Load(Path.Combine(
+				FindRepositoryRoot(),
+				"tests",
+				"Maui.Tizen.BlazorWebView.Tests",
+				"Maui.Tizen.BlazorWebView.Tests.csproj"));
+			var imports = lane.Descendants("Import")
+				.Select(element => element.Attribute("Project")?.Value)
+				.ToArray();
+			var references = lane.Descendants("ProjectReference")
+				.Select(element => element.Attribute("Include")?.Value)
+				.ToArray();
+
+			Assert.DoesNotContain(
+				imports,
+				import => import?.Contains("Maui.Tizen.Core.Sources.props", StringComparison.Ordinal) == true);
+			Assert.Contains(
+				"../Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj",
+				references);
 		}
 
 		[Fact]
@@ -315,6 +386,43 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 				.GetProperty("developmentPackageBaseline")
 				.GetProperty("version")
 				.GetString();
+		}
+
+		private static (int ExitCode, string Output) RunProductTarget(
+			string target,
+			params string[] properties)
+		{
+			var dotnet = Process.GetCurrentProcess().MainModule?.FileName;
+			if (string.IsNullOrEmpty(dotnet)
+				|| !Path.GetFileNameWithoutExtension(dotnet)
+					.Equals("dotnet", StringComparison.OrdinalIgnoreCase))
+			{
+				dotnet = "dotnet";
+			}
+
+			var startInfo = new ProcessStartInfo
+			{
+				FileName = dotnet,
+				RedirectStandardOutput = true,
+				RedirectStandardError = true,
+				WorkingDirectory = FindRepositoryRoot(),
+			};
+			startInfo.Environment["DOTNET_CLI_USE_MSBUILD_SERVER"] = "0";
+			startInfo.ArgumentList.Add("msbuild");
+			startInfo.ArgumentList.Add("src/Maui.Tizen.BlazorWebView/Maui.Tizen.BlazorWebView.csproj");
+			startInfo.ArgumentList.Add("-nologo");
+			startInfo.ArgumentList.Add($"-t:{target}");
+			startInfo.ArgumentList.Add("-p:TargetFramework=net11.0");
+			startInfo.ArgumentList.Add("-p:TizenWorkloadAvailable=true");
+			foreach (var property in properties)
+				startInfo.ArgumentList.Add($"-p:{property}");
+
+			using var process = Process.Start(startInfo)
+				?? throw new InvalidOperationException("Failed to start dotnet msbuild.");
+			var output = process.StandardOutput.ReadToEnd();
+			var error = process.StandardError.ReadToEnd();
+			process.WaitForExit(milliseconds: 60_000);
+			return (process.ExitCode, output + Environment.NewLine + error);
 		}
 
 		[Fact]

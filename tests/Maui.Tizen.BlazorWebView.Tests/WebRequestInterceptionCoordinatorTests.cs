@@ -1,7 +1,7 @@
 using System;
-using System.Runtime.CompilerServices;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal;
 using Tizen.NUI;
 using Xunit;
@@ -151,6 +151,28 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			var context = new FakeWebContext { Name = "rooted" };
 			WebRequestInterceptionCoordinator.RootRegistrationForTesting(context, new Action(() => { }));
 			return new WeakReference(context);
+		}
+
+		[Fact]
+		public void OneContextModeRootsOnlyTheFirstManagedWrapper()
+		{
+			var mode = new object();
+			var first = new FakeWebContext { Name = "first" };
+			var second = new FakeWebContext { Name = "second" };
+			var before = WebRequestInterceptionCoordinator.RootedRegistrationCount;
+
+			Assert.True(WebRequestInterceptionCoordinator.RootRegistrationForModeForTesting(
+				mode,
+				first,
+				new Action(() => { })));
+			Assert.False(WebRequestInterceptionCoordinator.RootRegistrationForModeForTesting(
+				mode,
+				second,
+				new Action(() => { })));
+
+			Assert.Equal(before + 1, WebRequestInterceptionCoordinator.RootedRegistrationCount);
+			Assert.True(WebRequestInterceptionCoordinator.IsContextRooted(first));
+			Assert.False(WebRequestInterceptionCoordinator.IsContextRooted(second));
 		}
 
 		[Fact]

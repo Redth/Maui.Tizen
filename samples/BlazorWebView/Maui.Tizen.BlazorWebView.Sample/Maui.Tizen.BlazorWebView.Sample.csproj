@@ -9,7 +9,6 @@
     EMPTY TargetFramework and silently produce no inner build at all.
   -->
   <Import Project="$(MSBuildThisFileDirectory)../../../eng/targets/TizenPackage.props" />
-  <Import Project="$(RepositoryRoot)eng/Maui.props" />
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -18,9 +17,6 @@
     <AssemblyName>Maui.Tizen.BlazorWebView.Sample</AssemblyName>
     <ApplicationId>org.tizen.example.MauiTizenBlazorWebViewSample</ApplicationId>
     <ApplicationVersion>1.0.0</ApplicationVersion>
-
-    <UseMaui>true</UseMaui>
-    <SingleProject>true</SingleProject>
 
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
@@ -49,8 +45,11 @@
   <Import Project="$(RepositoryRoot)src/Maui.Tizen.BlazorWebView/buildTransitive/Maui.Tizen.BlazorWebView.props" />
   <Import Project="$(RepositoryRoot)src/Maui.Tizen.BlazorWebView/buildTransitive/Maui.Tizen.BlazorWebView.targets" />
 
+  <PropertyGroup>
+    <TizenManifestFile>Platforms/Tizen/tizen-manifest.xml</TizenManifestFile>
+  </PropertyGroup>
+
   <ItemGroup>
-    <TizenManifestFile Include="Platforms/Tizen/tizen-manifest.xml" />
     <None Include="Platforms/Tizen/tizen-manifest.xml" />
   </ItemGroup>
 

@@ -8,8 +8,8 @@ using Microsoft.AspNetCore.Components.WebView.Maui;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Platforms.Tizen;
-using Microsoft.Maui.Platforms.Tizen.Handlers;
 using Microsoft.Maui.Platforms.Tizen.BlazorWebView.Internal;
+using Microsoft.Maui.Platforms.Tizen.Handlers;
 using Xunit;
 using NWebView = Tizen.NUI.BaseComponents.WebView;
 
@@ -552,6 +552,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		[InlineData("http://0.0.0.0/counter")]
 		[InlineData("http://0.0.0.0/CustomStart/SomeData")]
 		[InlineData("http://0.0.0.0/CustomStart/SomeData?id=7")]
+		[InlineData("http://0.0.0.0/customer#section.1")]
 		public void BlazorStartIsInjectedForEveryHostPageDocumentUrl(string loadFinishedUrl)
 		{
 			var handler = new TizenBlazorWebViewHandler();
@@ -563,6 +564,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		[InlineData("http://0.0.0.0/_framework/blazor.webview.js")]
 		[InlineData("http://0.0.0.0/css/app.css")]
 		[InlineData("http://0.0.0.0/css/app.css?v=2")]
+		[InlineData("http://0.0.0.0/css/app.css#section.1")]
 		public void BlazorStartIsNotInjectedForAssetUrls(string loadFinishedUrl)
 		{
 			var handler = new TizenBlazorWebViewHandler();
@@ -587,14 +589,11 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 		public void ServedHostPageUrlIsBootstrappedExactlyOncePerLoad()
 		{
 			const string Url = "http://0.0.0.0/CustomStart/SomeData?id=7";
-			var handler = new TizenBlazorWebViewHandler();
-			handler.OnHostPageDocumentServed(Url);
+			var tracker = new HostPageLoadTracker();
+			tracker.Record(Url);
 
-			Assert.True(handler.ShouldInjectBlazorStart(Url));
-
-			// The recorded load is consumed. A second load-finished for a deep route still bootstraps via
-			// classification, so assert on the record instead of re-classification.
-			Assert.False(handler.IsHostPageLoadPending(Url));
+			Assert.True(tracker.TryConsume(Url));
+			Assert.False(tracker.IsPending(Url));
 		}
 
 		[Fact]
@@ -603,10 +602,19 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			// A recorded URL is authoritative even when its own shape would not classify as a document,
 			// which is what protects routes carrying a dot (e.g. /orders/v1.2).
 			const string Url = "http://0.0.0.0/orders/v1.2";
-			var handler = new TizenBlazorWebViewHandler();
-			handler.OnHostPageDocumentServed(Url);
+			var tracker = new HostPageLoadTracker();
+			tracker.Record(Url);
 
-			Assert.True(handler.ShouldInjectBlazorStart(Url));
+			Assert.True(tracker.TryConsume(Url));
+		}
+
+		[Fact]
+		public void HostPageLoadMatchingIgnoresTheLoadFinishedFragment()
+		{
+			var tracker = new HostPageLoadTracker();
+			tracker.Record("http://0.0.0.0/customer?id=7");
+
+			Assert.True(tracker.TryConsume("http://0.0.0.0/customer?id=7#section.1"));
 		}
 
 	}

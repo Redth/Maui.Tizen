@@ -17,7 +17,7 @@ public extensibility contract added by [dotnet/maui#36658][pr36658] and never re
 using Microsoft.Maui.Platforms.Tizen.BlazorWebView;
 
 var builder = MauiApp.CreateBuilder();
-builder.UseMauiApp<App>();
+builder.UseMauiAppTizen<App>();
 
 builder.Services.AddTizenBlazorWebView();
 ```
@@ -82,8 +82,8 @@ Everything above the native boundary was ported as-is from `dotnet/maui` `net11.
 - the `BlazorWebView:<key>` user-agent tag plus the process-wide
   `WebContext.RegisterHttpRequestInterceptedCallback` routing (Tizen registers interception per web
   context, not per web view, so requests must be routed back to the owning handler);
-- static content responses: query strings stripped before lookup, host-page fallback only for URLs ending
-  in `/`, raw `HTTP/1.0 <status> <message>` header blocks, and `Ignore()` for anything else;
+- static content responses: query strings and fragments stripped before lookup, document-route
+  host-page fallback, raw `HTTP/1.0 <status> <message>` header blocks, and `Ignore()` for anything else;
 - caching disabled by default (dotnet/maui#8279) with opt-in through
   `BlazorWebView.StaticContentCacheControlProvider`, backed by the same bounded LRU cache, the same
   `Range` / `Authorization` / `no-store` exclusions and the same `no-cache` / `max-age=0` / `Pragma`
@@ -127,28 +127,30 @@ Everything above the native boundary was ported as-is from `dotnet/maui` `net11.
   and no Tizen shape, so a third-party backend cannot construct the argument. Static content is still
   fully served through the Tizen interception path; only the public notification is unavailable.
   `WebResourceRequestedTests` pins this and fails if MAUI ever makes the type constructible.
-- **Disposal is now explicit.** `DisconnectHandler` disposes the `TizenWebViewManager` (fire-and-forget by
-  default, blocking when the `BlazorWebView.UseBlockingDisposal` `AppContext` switch is set), unsubscribes
-  the root-component collection, drops the handler from the routing table and clears the response cache.
-  The upstream Tizen handler leaked the manager.
+- **Disposal is now generation-owned.** Each connection owns its manager, root-component reconciler,
+  request lease, response cache and pending host-page loads. Disconnect retires that generation before
+  unregistering routing, waits for active reconciliation and interception callbacks before disposing its
+  manager, and cannot let an old pass mutate a later connection. Disposal remains asynchronous by
+  default and can be made blocking with the `BlazorWebView.UseBlockingDisposal` `AppContext` switch.
 - **Every host-page route is bootstrapped, not just `/`.** Blazor's `Blazor.start()` is injected on any
   document load the request processor answered with the host page — so deep client-side routes
-  (`/CustomStart/SomeData`) and URLs carrying a query string (`/?returnUrl=…`) initialize correctly.
-  Routes are classified on the *path*, with the query stripped first, so a query string can neither make
-  a document look like an asset nor the reverse. Injecting only at the exact origin — the previous
-  behavior — left every non-root start path with a blank page.
+  (`/CustomStart/SomeData`), dotted configured routes (`/orders/v1.2`) and URLs carrying a query or
+  fragment initialize correctly. Classification uses the parsed path, the configured `StartPath`, and
+  an HTML `Accept` header; pending-load keys ignore fragments because HTTP requests never carry them.
 - **The interception registration is rooted for the process lifetime.** Registering an interception
   callback stores it on a `WebContext` and hands native a pointer to a proxy *owned by that context*, so
   rooting only our own callback is not enough: if the context is collected the proxy dies with it and
-  every request silently 404s under GC pressure. Both the context and the callback are held strongly and
-  permanently — the platform offers no way to unregister, and a process has only a handful of contexts.
-  Individual handlers are still routed weakly, so a disconnected BlazorWebView is collected normally.
+  every request silently 404s under GC pressure. The normal context is process-global even when WebViews
+  expose different managed wrappers, so only its first wrapper/callback pair is registered and rooted.
+  Individual handlers are routed weakly, and retired callbacks ignore safely instead of escaping through
+  native code.
 - **Root-component changes are reconciled, not applied as deltas.** Each change previously started its
   own asynchronous pass carrying a snapshot taken when the event was raised; because those passes await,
   they interleaved, and `Add` immediately followed by `Clear` could leave a component mounted in a
   collection the application had emptied. Passes are now serialized and coalesced by
   `CoalescingReconciler`, and each pass re-reads the desired collection, so the last pass always observes
-  the final state. Reconciliation stays on the Blazor dispatcher throughout.
+  the final state. Mounted state and reconciliation are per connection; replacing the collection removes
+  the prior manager registrations before adding the new desired set.
 
 
 ## Repository layout
@@ -179,10 +181,11 @@ implement that interface would simply never be parented. Deriving also inherits 
 arrangement, focus propagation and disposal, and the dispatcher is reached through the public
 `IDispatcher` the core registers — no Tizen-specific dispatcher type is referenced.
 
-The package cannot be published yet for a reason that has nothing to do with Blazor: through
-`Maui.Tizen.Core` it depends on `Tizen.UIExtensions.NUI` 0.9.2, which transitively declares a .NET 6-era
-`Microsoft.Maui.Graphics`. It therefore carries the same `MAUITIZEN0101` pack guard as
-`Maui.Tizen.Core`.
+The project is deliberately `IsPackable=false` until `Maui.Tizen.Core` is enabled as a produced package;
+a `ProjectReference` becomes a NuGet dependency and does not embed the Core assembly. An explicit
+`MAUITIZEN0106` guard also fails if someone locally overrides `IsPackable` without declaring the Core
+package closure shippable. The separate `MAUITIZEN0101` guard remains because Core currently depends on
+`Tizen.UIExtensions.NUI` 0.9.2, which declares a .NET 6-era `Microsoft.Maui.Graphics` dependency.
 
 `Internal`, `StaticContent` and the dispatcher exist because the upstream equivalents (`QueryStringHelper`,
 `StaticContentResponseCache`, `StaticContentCacheControl`, `MauiDispatcher`, `Log`) are all `internal` to
@@ -229,14 +232,12 @@ The conversion is reached two ways, and both are tested. It registers through
 carries a direct `BeforeTargets` hook as a fallback for graphs that do not include that package at all.
 MSBuild runs a target at most once per build, so being reached both ways is harmless.
 
-`AssetPipelineTests` runs MSBuild against a real Razor project and asserts that `index.html`, a nested
-app asset and `_framework/blazor.webview.js` all arrive as `MauiAsset` with the right `TargetPath`, with
-no duplicates and no `.gz`/`.br` variants. Because the fixture imports only this package, those
-assertions reach the conversion through the fallback — so the fixture also defines a stand-in for
-`MauiTizenCollectProvidedAssets` and drives it directly, which exercises the registration in isolation
-(none of the targets named in `BeforeTargets` are scheduled by that entry point). A further test asserts
-both entry points yield identical assets, since an application gets one or the other depending on
-whether `Maui.Tizen.Build.Tasks` is in the graph.
+`AssetPipelineTests` first packs the exact provider `.props` and `.targets` into a real
+`Maui.Tizen.BlazorWebView` probe nupkg, restores a Razor consumer through `PackageReference`, and verifies
+NuGet generated both imports. It then asserts that `index.html`, a nested app asset and
+`_framework/blazor.webview.js` arrive as `MauiAsset` with the right metadata, with no duplicates or
+compressed alternatives. The fixture also drives a stand-in for `MauiTizenCollectProvidedAssets`
+directly and verifies the provider-contract and fallback entry points produce identical assets.
 
 #### Pre-compressed variants
 
@@ -276,16 +277,16 @@ content-root prefix, which is the property that actually determines runtime reac
 
 ### Release gates
 
-Two things are **not** proven by the host-side suite and must be verified before this package ships.
+Two things remain release gates and must be verified before this package ships.
 They are recorded here as gates rather than described as existing coverage:
 
 1. **Real end-to-end asset flow.** The tests above stop at `MauiAsset`, which is exactly where
    `Maui.Tizen.Build.Tasks` takes over. The full `StaticWebAsset → MauiAsset → MauiProcessedAsset →
    TizenResource → res/wwwroot` chain can only be exercised once that package is in the base branch;
    until then the fixture supplies the provider contract itself, so it proves this package's half only.
-2. **Produced package layout.** No test installs an actual `.nupkg` from an isolated cache and verifies
-   the `buildTransitive/` layout and dependency closure a real consumer resolves. Doing so needs the
-   Samsung workload, since the package's own TFM cannot be restored without it.
+2. **Shipping dependency closure.** The host suite does verify a real nupkg's `buildTransitive/`
+   placement and NuGet auto-import behavior. The actual Tizen product package remains disabled until
+   `Maui.Tizen.Core` is produced too; release validation must restore the complete real package set.
 
 
 ### The Tizen workload gate
@@ -300,7 +301,9 @@ no Samsung packs, so the SDK reports:
 error NETSDK1139: The target platform identifier tizen was not recognized.
 ```
 
-Both the product project and the sample set `IsTizenProject`, so the repository-wide
+Both the product project and the sample set `IsTizenProject`, but neither sets `UseMaui` or
+`SingleProject`; those would introduce an unrelated Microsoft MAUI workload requirement. The
+repository-wide
 `ValidateTizenWorkloadAvailable` target in `Directory.Build.targets` fails them fast with `MAUITIZEN0001`
 rather than letting the build degrade to a neutral TFM. Neither project defines its own gate.
 
@@ -317,17 +320,16 @@ dotnet test tests/Maui.Tizen.BlazorWebView.Tests
 
 It also runs as part of the workload-free lane, `eng/build-workload-free.sh`.
 
-The harness targets `net11.0`, defines `TIZEN`, and compiles the *same* BlazorWebView sources, the core
-slice sources it derives from, and the sample head, against the pinned `Samsung.Tizen.Ref.API15`
+The harness targets `net11.0`, defines `TIZEN`, compiles the same BlazorWebView sources and sample head,
+and consumes the workload-free Core ref-pack lane through a real project/assembly boundary. It uses the
+pinned `Samsung.Tizen.Ref.API15`
 reference assemblies (fetched with `PackageDownload`, since the pack is published with package type
 `DotnetPlatform` and cannot be consumed through `PackageReference`). Those assemblies carry full metadata
 and are not marked with `ReferenceAssemblyAttribute`, so Tizen-derived types load and can be reflected
 over.
 
-It combines the two roles the core backend splits across `Maui.Tizen.Core.RefPackCompile` and
-`Maui.Tizen.Core.UnitTests`. The core needs inert stand-ins for its unit lane because it executes code
-paths that live behind `#if TIZEN`; nothing here does, so real reference assemblies serve both purposes
-and no stubs are required.
+Source-including Core here would merge two shipping assemblies and let Blazor tests access internals a
+package consumer cannot. The separate Core reference is therefore part of the validation contract.
 
 It is **not** a neutral fallback for the product: it never packs and never produces a shippable assembly.
 

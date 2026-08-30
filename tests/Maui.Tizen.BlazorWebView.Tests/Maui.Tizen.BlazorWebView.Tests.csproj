@@ -4,16 +4,15 @@
     Host-side verification lane for Maui.Tizen.BlazorWebView.
 
     src/Maui.Tizen.BlazorWebView targets net11.0-tizen11.0 and cannot be restored until Samsung
-    publishes the 11.0.100 workload manifest. This project compiles the SAME sources on a plain
-    net11.0 host and runs tests against them.
+    publishes the 11.0.100 workload manifest.     This project compiles the SAME BlazorWebView sources on a plain net11.0 host, consumes Core
+    through its workload-free product-assembly lane, and runs tests against that real boundary.
 
     It combines the two roles that the core backend splits across Maui.Tizen.Core.RefPackCompile and
     Maui.Tizen.Core.UnitTests, because BlazorWebView does not need the split:
 
       * Like RefPackCompile, it defines TIZEN and compiles against the REAL TizenFX reference
         assemblies from Samsung.Tizen.Ref.API15, so every NUI call site is type-checked rather than
-        taken on faith. The core needs inert stand-ins for its unit lane because it executes code
-        paths that live behind `#if TIZEN`; nothing here does.
+        taken on faith.
 
       * Like the unit lane, it EXECUTES tests - for registration order, the asset file provider,
         request mapping, the static content cache, handler lifecycle and the package contract. None
@@ -25,7 +24,6 @@
   -->
 
   <Import Project="$(RepositoryRoot)eng/Maui.props" />
-  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
   <Import Project="$(RepositoryRoot)eng/Maui.Tizen.BlazorWebView.Sources.props" />
 
   <PropertyGroup>
@@ -72,14 +70,10 @@
 
   <ItemGroup Label="Sources under test">
     <!--
-      The core slice is compiled in rather than project-referenced: src/Maui.Tizen.Core targets
-      net11.0-tizen11.0 and is behind the same workload gate. TizenBlazorWebViewHandler derives from
-      its TizenViewHandler<,>, so the base type has to come from somewhere.
+      Consume the workload-free Core compile lane through a real assembly boundary. Source-including
+      Core here would merge two product assemblies, duplicate the now-complete Controls-aware Core
+      closure, and let Blazor tests compile against internals that package consumers cannot access.
     -->
-    <Compile Include="@(MauiTizenPortableCompile)" LinkBase="Core" />
-    <Compile Include="@(MauiTizenHandlerCompile)" LinkBase="Core" />
-    <Compile Include="@(MauiTizenPlatformCompile)" LinkBase="Core" />
-
     <Compile Include="@(MauiTizenBlazorWebViewCompile)" LinkBase="BlazorWebView" />
 
     <Compile Include="@(MauiTizenBlazorWebViewSampleCompile)" LinkBase="Sample" />
@@ -91,11 +85,16 @@
     <None Include="AssetPipelineFixture/**/*" CopyToOutputDirectory="PreserveNewest" LinkBase="AssetPipelineFixture" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj" />
+  </ItemGroup>
+
   <ItemGroup Label="Build configuration under test">
     <None Include="$(MauiTizenBlazorWebViewDir)Maui.Tizen.BlazorWebView.csproj" Link="ProductProject/Maui.Tizen.BlazorWebView.csproj" CopyToOutputDirectory="PreserveNewest" />
     <None Include="$(RepositoryRoot)Directory.Packages.props" Link="ProductProject/Directory.Packages.props" CopyToOutputDirectory="PreserveNewest" />
     <None Include="$(RepositoryRoot)Directory.Build.targets" Link="ProductProject/Directory.Build.targets" CopyToOutputDirectory="PreserveNewest" />
     <None Include="$(RepositoryRoot)eng/targets/TizenPackage.props" Link="ProductProject/TizenPackage.props" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(RepositoryRoot)eng/Maui.props" Link="ProductProject/Maui.props" CopyToOutputDirectory="PreserveNewest" />
     <None Include="$(RepositoryRoot)eng/baselines.json" Link="ProductProject/baselines.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="$(RepositoryRoot)eng/Maui.Tizen.BlazorWebView.Sources.props" Link="ProductProject/Maui.Tizen.BlazorWebView.Sources.props" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

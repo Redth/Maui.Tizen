@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebView;
 using Microsoft.AspNetCore.Components.WebView.Maui;
 using Microsoft.Extensions.FileProviders;
+using BlazorDispatcher = Microsoft.AspNetCore.Components.Dispatcher;
 using NWebView = Tizen.NUI.BaseComponents.WebView;
 
 namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
@@ -40,7 +41,7 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 			TizenBlazorWebViewHandler handler,
 			NWebView webview,
 			IServiceProvider provider,
-			Dispatcher dispatcher,
+			BlazorDispatcher dispatcher,
 			IFileProvider fileProvider,
 			JSComponentConfigurationStore jsComponents,
 			string contentRootRelativeToAppRoot,
