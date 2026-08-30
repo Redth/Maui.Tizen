@@ -143,9 +143,16 @@ namespace Maui.Tizen.Build.Tasks
 		}
 
 		/// <summary>
-		/// Normalizes only the directory separator. Casing is deliberately left alone; that is the
-		/// whole point of this task.
+		/// Normalizes directory separators and repeated separators. Casing is deliberately left
+		/// alone; that is the whole point of this task.
 		/// </summary>
-		static string Normalize(string value) => value.Replace('\\', '/').TrimStart('/');
+		static string Normalize(string value)
+		{
+			var normalized = value.Replace('\\', '/').TrimStart('/');
+			while (normalized.Contains("//"))
+				normalized = normalized.Replace("//", "/");
+
+			return normalized;
+		}
 	}
 }

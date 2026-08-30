@@ -86,6 +86,7 @@ public class SelectDistinctTizenResourcesTests : TestBase
 	[Theory]
 	[InlineData("wwwroot/foo.js", "wwwroot\\foo.js")]
 	[InlineData("wwwroot/foo.js", "/wwwroot/foo.js")]
+	[InlineData("wwwroot/foo.js", "wwwroot\\//foo.js")]
 	public void CollapsesDestinationsThatDifferOnlyInSeparatorOrLeadingSlash(string first, string second)
 	{
 		var task = Task(
