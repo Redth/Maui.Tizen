@@ -431,7 +431,10 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 				await retirement.ConfigureAwait(false);
 				connection.HostPageLoads.Clear();
 				connection.Cache.Clear();
-				await connection.Manager.DisposeAsync().ConfigureAwait(false);
+				using (connection.Dispatcher.SuppressOperationCapture())
+				{
+					await connection.Manager.DisposeAsync().ConfigureAwait(false);
+				}
 			}
 			finally
 			{

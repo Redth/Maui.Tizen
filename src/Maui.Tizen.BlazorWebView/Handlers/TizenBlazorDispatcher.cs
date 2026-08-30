@@ -19,6 +19,22 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 	/// </remarks>
 	internal sealed class TizenBlazorDispatcher : Microsoft.AspNetCore.Components.Dispatcher
 	{
+		private sealed class OperationCaptureSuppression : IDisposable
+		{
+			private readonly TizenBlazorDispatcher _owner;
+			private readonly OperationCapture? _previous;
+
+			public OperationCaptureSuppression(
+				TizenBlazorDispatcher owner,
+				OperationCapture? previous)
+			{
+				_owner = owner;
+				_previous = previous;
+			}
+
+			public void Dispose() => _owner._operationCapture.Value = _previous;
+		}
+
 		internal sealed class OperationCapture : IDisposable
 		{
 			internal sealed class Reservation
@@ -205,6 +221,13 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView
 		}
 
 		internal Task RetireAsync() => _lateOperations.RetireAsync();
+
+		internal IDisposable SuppressOperationCapture()
+		{
+			var suppression = new OperationCaptureSuppression(this, _operationCapture.Value);
+			_operationCapture.Value = null;
+			return suppression;
+		}
 
 		private Task Track(Func<Task> dispatch)
 		{

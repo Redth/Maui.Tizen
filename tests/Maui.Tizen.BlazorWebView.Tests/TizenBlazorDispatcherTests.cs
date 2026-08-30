@@ -170,6 +170,38 @@ namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
 			await Task.WhenAll(delayed!, retirement).WaitAsync(TimeSpan.FromSeconds(10));
 		}
 
+		[Fact]
+		public async Task TrustedLifecycleCleanupBypassesASealedRetiredCapture()
+		{
+			var dispatcher = new TizenBlazorDispatcher(new InlineDispatcher());
+			var capture = dispatcher.BeginOperationCapture();
+			var capturedContext = ExecutionContext.Capture();
+			capture.Dispose();
+			await capture.DrainAsync();
+			await dispatcher.RetireAsync();
+			var invoked = false;
+			Task? cleanup = null;
+
+			ExecutionContext.Run(
+				capturedContext!,
+				_ =>
+				{
+					using (dispatcher.SuppressOperationCapture())
+					{
+						cleanup = dispatcher.InvokeAsync(() =>
+						{
+							invoked = true;
+							return Task.CompletedTask;
+						});
+					}
+				},
+				null);
+
+			Assert.NotNull(cleanup);
+			await cleanup!;
+			Assert.True(invoked);
+		}
+
 		private sealed class InlineDispatcher : IDispatcher
 		{
 			public bool IsDispatchRequired => false;
