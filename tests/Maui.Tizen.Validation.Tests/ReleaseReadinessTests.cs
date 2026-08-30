@@ -425,6 +425,12 @@ public class ReleaseWorkflowSecurityTests
 
         Assert.Contains("expected_repository=\"Redth/Maui.Tizen\"", workflow, StringComparison.Ordinal);
         Assert.Contains("CALLER_WORKFLOW_REF", workflow, StringComparison.Ordinal);
+        Assert.Contains("REF_PROTECTED", workflow, StringComparison.Ordinal);
+        Assert.Contains("servicingBranches", workflow, StringComparison.Ordinal);
+        Assert.Contains(
+            "release device validation source ref is not policy-approved",
+            workflow,
+            StringComparison.Ordinal);
         Assert.Contains(
             "[[ \"$REQUESTED_RUN_ATTEMPT\" == \"$GITHUB_RUN_ATTEMPT\" ]]",
             workflow,

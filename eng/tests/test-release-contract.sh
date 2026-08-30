@@ -729,39 +729,20 @@ BASELINE_GENERATOR_PACKAGES="$TEMP_ROOT/baseline-generator-packages"
 mkdir -p "$BASELINE_GENERATOR_PACKAGES"
 make_package "$BASELINE_GENERATOR_PACKAGES" Maui.Tizen.Build.Tasks "$VERSION" package false
 make_package "$BASELINE_GENERATOR_PACKAGES" Maui.Tizen.Templates "$VERSION" package false
-BASELINE_GENERATOR_MANIFEST="$TEMP_ROOT/baseline-generator-manifest.json"
-python3 - "$BASELINE_GENERATOR_PACKAGES" "$BASELINE_GENERATOR_MANIFEST" "$VERSION" "$SOURCE_SHA" <<'PY'
-import hashlib
-import json
-import pathlib
-import sys
-
-directory = pathlib.Path(sys.argv[1])
-packages = []
-for path in sorted(directory.glob("*.nupkg")):
-    package_id = path.name.removesuffix(f".{sys.argv[3]}.nupkg")
-    packages.append(
-        {
-            "id": package_id,
-            "version": sys.argv[3],
-            "files": [
-                {
-                    "kind": "package",
-                    "filename": path.name,
-                    "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-                }
-            ],
-        }
-    )
-json.dump(
-    {
-        "version": sys.argv[3],
-        "source": {"commit": sys.argv[4]},
-        "packages": packages,
-    },
-    open(sys.argv[2], "w"),
-)
-PY
+BASELINE_GENERATOR_MANIFEST="$BASELINE_GENERATOR_PACKAGES/release-manifest.json"
+BASELINE_GENERATOR_IDS="$TEMP_ROOT/baseline-generator-package-ids.txt"
+printf '%s\n' Maui.Tizen.Build.Tasks Maui.Tizen.Templates > "$BASELINE_GENERATOR_IDS"
+python3 "$CONTRACT" create-unsigned-manifest \
+  --packages-dir "$BASELINE_GENERATOR_PACKAGES" \
+  --output "$BASELINE_GENERATOR_MANIFEST" \
+  --expected-package-ids-file "$BASELINE_GENERATOR_IDS" \
+  --repository "$REPOSITORY" \
+  --version "$VERSION" \
+  --source-commit "$SOURCE_SHA" \
+  --source-ref "$SOURCE_REF" \
+  --run-id "$RUN_ID" \
+  --run-attempt "$RUN_ATTEMPT" \
+  --artifact-name "$UNSIGNED_NAME"
 BASELINE_GENERATOR_OUTPUT="$REPO_ROOT/eng/api-baselines/.release-generator-probe-$$"
 mkdir -p "$BASELINE_GENERATOR_OUTPUT"
 printf 'preserve\n' > "$BASELINE_GENERATOR_OUTPUT/sentinel.txt"

@@ -67,10 +67,10 @@ if (-not $packages) {
     throw "No .nupkg files were found in '$PackagesDirectory'."
 }
 $reviewedManifest = Get-Content $ReleaseManifest -Raw | ConvertFrom-Json
-if ($reviewedManifest.version -ne $PackageVersion) {
-    throw "Release manifest version '$($reviewedManifest.version)' does not match '$PackageVersion'."
+if ($reviewedManifest.packageVersion -ne $PackageVersion) {
+    throw "Release manifest version '$($reviewedManifest.packageVersion)' does not match '$PackageVersion'."
 }
-if ([string]$reviewedManifest.source.commit -notmatch '^[0-9a-f]{40}$') {
+if ([string]$reviewedManifest.sourceCommit -notmatch '^[0-9a-f]{40}$') {
     throw 'Release manifest has no valid source commit.'
 }
 $reviewedPackages = @{}
@@ -229,7 +229,7 @@ try {
         dumpSchemaVersion = 2
         packageVersion    = $PackageVersion
         targetFramework   = $baselines.target.targetFramework
-        sourceCommit      = $reviewedManifest.source.commit
+        sourceCommit      = $reviewedManifest.sourceCommit
         sourceManifestSha256 = (Get-FileHash $ReleaseManifest -Algorithm SHA256).Hash.ToLowerInvariant()
         packages          = @($packageManifest | Sort-Object packageId, assembly)
         msbuildFiles      = @($msbuildManifest | Sort-Object packageId, packagePath)
