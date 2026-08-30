@@ -158,6 +158,69 @@ internal sealed class DisposableDisconnectClearsPlatformViewHandler
 	}
 }
 
+internal sealed class NativeFaithfulDisposableContainerHandler : IViewHandler, IDisposable
+{
+	readonly IDisposable _platformResource;
+
+	public NativeFaithfulDisposableContainerHandler(
+		IDisposable platformView,
+		IDisposable containerView)
+	{
+		_platformResource = platformView;
+		PlatformView = platformView;
+		ContainerView = containerView;
+	}
+
+	public bool HasContainer { get; set; } = true;
+
+	public object? ContainerView { get; private set; }
+
+	public object? PlatformView { get; private set; }
+
+	public IView? VirtualView { get; private set; }
+
+	public IMauiContext? MauiContext { get; private set; }
+
+	IElement? IElementHandler.VirtualView => VirtualView;
+
+	public int DisconnectCount { get; private set; }
+
+	public int DisposeCount { get; private set; }
+
+	public void DisconnectHandler()
+	{
+		DisconnectCount++;
+		PlatformView = null;
+		ContainerView = null;
+	}
+
+	public void Dispose()
+	{
+		DisposeCount++;
+		_platformResource.Dispose();
+		(ContainerView as IDisposable)?.Dispose();
+		DisconnectHandler();
+	}
+
+	public Size GetDesiredSize(double widthConstraint, double heightConstraint) => Size.Zero;
+
+	public void Invoke(string command, object? args)
+	{
+	}
+
+	public void PlatformArrange(Rect frame)
+	{
+	}
+
+	public void SetMauiContext(IMauiContext mauiContext) => MauiContext = mauiContext;
+
+	public void SetVirtualView(IElement view) => VirtualView = view as IView;
+
+	public void UpdateValue(string property)
+	{
+	}
+}
+
 /// <summary>
 /// A minimal <see cref="IMauiContext"/> backed by a real service provider so that scoped
 /// resolution behaves the way it does in a hosted app.

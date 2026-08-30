@@ -126,6 +126,11 @@ Page release also distinguishes handler ownership from native-view ownership. If
 `IDisposable` handler no longer references the captured platform view, the handler is disposed
 first and the orphaned captured view is then released independently. A stack-disposed flag prevents
 double release, and a newer `Page.Handler` is never cleared.
+
+That ownership is recorded when realization chooses either `IViewHandler.ContainerView` or
+`IElementHandler.PlatformView`. Release checks both live handler properties: a distinct container
+still owned by a disposable handler is left to that handler, while a disconnected handler that no
+longer references the capture cannot leak it.
   Keeping them would fire the page lifecycle events twice.
 - `_platformModalPages.Add/Remove` — the framework owns the platform stack and updates it *before*
   awaiting the platform, which is why `PushModalAsync` receives a page that is already on

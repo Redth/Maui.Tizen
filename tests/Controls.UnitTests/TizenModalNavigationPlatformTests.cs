@@ -747,6 +747,70 @@ public class TizenModalNavigationPlatformTests
 	}
 
 	[Fact]
+	public void LiveDisposableContainerHandlerOwnsItsDistinctCapturedContainer()
+	{
+		var platformView = new FakeModalPageRealizer.FakePlatformView();
+		var containerView = new FakeModalPageRealizer.FakePlatformView();
+		var handler = new NativeFaithfulDisposableContainerHandler(platformView, containerView);
+		var target = StubMauiContext.WithHandlers(new StubHandlersFactory(() => handler));
+		var page = new ContentPage();
+		var realizer = new TizenModalPageRealizer();
+		var captured = realizer.Realize(page, target);
+
+		Assert.Same(containerView, captured);
+
+		realizer.Release(page, captured, platformViewDisposed: false);
+
+		Assert.Equal(1, handler.DisposeCount);
+		Assert.Equal(1, platformView.DisposeCount);
+		Assert.Equal(1, containerView.DisposeCount);
+		Assert.Null(((Element)page).Handler);
+	}
+
+	[Fact]
+	public void ReplacedDisposableContainerHandlerReleasesOrphanedCaptureAndPreservesNewerHandler()
+	{
+		var platformView = new FakeModalPageRealizer.FakePlatformView();
+		var containerView = new FakeModalPageRealizer.FakePlatformView();
+		var oldHandler = new NativeFaithfulDisposableContainerHandler(platformView, containerView);
+		var target = StubMauiContext.WithHandlers(new StubHandlersFactory(() => oldHandler));
+		var page = new ContentPage();
+		var realizer = new TizenModalPageRealizer();
+		var captured = realizer.Realize(page, target);
+
+		oldHandler.DisconnectHandler();
+		var replacement = new StubViewHandler(page, mauiContext: target);
+		((Element)page).Handler = replacement;
+
+		realizer.Release(page, captured, platformViewDisposed: false);
+
+		Assert.Equal(1, oldHandler.DisposeCount);
+		Assert.Equal(1, platformView.DisposeCount);
+		Assert.Equal(1, containerView.DisposeCount);
+		Assert.Same(replacement, ((Element)page).Handler);
+	}
+
+	[Fact]
+	public void StackDisposedContainerIsNotDisposedAgainWhileOtherHandlerResourcesAreReleased()
+	{
+		var platformView = new FakeModalPageRealizer.FakePlatformView();
+		var containerView = new FakeModalPageRealizer.FakePlatformView();
+		var handler = new NativeFaithfulDisposableContainerHandler(platformView, containerView);
+		var target = StubMauiContext.WithHandlers(new StubHandlersFactory(() => handler));
+		var page = new ContentPage();
+		var realizer = new TizenModalPageRealizer();
+		var captured = realizer.Realize(page, target);
+		containerView.Dispose();
+
+		realizer.Release(page, captured, platformViewDisposed: true);
+
+		Assert.Equal(1, handler.DisposeCount);
+		Assert.Equal(1, platformView.DisposeCount);
+		Assert.Equal(1, containerView.DisposeCount);
+		Assert.Null(((Element)page).Handler);
+	}
+
+	[Fact]
 	public void ReleaseDisposesTheCapturedLiveViewBeforeClearingThePageHandler()
 	{
 		var nativeView = new FakeModalPageRealizer.FakePlatformView();

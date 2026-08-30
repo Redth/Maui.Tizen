@@ -22,7 +22,14 @@ namespace Microsoft.Maui.Platforms.Tizen
 	/// </remarks>
 	public sealed class TizenModalPageRealizer : ITizenModalPageRealizer
 	{
-		readonly ConditionalWeakTable<object, IElementHandler> _owners = new();
+		sealed class HandlerOwnership
+		{
+			public required IElementHandler Handler { get; init; }
+			public bool CapturedFromContainer { get; init; }
+			public bool CapturedFromPlatformView { get; init; }
+		}
+
+		readonly ConditionalWeakTable<object, HandlerOwnership> _owners = new();
 
 		/// <inheritdoc/>
 		public object Realize(Page page, IMauiContext mauiContext)
@@ -75,8 +82,9 @@ namespace Microsoft.Maui.Platforms.Tizen
 					handler.SetVirtualView(page);
 				}
 
-				var platformView = (handler as IViewHandler)?.ContainerView
-					?? handler.PlatformView;
+				var containerView = (handler as IViewHandler)?.ContainerView;
+				var handlerPlatformView = containerView is null ? handler.PlatformView : null;
+				var platformView = containerView ?? handlerPlatformView;
 
 				if (platformView is null)
 				{
@@ -85,7 +93,12 @@ namespace Microsoft.Maui.Platforms.Tizen
 				}
 
 				_owners.Remove(platformView);
-				_owners.Add(platformView, handler);
+				_owners.Add(platformView, new HandlerOwnership
+				{
+					Handler = handler,
+					CapturedFromContainer = ReferenceEquals(containerView, platformView),
+					CapturedFromPlatformView = ReferenceEquals(handlerPlatformView, platformView),
+				});
 				return platformView;
 			}
 			catch (Exception realizationFailure) when (handler is not null && ownsHandler)
@@ -110,8 +123,11 @@ namespace Microsoft.Maui.Platforms.Tizen
 			ArgumentNullException.ThrowIfNull(page);
 			ArgumentNullException.ThrowIfNull(platformView);
 
-			var handler = _owners.TryGetValue(platformView, out var owner)
-				? owner
+			var ownership = _owners.TryGetValue(platformView, out var storedOwnership)
+				? storedOwnership
+				: null;
+			var handler = ownership is not null
+				? ownership.Handler
 				: page.Handler;
 			_owners.Remove(platformView);
 
@@ -126,13 +142,18 @@ namespace Microsoft.Maui.Platforms.Tizen
 			}
 
 			List<Exception>? failures = null;
-			var handlerOwnsCapturedView = true;
+			var handlerOwnsCapturedView = ownership is null
+				|| ownership.CapturedFromContainer
+				|| ownership.CapturedFromPlatformView;
 
 			try
 			{
-				// Capture ownership before cleanup. A handler that was already disconnected can
-				// have PlatformView == null even though this release still owns the old view.
-				handlerOwnsCapturedView = ReferenceEquals(handler.PlatformView, platformView);
+				// Container handlers can return a distinct wrapper from PlatformView. Either
+				// property proves the handler still owns the captured view.
+				handlerOwnsCapturedView =
+					ReferenceEquals(handler.PlatformView, platformView)
+					|| (handler is IViewHandler viewHandler
+						&& ReferenceEquals(viewHandler.ContainerView, platformView));
 			}
 			catch (Exception ex)
 			{
@@ -152,6 +173,33 @@ namespace Microsoft.Maui.Platforms.Tizen
 					catch (Exception ex)
 					{
 						(failures ??= new()).Add(ex);
+					}
+
+					var stillOwnsDisposedView = true;
+					try
+					{
+						stillOwnsDisposedView =
+							ReferenceEquals(handler.PlatformView, platformView)
+							|| (handler is IViewHandler viewHandler
+								&& ReferenceEquals(viewHandler.ContainerView, platformView));
+					}
+					catch (Exception ex)
+					{
+						(failures ??= new()).Add(ex);
+					}
+
+					if (!stillOwnsDisposedView)
+					{
+						try
+						{
+							// Disconnect released the stack-owned capture. Dispose can now release
+							// the handler's remaining resources without touching it twice.
+							disposableHandler.Dispose();
+						}
+						catch (Exception ex)
+						{
+							(failures ??= new()).Add(ex);
+						}
 					}
 				}
 				else
