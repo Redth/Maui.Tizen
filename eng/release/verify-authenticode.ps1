@@ -23,11 +23,19 @@ try {
     foreach ($package in Get-ChildItem -LiteralPath $PackagesDirectory -Filter '*.nupkg' | Sort-Object Name) {
         $packageRoot = Join-Path $tempRoot $package.BaseName
         [System.IO.Compression.ZipFile]::ExtractToDirectory($package.FullName, $packageRoot)
+        $nuspec = @(Get-ChildItem -LiteralPath $packageRoot -Filter '*.nuspec')
+        if ($nuspec.Count -ne 1) {
+            throw "Shipping package $($package.Name) does not contain exactly one root nuspec."
+        }
+        [xml]$nuspecXml = Get-Content -LiteralPath $nuspec[0].FullName -Raw
+        $packageId = [string]$nuspecXml.package.metadata.id
 
         $binaries = @()
         foreach ($binary in Get-ChildItem -LiteralPath $packageRoot -Recurse -Filter '*.dll' | Sort-Object FullName) {
             $relative = [System.IO.Path]::GetRelativePath($packageRoot, $binary.FullName).Replace('\', '/')
-            if (($relative -split '/')[0] -notin @('lib', 'ref', 'runtimes', 'tasks', 'tools')) {
+            $root = ($relative -split '/')[0]
+            $isPackageTaskAssembly = $relative -ieq "buildTransitive/$packageId.dll"
+            if ($root -notin @('lib', 'ref', 'runtimes', 'tasks', 'tools') -and -not $isPackageTaskAssembly) {
                 continue
             }
 

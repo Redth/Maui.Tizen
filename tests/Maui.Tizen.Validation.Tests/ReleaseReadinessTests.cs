@@ -352,6 +352,8 @@ public class ReleaseWorkflowSecurityTests
                 "generate-release-api-baseline.ps1"));
         var contract = File.ReadAllText(
             Path.Combine(RepoLayout.Root, "eng", "release", "release-contract.py"));
+        var authenticode = File.ReadAllText(
+            Path.Combine(RepoLayout.Root, "eng", "release", "verify-authenticode.ps1"));
 
         Assert.Contains(
             "$normalized -ieq \"buildTransitive/$id.dll\"",
@@ -360,6 +362,10 @@ public class ReleaseWorkflowSecurityTests
         Assert.Contains(
             "f\"buildtransitive/{package_id}.dll\"",
             contract,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "$relative -ieq \"buildTransitive/$packageId.dll\"",
+            authenticode,
             StringComparison.Ordinal);
     }
 

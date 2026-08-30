@@ -83,7 +83,12 @@ with zipfile.ZipFile(path, "w") as archive:
     archive.writestr(f"{package_id}.nuspec", nuspec)
     archive.writestr("README.md", "test\n")
     if kind == "package":
-        archive.writestr(f"lib/net11.0-tizen11.0/{package_id}.dll", b"MZ synthetic dll")
+        if package_id == "Maui.Tizen.Build.Tasks":
+            archive.writestr("buildTransitive/Maui.Tizen.Build.Tasks.dll", b"MZ synthetic task dll")
+        elif package_id == "Maui.Tizen.Templates":
+            archive.writestr("content/templates/maui-tizen/.template.config/template.json", b"{}")
+        else:
+            archive.writestr(f"lib/net11.0-tizen11.0/{package_id}.dll", b"MZ synthetic dll")
     if signed == "true":
         archive.writestr(".signature.p7s", b"synthetic signature")
 PY
@@ -734,7 +739,6 @@ import sys
 import zipfile
 
 with zipfile.ZipFile(sys.argv[1], "a") as archive:
-    archive.writestr("buildTransitive/Maui.Tizen.Build.Tasks.dll", b"MZ task assembly")
     archive.writestr("buildTransitive/libSkiaSharp.dll", b"native dependency")
 PY
 expect_success "release package inspection includes only the package-owned buildTransitive task assembly" \
