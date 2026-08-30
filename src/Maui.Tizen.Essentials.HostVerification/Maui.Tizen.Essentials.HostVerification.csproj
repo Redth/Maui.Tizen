@@ -1,0 +1,70 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Workload-free verification harness for the Tizen Essentials sources.
+
+    THIS IS NOT A NEUTRAL FALLBACK FOR THE SHIPPING PACKAGE.
+
+    src/Maui.Tizen.Essentials remains gated on the Samsung .NET 11 workload and still
+    fails with MAUITIZEN0001 without it, exactly as Directory.Build.targets intends. This
+    project exists so that gate does not also make the ported implementation unverifiable:
+    it compiles the SAME source files against plain net11.0 plus the Tizen.NET NuGet
+    package, which carries the same managed Tizen assemblies the workload's reference pack
+    does.
+
+    What this proves:
+      * the ported sources compile against the real Tizen and MAUI APIs;
+      * the DI registrations, facade/MainThread ownership rules and every managed-only
+        translation path behave correctly (see tests/Maui.Tizen.Essentials.Tests).
+
+    What this deliberately does NOT prove, and must never be read as proving:
+      * that anything which P/Invokes into Tizen works. That needs a device or emulator.
+      * that a shippable Tizen assembly can be produced. That needs the workload.
+
+    Consequently this project is never packable, never published, and is not a
+    ProjectReference target for any Tizen project.
+  -->
+
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Essentials.Sources.props" />
+
+  <PropertyGroup>
+    <TargetFramework>$(DotNetTfm)</TargetFramework>
+    <IsTizenProject>false</IsTizenProject>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>Maui.Tizen.Essentials.HostVerification</AssemblyName>
+    <RootNamespace>Microsoft.Maui.Platforms.Tizen.Essentials</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <SkipBaselineValidation>true</SkipBaselineValidation>
+    <!-- The sources are Tizen-only; mirror the constant the Tizen lane defines. -->
+    <DefineConstants>$(DefineConstants);TIZEN</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="@(MauiTizenEssentialsCompile)" LinkBase="Maui.Tizen.Essentials" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Essentials" />
+    <PackageReference Include="Microsoft.Maui.Core" />
+    <!--
+      The workload's Samsung.Tizen.Ref.API15 reference pack is not installable, so the
+      equivalent managed assemblies are consumed from the Tizen.NET package instead. Only
+      this harness references it; the shipping project uses the workload.
+    -->
+    <!--
+      build/buildTransitive assets are excluded on purpose. They exist to configure a real
+      Tizen application build (framework resolution overrides, a NUI XAML compilation step)
+      and are wrong for a plain net11.0 verification harness. The NUI XAML step also emits
+      an informational message as a warning with no warning code, which NoWarn cannot reach
+      and CI would turn into an error. Only the compile-time assemblies are needed here.
+    -->
+    <PackageReference Include="Tizen.NET" ExcludeAssets="build;buildTransitive;analyzers" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Maui.Tizen.Essentials.Tests" />
+  </ItemGroup>
+
+</Project>

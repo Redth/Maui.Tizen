@@ -142,6 +142,9 @@ public static class ReferencePackProbe
                 continue;
 
             var properties = new List<string>();
+            var methods = type.GetMethods()
+                .Select(handle => reader.GetString(reader.GetMethodDefinition(handle).Name))
+                .ToList();
             var obsolete = new Dictionary<string, string>(StringComparer.Ordinal);
 
             foreach (var propertyHandle in type.GetProperties())
@@ -154,7 +157,7 @@ public static class ReferencePackProbe
                     obsolete[propertyName] = message;
             }
 
-            return new TypeMembers(fullName, properties, obsolete);
+            return new TypeMembers(fullName, properties, methods, obsolete);
         }
 
         return null;
@@ -231,9 +234,12 @@ public static class ReferencePackProbe
 public sealed record TypeMembers(
     string FullName,
     IReadOnlyList<string> Properties,
+    IReadOnlyList<string> Methods,
     IReadOnlyDictionary<string, string> ObsoleteMembers)
 {
     public bool HasProperty(string name) => Properties.Contains(name, StringComparer.Ordinal);
+
+    public bool HasMethod(string name) => Methods.Contains(name, StringComparer.Ordinal);
 
     public bool IsObsolete(string name) => ObsoleteMembers.ContainsKey(name);
 }

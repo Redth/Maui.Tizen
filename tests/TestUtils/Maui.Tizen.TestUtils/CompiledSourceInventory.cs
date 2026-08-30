@@ -7,11 +7,10 @@ namespace Maui.Tizen.TestUtils;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This distinction is the whole point of the API15 source guards. The <c>src/Maui.Tizen.*</c>
-/// sources were imported verbatim from dotnet/maui and are currently listed as <c>&lt;None&gt;</c>
-/// with <c>EnableDefaultCompileItems=false</c>, so nothing compiles them. Scanning those files for
-/// banned APIs would produce hundreds of failures describing upstream history rather than anything
-/// this repository has adopted, and the only way to get green would be to disable the guard.
+/// This distinction is the whole point of the API15 source guards. The raw imports share
+/// directories with adopted code. Core, Controls and Essentials keep default globbing disabled and
+/// include explicit shared source manifests, while unported projects still compile nothing.
+/// Scanning every file would report upstream history rather than the shipping closure.
 /// </para>
 /// <para>
 /// So the guard follows compilation: a file is in scope exactly when a project compiles it, and a
@@ -45,24 +44,13 @@ public static class CompiledSourceInventory
         ArgumentException.ThrowIfNullOrEmpty(projectPath);
 
         var projectDirectory = Path.GetDirectoryName(Path.GetFullPath(projectPath))!;
-        var document = XDocument.Load(projectPath);
+        var model = ProjectModel.Load(projectPath);
+        var defaultItemsEnabled = model.GetBooleanProperty("EnableDefaultCompileItems", defaultValue: true);
 
-        var defaultItemsEnabled = ResolveDefaultCompileItems(projectPath, document);
-
-        var includes = new List<string>();
-        var removes = new List<string>();
-
-        foreach (var item in document.Descendants().Where(e => e.Name.LocalName == "Compile"))
-        {
-            if (item.Attribute("Include")?.Value is { Length: > 0 } include)
-                includes.AddRange(SplitItemList(include));
-
-            if (item.Attribute("Update")?.Value is { Length: > 0 } update)
-                includes.AddRange(SplitItemList(update));
-
-            if (item.Attribute("Remove")?.Value is { Length: > 0 } remove)
-                removes.AddRange(SplitItemList(remove));
-        }
+        var includes = model.GetItems("Compile", "Include")
+            .Concat(model.GetItems("Compile", "Update"))
+            .ToList();
+        var removes = model.GetItems("Compile", "Remove").ToList();
 
         var files = new SortedSet<string>(StringComparer.Ordinal);
 
@@ -90,54 +78,6 @@ public static class CompiledSourceInventory
     /// <summary>Compiled source sets for every product project.</summary>
     public static IReadOnlyList<CompiledSourceSet> ForAllProductProjects() =>
         [.. EnumerateProductProjects().Select(ForProject)];
-
-    /// <summary>
-    /// Resolves the effective <c>EnableDefaultCompileItems</c>.
-    /// </summary>
-    /// <remarks>
-    /// The project's own value wins. Otherwise any props file it imports is consulted, which is how
-    /// <c>eng/targets/TizenPackage.props</c> turns default items off for the imported packages.
-    /// Absent both, the SDK default of <see langword="true"/> applies.
-    /// </remarks>
-    static bool ResolveDefaultCompileItems(string projectPath, XDocument document)
-    {
-        var own = ReadProperty(document, "EnableDefaultCompileItems");
-        if (own is not null)
-            return IsTrue(own);
-
-        var projectDirectory = Path.GetDirectoryName(Path.GetFullPath(projectPath))!;
-
-        foreach (var import in document.Descendants().Where(e => e.Name.LocalName == "Import"))
-        {
-            var raw = import.Attribute("Project")?.Value;
-            if (string.IsNullOrEmpty(raw))
-                continue;
-
-            // Only $(MSBuildThisFileDirectory)-relative imports are resolvable without evaluation.
-            var relative = raw.Replace("$(MSBuildThisFileDirectory)", string.Empty, StringComparison.Ordinal);
-            var importPath = Path.GetFullPath(Path.Combine(projectDirectory, relative));
-
-            if (!File.Exists(importPath))
-                continue;
-
-            var imported = ReadProperty(XDocument.Load(importPath), "EnableDefaultCompileItems");
-            if (imported is not null)
-                return IsTrue(imported);
-        }
-
-        return true;
-    }
-
-    static string? ReadProperty(XDocument document, string name) =>
-        document.Descendants()
-            .Where(e => e.Name.LocalName == name && e.Parent?.Name.LocalName == "PropertyGroup")
-            .Select(e => e.Value.Trim())
-            .LastOrDefault();
-
-    static bool IsTrue(string value) => string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
-
-    static IEnumerable<string> SplitItemList(string value) =>
-        value.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     static IEnumerable<string> EnumerateSourceFiles(string directory) =>
         Directory.EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories)
@@ -172,6 +112,141 @@ public static class CompiledSourceInventory
     {
         var normalized = "/" + path.Replace('\\', '/').Trim('/') + "/";
         return ExcludedDirectorySegments.Any(s => normalized.Contains(s, StringComparison.OrdinalIgnoreCase));
+    }
+
+    sealed class ProjectModel
+    {
+        readonly Dictionary<string, string> _properties = new(StringComparer.OrdinalIgnoreCase);
+        readonly Dictionary<string, List<XElement>> _items = new(StringComparer.OrdinalIgnoreCase);
+        readonly HashSet<string> _visited = new(StringComparer.OrdinalIgnoreCase);
+
+        ProjectModel(string projectPath)
+        {
+            _properties["RepositoryRoot"] = RepoLayout.Root + Path.DirectorySeparatorChar;
+            Visit(Path.GetFullPath(projectPath));
+        }
+
+        public static ProjectModel Load(string projectPath) => new(projectPath);
+
+        public bool GetBooleanProperty(string name, bool defaultValue) =>
+            _properties.TryGetValue(name, out var value)
+                ? string.Equals(value, "true", StringComparison.OrdinalIgnoreCase)
+                : defaultValue;
+
+        public IEnumerable<string> GetItems(string itemName, string attributeName)
+        {
+            if (!_items.TryGetValue(itemName, out var items))
+                yield break;
+
+            foreach (var item in items)
+            {
+                if (item.Attribute(attributeName)?.Value is not { Length: > 0 } value)
+                    continue;
+
+                foreach (var expanded in ExpandItemExpression(value))
+                    yield return expanded;
+            }
+        }
+
+        void Visit(string path)
+        {
+            if (!File.Exists(path) || !_visited.Add(path))
+                return;
+
+            var directory = Path.GetDirectoryName(path)! + Path.DirectorySeparatorChar;
+            var document = XDocument.Load(path);
+
+            foreach (var element in document.Root?.Elements() ?? [])
+            {
+                switch (element.Name.LocalName)
+                {
+                    case "PropertyGroup":
+                        foreach (var property in element.Elements())
+                        {
+                            // The inventory cannot evaluate arbitrary MSBuild conditions. These
+                            // source manifests only use "set when empty", for which retaining the
+                            // first value is the faithful result.
+                            if (property.Attribute("Condition") is not null &&
+                                _properties.ContainsKey(property.Name.LocalName))
+                            {
+                                continue;
+                            }
+
+                            _properties[property.Name.LocalName] =
+                                ExpandProperties(property.Value.Trim(), directory);
+                        }
+                        break;
+
+                    case "Import":
+                        if (element.Attribute("Project")?.Value is { Length: > 0 } import)
+                        {
+                            var importPath = ExpandProperties(import, directory);
+                            if (!Path.IsPathRooted(importPath))
+                                importPath = Path.Combine(directory, importPath);
+                            Visit(Path.GetFullPath(importPath));
+                        }
+                        break;
+
+                    case "ItemGroup":
+                        foreach (var item in element.Elements())
+                        {
+                            var clone = new XElement(item);
+                            foreach (var attribute in clone.Attributes().ToList())
+                                attribute.Value = ExpandProperties(attribute.Value, directory);
+
+                            if (!_items.TryGetValue(item.Name.LocalName, out var values))
+                                _items[item.Name.LocalName] = values = [];
+                            values.Add(clone);
+                        }
+                        break;
+                }
+            }
+        }
+
+        IEnumerable<string> ExpandItemExpression(string value)
+        {
+            foreach (var component in value.Split(
+                ';',
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (component.StartsWith("@(", StringComparison.Ordinal) &&
+                    component.EndsWith(')'))
+                {
+                    var itemName = component[2..^1];
+                    foreach (var item in GetItems(itemName, "Include"))
+                        yield return item;
+                }
+                else
+                {
+                    yield return component;
+                }
+            }
+        }
+
+        string ExpandProperties(string value, string currentDirectory)
+        {
+            var expanded = value.Replace(
+                "$(MSBuildThisFileDirectory)",
+                currentDirectory,
+                StringComparison.OrdinalIgnoreCase);
+
+            for (var pass = 0; pass < 8; pass++)
+            {
+                var before = expanded;
+                foreach (var (name, propertyValue) in _properties)
+                {
+                    expanded = expanded.Replace(
+                        $"$({name})",
+                        propertyValue,
+                        StringComparison.OrdinalIgnoreCase);
+                }
+
+                if (expanded == before)
+                    break;
+            }
+
+            return expanded;
+        }
     }
 }
 

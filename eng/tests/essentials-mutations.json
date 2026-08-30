@@ -1,0 +1,579 @@
+[
+  {
+    "id": "controls-startup-omits-essentials",
+    "file": "src/Maui.Tizen.Controls/Hosting/TizenControlsMauiAppBuilderExtensions.cs",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "mode": "source",
+    "filter": "FullyQualifiedName~ControlsProductionCompositionIncludesEssentialsExactlyOnce",
+    "expected": "ControlsProductionCompositionIncludesEssentialsExactlyOnce",
+    "replacements": [
+      {
+        "search": "\t\t\tbuilder.AddTizenEssentials();\n",
+        "replace": ""
+      }
+    ]
+  },
+  {
+    "id": "battery-service-is-shadowed",
+    "file": "src/Maui.Tizen.Essentials/Hosting/TizenEssentialsMauiAppBuilderExtensions.cs",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "mode": "source",
+    "filter": "FullyQualifiedName~EssentialsRegistrationReplacesRatherThanShadowsPlatformServices",
+    "expected": "EssentialsRegistrationReplacesRatherThanShadowsPlatformServices",
+    "replacements": [
+      {
+        "search": "\t\t\tReplaceSingleton<IBattery, TizenBattery>(services);",
+        "replace": "\t\t\tservices.TryAddSingleton<IBattery, TizenBattery>();"
+      }
+    ]
+  },
+  {
+    "id": "essentials-source-closure-drops-share",
+    "file": "eng/Maui.Tizen.Essentials.Sources.props",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "mode": "source",
+    "filter": "FullyQualifiedName~SharedSourceClosureMatchesEveryShippingEssentialsSource",
+    "expected": "SharedSourceClosureMatchesEveryShippingEssentialsSource",
+    "replacements": [
+      {
+        "search": "    <MauiTizenEssentialsCompile Include=\"$(MauiTizenEssentialsDir)Share/TizenShare.cs\" />\n",
+        "replace": ""
+      }
+    ]
+  },
+  {
+    "id": "shipping-essentials-docs-disabled",
+    "file": "src/Maui.Tizen.Essentials/Maui.Tizen.Essentials.csproj",
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "mode": "source",
+    "filter": "FullyQualifiedName~ShippingAssembliesGenerateDocumentation",
+    "expected": "ShippingAssembliesGenerateDocumentation",
+    "replacements": [
+      {
+        "search": "    <MauiTizenGeneratesDocumentation>true</MauiTizenGeneratesDocumentation>",
+        "replace": "    <MauiTizenGeneratesDocumentation>false</MauiTizenGeneratesDocumentation>"
+      }
+    ]
+  },
+  {
+    "id": "essentials-analyzer-drops-buildtransitive",
+    "file": "tests/Maui.Tizen.Essentials.RefPackCompile/Maui.Tizen.Essentials.RefPackCompile.csproj",
+    "project": "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj",
+    "mode": "source",
+    "filter": "FullyQualifiedName~TheAnalyzerAssetSetMatchesBetweenProductAndVerificationLanes",
+    "expected": "TheAnalyzerAssetSetMatchesBetweenProductAndVerificationLanes",
+    "replacements": [
+      {
+        "search": "runtime; build; native; contentfiles; analyzers; buildtransitive",
+        "replace": "runtime; build; native; contentfiles; analyzers"
+      }
+    ]
+  },
+  {
+    "id": "api15-geocoding-marked-unregistered",
+    "file": "eng/validation/api15-contract.json",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "mode": "source",
+    "filter": "FullyQualifiedName~Api15GeocodingContractMatchesTheRegisteredUnsupportedService",
+    "expected": "Api15GeocodingContractMatchesTheRegisteredUnsupportedService",
+    "replacements": [
+      {
+        "search": "\"doNotRegisterInDi\": false",
+        "replace": "\"doNotRegisterInDi\": true"
+      }
+    ]
+  },
+  {
+    "id": "migration-reverts-essentials-status",
+    "file": "docs/migration.md",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "mode": "source",
+    "filter": "FullyQualifiedName~MigrationDocumentationRecordsMergedHandlersAndImplementedEssentials",
+    "expected": "MigrationDocumentationRecordsMergedHandlersAndImplementedEssentials",
+    "replacements": [
+      {
+        "search": "**Implemented and host/API15 tested; two external MAUI API blockers remain**",
+        "replace": "Not started"
+      }
+    ]
+  },
+  {
+    "id": "preferences-writes-native-unsupported-long",
+    "file": "src/Maui.Tizen.Essentials/Preferences/TizenPreferences.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~PreferencesEncodeLongAndDateTimeThroughNativeSupportedStrings",
+    "expected": "PreferencesEncodeLongAndDateTimeThroughNativeSupportedStrings",
+    "replacements": [
+      {
+        "search": "\t\t\t\tcase long longValue:\n\t\t\t\t\t_store.Set(fullKey, LongPrefix + longValue.ToString(CultureInfo.InvariantCulture));",
+        "replace": "\t\t\t\tcase long longValue:\n\t\t\t\t\t_store.Set(fullKey, longValue);"
+      }
+    ]
+  },
+  {
+    "id": "secure-storage-accepts-foreign-qualified-owner",
+    "file": "src/Maui.Tizen.Essentials/SecureStorage/TizenSecureStorage.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~RecognisesOnlyItsOwnSecureStorageAliases",
+    "expected": "RecognisesOnlyItsOwnSecureStorageAliases",
+    "replacements": [
+      {
+        "search": "return !string.IsNullOrEmpty(currentPackageId) &&\n\t\t\t\talias.AsSpan(0, separator).Equals(currentPackageId, StringComparison.Ordinal) &&",
+        "replace": "return true &&"
+      }
+    ]
+  },
+  {
+    "id": "secure-storage-skips-rollback",
+    "file": "src/Maui.Tizen.Essentials/SecureStorage/TizenSecureStorage.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~SecureStorageReplacementRestoresV1AndV2WhenCommitFails",
+    "expected": "SecureStorageReplacementRestoresV1AndV2WhenCommitFails",
+    "replacements": [
+      {
+        "search": "\t\t\t\tRestore(alias, hadCurrent, previousCurrent, restoreFailures);",
+        "replace": "\t\t\t\t// mutation: skip current alias restoration"
+      }
+    ]
+  },
+  {
+    "id": "clipboard-bypasses-dispatcher",
+    "file": "src/Maui.Tizen.Essentials/Clipboard/TizenClipboard.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~TextOperationsAndCallbacksStayOnTheDispatcher",
+    "expected": "TextOperationsAndCallbacksStayOnTheDispatcher",
+    "replacements": [
+      {
+        "search": "var accepted = await _dispatcher.InvokeAsync(() =>\n\t\t\t{\n\t\t\t\tlock (_locker)\n\t\t\t\t\tObjectDisposedException.ThrowIf(_disposed, this);\n\t\t\t\treturn _native.SetText(text ?? string.Empty);\n\t\t\t}).ConfigureAwait(false);",
+        "replace": "var accepted = _native.SetText(text ?? string.Empty);"
+      }
+    ]
+  },
+  {
+    "id": "passkey-native-probe-ignores-feature",
+    "file": "src/Maui.Tizen.Essentials/Passkeys/TizenPasskeys.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~PasskeysDetectTheApi15NativeAuthenticator",
+    "expected": "PasskeysDetectTheApi15NativeAuthenticator",
+    "replacements": [
+      {
+        "search": "return getFeature() &&\n\t\t\t\t\tgetAuthenticators() != global::Tizen.Security.WebAuthn.AuthenticatorTransport.None;",
+        "replace": "return getAuthenticators() != global::Tizen.Security.WebAuthn.AuthenticatorTransport.None;"
+      }
+    ]
+  },
+  {
+    "id": "passkey-external-blocker-marked-resolved",
+    "file": "eng/validation/essentials-external-blockers.json",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "mode": "source",
+    "filter": "FullyQualifiedName~ExactExternalMauiApiBlockersRemainMachineReadable",
+    "expected": "ExactExternalMauiApiBlockersRemainMachineReadable",
+    "replacements": [
+      {
+        "search": "\"id\": \"maui-passkey-response-factory\",\n      \"status\": \"active\"",
+        "replace": "\"id\": \"maui-passkey-response-factory\",\n      \"status\": \"resolved\""
+      }
+    ]
+  },
+  {
+    "id": "file-result-external-blocker-marked-resolved",
+    "file": "eng/validation/essentials-external-blockers.json",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "mode": "source",
+    "filter": "FullyQualifiedName~ExactExternalMauiApiBlockersRemainMachineReadable",
+    "expected": "ExactExternalMauiApiBlockersRemainMachineReadable",
+    "replacements": [
+      {
+        "search": "\"id\": \"maui-file-result-path-open\",\n      \"status\": \"active\"",
+        "replace": "\"id\": \"maui-file-result-path-open\",\n      \"status\": \"resolved\""
+      }
+    ]
+  },
+  {
+    "id": "tts-queries-speed-after-prepare",
+    "file": "src/Maui.Tizen.Essentials/TextToSpeech/TizenTextToSpeech.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~TextToSpeechCachesSpeedRangeBeforePrepareAndAppliesRateWhenReady",
+    "expected": "TextToSpeechCachesSpeedRangeBeforePrepareAndAppliesRateWhenReady",
+    "replacements": [
+      {
+        "search": "\t\t\tstate.SpeedRange = client.GetSpeedRange();",
+        "replace": "\t\t\tstate.SpeedRange = new(-10, 0, 20);"
+      }
+    ]
+  },
+  {
+    "id": "sensor-wrapper-stops-shared-native-early",
+    "file": "src/Maui.Tizen.Essentials/Types/TizenSensorBase.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~MultipleWrappersShareOneNativeLifetime",
+    "expected": "MultipleWrappersShareOneNativeLifetime",
+    "replacements": [
+      {
+        "search": "\t\t\t\tif (_registrations.Count == 0)\n\t\t\t\t{\n\t\t\t\t\tTryCleanup(() => stop(_sensor), failures);",
+        "replace": "\t\t\t\tif (_registrations.Count >= 0)\n\t\t\t\t{\n\t\t\t\t\tTryCleanup(() => stop(_sensor), failures);"
+      }
+    ]
+  },
+  {
+    "id": "native-callback-skips-retirement-recheck",
+    "file": "src/Maui.Tizen.Essentials/Platform/TizenNativeCallbackCoordinator.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~QueuedCallbackRechecksGenerationOrSubscriptionState",
+    "expected": "QueuedCallbackRechecksGenerationOrSubscriptionState",
+    "replacements": [
+      {
+        "search": "\t\t\t\tif (isCurrent())\n\t\t\t\t\tcallback();",
+        "replace": "\t\t\t\tcallback();"
+      }
+    ]
+  },
+  {
+    "id": "screenshot-copies-padding-as-pixels",
+    "file": "src/Maui.Tizen.Essentials/Screenshot/TizenScreenshot.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~CopiesPaddedPixelRowsWithoutIncludingStrideBytes",
+    "expected": "CopiesPaddedPixelRowsWithoutIncludingStrideBytes",
+    "replacements": [
+      {
+        "search": "\t\t\t\t\trow * stride,\n\t\t\t\t\tpixels,",
+        "replace": "\t\t\t\t\trow * rowBytes,\n\t\t\t\t\tpixels,"
+      }
+    ]
+  },
+  {
+    "id": "appcontrol-accepts-duplicate-replies",
+    "file": "src/Maui.Tizen.Essentials/Platform/TizenAppControlReply.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~DuplicateAndLateRepliesAreIgnored",
+    "expected": "DuplicateAndLateRepliesAreIgnored",
+    "replacements": [
+      {
+        "search": "\t\t\t\tif (Interlocked.Exchange(ref settled, 1) != 0)\n\t\t\t\t\treturn;\n\n\t\t\t\ttry\n\t\t\t\t{\n\t\t\t\t\tcompletion.TrySetResult(parse(reply, result));",
+        "replace": "\t\t\t\ttry\n\t\t\t\t{\n\t\t\t\t\tcompletion.TrySetResult(parse(reply, result));"
+      }
+    ]
+  },
+  {
+    "id": "permission-interprets-error-as-answer",
+    "file": "src/Maui.Tizen.Essentials/Permissions/TizenPermissions.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~PermissionErrorCauseFailsInsteadOfInterpretingResult",
+    "expected": "PermissionErrorCauseFailsInsteadOfInterpretingResult",
+    "replacements": [
+      {
+        "search": "if (cause != global::Tizen.Security.CallCause.Answer)",
+        "replace": "if (cause == global::Tizen.Security.CallCause.Answer && cause != global::Tizen.Security.CallCause.Answer)"
+      }
+    ]
+  },
+  {
+    "id": "connectivity-does-not-rollback-subscription",
+    "file": "src/Maui.Tizen.Essentials/Connectivity/TizenConnectivity.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~ConnectivityRollsBackAPartialNativeSubscription",
+    "expected": "ConnectivityRollsBackAPartialNativeSubscription",
+    "replacements": [
+      {
+        "search": "\t\t\t\t\tunsubscribe();",
+        "replace": "\t\t\t\t\t// mutation: leave partial native subscription"
+      }
+    ]
+  },
+  {
+    "id": "launcher-handler-probe-assumes-non-null",
+    "file": "src/Maui.Tizen.Essentials/Launcher/TizenLauncher.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~LauncherHandlerProbeTreatsNullAndExceptionsAsUnavailable",
+    "expected": "LauncherHandlerProbeTreatsNullAndExceptionsAsUnavailable",
+    "replacements": [
+      {
+        "search": "return getMatches()?.Any() == true;",
+        "replace": "return true;"
+      }
+    ]
+  },
+  {
+    "id": "shake-threshold-rounds-down",
+    "file": "src/Maui.Tizen.Essentials/Accelerometer/TizenAccelerometerQueue.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~UsesExactThreeQuarterThreshold",
+    "expected": "UsesExactThreeQuarterThreshold",
+    "replacements": [
+      {
+        "search": "_acceleratingCount * 4 >= count * 3",
+        "replace": "_acceleratingCount >= (count >> 1) + (count >> 2)"
+      }
+    ]
+  },
+  {
+    "id": "single-share-uses-array-payload",
+    "file": "src/Maui.Tizen.Essentials/Share/TizenShare.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~ShareFilePayloadHandlesOneFile",
+    "expected": "ShareFilePayloadHandlesOneFile",
+    "replacements": [
+      {
+        "search": "\t\t\tif (payload.Paths.Count == 1)\n\t\t\t\taddSingle(TizenAppControlData.Path, payload.Paths[0]);",
+        "replace": "\t\t\tif (payload.Paths.Count == 1)\n\t\t\t\taddMultiple(TizenAppControlData.Path, payload.Paths);"
+      }
+    ]
+  },
+  {
+    "id": "geolocation-ignores-service-enabled-setting",
+    "file": "src/Maui.Tizen.Essentials/Geolocation/TizenGeolocation.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~GeolocationIsEnabledRequiresAnEnabledSupportedService",
+    "expected": "GeolocationIsEnabledRequiresAnEnabledSupportedService",
+    "replacements": [
+      {
+        "search": "return isEnabled(type);",
+        "replace": "return true;"
+      }
+    ]
+  },
+  {
+    "id": "screenshot-zero-stride-not-normalized",
+    "file": "src/Maui.Tizen.Essentials/Screenshot/TizenScreenshot.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~TreatsZeroStrideAsTightlyPacked",
+    "expected": "TreatsZeroStrideAsTightlyPacked",
+    "replacements": [
+      {
+        "search": "\t\t\tvar rowBytes = checked(width * BytesPerPixel(format));\n\t\t\tif (stride == 0)\n\t\t\t\tstride = rowBytes;",
+        "replace": "\t\t\tvar rowBytes = checked(width * BytesPerPixel(format));"
+      }
+    ]
+  },
+  {
+    "id": "screenshot-terminal-allows-second-winner",
+    "file": "src/Maui.Tizen.Essentials/Screenshot/TizenScreenshot.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~FirstTerminalSignalWinsExactlyOnce",
+    "expected": "FirstTerminalSignalWinsExactlyOnce",
+    "replacements": [
+      {
+        "search": "if (Interlocked.CompareExchange(ref _terminal, (int)terminal, 0) != 0)",
+        "replace": "if (Interlocked.Exchange(ref _terminal, (int)terminal) == int.MinValue)"
+      }
+    ]
+  },
+  {
+    "id": "native-callback-second-hop-runs-inline",
+    "file": "src/Maui.Tizen.Essentials/Platform/TizenNativeCallbackCoordinator.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~ProductionDispatcherAddsASecondHopWhenMainThreadDispatchIsInline",
+    "expected": "ProductionDispatcherAddsASecondHopWhenMainThreadDispatchIsInline",
+    "replacements": [
+      {
+        "search": "context.Post(static state => ((Action)state!).Invoke(), action);",
+        "replace": "action();"
+      }
+    ]
+  },
+  {
+    "id": "clipboard-skips-secondary-selection-lifetime",
+    "file": "src/Maui.Tizen.Essentials/Clipboard/TizenClipboard.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~ChangeNotificationIsPostedAndIgnoredAfterUnsubscribe",
+    "expected": "ChangeNotificationIsPostedAndIgnoredAfterUnsubscribe",
+    "replacements": [
+      {
+        "search": "_dispatcher.Invoke(() => _native.StartChangeNotifications(nativeCallback));",
+        "replace": "_dispatcher.Invoke(static () => { });"
+      }
+    ]
+  },
+  {
+    "id": "clipboard-queued-read-ignores-disposal",
+    "file": "src/Maui.Tizen.Essentials/Clipboard/TizenClipboard.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~CancellationBeforeQueuedNativeReadSkipsTheRequest",
+    "expected": "CancellationBeforeQueuedNativeReadSkipsTheRequest",
+    "replacements": [
+      {
+        "search": "if (_disposed || !_pending.ContainsKey(request))",
+        "replace": "if (_disposed && !_pending.ContainsKey(request))"
+      }
+    ]
+  },
+  {
+    "id": "event-generation-delivers-to-replacement",
+    "file": "src/Maui.Tizen.Essentials/Platform/TizenEventSubscriptionCoordinator.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~StaleQueuedEventNeverReachesReplacementSubscriber",
+    "expected": "StaleQueuedEventNeverReachesReplacementSubscriber",
+    "replacements": [
+      {
+        "search": "return !_disposed && _generation == generation && _handlers is not null;",
+        "replace": "return !_disposed && _generation >= generation && _handlers is not null;"
+      },
+      {
+        "search": "if (_disposed || _generation != generation || _handlers is null)\n\t\t\t\t\t\t\treturn;\n\n\t\t\t\t\t\targs = createArgs();",
+        "replace": "if (_disposed || _generation < generation || _handlers is null)\n\t\t\t\t\t\t\treturn;\n\n\t\t\t\t\t\targs = createArgs();"
+      }
+    ]
+  },
+  {
+    "id": "sensor-acquires-before-lifetime-lock",
+    "file": "src/Maui.Tizen.Essentials/Types/TizenSensorBase.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~LastOwnerStopFinishesBeforeNewSensorAcquisition",
+    "expected": "LastOwnerStopFinishesBeforeNewSensorAcquisition",
+    "replacements": [
+      {
+        "search": "\t\t{\n\t\t\tlock (_locker)\n\t\t\t{\n\t\t\t\tif (_registrations.ContainsKey(owner))",
+        "replace": "\t\t{\n\t\t\tvar acquired = acquire();\n\t\t\tlock (_locker)\n\t\t\t{\n\t\t\t\tif (_registrations.ContainsKey(owner))"
+      },
+      {
+        "search": "_sensor ??= acquire();",
+        "replace": "_sensor ??= acquired;"
+      }
+    ]
+  },
+  {
+    "id": "sensor-session-initializes-after-native-start",
+    "file": "src/Maui.Tizen.Essentials/Types/TizenSensorBase.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~SessionStateIsInitializedBeforeNativeStart",
+    "expected": "SessionStateIsInitializedBeforeNativeStart",
+    "replacements": [
+      {
+        "search": "\t\t\t\t\tApplyFastestInterval(_sensor, setInterval);\n\t\t\t\t\tstarted();\n\n\t\t\t\t\tif (first)",
+        "replace": "\t\t\t\t\tApplyFastestInterval(_sensor, setInterval);\n\n\t\t\t\t\tif (first)"
+      }
+    ]
+  },
+  {
+    "id": "tts-null-rate-uses-minimum",
+    "file": "src/Maui.Tizen.Essentials/TextToSpeech/TizenTextToSpeech.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~TextToSpeechUsesNativeNormalWhenRateIsNull",
+    "expected": "TextToSpeechUsesNativeNormalWhenRateIsNull",
+    "replacements": [
+      {
+        "search": "var value = rate ?? RateNormal;",
+        "replace": "var value = rate ?? RateMin;"
+      }
+    ]
+  },
+  {
+    "id": "secure-storage-tombstone-does-not-dominate-current",
+    "file": "src/Maui.Tizen.Essentials/SecureStorage/TizenSecureStorage.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~SecureStorageRemoveFailureIsSurfacedButTombstoneDominates",
+    "expected": "SecureStorageRemoveFailureIsSurfacedButTombstoneDominates",
+    "replacements": [
+      {
+        "search": "if (_tombstones.Contains(key))\n\t\t\t\t\treturn Task.FromResult<string?>(null);",
+        "replace": "if (_tombstones.Contains(key) && !TryGet(ToAlias(key), out _))\n\t\t\t\t\treturn Task.FromResult<string?>(null);"
+      }
+    ]
+  },
+  {
+    "id": "secure-storage-removeall-swallows-enumeration-failure",
+    "file": "src/Maui.Tizen.Essentials/SecureStorage/TizenSecureStorage.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~SecureStorageRemoveAllSurfacesEnumerationFailureAndSuppressesExistingData",
+    "expected": "SecureStorageRemoveAllSurfacesEnumerationFailureAndSuppressesExistingData",
+    "replacements": [
+      {
+        "search": "var aliases = _repository.GetAliases().ToList();",
+        "replace": "var aliases = Array.Empty<string>().ToList();"
+      }
+    ]
+  },
+  {
+    "id": "permission-timeout-returns-denied",
+    "file": "src/Maui.Tizen.Essentials/Permissions/TizenPermissionRequestCoordinator.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~NoResponseTimesOutAndUnsubscribes",
+    "expected": "NoResponseTimesOutAndUnsubscribes",
+    "replacements": [
+      {
+        "search": "else\n\t\t\t\t\tcompletion.TrySetException(\n\t\t\t\t\t\tnew TimeoutException(\n\t\t\t\t\t\t\t$\"Tizen did not answer the '{privilege}' permission request within {effectiveTimeout}.\"));",
+        "replace": "else\n\t\t\t\t\tcompletion.TrySetResult(false);"
+      }
+    ]
+  },
+  {
+    "id": "shake-purge-keeps-expired-minimum",
+    "file": "src/Maui.Tizen.Essentials/Accelerometer/TizenAccelerometerQueue.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~PurgesEveryExpiredSampleAndUsesMinimumOnlyForDetection",
+    "expected": "PurgesEveryExpiredSampleAndUsesMinimumOnlyForDetection",
+    "replacements": [
+      {
+        "search": "while (_samples.Count > 0 && cutoff - _samples.Peek().Timestamp > 0)",
+        "replace": "while (_samples.Count >= MinQueueSize && cutoff - _samples.Peek().Timestamp > 0)"
+      }
+    ]
+  },
+  {
+    "id": "secure-storage-swallows-delete-failure",
+    "file": "src/Maui.Tizen.Essentials/SecureStorage/TizenSecureStorage.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~SecureStorageRemoveAllSurfacesDeleteFailureAndSuppressesUndeletedAlias",
+    "expected": "SecureStorageRemoveAllSurfacesDeleteFailureAndSuppressesUndeletedAlias",
+    "replacements": [
+      {
+        "search": "\t\t\tcatch (Exception exception)\n\t\t\t{\n\t\t\t\tfailures.Add(exception);\n\t\t\t\treturn false;\n\t\t\t}\n\t\t}\n\n\t\tstatic void ThrowDeletionFailures",
+        "replace": "\t\t\tcatch (Exception)\n\t\t\t{\n\t\t\t\treturn false;\n\t\t\t}\n\t\t}\n\n\t\tstatic void ThrowDeletionFailures"
+      }
+    ]
+  },
+  {
+    "id": "secure-repository-does-not-normalize-empty-api15-result",
+    "file": "src/Maui.Tizen.Essentials/SecureStorage/TizenSecureStorage.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~SecureRepositoryNormalizesOnlyDocumentedNoAliasArgumentException",
+    "expected": "SecureRepositoryNormalizesOnlyDocumentedNoAliasArgumentException",
+    "replacements": [
+      {
+        "search": "NormalizeAliases(_getAliases);",
+        "replace": "_getAliases().ToArray();"
+      }
+    ]
+  },
+  {
+    "id": "event-publisher-drops-captured-generation",
+    "file": "src/Maui.Tizen.Essentials/Platform/TizenEventSubscriptionCoordinator.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~StaleQueuedEventNeverReachesReplacementSubscriber",
+    "expected": "StaleQueuedEventNeverReachesReplacementSubscriber",
+    "replacements": [
+      {
+        "search": "_owner.Publish(_generation, args);",
+        "replace": "_owner.Publish(_generation + 1, args);"
+      }
+    ]
+  },
+  {
+    "id": "clipboard-native-relay-uses-mutable-current-handler",
+    "file": "src/Maui.Tizen.Essentials/Clipboard/TizenClipboard.cs",
+    "project": "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj",
+    "mode": "source",
+    "filter": "FullyQualifiedName~ClipboardNativeRelayUsesTheExactGenerationHandler",
+    "expected": "ClipboardNativeRelayUsesTheExactGenerationHandler",
+    "replacements": [
+      {
+        "search": "dataSelectedHandler = (_, _) => changed();",
+        "replace": "dataSelectedHandler = OnDataSelected;"
+      }
+    ]
+  },
+  {
+    "id": "device-display-mutates-state-before-generation-commit",
+    "file": "src/Maui.Tizen.Essentials/DeviceDisplay/TizenDeviceDisplay.cs",
+    "project": "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj",
+    "filter": "FullyQualifiedName~RetainedAndQueuedOldNativeCallbacksCannotMutateReplacementState",
+    "expected": "RetainedAndQueuedOldNativeCallbacksCannotMutateReplacementState",
+    "replacements": [
+      {
+        "search": "generation.Commit(() =>\n\t\t\t\t{\n\t\t\t\t\tvar metrics = _native.GetMetrics();\n\t\t\t\t\tvar natural = GetNaturalOrientation(metrics.Width, metrics.Height);\n\t\t\t\t\t(_displayRotation, _displayOrientation) = MapOrientation(deviceOrientation, natural);\n\t\t\t\t\treturn new DisplayInfoChangedEventArgs(MainDisplayInfo);\n\t\t\t\t});",
+        "replace": "var metrics = _native.GetMetrics();\n\t\t\t\tvar natural = GetNaturalOrientation(metrics.Width, metrics.Height);\n\t\t\t\t(_displayRotation, _displayOrientation) = MapOrientation(deviceOrientation, natural);\n\t\t\t\tgeneration.Publish(new DisplayInfoChangedEventArgs(MainDisplayInfo));"
+      }
+    ]
+  }
+]

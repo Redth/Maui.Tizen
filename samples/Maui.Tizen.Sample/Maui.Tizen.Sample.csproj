@@ -1,0 +1,98 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Minimal Tizen application head for the core vertical slice.
+
+    Like the backend itself this targets ONLY net11.0-tizen11.0 and is gated on the Samsung Tizen
+    workload. It cannot be built until Samsung publishes samsung.net.sdk.tizen.manifest-11.0.100 -
+    see docs/net11-status.md.
+  -->
+
+  <!--
+    TizenPackage.props must be imported here, in the PROPS phase.
+
+    Setting IsTizenProject alone is not enough: TargetFramework is derived from it in
+    Directory.Build.targets, which is imported far too late for the SDK's target-framework
+    inference to see it. Without this import the project evaluates with an EMPTY TargetFramework -
+    verified with `dotnet msbuild -getProperty:TargetFramework` - which silently produces no inner
+    build at all rather than any error.
+
+    Maui.Tizen.Core imports the same file for the same reason; a regression test in
+    tests/UnitTests pins both.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)../../eng/targets/TizenPackage.props" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+
+    <RootNamespace>Maui.Tizen.Sample</RootNamespace>
+    <AssemblyName>Maui.Tizen.Sample</AssemblyName>
+    <ApplicationId>org.tizen.example.MauiTizenSample</ApplicationId>
+    <ApplicationVersion>1.0.0</ApplicationVersion>
+
+    <!--
+      UseMaui and SingleProject are deliberately NOT set.
+
+      Both import Microsoft.Maui.Sdk, which requires the Microsoft MAUI workload. The real Tizen
+      lane installs only Samsung's `tizen` workload - by policy, because the whole point of this
+      package is that an external backend and its sample build from PACKAGES with the Samsung
+      workload alone. With UseMaui set, the sample would have failed restore with NETSDK1147 the
+      moment the gate opened, and only then: it cannot fail today, because restore stops earlier at
+      NETSDK1139 (unrecognised tizen platform). A latent break that first appears on the day
+      everyone is waiting for.
+
+      Nothing here needs the MAUI SDK. This is a Core-only app head: no XAML, no Controls types, its
+      own Main entry point, and its own tizen-manifest.xml handled by Samsung's Tizen SDK.
+      MauiApp.CreateBuilder comes from the Microsoft.Maui.Core PACKAGE, which is a package
+      reference, not a workload.
+    -->
+
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Nullable>enable</Nullable>
+
+    <!--
+      TizenPackage.props defaults EnableDefaultCompileItems to FALSE, because most projects in this
+      repository still hold raw imported dotnet/maui sources that do not compile yet and are listed
+      as <None> so they stay navigable.
+
+      The sample is not one of those. It is four hand-written files, all of which compile. Without
+      this opt-in it evaluated Compile=[] - an application head that built successfully while
+      containing no code at all, produced no entry point, and silently proved nothing. Verified with
+      `dotnet msbuild -getItem:Compile`, which returned an empty array.
+
+      Default globbing rather than an explicit list, because that is what a real Tizen app head
+      does and this project's job is to look like one. The ref-pack sample lane compiles the same
+      files from @(MauiTizenSampleCompile); RealSampleCompilesItsOwnSources and
+      SampleLaneCompilesExactlyTheRealSamplesSources pin the two sets together so neither can drift.
+    -->
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+
+  <ItemGroup>
+    <ProjectReference Include="$(RepositoryRoot)src/Maui.Tizen.Core/Maui.Tizen.Core.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <!--
+      A PROPERTY, not an item. Samsung's targets read $(TizenManifestFile) to locate the manifest
+      when building the .tpk; declaring it as an ItemGroup entry looked plausible and was simply
+      never read, so the manifest was silently ignored and the package would have been built
+      without it. Nothing warns about an item type nobody consumes.
+    -->
+    <TizenManifestFile>Platforms/Tizen/tizen-manifest.xml</TizenManifestFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="Platforms/Tizen/tizen-manifest.xml" />
+
+    <!--
+      The manifest declares <icon>appicon.png</icon>, but no such file existed and nothing checked -
+      an unresolvable icon reference is not a build error, so the .tpk would simply have shipped
+      without one. Copied next to the manifest, where Samsung's packaging step looks for it.
+    -->
+    <None Include="Platforms/Tizen/appicon.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

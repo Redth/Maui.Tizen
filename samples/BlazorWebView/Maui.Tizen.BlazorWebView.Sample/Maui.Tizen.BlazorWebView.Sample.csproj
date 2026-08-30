@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!--
+    Minimal Blazor application head for the standalone Tizen backend.
+
+    TizenPackage.props must be imported here, in the PROPS phase. Setting IsTizenProject alone is not
+    enough: TargetFramework is derived from it in Directory.Build.targets, which is imported far too
+    late for the SDK's target-framework inference to see it, so the project would evaluate with an
+    EMPTY TargetFramework and silently produce no inner build at all.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)../../../eng/targets/TizenPackage.props" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+
+    <RootNamespace>Maui.Tizen.BlazorWebView.Sample</RootNamespace>
+    <AssemblyName>Maui.Tizen.BlazorWebView.Sample</AssemblyName>
+    <ApplicationId>org.tizen.example.MauiTizenBlazorWebViewSample</ApplicationId>
+    <ApplicationVersion>1.0.0</ApplicationVersion>
+
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Nullable>enable</Nullable>
+
+    <!--
+      TizenPackage.props defaults this to false for the projects still holding raw imported sources.
+      This sample is hand-written and all of it compiles; without the opt-in it would evaluate
+      Compile=[] and build "successfully" while containing no code and producing no entry point.
+    -->
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(RepositoryRoot)src/Maui.Tizen.BlazorWebView/Maui.Tizen.BlazorWebView.csproj" />
+    <PackageReference Include="Microsoft.Maui.Controls" />
+  </ItemGroup>
+
+  <!--
+    A ProjectReference does NOT import the referenced project's packed build/ or buildTransitive/
+    assets - those only flow through a PackageReference. So in this source build the
+    StaticWebAsset -> MauiAsset conversion that ships in the package would never run, wwwroot and
+    _framework/blazor.webview.js would never become Tizen resources, and the sample would launch to a
+    blank web view. Consumers of the produced nupkg get this automatically; a source build has to ask
+    for it explicitly.
+  -->
+  <Import Project="$(RepositoryRoot)src/Maui.Tizen.BlazorWebView/buildTransitive/Maui.Tizen.BlazorWebView.props" />
+  <Import Project="$(RepositoryRoot)src/Maui.Tizen.BlazorWebView/buildTransitive/Maui.Tizen.BlazorWebView.targets" />
+
+  <PropertyGroup>
+    <TizenManifestFile>Platforms/Tizen/tizen-manifest.xml</TizenManifestFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="Platforms/Tizen/tizen-manifest.xml" />
+  </ItemGroup>
+
+</Project>

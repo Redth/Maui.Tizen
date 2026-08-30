@@ -1,0 +1,641 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Security;
+using System.Text.Json;
+using System.Xml.Linq;
+using Xunit;
+
+namespace Microsoft.Maui.Platforms.Tizen.BlazorWebView.Tests
+{
+	/// <summary>
+	/// Proves the Blazor asset pipeline actually produces <c>MauiAsset</c> items, by running MSBuild
+	/// against a real Razor project rather than asserting anything about the XML.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is the regression test for the defect the package exists to fix: the MAUI Blazor package
+	/// ships its <c>ConvertStaticWebAssetsToMauiAssets</c> target in <c>build/</c> with no
+	/// <c>buildTransitive/</c>, so a transitive consumer never gets it, the <c>wwwroot</c> and
+	/// <c>_framework/blazor.webview.js</c> are never packaged, and every request 404s at runtime while
+	/// the build stays green. A test that only inspected our own <c>.targets</c> would not have caught
+	/// that, because the file looked fine — it was the NuGet folder convention that was wrong.
+	/// </para>
+	/// <para>
+	/// The fixture is a plain <c>net11.0</c> Razor app, not a Tizen or MAUI one: the conversion only
+	/// needs the Razor SDK's StaticWebAssets, so this runs with no Samsung workload installed.
+	/// The assertions stop at <c>MauiAsset</c>, which is exactly where
+	/// <c>Maui.Tizen.Build.Tasks</c> picks up (<c>ProcessMauiAssets</c> →
+	/// <c>MauiProcessedAsset</c> → <c>TizenResource</c>).
+	/// </para>
+	/// </remarks>
+	[Trait("Category", "MSBuild")]
+	public sealed class AssetPipelineTests : IDisposable
+	{
+		private const string TargetName = "ConvertStaticWebAssetsToTizenMauiAssets";
+		private const string ProviderPackageId = "Maui.Tizen.BlazorWebView";
+		private const string ProviderPackageVersion = "0.0.0-test.1";
+
+		private readonly string _workDirectory;
+		private readonly string _providerDirectory;
+		private readonly Lazy<IReadOnlyList<MauiAssetItem>> _assets;
+		private readonly Lazy<IReadOnlyList<MauiAssetItem>> _assetsViaProviderContract;
+		private readonly Lazy<IReadOnlyList<MauiAssetItem>> _assetsWithCompressedVariants;
+
+		public AssetPipelineTests()
+		{
+			_workDirectory = Path.Combine(Path.GetTempPath(), "maui-tizen-assets-" + Guid.NewGuid().ToString("n"));
+			_providerDirectory = _workDirectory + "-provider";
+			_assets = new Lazy<IReadOnlyList<MauiAssetItem>>(() => BuildAndReadMauiAssets(TargetName));
+			_assetsViaProviderContract = new Lazy<IReadOnlyList<MauiAssetItem>>(
+				() => BuildAndReadMauiAssets("SimulateAssetProviderContract"));
+			_assetsWithCompressedVariants = new Lazy<IReadOnlyList<MauiAssetItem>>(
+				() => BuildAndReadMauiAssets(TargetName, seedCompressedAssets: true));
+		}
+
+		public void Dispose()
+		{
+			try
+			{
+				if (Directory.Exists(_workDirectory))
+				{
+					Directory.Delete(_workDirectory, recursive: true);
+				}
+
+				if (Directory.Exists(_providerDirectory))
+				{
+					Directory.Delete(_providerDirectory, recursive: true);
+				}
+
+				var packageCache = _workDirectory + "-packages-cache";
+				if (Directory.Exists(packageCache))
+				{
+					Directory.Delete(packageCache, recursive: true);
+				}
+			}
+			catch (IOException)
+			{
+				// A leftover temp directory must never fail the test run.
+			}
+		}
+
+		[Fact]
+		public void HostPageIsPackagedAtTheContentRoot()
+		{
+			// BlazorWebView.HostPage is "wwwroot/index.html", and TizenAssetFileProvider resolves it
+			// under the Tizen resource directory, so this exact target path is load-bearing.
+			var asset = FindByTargetPath("wwwroot/index.html");
+
+			Assert.NotNull(asset);
+			Assert.True(File.Exists(asset!.Identity), $"MauiAsset points at a missing file: '{asset.Identity}'.");
+		}
+
+		[Fact]
+		public void NestedApplicationAssetsKeepTheirRelativePath()
+		{
+			// A flattened asset would still "exist" but resolve to the wrong URL at runtime.
+			var asset = FindByTargetPath("wwwroot/css/app.css");
+
+			Assert.NotNull(asset);
+			Assert.True(File.Exists(asset!.Identity), $"MauiAsset points at a missing file: '{asset.Identity}'.");
+		}
+
+		[Fact]
+		public void BlazorWebViewScriptFromTheFrameworkIsPackaged()
+		{
+			// The one asset nobody authors and everybody needs: without it Blazor.start() never runs.
+			// It arrives as a StaticWebAsset from the Microsoft.AspNetCore.Components.WebView package,
+			// which proves the conversion covers framework-provided assets and not just wwwroot/.
+			//
+			// Matched by prefix and extension rather than by exact name, because the SDK fingerprints
+			// static web assets in some configurations (blazor.webview.<hash>.js). The conversion is
+			// agnostic to that - it packages whatever target path the SDK computes - so pinning the
+			// unfingerprinted spelling would make this test assert an SDK default rather than our
+			// behavior, and break the day that default changes.
+			var asset = _assets.Value.FirstOrDefault(a =>
+			{
+				var path = a.TargetPath.Replace('\\', '/');
+				return path.StartsWith("wwwroot/_framework/blazor.webview", StringComparison.OrdinalIgnoreCase)
+					&& path.EndsWith(".js", StringComparison.OrdinalIgnoreCase);
+			});
+
+			Assert.True(
+				asset is not null,
+				"The Blazor WebView script was not converted. Without it Blazor never starts. Saw: "
+					+ string.Join(", ", _assets.Value.Select(a => a.TargetPath)));
+			Assert.True(File.Exists(asset!.Identity), $"MauiAsset points at a missing file: '{asset.Identity}'.");
+		}
+
+		[Fact]
+		public void FrameworkAssetsArePackagedUnderTheContentRoot()
+		{
+			// Everything must sit under the wwwroot content root, fingerprinted or not: that prefix is
+			// the contentRootDir the handler derives from BlazorWebView.HostPage, so an asset outside it
+			// is unreachable at runtime even though it shipped.
+			Assert.NotEmpty(_assets.Value);
+
+			foreach (var asset in _assets.Value)
+			{
+				Assert.StartsWith("wwwroot/", asset.TargetPath.Replace('\\', '/'), StringComparison.Ordinal);
+			}
+		}
+
+		[Fact]
+		public void EveryAssetCarriesLinkMetadataMatchingItsTargetPath()
+		{
+			// Maui.Tizen.Build.Tasks' MauiTizenProcessAssets derives TizenTpkFileName from %(Link).
+			// An empty Link silently packages the asset at the wrong place in the TPK.
+			Assert.NotEmpty(_assets.Value);
+
+			foreach (var asset in _assets.Value)
+			{
+				Assert.False(string.IsNullOrEmpty(asset.Link), $"'{asset.TargetPath}' has no Link metadata.");
+				Assert.Equal(asset.TargetPath, asset.Link);
+			}
+		}
+
+		[Fact]
+		public void AssetsAreNotDuplicated()
+		{
+			// The conversion is idempotent by design, because a consumer that also references the MAUI
+			// Blazor package directly gets the upstream conversion as well.
+			var duplicates = _assets.Value
+				.GroupBy(a => a.TargetPath, StringComparer.OrdinalIgnoreCase)
+				.Where(g => g.Count() > 1)
+				.Select(g => g.Key)
+				.ToArray();
+
+			Assert.Empty(duplicates);
+		}
+
+		[Fact]
+		public void PrecompressedVariantsAreNotPackaged()
+		{
+			// Assets are served from local storage by the request interceptor, which does no content
+			// negotiation, so .gz/.br copies are pure TPK bloat.
+			//
+			// This drives the fixture's SeedCompressedAssets switch, which injects Alternative variants
+			// shaped like the SDK's. Without it the assertion was vacuous: a plain Razor build produces
+			// no compressed assets at all, so "no .gz survived" held trivially and the exclusion could
+			// have been - and in fact was - completely broken without failing.
+			var compressed = _assetsWithCompressedVariants.Value
+				.Where(a => a.TargetPath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase)
+					|| a.TargetPath.EndsWith(".br", StringComparison.OrdinalIgnoreCase))
+				.Select(a => a.TargetPath.Replace('\\', '/'))
+				.Where(p => !p.Equals("wwwroot/data/archive.gz", StringComparison.OrdinalIgnoreCase))
+				.ToArray();
+
+			Assert.Empty(compressed);
+		}
+
+		[Fact]
+		public void CompressedVariantsAreActuallyPresentBeforeExclusion()
+		{
+			// Guards the guard. PrecompressedVariantsAreNotPackaged can only mean anything if compressed
+			// variants really reach the conversion, so this inspects the conversion's INPUT rather than
+			// its output. Without it, a fixture that quietly stopped seeding would leave the exclusion
+			// test passing vacuously - which is exactly how a completely broken filter went unnoticed.
+			var roles = ReadStaticWebAssetRoles(seedCompressedAssets: true);
+
+			Assert.Contains("Alternative", roles);
+			Assert.Contains("Primary", roles);
+
+			// And they must be gone afterwards: same build, filtered output.
+			Assert.DoesNotContain(
+				_assetsWithCompressedVariants.Value,
+				a => a.TargetPath.Replace('\\', '/').EndsWith("/blazor.webview.js.gz", StringComparison.OrdinalIgnoreCase));
+		}
+
+		[Fact]
+		public void UnseededBuildProducesNoCompressedVariants()
+		{
+			// Documents WHY seeding is necessary: a plain Razor build emits no Alternative assets at all,
+			// because compression is a Blazor WebAssembly publish-time concern and this fixture is
+			// deliberately a plain Razor app so it runs without the Samsung workload.
+			var roles = ReadStaticWebAssetRoles(seedCompressedAssets: false);
+
+			Assert.DoesNotContain("Alternative", roles);
+		}
+
+		private IReadOnlyList<string> ReadStaticWebAssetRoles(bool seedCompressedAssets)
+		{
+			var output = BuildAndReadItem(TargetName, "StaticWebAsset", seedCompressedAssets);
+
+			using var document = JsonDocument.Parse(output);
+			if (!document.RootElement.TryGetProperty("Items", out var items) ||
+				!items.TryGetProperty("StaticWebAsset", out var assets))
+			{
+				return Array.Empty<string>();
+			}
+
+			return assets.EnumerateArray()
+				.Select(e => e.TryGetProperty("AssetRole", out var role) ? role.GetString() ?? string.Empty : string.Empty)
+				.ToArray();
+		}
+
+		[Fact]
+		public void UserFilesEndingInGzAreStillPackaged()
+		{
+			// The discriminating case. wwwroot/data/archive.gz is an ordinary user file that the Razor
+			// SDK discovers as a Primary asset; only its name resembles a compressed variant. Dropping
+			// it would mean the filter keys on the file extension instead of AssetRole, and would
+			// silently delete real application content.
+			var asset = _assetsWithCompressedVariants.Value.FirstOrDefault(a =>
+				a.TargetPath.Replace('\\', '/').Equals("wwwroot/data/archive.gz", StringComparison.OrdinalIgnoreCase));
+
+			Assert.NotNull(asset);
+			Assert.True(File.Exists(asset!.Identity), $"MauiAsset points at a missing file: '{asset.Identity}'.");
+		}
+
+		[Fact]
+		public void AssetRoleIsPropagatedToMauiAssetForTheDownstreamGuard()
+		{
+			// Cross-layer contract with Maui.Tizen.Build.Tasks, which re-filters AssetRole='Alternative'
+			// before TizenResource as defense in depth against a broken provider - exactly the failure
+			// this package shipped.
+			//
+			// That guard only works if the metadata survives this conversion. An item created from
+			// %(Identity) inherits NOTHING, so AssetRole has to be copied explicitly; without it every
+			// asset arrives downstream with a blank role and the guard silently never fires. Asserting
+			// it here means the seam is pinned on the side that produces it.
+			var assets = _assetsWithCompressedVariants.Value;
+
+			Assert.NotEmpty(assets);
+			Assert.All(assets, a => Assert.Equal("Primary", a.AssetRole));
+		}
+
+		[Fact]
+		public void ConversionRunsThroughThePublishedAssetProviderContract()
+		{
+			// Maui.Tizen.Build.Tasks runs every target listed in MauiTizenAssetProviderTargets. The
+			// fixture's SimulateAssetProviderContract target does the same and nothing else, so none of
+			// the targets the conversion's own BeforeTargets names are scheduled - which means assets
+			// here can only have arrived through the registration.
+			//
+			// This distinction matters: the other tests in this class reach the conversion through the
+			// BeforeTargets fallback, because the fixture imports only this package. Without this test
+			// the registration could silently stop working and the suite would stay green while real
+			// applications - where Maui.Tizen.Build.Tasks drives the contract - broke.
+			var viaContract = _assetsViaProviderContract.Value;
+
+			Assert.NotEmpty(viaContract);
+			Assert.Contains(
+				viaContract,
+				a => a.TargetPath.Replace('\\', '/').Equals("wwwroot/index.html", StringComparison.OrdinalIgnoreCase));
+		}
+
+		[Fact]
+		public void BothEntryPointsProduceTheSameAssets()
+		{
+			// The fallback and the registration must not diverge: an app gets one or the other
+			// depending on whether Maui.Tizen.Build.Tasks is in the graph, and both have to ship the
+			// same files.
+			var viaFallback = _assets.Value
+				.Select(a => a.TargetPath.Replace('\\', '/'))
+				.OrderBy(p => p, StringComparer.Ordinal);
+			var viaContract = _assetsViaProviderContract.Value
+				.Select(a => a.TargetPath.Replace('\\', '/'))
+				.OrderBy(p => p, StringComparer.Ordinal);
+
+			Assert.Equal(viaFallback, viaContract);
+		}
+
+		[Fact]
+		public void ProviderPackageContainsTheNuGetBuildTransitiveEntries()
+		{
+			var package = EnsureProviderPackage(FindRepositoryRoot());
+			using var archive = ZipFile.OpenRead(package);
+			var entries = archive.Entries.Select(entry => entry.FullName).ToArray();
+
+			Assert.Contains("buildTransitive/Maui.Tizen.BlazorWebView.props", entries);
+			Assert.Contains("buildTransitive/Maui.Tizen.BlazorWebView.targets", entries);
+		}
+
+		[Fact]
+		public void NuGetGeneratesImportsForTheProviderPackage()
+		{
+			_ = _assetsViaProviderContract.Value;
+			var generatedTargets = Path.Combine(
+				_workDirectory,
+				"obj",
+				"AssetPipelineFixture.csproj.nuget.g.targets");
+			var generatedProps = Path.Combine(
+				_workDirectory,
+				"obj",
+				"AssetPipelineFixture.csproj.nuget.g.props");
+
+			Assert.Contains(
+				"Maui.Tizen.BlazorWebView.targets",
+				File.ReadAllText(generatedTargets),
+				StringComparison.Ordinal);
+			Assert.Contains(
+				"Maui.Tizen.BlazorWebView.props",
+				File.ReadAllText(generatedProps),
+				StringComparison.Ordinal);
+		}
+
+		[Fact]
+		public void NuGetImportedProviderConfiguresTheBlazorHybridStaticWebAssetRoot()
+		{
+			var output = BuildAndReadItem(
+				"CaptureProviderConfiguration",
+				"_ProviderConfiguration",
+				seedCompressedAssets: false);
+			using var document = JsonDocument.Parse(output);
+			var configuration = Assert.Single(
+				document.RootElement
+					.GetProperty("Items")
+					.GetProperty("_ProviderConfiguration")
+					.EnumerateArray());
+
+			Assert.Equal("/", configuration.GetProperty("BasePath").GetString());
+			Assert.Equal("Root", configuration.GetProperty("ProjectMode").GetString());
+		}
+
+		private MauiAssetItem? FindByTargetPath(string targetPath) =>
+			_assets.Value.FirstOrDefault(a =>
+				string.Equals(a.TargetPath.Replace('\\', '/'), targetPath, StringComparison.OrdinalIgnoreCase));
+
+		private IReadOnlyList<MauiAssetItem> BuildAndReadMauiAssets(string target, bool seedCompressedAssets = false)
+		{
+			var output = BuildAndReadItem(target, "MauiAsset", seedCompressedAssets);
+			return ParseMauiAssets(output);
+		}
+
+		private string BuildAndReadItem(string target, string itemName, bool seedCompressedAssets)
+		{
+			var repoRoot = FindRepositoryRoot();
+			var fixtureSource = Path.Combine(repoRoot, "tests", "Maui.Tizen.BlazorWebView.Tests", "AssetPipelineFixture");
+			var providerPackage = EnsureProviderPackage(repoRoot);
+
+			CopyDirectory(fixtureSource, _workDirectory);
+
+			var project = Path.Combine(_workDirectory, "AssetPipelineFixture.csproj");
+			var template = File.ReadAllText(Path.Combine(_workDirectory, "AssetPipelineFixture.csproj.fixture"));
+			File.WriteAllText(
+				project,
+				template
+					.Replace("__WEBVIEW_VERSION__", ReadPinnedWebViewVersion(repoRoot))
+					.Replace("__PROVIDER_PACKAGE_ID__", ProviderPackageId)
+					.Replace("__PROVIDER_PACKAGE_VERSION__", ProviderPackageVersion));
+
+			// The fixture builds in a temp directory outside the repository, so the repo-level
+			// nuget.config is NOT found by NuGet's directory walk - it would fall back to the
+			// machine-global config and whatever that has enabled or disabled. Copy the repository's
+			// config in so the fixture restores from the same approved feeds as everything else, and
+			// point the package cache at a directory under the fixture so a machine-cached copy cannot
+			// stand in for a package the approved feeds do not actually serve.
+			// overwrite: both entry points are materialized into the same work directory.
+			WriteNuGetConfig(repoRoot, Path.GetDirectoryName(providerPackage)!);
+			return RunMSBuild(project, target, seedCompressedAssets, itemName);
+		}
+
+		private string EnsureProviderPackage(string repoRoot)
+		{
+			var feed = Path.Combine(_providerDirectory, "feed");
+			var package = Path.Combine(
+				feed,
+				$"{ProviderPackageId}.{ProviderPackageVersion}.nupkg");
+			if (File.Exists(package))
+				return package;
+
+			Directory.CreateDirectory(feed);
+			var buildTransitive = Path.Combine(
+				repoRoot,
+				"src",
+				"Maui.Tizen.BlazorWebView",
+				"buildTransitive");
+			var project = Path.Combine(_providerDirectory, "ProviderPackage.csproj");
+			Directory.CreateDirectory(_providerDirectory);
+			File.WriteAllText(
+				project,
+				$"""
+				<Project Sdk="Microsoft.NET.Sdk">
+				  <PropertyGroup>
+				    <TargetFramework>net11.0</TargetFramework>
+				    <PackageId>{ProviderPackageId}</PackageId>
+				    <Version>{ProviderPackageVersion}</Version>
+				    <Authors>Maui.Tizen Contributors</Authors>
+				    <Description>NuGet transport probe for Maui.Tizen.BlazorWebView buildTransitive assets.</Description>
+				    <IsPackable>true</IsPackable>
+				    <IncludeBuildOutput>false</IncludeBuildOutput>
+				    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+				    <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
+				    <NoWarn>$(NoWarn);NU5128</NoWarn>
+				  </PropertyGroup>
+				  <ItemGroup>
+				    <None Include="{SecurityElement.Escape(Path.Combine(buildTransitive, "Maui.Tizen.BlazorWebView.props"))}"
+				          Pack="true"
+				          PackagePath="buildTransitive/Maui.Tizen.BlazorWebView.props" />
+				    <None Include="{SecurityElement.Escape(Path.Combine(buildTransitive, "Maui.Tizen.BlazorWebView.targets"))}"
+				          Pack="true"
+				          PackagePath="buildTransitive/Maui.Tizen.BlazorWebView.targets" />
+				  </ItemGroup>
+				</Project>
+				""");
+
+			RunDotNet(
+				_providerDirectory,
+				"pack",
+				project,
+				"--nologo",
+				"--output",
+				feed,
+				"-p:ManagePackageVersionsCentrally=false");
+			Assert.True(File.Exists(package), $"Provider package was not produced at '{package}'.");
+			return package;
+		}
+
+		private void WriteNuGetConfig(string repoRoot, string providerFeed)
+		{
+			var document = XDocument.Load(Path.Combine(repoRoot, "nuget.config"));
+			var configuration = document.Root!;
+			var sources = configuration.Element("packageSources")!;
+			sources.Add(new XElement(
+				"add",
+				new XAttribute("key", "provider-probe"),
+				new XAttribute("value", providerFeed)));
+			var mappings = configuration.Element("packageSourceMapping")!;
+			mappings.AddFirst(new XElement(
+				"packageSource",
+				new XAttribute("key", "provider-probe"),
+				new XElement("package", new XAttribute("pattern", ProviderPackageId))));
+			document.Save(Path.Combine(_workDirectory, "nuget.config"));
+		}
+
+		private static void RunDotNet(string workingDirectory, params string[] arguments)
+		{
+			var startInfo = new ProcessStartInfo
+			{
+				FileName = DotNetMuxerPath,
+				RedirectStandardOutput = true,
+				RedirectStandardError = true,
+				WorkingDirectory = workingDirectory,
+			};
+			startInfo.Environment["DOTNET_CLI_USE_MSBUILD_SERVER"] = "0";
+			foreach (var argument in arguments)
+				startInfo.ArgumentList.Add(argument);
+
+			using var process = Process.Start(startInfo)
+				?? throw new InvalidOperationException("Failed to start dotnet.");
+			var stdout = process.StandardOutput.ReadToEnd();
+			var stderr = process.StandardError.ReadToEnd();
+			process.WaitForExit(milliseconds: 10 * 60 * 1000);
+			Assert.True(
+				process.ExitCode == 0,
+				$"dotnet {string.Join(' ', arguments)} failed with exit code {process.ExitCode}."
+					+ Environment.NewLine + stdout + Environment.NewLine + stderr);
+		}
+
+		private static IReadOnlyList<MauiAssetItem> ParseMauiAssets(string output)
+		{
+			using var document = JsonDocument.Parse(output);
+			if (!document.RootElement.TryGetProperty("Items", out var items) ||
+				!items.TryGetProperty("MauiAsset", out var mauiAssets))
+			{
+				return Array.Empty<MauiAssetItem>();
+			}
+
+			return mauiAssets.EnumerateArray()
+				.Select(e => new MauiAssetItem(
+					e.TryGetProperty("FullPath", out var full) ? full.GetString() ?? string.Empty : string.Empty,
+					e.TryGetProperty("TargetPath", out var target) ? target.GetString() ?? string.Empty : string.Empty,
+					e.TryGetProperty("Link", out var link) ? link.GetString() ?? string.Empty : string.Empty,
+					e.TryGetProperty("AssetRole", out var role) ? role.GetString() ?? string.Empty : string.Empty))
+				.ToArray();
+		}
+
+		private static string ReadPinnedWebViewVersion(string repoRoot)
+		{
+			// Read the pin rather than hardcoding it, so a baseline bump does not silently test a
+			// version the repository no longer uses.
+			var packages = File.ReadAllText(Path.Combine(repoRoot, "Directory.Packages.props"));
+			var document = System.Xml.Linq.XDocument.Parse(packages);
+			var version = document.Descendants("PackageVersion")
+				.FirstOrDefault(e => (string?)e.Attribute("Include") == "Microsoft.AspNetCore.Components.WebView")
+				?.Attribute("Version")?.Value;
+
+			Assert.False(string.IsNullOrWhiteSpace(version), "Microsoft.AspNetCore.Components.WebView is not pinned.");
+			return version!;
+		}
+
+		private static string RunMSBuild(string project, string target, bool seedCompressedAssets = false, string itemName = "MauiAsset")
+		{
+			var startInfo = new ProcessStartInfo
+			{
+				FileName = DotNetMuxerPath,
+				RedirectStandardOutput = true,
+				RedirectStandardError = true,
+				WorkingDirectory = Path.GetDirectoryName(project)!,
+			};
+
+			// Same reasoning as -nodeReuse:false; the build server is a separate long-lived process.
+			startInfo.Environment["DOTNET_CLI_USE_MSBUILD_SERVER"] = "0";
+
+			// Restore into a cache private to this fixture. Without it a package already present in the
+			// developer's global cache satisfies the restore even if the approved feeds could not serve
+			// it, so the test would pass on a machine where a real consumer's build fails.
+			//
+			// Sited as a SIBLING of the project directory, never inside it: the Razor SDK globs the
+			// project folder for content and static web assets, so a package cache under it would be
+			// swept into the very item groups this test asserts on.
+			startInfo.Environment["NUGET_PACKAGES"] =
+				Path.GetDirectoryName(project)! + "-packages-cache";
+
+			startInfo.ArgumentList.Add("msbuild");
+			startInfo.ArgumentList.Add(project);
+			startInfo.ArgumentList.Add("-restore");
+			startInfo.ArgumentList.Add("-nologo");
+			// Node reuse must be off. A test that shells out to MSBuild otherwise joins the machine's
+			// shared worker-node pool, where it can block indefinitely behind an unrelated build, and
+			// leaves long-lived nodes behind on the agent afterwards. Single-node for the same reason:
+			// this build is tiny, so parallelism buys nothing and only widens the contention window.
+			startInfo.ArgumentList.Add("-nodeReuse:false");
+			startInfo.ArgumentList.Add("-m:1");
+			startInfo.ArgumentList.Add($"-t:{target}");
+			startInfo.ArgumentList.Add($"-getItem:{itemName}");
+			// Central Package Management lives at the repository root and would otherwise reject the
+			// fixture's explicit Version attribute.
+			startInfo.ArgumentList.Add("-p:ManagePackageVersionsCentrally=false");
+			if (seedCompressedAssets)
+			{
+				startInfo.ArgumentList.Add("-p:SeedCompressedAssets=true");
+			}
+
+			using var process = Process.Start(startInfo)
+				?? throw new InvalidOperationException("Failed to start MSBuild.");
+
+			var stdout = process.StandardOutput.ReadToEnd();
+			var stderr = process.StandardError.ReadToEnd();
+			process.WaitForExit(milliseconds: 10 * 60 * 1000);
+
+			Assert.True(
+				process.ExitCode == 0,
+				$"MSBuild failed with exit code {process.ExitCode}.{Environment.NewLine}{stdout}{Environment.NewLine}{stderr}");
+
+			// -getItem: prints JSON, but -restore output precedes it.
+			var start = stdout.IndexOf('{');
+			Assert.True(start >= 0, $"No JSON in MSBuild output:{Environment.NewLine}{stdout}");
+			return stdout.Substring(start);
+		}
+
+		private static string DotNetMuxerPath
+		{
+			get
+			{
+				// Reuse the muxer running the tests so the fixture builds with the same SDK the
+				// repository is pinned to in global.json.
+				var main = Process.GetCurrentProcess().MainModule?.FileName;
+				if (!string.IsNullOrEmpty(main) &&
+					Path.GetFileNameWithoutExtension(main).Equals("dotnet", StringComparison.OrdinalIgnoreCase))
+				{
+					return main!;
+				}
+
+				var root = Environment.GetEnvironmentVariable("DOTNET_ROOT");
+				if (!string.IsNullOrEmpty(root))
+				{
+					var candidate = Path.Combine(root!, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
+					if (File.Exists(candidate))
+					{
+						return candidate;
+					}
+				}
+
+				return "dotnet";
+			}
+		}
+
+		private static string FindRepositoryRoot()
+		{
+			var directory = new DirectoryInfo(AppContext.BaseDirectory);
+			while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Directory.Packages.props")))
+			{
+				directory = directory.Parent;
+			}
+
+			Assert.True(directory is not null, "Could not locate the repository root from the test output directory.");
+			return directory!.FullName;
+		}
+
+		private static void CopyDirectory(string source, string destination)
+		{
+			Directory.CreateDirectory(destination);
+
+			foreach (var file in Directory.GetFiles(source))
+			{
+				File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), overwrite: true);
+			}
+
+			foreach (var directory in Directory.GetDirectories(source))
+			{
+				CopyDirectory(directory, Path.Combine(destination, Path.GetFileName(directory)));
+			}
+		}
+
+		private sealed record MauiAssetItem(string Identity, string TargetPath, string Link, string AssetRole);
+	}
+}

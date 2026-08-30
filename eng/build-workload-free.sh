@@ -38,19 +38,24 @@ info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 note() { printf '\033[1;33m  GATE\033[0m %s\n' "$*"; }
 
 FAILURES=0
+CHECK_LOG_DIR="$REPO_ROOT/artifacts/logs/build-workload-free"
+CHECK_LOG="$CHECK_LOG_DIR/check.$$.log"
+mkdir -p "$CHECK_LOG_DIR"
+trap 'rm -f "$CHECK_LOG"' EXIT
+
 # check <label> <command...> — runs the command, reports, and returns its status so
 # callers can branch (e.g. to skip tests after a failed build).
 check() {
   local label="$1"; shift
-  if "$@" >/tmp/mt-check.$$ 2>&1; then
+  if "$@" >"$CHECK_LOG" 2>&1; then
     pass "$label"
-    rm -f /tmp/mt-check.$$
+    rm -f "$CHECK_LOG"
     return 0
   fi
   fail "$label"
-  sed 's/^/        /' /tmp/mt-check.$$ | tail -30
+  sed 's/^/        /' "$CHECK_LOG" | tail -30
   FAILURES=$((FAILURES + 1))
-  rm -f /tmp/mt-check.$$
+  rm -f "$CHECK_LOG"
   return 1
 }
 
@@ -64,7 +69,7 @@ info "SDK"
 # malformed file there breaks both in confusing ways.
 # ---------------------------------------------------------------------------
 info "JSON validation"
-for f in eng/baselines.json eng/manifests/*.json; do
+for f in eng/baselines.json eng/manifests/*.json eng/validation/*.json; do
   [[ -e "$f" ]] || continue
   check "$f is well-formed JSON" python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$f"
 done
@@ -107,6 +112,9 @@ check "Tizen workload transition tests are syntactically valid" bash -n eng/test
 check "release contract tests are syntactically valid" bash -n eng/tests/test-release-contract.sh
 check "release contract helper is syntactically valid" \
   python3 -c "import ast; ast.parse(open('eng/release/release-contract.py', encoding='utf-8').read())"
+check "Essentials mutation runner is syntactically valid" bash -n eng/tests/run-essentials-negative-controls.sh
+check "Essentials mutation lock tests are syntactically valid" bash -n eng/tests/test-essentials-mutation-lock.sh
+check "Wave C mutation runner is syntactically valid" bash -n eng/tests/run-wave-c-negative-controls.sh
 
 # ---------------------------------------------------------------------------
 # 4. Restore and build the workload-independent projects.
@@ -116,13 +124,74 @@ check "release contract helper is syntactically valid" \
 info "Workload-independent projects"
 WORKLOAD_FREE_PROJECTS=(
   "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj"
+  "src/Maui.Tizen.Essentials.HostVerification/Maui.Tizen.Essentials.HostVerification.csproj"
   "tests/UnitTests/Maui.Tizen.UnitTests.csproj"
+
+  # Verification lanes for the ported backend slice. Neither is a Tizen artifact:
+  #
+  #   Maui.Tizen.Core.UnitTests   compiles the backend against inert stand-ins for Tizen.NUI
+  #                               and EXECUTES tests for the workload-independent behaviour
+  #                               (mapper and DI registration, hosting, dispatching, density,
+  #                               layout z-index ordering).
+  #
+  #   Maui.Tizen.Core.RefPackCompile  type-checks every `#if TIZEN` backend source against the
+  #                               REAL TizenFX reference assemblies from Samsung.Tizen.Ref.API15,
+  #                               and enforces the backend's PublicAPI baseline. Compile-only and
+  #                               unpackable, so it cannot become a neutral fallback.
+  #
+  #   Maui.Tizen.Sample.RefPackCompile  compiles the sample head as its OWN assembly with a
+  #                               ProjectReference to the backend, so the sample crosses a real
+  #                               package boundary. It used to be folded into the backend lane,
+  #                               which merged both into one assembly and meant the boundary was
+  #                               never actually exercised - and left PublicAPI ownership
+  #                               unverifiable, since either baseline satisfied either assembly.
+  "tests/Maui.Tizen.Core.RefPackCompile/Maui.Tizen.Core.RefPackCompile.csproj"
+  #
+  #   Maui.Tizen.Controls.RefPackCompile  compiles the Controls-to-Tizen mapper bridge as its own
+  #                               assembly. Separate from the Core lane on purpose: the bridge
+  #                               references Microsoft.Maui.Controls and Core must not, so merging
+  #                               them would hide the dependency-direction mistake this layer
+  #                               exists to avoid.
+  "tests/Maui.Tizen.Sample.RefPackCompile/Maui.Tizen.Sample.RefPackCompile.csproj"
+  "tests/Maui.Tizen.Controls.RefPackCompile/Maui.Tizen.Controls.RefPackCompile.csproj"
+  "tests/Maui.Tizen.Controls.ConsumerCompile/Maui.Tizen.Controls.ConsumerCompile.csproj"
+  "tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj"
+  "tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj"
+  "tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj"
+
+  # Essentials verification lanes, mirroring the pair above:
+  #
+  #   Maui.Tizen.Essentials.RefPackCompile  type-checks the ported Essentials sources against the
+  #                                         REAL API15 reference assemblies the product will bind
+  #                                         to. Compile-only and unpackable. This is the lane that
+  #                                         caught Tizen.Maps being removed from API15.
+  #
+  #   Maui.Tizen.Essentials.Tests           executes DI/facade/permission/translation tests against
+  #                                         the loadable Tizen.NET assemblies via
+  #                                         src/Maui.Tizen.Essentials.HostVerification.
+  "tests/Maui.Tizen.Essentials.RefPackCompile/Maui.Tizen.Essentials.RefPackCompile.csproj"
+  "tests/Maui.Tizen.Essentials.Tests/Maui.Tizen.Essentials.Tests.csproj"
+  # Foundation-owned probes.
   "eng/tests/PublicApiOptIn/PublicApiOptIn.csproj"
   "eng/tests/PackReadmeProbe/PackReadmeProbe.csproj"
   "eng/tools/ApiDump/ApiDump.csproj"
   "eng/tools/SourceInventory/SourceInventory.csproj"
   "eng/tools/PackageVerify/PackageVerify.csproj"
   "tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj"
+
+  #   Maui.Tizen.BlazorWebView.Tests  the same two roles for the BlazorWebView package: it
+  #                               compiles the handler sources and the Blazor sample head
+  #                               against the Samsung reference assemblies, and EXECUTES
+  #                               tests for registration order, the asset file provider,
+  #                               request mapping and the static content cache.
+  #                               See docs/blazorwebview.md.
+  "tests/Maui.Tizen.BlazorWebView.Tests/Maui.Tizen.BlazorWebView.Tests.csproj"
+
+  #   Maui.Tizen.BlazorWebView.PublicApi  compiles the BlazorWebView sources with the
+  #                               PublicApiAnalyzers treated as errors. The shipping project
+  #                               carries the analyzer too, but it is workload-gated and so never
+  #                               actually runs it; this lane is where the baseline is enforced.
+  "tests/Maui.Tizen.BlazorWebView.PublicApi/Maui.Tizen.BlazorWebView.PublicApi.csproj"
 )
 BUILD_OK=1
 for proj in "${WORKLOAD_FREE_PROJECTS[@]}"; do
@@ -195,7 +264,48 @@ fi
 info "Repository invariant tests"
 if [[ $BUILD_OK -eq 1 ]]; then
   check "unit tests" "$DOTNET" test tests/UnitTests/Maui.Tizen.UnitTests.csproj --no-build -c Release
+  check "backend slice tests" "$DOTNET" test tests/Maui.Tizen.Core.UnitTests/Maui.Tizen.Core.UnitTests.csproj --no-build -c Release
+  check "controls presentation tests" "$DOTNET" test tests/Controls.UnitTests/Maui.Tizen.Controls.UnitTests.csproj --no-build -c Release
+  # Essentials behaviour tests, run against the workload-free host verification harness
+  # (src/Maui.Tizen.Essentials.HostVerification), which compiles the same sources the Tizen
+  # package will. Anything that P/Invokes into Tizen is out of their reach and is classified
+  # in docs/tizen-essentials-service-coverage.md rather than faked into a green test.
+  #
+  # The self-executing Microsoft.Testing.Platform binary is run directly. `dotnet test` would
+  # need the repository-wide dotnet.config MTP opt-in, which would break tests/UnitTests
+  # (xunit v2 on VSTest). See that project's csproj for the full reasoning.
+  ESSENTIALS_TESTS="artifacts/bin/Maui.Tizen.Essentials.Tests/Release/net11.0/Maui.Tizen.Essentials.Tests"
+  ESSENTIALS_RESULTS="$REPO_ROOT/artifacts/test-results/essentials"
+
+  # Assert the test COUNT, not just the exit code.
+  #
+  # This is not belt-and-braces. Discovery over this assembly walks assembly-level attributes
+  # across the loaded closure, and Tizen.NUI's [XmlnsDefinition] constructor P/Invokes and
+  # throws off-device. On the xunit v2 runner that aborted discovery part way through a class
+  # and SILENTLY DROPPED the remaining tests while still reporting success - it hid 4 tests
+  # before it was noticed. v3 handles it, but "the runner exited 0" is demonstrably not
+  # sufficient evidence here, so the floor is pinned.
+  #
+  # The count comes from the runner's JUnit report rather than from scraping its console
+  # summary: the first attempt at this parsed stdout and passed locally but failed on the CI
+  # runner, because console rendering is not a stable contract. A report file is.
+  #
+  # Raise this when adding tests; never lower it to make a run go green.
+  ESSENTIALS_TESTS_MINIMUM=449
+
+  check "essentials tests" "$ESSENTIALS_TESTS" \
+    --report-xunit-junit --report-xunit-junit-filename results.xml \
+    --results-directory "$ESSENTIALS_RESULTS"
+
+  check "essentials tests ran at least $ESSENTIALS_TESTS_MINIMUM tests" \
+    python3 "$REPO_ROOT/eng/assert-test-count.py" "$ESSENTIALS_RESULTS/results.xml" "$ESSENTIALS_TESTS_MINIMUM"
+  check "Wave B source tests" "$DOTNET" test tests/Maui.Tizen.SourceTests/Maui.Tizen.SourceTests.csproj --no-build -c Release
   check "migration tooling tests" "$DOTNET" test tests/Migration.Tooling.Tests/Migration.Tooling.Tests.csproj --no-build -c Release
+  check "Essentials negative controls" "$REPO_ROOT/eng/tests/run-essentials-negative-controls.sh"
+  check "Essentials mutation lock behavior" "$REPO_ROOT/eng/tests/test-essentials-mutation-lock.sh"
+  check "Wave B negative controls" env DOTNET="$DOTNET" "$REPO_ROOT/eng/tests/run-wave-b-negative-controls.sh"
+  check "Wave B mutation runner behavior" "$REPO_ROOT/eng/tests/test-wave-b-mutation-runner.sh"
+  check "Wave C negative controls" "$REPO_ROOT/eng/tests/run-wave-c-negative-controls.sh"
 else
   fail "tests skipped - a preceding build failed (running --no-build now would only add cascading noise)"
   FAILURES=$((FAILURES + 1))
@@ -256,6 +366,32 @@ else
   fail "snapshot verification regressions failed"
   FAILURES=$((FAILURES + 1))
 fi
+# 5b. BlazorWebView host-side verification.
+#
+# Unlike the invariant tests, these exercise real backend behaviour: registration order,
+# the asset file provider, request mapping and the static content cache. They can run
+# because none of that code needs the native NUI WebView.
+# ---------------------------------------------------------------------------
+#
+# Gated on BUILD_OK for the same reason as the invariant tests above: `--no-build` after a
+# failed build silently runs whatever assemblies happen to be on disk from an earlier run,
+# so a green result here could reflect stale artifacts rather than the current tree.
+info "BlazorWebView host-side tests"
+if [[ $BUILD_OK -eq 1 ]]; then
+  check "blazorwebview tests" "$DOTNET" test tests/Maui.Tizen.BlazorWebView.Tests/Maui.Tizen.BlazorWebView.Tests.csproj --no-build -c Release
+else
+  fail "blazorwebview tests skipped - a preceding build failed (running --no-build now could pass against stale assemblies)"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# 7. Parity determinism.
+#
+# The full suite above is NOT sufficient evidence that parity generation is deterministic. MAUI's
+# neutral mappers are mutated at runtime by Controls' RemapForControls, so a parity test can pass
+# in the full suite purely because an earlier test already initialized Controls, while failing in a
+# fresh process. This runs each parity-sensitive test alone to catch exactly that.
+info "Parity isolation checks"
+check "parity isolation" ./eng/run-parity-isolation-checks.sh
 
 # ---------------------------------------------------------------------------
 # 6. Report the Tizen gate explicitly.

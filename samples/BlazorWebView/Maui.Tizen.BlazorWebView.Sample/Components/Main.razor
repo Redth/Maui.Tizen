@@ -1,0 +1,20 @@
+@namespace Maui.Tizen.BlazorWebView.Sample.Components
+
+@* Root component rendered into #app by the Tizen BlazorWebView handler. *@
+
+<h1>Hello from Blazor on Tizen</h1>
+
+<p>
+    Rendered by <code>Microsoft.Maui.Platforms.Tizen.BlazorWebView.TizenBlazorWebViewHandler</code>
+    through a Tizen NUI <code>WebView</code>.
+</p>
+
+<p role="status">Counter: @_count</p>
+
+<button class="btn" @onclick="Increment">Increment</button>
+
+@code {
+    private int _count;
+
+    private void Increment() => _count++;
+}

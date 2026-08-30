@@ -1,10 +1,35 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!--
+      Compiles explicit shipping sources and exports a public API, so it documents them.
+
+      Must be set BEFORE the import below, which reads it. Setting it after looked identical and
+      silently did nothing.
+    -->
+    <MauiTizenGeneratesDocumentation>true</MauiTizenGeneratesDocumentation>
+  </PropertyGroup>
+
   <Import Project="$(MSBuildThisFileDirectory)../../eng/targets/TizenPackage.props" />
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.Core.Sources.props" />
 
   <PropertyGroup>
     <RootNamespace>Microsoft.Maui</RootNamespace>
     <Description>Tizen platform implementation for .NET MAUI core: handlers, platform views, lifecycle, fonts, and image sources.</Description>
+
+    <!--
+      Deliberately NOT UseMaui/SingleProject.
+
+      This is a class library that consumes Microsoft.Maui.Core as a NuGet package; it is not an
+      application head. Setting UseMaui=true here makes the SDK require the `maui` workload to be
+      installed before it will even restore, which fails on any machine that has the .NET SDK but
+      not the MAUI workload - CI included - with NETSDK1147 rather than this repository's own
+      MAUITIZEN0001. That converts an explanatory external gate into a confusing one, and it hid
+      the gate entirely from eng/tests/test-workload-detection.sh.
+
+      UseMaui and SingleProject belong on the application head; see
+      samples/Maui.Tizen.Sample/Maui.Tizen.Sample.csproj.
+    -->
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,6 +37,47 @@
     <PackageReference Include="Microsoft.Maui.Graphics" />
     <!-- Apache-2.0, referenced only. See THIRD-PARTY-NOTICES.md. -->
     <PackageReference Include="Tizen.UIExtensions.NUI" />
+  </ItemGroup>
+
+  <!--
+    The vertical slice that has actually been ported.
+
+    TizenPackage.props leaves EnableDefaultCompileItems off because most of src/Maui.Tizen.Core
+    is still raw, unmodified dotnet/maui source that cannot compile from here. Rather than flip
+    that globally, this project opts individual files in as they are reworked. The list lives in
+    eng/Maui.Tizen.Core.Sources.props so the two host-side verification lanes under tests/ compile
+    exactly the same set.
+
+    Files being compiled are removed from the <None> glob TizenPackage.props applies to
+    everything-not-yet-ported, so each file appears exactly once.
+  -->
+  <ItemGroup>
+    <Compile Include="@(MauiTizenPortableCompile);@(MauiTizenHandlerCompile);@(MauiTizenPlatformCompile);@(MauiTizenWaveBCompile)" />
+    <None Remove="@(Compile)" />
+  </ItemGroup>
+
+  <!--
+    PublicAPI baselines.
+
+    TizenPackage.props attaches PublicAPI/**/PublicAPI.*.txt for every project, which for this one
+    means ~3,270 lines of dotnet/maui's INHERITED Microsoft.Maui.* API surface. That surface has
+    nothing to do with what this assembly actually exports (Microsoft.Maui.Platforms.Tizen.*), so
+    with the PublicApiAnalyzers package also referenced the real product build would fail with
+    RS0017 for every inherited entry that does not exist here, and RS0016 for every type that does.
+
+    The inherited files are kept on disk - they are the imported baseline for the not-yet-ported
+    sources and are consumed by the API-comparison tooling in eng/api-baselines/ - but they are
+    detached from the analyzer here and replaced with baselines for the slice this project really
+    compiles.
+
+    tests/Maui.Tizen.Core.RefPackCompile runs the analyzer over these same sources with these same
+    baselines, which is the only place it can actually execute until the Samsung workload ships.
+  -->
+  <ItemGroup>
+    <AdditionalFiles Remove="PublicAPI/net-tizen/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Remove="PublicAPI/net-tizen/PublicAPI.Unshipped.txt" />
+    <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Unshipped.txt" />
   </ItemGroup>
 
 </Project>

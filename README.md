@@ -3,8 +3,10 @@
 The Tizen backend for [.NET MAUI](https://github.com/dotnet/maui), extracted into a
 standalone, externally maintained repository.
 
-> **Status: foundation only.** The imported sources do not compile yet, and no packages
-> are published. See [Current state](#current-state) before filing issues.
+> **Status: compiled migration, not yet publishable.** Core, Waves A/B/C, Essentials,
+> alerts, gestures, BlazorWebView, and the provisional modal adapter are compiled and tested through
+> workload-free host and API15 reference-pack lanes. No packages are published. See
+> [Current state](#current-state) before filing issues.
 
 ## Why this exists
 
@@ -20,11 +22,12 @@ the platform. This repository separates the two.
 | Imported history | 1,236 commits, 121 authors, back to 2016 |
 | Files imported | 316 |
 | Repository scaffolding | Complete |
-| Package projects | Skeletons — identity and dependencies declared, sources not yet compiled |
+| Package projects | Core, Controls/Waves, Essentials, alerts/gestures and BlazorWebView have deterministic compiled source closures |
 | Published packages | None |
-| **Buildable** | **Not yet — blocked on an external dependency** |
+| Workload-free verification | Host tests, API15 RefPack compilation, PublicAPI/source closure, consumer compile, tooling and mutation suites |
+| **Real Tizen build/package/device lanes** | **Blocked on external dependencies** |
 
-### The blocker
+### External gates
 
 `net11.0-tizen11.0` cannot be restored or built by anyone right now. The workload manifest
 `Samsung.NET.Sdk.Tizen.Manifest-11.0.100-preview.7` has not been published to nuget.org — only the
@@ -37,18 +40,41 @@ explaining exactly this.
 
 Details in [`docs/migration.md`](docs/migration.md).
 
+Additional publication gates remain explicit:
+
+- `Tizen.UIExtensions.NUI` must be republished without its .NET 6-era MAUI dependency graph.
+- dotnet/maui#37853 modal contracts have not been adopted in the pinned published MAUI package.
+- dotnet/maui#37861 is merged, but its public long-press send APIs are absent from the pinned
+  MAUI package.
+- `Maui.Tizen.BlazorWebView` remains non-packable until `Maui.Tizen.Core` is enabled in the
+  produced package closure; `MAUITIZEN0107` fails closed if that dependency gate is bypassed.
+- Device, lifecycle/input and visual-baseline evidence needs the Samsung workload and provisioned
+  mobile/TV runners.
+
+`Maui.Tizen.Controls` has distinct `GenerateNuspec` guards for the modal and long-press package
+contracts. They inspect the pinned `Microsoft.Maui.Controls.dll` and the compiled local source
+closure. Even a verified upstream binary override cannot unblock packing until the provisional
+modal contracts are removed/registered against MAUI and long-press dispatch actually calls the
+public send APIs.
+
+Window-scope alert teardown is also single-channel: every waiting request receives native
+close/dispose failures through its result task, while framework-owned unsubscribe, scope disposal
+and application termination attempt all cleanup, report diagnostics, and do not throw again.
+
 ## What you can build today
 
 ```bash
 ./eng/build-workload-free.sh
 ```
 
-This runs everything that does not need the Tizen workload — SDK and package
-configuration, baseline consistency, import tooling integrity, and 20 repository
-invariant tests. It is the required CI lane, so that when the workload ships, the
-workload is the only thing that has to start working. The external-gate job then installs
-through Samsung's supported workload installer and runs `eng/build-tizen.sh`; it cannot
-report success by skipping or masking a failed real Tizen restore/build/pack.
+This runs everything that does not need the Tizen workload: compiled Core/Waves/Essentials,
+alerts/gestures and BlazorWebView host suites; API15 Core/Controls/Sample/Essentials/Blazor lanes;
+Controls consumer compile; PublicAPI and source-closure checks; real NuGet buildTransitive probes;
+migration tooling; package policy; and locked negative-control mutations.
+`eng/validation/run-hosted-validation.sh` adds repository, package, convention, DevFlow
+and consumer validation. The external-gate job installs through Samsung's supported workload
+installer and runs `eng/build-tizen.sh`; it cannot report success by skipping or masking a failed
+real Tizen restore/build/pack.
 
 Requires the .NET SDK pinned in [`global.json`](global.json) (11.0.100-preview.7).
 
@@ -71,7 +97,8 @@ eng/
   baselines.json             Pinned upstream baselines
   import/                    Reproducible history import tooling
   manifests/                 Source disposition schema and data
-  api-baselines/             Public API baselines
+  api-baselines/             Imported and standalone PublicAPI baselines
+  validation/                Hosted, package, consumer and device validation
 docs/                        Architecture and migration documentation
 ```
 

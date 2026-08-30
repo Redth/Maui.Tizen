@@ -30,6 +30,22 @@ SHIPPING_PROJECTS=(
   "src/Maui.Tizen.BlazorWebView/Maui.Tizen.BlazorWebView.csproj"
   "src/Maui.Tizen.Maps/Maui.Tizen.Maps.csproj"
   "src/Maui.Tizen.Graphics/Maui.Tizen.Graphics.csproj"
+
+  # The sample application head. It became a real Tizen project when it started importing
+  # TizenPackage.props and compiling its own sources, so the transition regression test
+  # requires it here - correctly: an app head that no longer builds is exactly the kind of
+  # break this lane exists to catch, and it is the only project that exercises the
+  # SingleProject/manifest path end to end.
+  #
+  # It sets IsPackable=false, so the pack phase below is a no-op for it rather than a
+  # failure.
+  "samples/Maui.Tizen.Sample/Maui.Tizen.Sample.csproj"
+
+  # The Blazor sample head, for the same reason: it imports TizenPackage.props, so the
+  # transition regression test requires it here. It is the only project that exercises the
+  # BlazorWebView registration and the StaticWebAsset -> MauiAsset conversion against a real
+  # Tizen app head. Also IsPackable=false, so pack is a no-op.
+  "samples/BlazorWebView/Maui.Tizen.BlazorWebView.Sample/Maui.Tizen.BlazorWebView.Sample.csproj"
 )
 
 MSBUILD_ARGS=()

@@ -1,20 +1,111 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <Import Project="$(MSBuildThisFileDirectory)../../eng/targets/TizenPackage.props" />
+  <Import Project="$(RepositoryRoot)eng/Maui.Tizen.BlazorWebView.Sources.props" />
+
+  <!--
+    BlazorWebView for the standalone Tizen backend.
+
+    TizenBlazorWebViewHandler derives from Maui.Tizen.Core's TizenViewHandler<,> and implements the
+    public IBlazorWebViewHandler capability interface from dotnet/maui#36658, so the shared MAUI
+    BlazorWebView control drives it through UsePlatformHandler. Nothing here redefines a MAUI type.
+
+    The raw dotnet/maui import under Tizen/ is NOT compiled: those files are the Tizen half of the
+    partial Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler, which now ships
+    complete in the shared package. They stay in place, uncompiled, for provenance.
+
+    Like every project here it is gated on the Samsung workload. Its host-side verification lane is
+    tests/Maui.Tizen.BlazorWebView.Tests.
+  -->
 
   <PropertyGroup>
-    <RootNamespace>Microsoft.AspNetCore.Components.WebView.Maui</RootNamespace>
-    <Description>Tizen platform implementation of BlazorWebView for .NET MAUI.</Description>
+    <RootNamespace>Microsoft.Maui.Platforms.Tizen.BlazorWebView</RootNamespace>
+    <Description>BlazorWebView support for the standalone .NET MAUI Tizen backend. Provides TizenBlazorWebViewHandler, a Tizen NUI WebView backed IBlazorWebViewHandler registered through IMauiBlazorWebViewBuilder.UsePlatformHandler.</Description>
+    <PackageTags>$(PackageTags);blazor;blazorwebview;nui;webview</PackageTags>
+
+    <!-- The reworked sources compile, so docs are generated for them. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!--
+      The implementation compiles, but Maui.Tizen.Core is not yet an enabled shipping package.
+      Keep this project non-packable until the dependency closure can be produced together. The
+      GenerateNuspec guards below also fail closed if a caller overrides IsPackable locally.
+    -->
+    <IsPackable>false</IsPackable>
+
+    <!--
+      This project compiles and ships public API, so it opts into the analyzer per the contract in
+      eng/targets/TizenPackage.props. The baseline below describes THIS assembly - not the imported
+      PublicAPI/net-tizen fixture, which records the unsplit upstream
+      Microsoft.AspNetCore.Components.WebView.Maui surface and would produce an RS0017 flood.
+
+      The analyzer cannot actually run here while the Samsung workload gate is closed, which is why
+      tests/Maui.Tizen.BlazorWebView.PublicApi compiles the same sources on a plain net11.0 host and
+      enforces the same baseline today.
+    -->
+    <EnablePublicApiAnalyzer>true</EnablePublicApiAnalyzer>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebView" />
+    <!--
+      Microsoft.AspNetCore.Components.WebView.Maui carries the shared BlazorWebView control,
+      IBlazorWebViewHandler and MauiBlazorWebViewBuilderExtensions.UsePlatformHandler. It transitively
+      brings Microsoft.AspNetCore.Components.WebView, so that package is not referenced directly.
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" />
     <PackageReference Include="Microsoft.Maui.Core" />
-    <PackageReference Include="Tizen.UIExtensions.NUI" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Maui.Tizen.Core/Maui.Tizen.Core.csproj" />
   </ItemGroup>
+
+  <!--
+    Only the reworked sources; see eng/Maui.Tizen.BlazorWebView.Sources.props. Files being compiled are
+    removed from the <None> glob TizenPackage.props applies to everything-not-yet-ported, so each file
+    appears exactly once.
+  -->
+  <ItemGroup>
+    <Compile Include="@(MauiTizenBlazorWebViewCompile)" />
+    <None Remove="@(Compile)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/slice/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Maui.Tizen.BlazorWebView.Tests" />
+  </ItemGroup>
+
+  <!--
+    buildTransitive/, not build/. The StaticWebAsset -> MauiAsset conversion these carry has to
+    reach apps that reference this package transitively, which is the whole reason the package
+    performs the conversion instead of relying on the MAUI Blazor package's build/-only copy.
+    See the header comment in the .targets.
+  -->
+  <ItemGroup>
+    <None Include="buildTransitive/Maui.Tizen.BlazorWebView.props" Pack="true" PackagePath="buildTransitive/" />
+    <None Include="buildTransitive/Maui.Tizen.BlazorWebView.targets" Pack="true" PackagePath="buildTransitive/" />
+  </ItemGroup>
+
+  <!--
+    This package's ProjectReference to Maui.Tizen.Core drags in Tizen.UIExtensions.NUI 0.9.2, which
+    transitively declares Microsoft.Maui.Graphics 6.0.300-rc.3.1336. Maui.Tizen.Core already refuses to
+    pack while that is true; refuse here too, for the same reason and with the same override.
+    See eng/Maui.props and docs/net11-status.md.
+  -->
+  <Target Name="BlockBlazorPackOnUnshippableUIExtensions" BeforeTargets="GenerateNuspec"
+          Condition="'$(TizenUIExtensionsIsShippable)' != 'true'">
+    <Error Code="MAUITIZEN0101"
+           Text="Refusing to pack $(MSBuildProjectName), which depends on Maui.Tizen.Core and therefore on Tizen.UIExtensions.NUI $(TizenUIExtensionsPackageVersion), which transitively declares Microsoft.Maui.Graphics 6.0.300-rc.3.1336. Bump the Tizen.UIExtensions.NUI PackageVersion in Directory.Packages.props once Samsung republishes it, or pass -p:TizenUIExtensionsIsShippable=true if you have verified the resulting dependency graph." />
+  </Target>
+
+  <Target Name="BlockBlazorPackUntilCorePackageIsShippable" BeforeTargets="GenerateNuspec"
+          Condition="'$(MauiTizenCorePackageIsShippable)' != 'true'">
+    <Error Code="MAUITIZEN0107"
+           Text="Refusing to pack $(MSBuildProjectName) because its required Maui.Tizen.Core package is not yet enabled in the produced package closure. Enable and validate the Core package first, then set MauiTizenCorePackageIsShippable=true." />
+  </Target>
 
 </Project>

@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="$(RepositoryRoot)eng/Maui.props" />
+
   <PropertyGroup>
     <IsValidationTestProject>true</IsValidationTestProject>
     <RootNamespace>Maui.Tizen.Conventions.Tests</RootNamespace>
