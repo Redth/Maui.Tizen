@@ -1,0 +1,672 @@
+name: Release Maui.Tizen packages
+
+# Publishing remains intentionally disabled. This workflow can build an exact unsigned artifact,
+# but PUBLISH runs fail until the checked-in release policy, protected environments/rulesets,
+# Samsung workload activation, organization signing service, and NuGet trusted publishing are real.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_version:
+        description: Package version to build (for example 11.0.0-preview.1)
+        required: true
+        type: string
+      reviewed_sha:
+        description: Full reviewed SHA at the current default-branch head
+        required: true
+        type: string
+      confirm_publish:
+        description: Type PUBLISH to request protected device/sign/publish gates
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: maui-tizen-release-${{ github.repository_id }}-${{ inputs.package_version }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+
+jobs:
+  source:
+    name: Verify reviewed release source and required checks
+    runs-on: ubuntu-latest
+    permissions:
+      checks: read
+      contents: read
+    outputs:
+      default_branch: ${{ steps.source.outputs.default_branch }}
+      package_version: ${{ steps.source.outputs.package_version }}
+      source_branch: ${{ steps.source.outputs.source_branch }}
+      source_ref: ${{ steps.source.outputs.source_ref }}
+      source_sha: ${{ steps.source.outputs.source_sha }}
+    steps:
+      - name: Require the dispatched SHA
+        env:
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          if [[ "$REVIEWED_SHA" != "$GITHUB_SHA" ]]; then
+            echo "::error::reviewed_sha must equal the SHA selected for this workflow run."
+            exit 1
+          fi
+
+      - name: Checkout the reviewed SHA
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ inputs.reviewed_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify current protected default-branch head
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+          SOURCE_REF: ${{ github.ref }}
+          REF_PROTECTED: ${{ github.ref_protected }}
+          REQUIRE_PROTECTED: ${{ inputs.confirm_publish == 'PUBLISH' }}
+          PACKAGE_VERSION: ${{ inputs.package_version }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY" > repository.json
+          default_branch="$(python3 -c 'import json; print(json.load(open("repository.json"))["default_branch"])')"
+          source_branch="${SOURCE_REF#refs/heads/}"
+          encoded_source_branch="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$source_branch")"
+          gh api "repos/$GITHUB_REPOSITORY/branches/$encoded_source_branch" > branch.json
+          gh api --paginate --slurp \
+            -H "Accept: application/vnd.github+json" \
+            "repos/$GITHUB_REPOSITORY/commits/$REVIEWED_SHA/check-runs?filter=all&per_page=100" \
+            > check-runs.json
+          ./eng/release/release-contract.py validate-version --version "$PACKAGE_VERSION"
+          ./eng/release/release-contract.py verify-source \
+            --policy eng/release/release-policy.json \
+            --repository-json repository.json \
+            --branch-json branch.json \
+            --source-ref "$SOURCE_REF" \
+            --source-commit "$REVIEWED_SHA" \
+            --ref-protected "$REF_PROTECTED" \
+            --require-protected "$REQUIRE_PROTECTED"
+          ./eng/release/release-contract.py verify-required-checks \
+            --policy eng/release/release-policy.json \
+            --check-runs-json check-runs.json \
+            --source-commit "$REVIEWED_SHA"
+          {
+            echo "default_branch=$default_branch"
+            echo "package_version=$PACKAGE_VERSION"
+            echo "source_branch=$source_branch"
+            echo "source_ref=$SOURCE_REF"
+            echo "source_sha=$REVIEWED_SHA"
+          } >> "$GITHUB_OUTPUT"
+
+  build-pack:
+    name: Build, test and pack once
+    needs: source
+    runs-on: ubuntu-latest
+    env:
+      PACKAGE_VERSION: ${{ needs.source.outputs.package_version }}
+      SOURCE_REF: ${{ needs.source.outputs.source_ref }}
+      SOURCE_SHA: ${{ needs.source.outputs.source_sha }}
+    outputs:
+      artifact_available: ${{ steps.stage.outputs.available }}
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      artifact_name: ${{ steps.identity.outputs.name }}
+      artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+      manifest_sha256: ${{ steps.stage.outputs.manifest_sha256 }}
+      workload_id: ${{ steps.stage.outputs.workload_id }}
+      workload_version: ${{ steps.stage.outputs.workload_version }}
+      workload_package_sha256: ${{ steps.stage.outputs.workload_package_sha256 }}
+      workload_signer_fingerprint: ${{ steps.stage.outputs.workload_signer_fingerprint }}
+    steps:
+      - name: Checkout the reviewed SHA
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.source.outputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          global-json-file: global.json
+
+      - name: Build and validate workload-independent code
+        env:
+          Version: ${{ needs.source.outputs.package_version }}
+          PackageVersion: ${{ needs.source.outputs.package_version }}
+          RepositoryCommit: ${{ needs.source.outputs.source_sha }}
+          ContinuousIntegrationBuild: "true"
+        run: ./eng/build-workload-free.sh
+
+      - name: Install the reviewed workload, then build and pack shipping packages once
+        env:
+          Version: ${{ needs.source.outputs.package_version }}
+          PackageVersion: ${{ needs.source.outputs.package_version }}
+          SOURCE_COMMIT: ${{ needs.source.outputs.source_sha }}
+          MAUI_TIZEN_PACKAGE_OUTPUT_PATH: ${{ github.workspace }}/artifacts/release-packages
+          MAUI_TIZEN_WORKLOAD_FREE_PROJECTS_ALREADY_BUILT: "true"
+          ContinuousIntegrationBuild: "true"
+        run: ./eng/ci/tizen-workload-gate.sh
+
+      - name: Define attempt-bound artifact identity
+        id: identity
+        run: |
+          {
+            echo "name=maui-tizen-unsigned-${PACKAGE_VERSION}-run-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Generate the exact unsigned release manifest
+        id: stage
+        env:
+          ARTIFACT_NAME: ${{ steps.identity.outputs.name }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          packages=(artifacts/release-packages/*.nupkg artifacts/release-packages/*.snupkg)
+          if (( ${#packages[@]} == 0 )); then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "No shipping packages exist because the reviewed Samsung workload activation is unavailable."
+            exit 0
+          fi
+
+          rm -rf artifacts/release-unsigned
+          mkdir -p artifacts/release-unsigned
+          cp -- "${packages[@]}" artifacts/release-unsigned/
+          ./eng/release/release-contract.py create-unsigned-manifest \
+            --packages-dir artifacts/release-unsigned \
+            --output artifacts/release-unsigned/release-manifest.json \
+            --repository "$GITHUB_REPOSITORY" \
+            --version "$PACKAGE_VERSION" \
+            --source-commit "$SOURCE_SHA" \
+            --source-ref "$SOURCE_REF" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --artifact-name "$ARTIFACT_NAME"
+          manifest_sha256="$(shasum -a 256 artifacts/release-unsigned/release-manifest.json | cut -d' ' -f1)"
+          {
+            echo "available=true"
+            echo "manifest_sha256=$manifest_sha256"
+          } >> "$GITHUB_OUTPUT"
+          python3 - "$GITHUB_OUTPUT" <<'PY'
+          import json
+          import sys
+
+          workload = json.load(open("artifacts/release-unsigned/release-manifest.json"))["workloadManifest"]
+          with open(sys.argv[1], "a", encoding="utf-8") as output:
+              output.write(f"workload_id={workload['id']}\n")
+              output.write(f"workload_version={workload['version']}\n")
+              output.write(f"workload_package_sha256={workload['packageSha256']}\n")
+              output.write(f"workload_signer_fingerprint={workload['signerFingerprint']}\n")
+          PY
+
+      - name: Require a complete artifact when publishing is requested
+        if: inputs.confirm_publish == 'PUBLISH' && steps.stage.outputs.available != 'true'
+        run: |
+          echo "::error::PUBLISH requires the complete exact unsigned release artifact."
+          exit 1
+
+      - name: Upload the exact unsigned artifact
+        id: upload
+        if: steps.stage.outputs.available == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.identity.outputs.name }}
+          path: artifacts/release-unsigned/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+
+  publish-preflight:
+    name: Publish policy and protection preflight
+    if: inputs.confirm_publish == 'PUBLISH'
+    needs: [source, build-pack]
+    runs-on: ubuntu-latest
+    environment: tizen-device-lab
+    permissions:
+      actions: read
+      contents: read
+    env:
+      ARTIFACT_DIGEST: ${{ needs.build-pack.outputs.artifact_digest }}
+      ARTIFACT_ID: ${{ needs.build-pack.outputs.artifact_id }}
+      ARTIFACT_NAME: ${{ needs.build-pack.outputs.artifact_name }}
+      DEFAULT_BRANCH: ${{ needs.source.outputs.default_branch }}
+      MANIFEST_SHA256: ${{ needs.build-pack.outputs.manifest_sha256 }}
+      PACKAGE_VERSION: ${{ needs.source.outputs.package_version }}
+      SOURCE_REF: ${{ needs.source.outputs.source_ref }}
+      SOURCE_BRANCH: ${{ needs.source.outputs.source_branch }}
+      SOURCE_SHA: ${{ needs.source.outputs.source_sha }}
+    steps:
+      - name: Checkout the reviewed SHA
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.source.outputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          global-json-file: global.json
+
+      - name: Verify unsigned artifact API identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID" \
+            > artifact.json
+          ./eng/release/release-contract.py verify-artifact-metadata \
+            --metadata artifact.json \
+            --artifact-id "$ARTIFACT_ID" \
+            --name "$ARTIFACT_NAME" \
+            --digest "$ARTIFACT_DIGEST" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --source-commit "$SOURCE_SHA" \
+            --source-ref "$SOURCE_REF"
+
+      - name: Download the exact unsigned artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.build-pack.outputs.artifact_id }}
+          merge-multiple: true
+          path: artifacts/unsigned
+
+      - name: Verify manifest, API compatibility, support, version and package metadata
+        run: |
+          set -euo pipefail
+          test "$(shasum -a 256 artifacts/unsigned/release-manifest.json | cut -d' ' -f1)" \
+            = "$MANIFEST_SHA256"
+          ./eng/release/release-contract.py verify-policies \
+            --support-matrix docs/governance/tizen-support-matrix.md \
+            --packages-dir artifacts/unsigned \
+            --manifest artifacts/unsigned/release-manifest.json \
+            --repository "$GITHUB_REPOSITORY" \
+            --version "$PACKAGE_VERSION" \
+            --source-commit "$SOURCE_SHA" \
+            --source-ref "$SOURCE_REF" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --artifact-name "$ARTIFACT_NAME"
+
+      - name: Verify protected environments and release-branch ruleset
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_GOVERNANCE_AUDIT_TOKEN }}
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::error::The tizen-device-lab environment must provide RELEASE_GOVERNANCE_AUDIT_TOKEN."
+            exit 1
+          fi
+          ./eng/release/release-contract.py verify-protections \
+            --repository "$GITHUB_REPOSITORY" \
+            --default-branch "$DEFAULT_BRANCH" \
+            --source-branch "$SOURCE_BRANCH"
+
+  device-validation:
+    name: Validate exact unsigned artifact on Tizen devices
+    if: inputs.confirm_publish == 'PUBLISH'
+    needs: [source, build-pack, publish-preflight]
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/tizen-device-validation.yml
+    with:
+      release_validation: true
+      package_version: ${{ needs.source.outputs.package_version }}
+      unsigned_artifact_id: ${{ needs.build-pack.outputs.artifact_id }}
+      unsigned_artifact_name: ${{ needs.build-pack.outputs.artifact_name }}
+      unsigned_artifact_digest: ${{ needs.build-pack.outputs.artifact_digest }}
+      unsigned_manifest_sha256: ${{ needs.build-pack.outputs.manifest_sha256 }}
+      source_sha: ${{ needs.source.outputs.source_sha }}
+      source_ref: ${{ needs.source.outputs.source_ref }}
+      source_run_id: ${{ github.run_id }}
+      source_run_attempt: ${{ github.run_attempt }}
+      workload_id: ${{ needs.build-pack.outputs.workload_id }}
+      workload_version: ${{ needs.build-pack.outputs.workload_version }}
+      workload_package_sha256: ${{ needs.build-pack.outputs.workload_package_sha256 }}
+      workload_signer_fingerprint: ${{ needs.build-pack.outputs.workload_signer_fingerprint }}
+
+  release-gate:
+    name: Release approval gate
+    if: inputs.confirm_publish == 'PUBLISH' && needs.device-validation.result == 'success'
+    needs: [device-validation]
+    runs-on: ubuntu-latest
+    environment: tizen-release
+    steps:
+      - name: Require the explicit device gate output
+        env:
+          GATE_PASSED: ${{ needs.device-validation.outputs.gate_passed }}
+        run: |
+          set -euo pipefail
+          if [[ "$GATE_PASSED" != "true" ]]; then
+            echo "::error::The reusable device workflow did not return gate_passed=true."
+            exit 1
+          fi
+
+  sign:
+    name: Sign exact packages (disabled until service is configured)
+    if: inputs.confirm_publish == 'PUBLISH'
+    needs: [source, build-pack, release-gate]
+    runs-on: windows-latest
+    environment: nuget-signing
+    permissions:
+      actions: read
+      attestations: write
+      contents: read
+      id-token: write
+    env:
+      PACKAGE_VERSION: ${{ needs.source.outputs.package_version }}
+      SOURCE_REF: ${{ needs.source.outputs.source_ref }}
+      SOURCE_SHA: ${{ needs.source.outputs.source_sha }}
+      UNSIGNED_ARTIFACT_DIGEST: ${{ needs.build-pack.outputs.artifact_digest }}
+      UNSIGNED_ARTIFACT_ID: ${{ needs.build-pack.outputs.artifact_id }}
+      UNSIGNED_ARTIFACT_NAME: ${{ needs.build-pack.outputs.artifact_name }}
+      UNSIGNED_MANIFEST_SHA256: ${{ needs.build-pack.outputs.manifest_sha256 }}
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      artifact_name: ${{ steps.identity.outputs.name }}
+      artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+      certificate_sha256: ${{ steps.certificate.outputs.sha256 }}
+      manifest_sha256: ${{ steps.signed.outputs.manifest_sha256 }}
+    steps:
+      - name: Checkout the reviewed SHA
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.source.outputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          global-json-file: global.json
+
+      - name: Verify unsigned artifact API identity
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$env:GITHUB_REPOSITORY/actions/artifacts/$env:UNSIGNED_ARTIFACT_ID" |
+            Set-Content -LiteralPath artifact.json -Encoding utf8NoBOM
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python eng/release/release-contract.py verify-artifact-metadata `
+            --metadata artifact.json `
+            --artifact-id "$env:UNSIGNED_ARTIFACT_ID" `
+            --name "$env:UNSIGNED_ARTIFACT_NAME" `
+            --digest "$env:UNSIGNED_ARTIFACT_DIGEST" `
+            --run-id "$env:GITHUB_RUN_ID" `
+            --run-attempt "$env:GITHUB_RUN_ATTEMPT" `
+            --source-commit "$env:SOURCE_SHA" `
+            --source-ref "$env:SOURCE_REF"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Download the exact unsigned artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.build-pack.outputs.artifact_id }}
+          merge-multiple: true
+          path: artifacts/unsigned
+
+      - name: Verify the exact unsigned manifest
+        shell: pwsh
+        run: |
+          $manifestHash = (Get-FileHash artifacts/unsigned/release-manifest.json -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($manifestHash -ne $env:UNSIGNED_MANIFEST_SHA256) {
+            throw "Unsigned release manifest digest mismatch."
+          }
+          python eng/release/release-contract.py verify-unsigned-manifest `
+            --packages-dir artifacts/unsigned `
+            --manifest artifacts/unsigned/release-manifest.json `
+            --repository "$env:GITHUB_REPOSITORY" `
+            --version "$env:PACKAGE_VERSION" `
+            --source-commit "$env:SOURCE_SHA" `
+            --source-ref "$env:SOURCE_REF" `
+            --run-id "$env:GITHUB_RUN_ID" `
+            --run-attempt "$env:GITHUB_RUN_ATTEMPT" `
+            --artifact-name "$env:UNSIGNED_ARTIFACT_NAME"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Require the reviewed environment-scoped signing certificate
+        id: certificate
+        shell: pwsh
+        env:
+          ENVIRONMENT_CERTIFICATE_SHA256: ${{ vars.NUGET_SIGNING_CERTIFICATE_SHA256 }}
+        run: |
+          $policy = Get-Content eng/release/release-policy.json | ConvertFrom-Json
+          $environment = ($env:ENVIRONMENT_CERTIFICATE_SHA256 -replace '[^0-9A-Fa-f]', '').ToLowerInvariant()
+          $reviewed = ([string]$policy.signing.certificateSha256 -replace '[^0-9A-Fa-f]', '').ToLowerInvariant()
+          if ($environment -notmatch '^[0-9a-f]{64}$' -or $environment -ne $reviewed) {
+            throw "The nuget-signing environment certificate does not match the reviewed release policy."
+          }
+          "sha256=$environment" >> $env:GITHUB_OUTPUT
+
+      - name: Define signed attempt-bound artifact identity
+        id: identity
+        shell: pwsh
+        run: |
+          "name=maui-tizen-signed-${env:PACKAGE_VERSION}-run-${env:GITHUB_RUN_ID}-attempt-${env:GITHUB_RUN_ATTEMPT}" `
+            >> $env:GITHUB_OUTPUT
+
+      - name: Organization signing service is not configured
+        shell: pwsh
+        run: |
+          Write-Error "Publishing remains disabled: configure the organization signing service in the protected nuget-signing environment."
+          exit 1
+
+      # The organization signer must read artifacts/unsigned and write the same filenames to
+      # artifacts/signed. It must Authenticode-sign every managed DLL and NuGet-sign every archive
+      # with the reviewed certificate. The verification below is intentionally mandatory.
+
+      - name: Verify signed output and create its one-to-one manifest
+        id: signed
+        shell: pwsh
+        env:
+          CERTIFICATE_SHA256: ${{ steps.certificate.outputs.sha256 }}
+          SIGNED_ARTIFACT_NAME: ${{ steps.identity.outputs.name }}
+        run: |
+          $packages = Get-ChildItem artifacts/signed -File |
+            Where-Object { $_.Extension -in @('.nupkg', '.snupkg') }
+          if ($packages.Count -eq 0) { throw "The signing service produced no packages." }
+          foreach ($package in $packages) {
+            dotnet nuget verify --all --certificate-fingerprint $env:CERTIFICATE_SHA256 $package.FullName
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          ./eng/release/verify-authenticode.ps1 `
+            -PackagesDirectory artifacts/signed `
+            -CertificateSha256 $env:CERTIFICATE_SHA256 `
+            -Output artifacts/signed/authenticode-report.json
+          python eng/release/release-contract.py create-signed-manifest `
+            --unsigned-dir artifacts/unsigned `
+            --unsigned-manifest artifacts/unsigned/release-manifest.json `
+            --signed-dir artifacts/signed `
+            --authenticode-report artifacts/signed/authenticode-report.json `
+            --certificate-sha256 $env:CERTIFICATE_SHA256 `
+            --artifact-name "$env:SIGNED_ARTIFACT_NAME" `
+            --run-attempt "$env:GITHUB_RUN_ATTEMPT" `
+            --output artifacts/signed/release-manifest.json `
+            --attestation-checksums artifacts/signed/attestation-subjects.sha256
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $hash = (Get-FileHash artifacts/signed/release-manifest.json -Algorithm SHA256).Hash.ToLowerInvariant()
+          "manifest_sha256=$hash" >> $env:GITHUB_OUTPUT
+
+      - name: Attest exact signed package digests
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-checksums: artifacts/signed/attestation-subjects.sha256
+
+      - name: Upload the exact signed artifact
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.identity.outputs.name }}
+          path: artifacts/signed/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+
+  publish:
+    name: Publish to NuGet (disabled until trusted publishing is configured)
+    if: inputs.confirm_publish == 'PUBLISH'
+    needs: [source, build-pack, sign]
+    runs-on: ubuntu-latest
+    environment: nuget-publish
+    permissions:
+      actions: read
+      attestations: read
+      contents: read
+    env:
+      CERTIFICATE_SHA256: ${{ needs.sign.outputs.certificate_sha256 }}
+      PACKAGE_VERSION: ${{ needs.source.outputs.package_version }}
+      SIGNED_ARTIFACT_DIGEST: ${{ needs.sign.outputs.artifact_digest }}
+      SIGNED_ARTIFACT_ID: ${{ needs.sign.outputs.artifact_id }}
+      SIGNED_ARTIFACT_NAME: ${{ needs.sign.outputs.artifact_name }}
+      SIGNED_MANIFEST_SHA256: ${{ needs.sign.outputs.manifest_sha256 }}
+      SOURCE_REF: ${{ needs.source.outputs.source_ref }}
+      SOURCE_SHA: ${{ needs.source.outputs.source_sha }}
+      UNSIGNED_ARTIFACT_DIGEST: ${{ needs.build-pack.outputs.artifact_digest }}
+      UNSIGNED_ARTIFACT_ID: ${{ needs.build-pack.outputs.artifact_id }}
+      UNSIGNED_ARTIFACT_NAME: ${{ needs.build-pack.outputs.artifact_name }}
+      UNSIGNED_MANIFEST_SHA256: ${{ needs.build-pack.outputs.manifest_sha256 }}
+    steps:
+      - name: Checkout the reviewed SHA
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.source.outputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          global-json-file: global.json
+
+      - name: Verify unsigned and signed artifact API identities
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          verify_artifact() {
+            local id="$1" name="$2" digest="$3" metadata="$4"
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" > "$metadata"
+            ./eng/release/release-contract.py verify-artifact-metadata \
+              --metadata "$metadata" \
+              --artifact-id "$id" \
+              --name "$name" \
+              --digest "$digest" \
+              --run-id "$GITHUB_RUN_ID" \
+              --run-attempt "$GITHUB_RUN_ATTEMPT" \
+              --source-commit "$SOURCE_SHA" \
+              --source-ref "$SOURCE_REF"
+          }
+          verify_artifact \
+            "$UNSIGNED_ARTIFACT_ID" \
+            "$UNSIGNED_ARTIFACT_NAME" \
+            "$UNSIGNED_ARTIFACT_DIGEST" \
+            unsigned-artifact.json
+          verify_artifact \
+            "$SIGNED_ARTIFACT_ID" \
+            "$SIGNED_ARTIFACT_NAME" \
+            "$SIGNED_ARTIFACT_DIGEST" \
+            signed-artifact.json
+
+      - name: Download exact unsigned input
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.build-pack.outputs.artifact_id }}
+          merge-multiple: true
+          path: artifacts/unsigned
+
+      - name: Download exact signed output
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.sign.outputs.artifact_id }}
+          merge-multiple: true
+          path: artifacts/signed
+
+      - name: Verify one-to-one signed bytes and approved certificate
+        run: |
+          set -euo pipefail
+          test "$(shasum -a 256 artifacts/unsigned/release-manifest.json | cut -d' ' -f1)" \
+            = "$UNSIGNED_MANIFEST_SHA256"
+          test "$(shasum -a 256 artifacts/signed/release-manifest.json | cut -d' ' -f1)" \
+            = "$SIGNED_MANIFEST_SHA256"
+          ./eng/release/release-contract.py verify-unsigned-manifest \
+            --packages-dir artifacts/unsigned \
+            --manifest artifacts/unsigned/release-manifest.json \
+            --repository "$GITHUB_REPOSITORY" \
+            --version "$PACKAGE_VERSION" \
+            --source-commit "$SOURCE_SHA" \
+            --source-ref "$SOURCE_REF" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --artifact-name "$UNSIGNED_ARTIFACT_NAME"
+          ./eng/release/release-contract.py verify-signed-manifest \
+            --signed-dir artifacts/signed \
+            --manifest artifacts/signed/release-manifest.json \
+            --unsigned-manifest artifacts/unsigned/release-manifest.json \
+            --certificate-sha256 "$CERTIFICATE_SHA256" \
+            --repository "$GITHUB_REPOSITORY" \
+            --version "$PACKAGE_VERSION" \
+            --source-commit "$SOURCE_SHA" \
+            --source-ref "$SOURCE_REF" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --artifact-name "$SIGNED_ARTIFACT_NAME"
+          for package in artifacts/signed/*.nupkg artifacts/signed/*.snupkg; do
+            dotnet nuget verify --all --certificate-fingerprint "$CERTIFICATE_SHA256" "$package"
+          done
+
+      - name: Verify provenance against this signer workflow and attempt
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          while read -r digest filename; do
+            report="attestation-${filename}.json"
+            gh attestation verify "artifacts/signed/$filename" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+              --signer-digest "$SOURCE_SHA" \
+              --source-digest "$SOURCE_SHA" \
+              --source-ref "$SOURCE_REF" \
+              --deny-self-hosted-runners \
+              --format json > "$report"
+            ./eng/release/release-contract.py verify-attestation-report \
+              --report "$report" \
+              --repository "$GITHUB_REPOSITORY" \
+              --source-commit "$SOURCE_SHA" \
+              --source-ref "$SOURCE_REF" \
+              --run-id "$GITHUB_RUN_ID" \
+              --run-attempt "$GITHUB_RUN_ATTEMPT" \
+              --subject-name "$filename" \
+              --subject-digest "$digest"
+          done < artifacts/signed/attestation-subjects.sha256
+
+      - name: Plan hash-verified idempotent publication
+        run: |
+          ./eng/release/release-contract.py plan-publication \
+            --manifest artifacts/signed/release-manifest.json \
+            --feed-base https://api.nuget.org/v3-flatcontainer \
+            --symbol-feed-base https://www.nuget.org/api/v2/symbolpackage \
+            --certificate-sha256 "$CERTIFICATE_SHA256" \
+            --output artifacts/publication-plan.json
+          cat artifacts/publication-plan.json
+
+      - name: Publishing remains disabled
+        run: |
+          echo "::error::NuGet trusted publishing is not configured and eng/release/release-policy.json remains fail-closed."
+          exit 1
+
+      # Once trusted publishing is configured, replace only the fail-closed step above with a
+      # second plan-publication invocation using --execute, --source and the short-lived
+      # environment-scoped trusted-publishing token. It pushes entries marked "publish" and skips
+      # entries marked "skip"; a mismatched existing package fails before any push. Add
+      # `id-token: write` to this job only when the trusted-publishing login actually consumes it.

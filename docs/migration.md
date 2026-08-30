@@ -98,14 +98,18 @@ The transition is automatic and fail-closed:
    both derived from `eng/baselines.json`.
 2. A 404 for both remains an informational external-gate success. Network errors,
    malformed responses, and unexpected status codes fail because availability is unknown.
-3. When either package exists, CI runs Samsung's commit-pinned supported installer with the
-   exact published manifest version, then verifies the installed manifest through the
-   repository's `_DetectTizenWorkload` target.
+3. When either package exists, CI first requires a reviewed activation record in
+   `eng/baselines.json` that pins the exact manifest version, package SHA-256, and Samsung
+   signing-certificate fingerprint. It verifies the package against all three pins before
+   running Samsung's commit-pinned supported installer, then verifies the installed manifest
+   through the repository's `_DetectTizenWorkload` target.
 4. `eng/build-tizen.sh` restores, builds, and invokes Pack for every actual
    `net11.0-tizen11.0` product project. Any install, restore, build, or pack failure fails
    the workflow.
-5. After that lane is green, regenerate API baselines against the real Tizen build and run the
-   device/profile/visual/package gates.
+5. After that lane is green, pack the complete standalone package set and generate a selectable
+   release baseline with `eng/scripts/generate-release-api-baseline.ps1`; the historical
+   `net9.0-tizen7.0` baseline remains reference-only because its Microsoft assembly identities do
+   not match the external package shape. Then run the device/profile/visual/package gates.
 
 ### SecureStorage data migration
 

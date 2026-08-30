@@ -36,16 +36,22 @@ Environment-specific values arrive at runtime:
 | `DEVFLOW_HOST_PORT` / `DEVFLOW_DEVICE_PORT` | Tunnel ports, default `9223` |
 | `APP_ID` | Application id for the lifecycle harness |
 
-Runner selection is by label (`[self-hosted, tizen]`); enablement is the `TIZEN_DEVICE_LAB_ENABLED`
-repository variable.
+Runner selection uses the `maui-tizen-release` runner group plus the `tizen` label; enablement is
+the `TIZEN_DEVICE_LAB_ENABLED` repository variable. The group must be restricted exclusively to
+this repository's reviewed device workflow and provision one-job JIT runners (zero persistent idle
+runners). Release jobs also set `NUGET_PACKAGES` to a unique runner-temporary directory.
 
 ## Setting up a runner
 
 1. Install Tizen Studio with the mobile and TV extensions; ensure `sdb` and `tizen` are on `PATH`.
-2. Install the Samsung workload: `dotnet workload install tizen`. *(Blocked until the `11.0.100`
-   band is published.)*
+2. Install the exact Samsung workload manifest ID/version pinned in `eng/baselines.json`, using
+   Samsung's reviewed installer flow. Release validation re-downloads the pinned package, verifies
+   its SHA-256/signing certificate, and compares its `data/WorkloadManifest.json` byte-for-byte
+   with the installed manifest. *(Blocked until the `11.0.100` band is published and reviewed.)*
 3. Create or attach an emulator or device.
-4. Register a self-hosted runner with the `tizen` label.
+4. Configure an autoscaler that registers one-job JIT runners with the `tizen` label in the
+   `maui-tizen-release` group. Restrict that group exclusively to this repository and
+   `.github/workflows/tizen-device-validation.yml` on the protected default branch.
 5. Set the `TIZEN_DEVICE_LAB_ENABLED` repository variable to `true`.
 6. Create a `tizen-device-lab` environment, and a `tizen-release` environment with required
    reviewers.

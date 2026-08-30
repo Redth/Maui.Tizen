@@ -43,7 +43,6 @@
 #   tizen-device-lane.sh list-baseline-variants
 #   tizen-device-lane.sh remote-focus
 #   tizen-device-lane.sh lifecycle
-#   tizen-device-lane.sh pack
 #   tizen-device-lane.sh device-assertions
 #   tizen-device-lane.sh baselines
 #   tizen-device-lane.sh baseline-sidecar <png> <case> <profile> <api> <theme> <density>
@@ -59,6 +58,7 @@ TIZEN_DEVICE_SERIAL="${TIZEN_DEVICE_SERIAL:-}"
 DEVFLOW_HOST_PORT="${DEVFLOW_HOST_PORT:-9223}"
 DEVFLOW_DEVICE_PORT="${DEVFLOW_DEVICE_PORT:-9223}"
 APP_ID="${APP_ID:-}"
+MAUI_TIZEN_RELEASE_NUGET_CONFIG="${MAUI_TIZEN_RELEASE_NUGET_CONFIG:-}"
 DEVFLOW_CONVENTIONS_NAMESPACE="org.dotnet.maui.tizen"
 DEVFLOW_LEASE_ID=""
 
@@ -179,10 +179,21 @@ cmd_build() {
   # plain Release build excludes it - AddMauiDevFlowAgent() is conventionally '#if DEBUG' - and the
   # whole lane would then install an app the driver can never talk to.
   info "Building $project for $TIZEN_TFM (validation configuration)"
-  "$DOTNET" build "$project" -c Release -f "$TIZEN_TFM" -p:MauiTizenValidation=true --nologo
+  if [[ -n "$MAUI_TIZEN_RELEASE_NUGET_CONFIG" ]]; then
+    [[ -f "$MAUI_TIZEN_RELEASE_NUGET_CONFIG" ]] \
+      || { fail "Release NuGet configuration is missing: $MAUI_TIZEN_RELEASE_NUGET_CONFIG"; exit 1; }
+    "$DOTNET" restore "$project" -p:MauiTizenValidation=true \
+      --configfile "$MAUI_TIZEN_RELEASE_NUGET_CONFIG" --nologo
+    "$DOTNET" build "$project" --no-restore -c Release -f "$TIZEN_TFM" \
+      -p:MauiTizenValidation=true --nologo
+  else
+    "$DOTNET" build "$project" -c Release -f "$TIZEN_TFM" \
+      -p:MauiTizenValidation=true --nologo
+  fi
 
   info "Packaging TPK"
-  "$DOTNET" build "$project" -c Release -f "$TIZEN_TFM" -p:MauiTizenValidation=true -t:Package --nologo
+  "$DOTNET" build "$project" --no-restore -c Release -f "$TIZEN_TFM" \
+    -p:MauiTizenValidation=true -t:Package --nologo
 }
 
 cmd_install() {
@@ -538,19 +549,6 @@ print((json.load(sys.stdin).get('app') or {}).get('processId', ''))
 }
 
 # ---------------------------------------------------------------------------
-# Shipping packages.
-#
-# Only produced where the workload exists. The release gates in ReleaseReadinessTests require
-# every declared package-content contract to have a matching .nupkg.
-# ---------------------------------------------------------------------------
-cmd_pack() {
-  require_lane pack
-
-  info "Packing shipping packages"
-  "$DOTNET" pack "$REPO_ROOT/Maui.Tizen.slnx" -c Release --nologo
-}
-
-# ---------------------------------------------------------------------------
 # On-device assertions.
 #
 # These MUST execute inside the deployed application. Running the hosted validation script on the
@@ -792,7 +790,6 @@ case "${1:-}" in
   list-baseline-variants) shift; list_baseline_variants "$@" ;;
   remote-focus) shift; cmd_remote_focus "$@" ;;
   lifecycle)    shift; cmd_lifecycle "$@" ;;
-  pack)              shift; cmd_pack "$@" ;;
   device-assertions) shift; cmd_device_assertions "$@" ;;
   baselines)         shift; cmd_baselines "$@" ;;
   baseline-sidecar)  shift; cmd_baseline_sidecar "$@" ;;

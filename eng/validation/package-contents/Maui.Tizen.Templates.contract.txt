@@ -1,0 +1,12 @@
+# Package content contract for Maui.Tizen.Templates
+#
+# Template packs carry source content only. They must preserve the Template Engine directory
+# shape and must never become compile-time references.
+
+require  content/templates/**/.template.config/template.json
+require  content/templates/**/MauiTizenApp.csproj
+require  content/templates/**/MauiProgram.cs
+
+forbid   lib/**
+forbid   **/*.pdb
+require  README.md

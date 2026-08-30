@@ -12,15 +12,18 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 DOTNET="${DOTNET:-dotnet}"
+PACKAGE_VERSION="${PackageVersion:-${PACKAGE_VERSION:-}}"
+PACKAGE_OUTPUT_PATH="${MAUI_TIZEN_PACKAGE_OUTPUT_PATH:-$REPO_ROOT/artifacts/packages}"
 
 if [[ "${MAUI_TIZEN_LOCAL_SEMANTICS:-0}" != "1" ]]; then
   export ContinuousIntegrationBuild=true
 fi
 
-# Every current product project that imports eng/targets/TizenPackage.props is listed
-# explicitly. The transition regression test rejects a newly added Tizen project that is
-# not added here, including a future sample or package project.
-TIZEN_PROJECTS=(
+# Every shipping project is explicit. Build.Tasks and Templates are workload-independent, but
+# they ship with the Tizen packages and must be packed into the same exact release artifact.
+SHIPPING_PROJECTS=(
+  "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj"
+  "src/Maui.Tizen.Templates/Maui.Tizen.Templates.csproj"
   "src/Diagnostics/Maui.Tizen.DevFlow.Agent/Maui.Tizen.DevFlow.Agent.csproj"
   "src/Maui.Tizen.Core/Maui.Tizen.Core.csproj"
   "src/Maui.Tizen.Controls/Maui.Tizen.Controls.csproj"
@@ -46,22 +49,49 @@ TIZEN_PROJECTS=(
   "samples/BlazorWebView/Maui.Tizen.BlazorWebView.Sample/Maui.Tizen.BlazorWebView.Sample.csproj"
 )
 
-echo "==> Restore net11.0-tizen11.0 projects"
-for project in "${TIZEN_PROJECTS[@]}"; do
+MSBUILD_ARGS=()
+if [[ -n "$PACKAGE_VERSION" ]]; then
+  "$REPO_ROOT/eng/release/release-contract.py" validate-version --version "$PACKAGE_VERSION"
+  MSBUILD_ARGS+=("-p:Version=$PACKAGE_VERSION" "-p:PackageVersion=$PACKAGE_VERSION")
+fi
+if [[ -n "${SOURCE_COMMIT:-}" ]]; then
+  MSBUILD_ARGS+=("-p:RepositoryCommit=$SOURCE_COMMIT")
+fi
+
+mkdir -p "$PACKAGE_OUTPUT_PATH"
+
+is_reused_workload_free_project() {
+  local reuse="${MAUI_TIZEN_WORKLOAD_FREE_PROJECTS_ALREADY_BUILT:-${MAUI_TIZEN_BUILD_TASKS_ALREADY_BUILT:-false}}"
+  [[ "$reuse" == "true" ]] \
+    && [[ "$1" == "src/Maui.Tizen.Build.Tasks/Maui.Tizen.Build.Tasks.csproj" \
+       || "$1" == "src/Maui.Tizen.Templates/Maui.Tizen.Templates.csproj" ]]
+}
+
+echo "==> Restore shipping projects"
+for project in "${SHIPPING_PROJECTS[@]}"; do
+  if is_reused_workload_free_project "$project"; then
+    echo "  reuse   $project"
+    continue
+  fi
   echo "  restore $project"
-  "$DOTNET" restore "$project"
+  "$DOTNET" restore "$project" ${MSBUILD_ARGS[@]+"${MSBUILD_ARGS[@]}"}
 done
 
-echo "==> Build net11.0-tizen11.0 projects"
-for project in "${TIZEN_PROJECTS[@]}"; do
+echo "==> Build shipping projects"
+for project in "${SHIPPING_PROJECTS[@]}"; do
+  if is_reused_workload_free_project "$project"; then
+    echo "  reuse   $project"
+    continue
+  fi
   echo "  build   $project"
-  "$DOTNET" build "$project" --no-restore -c Release
+  "$DOTNET" build "$project" --no-restore -c Release ${MSBUILD_ARGS[@]+"${MSBUILD_ARGS[@]}"}
 done
 
-echo "==> Pack net11.0-tizen11.0 projects"
-for project in "${TIZEN_PROJECTS[@]}"; do
+echo "==> Pack shipping projects exactly once"
+for project in "${SHIPPING_PROJECTS[@]}"; do
   echo "  pack    $project"
-  "$DOTNET" pack "$project" --no-restore --no-build -c Release
+  "$DOTNET" pack "$project" --no-restore --no-build -c Release \
+    "-p:PackageOutputPath=$PACKAGE_OUTPUT_PATH" ${MSBUILD_ARGS[@]+"${MSBUILD_ARGS[@]}"}
 done
 
-echo "All Tizen workload restore/build/pack checks passed."
+echo "All shipping package restore/build/pack checks passed."

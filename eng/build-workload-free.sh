@@ -218,6 +218,11 @@ check "normalize script is syntactically valid" bash -n eng/import/normalize-lay
 check "Tizen workload gate script is syntactically valid" bash -n eng/ci/tizen-workload-gate.sh
 check "real Tizen lane script is syntactically valid" bash -n eng/build-tizen.sh
 check "Tizen workload transition tests are syntactically valid" bash -n eng/tests/test-ci-tizen-workload-gate.sh
+check "release contract tests are syntactically valid" bash -n eng/tests/test-release-contract.sh
+check "release contract helper is syntactically valid" \
+  python3 -c "import ast; ast.parse(open('eng/release/release-contract.py', encoding='utf-8').read())"
+check "standalone release API baseline generator is syntactically valid" \
+  pwsh -NoProfile -Command "[scriptblock]::Create((Get-Content 'eng/scripts/generate-release-api-baseline.ps1' -Raw)) | Out-Null"
 check "Essentials mutation runner is syntactically valid" bash -n eng/tests/run-essentials-negative-controls.sh
 check "Essentials mutation lock tests are syntactically valid" bash -n eng/tests/test-essentials-mutation-lock.sh
 check "Wave C mutation runner is syntactically valid" bash -n eng/tests/run-wave-c-negative-controls.sh
@@ -538,7 +543,18 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 5e. Snapshot verification regressions.
+# 5e. Release workflow contract regressions.
+# ---------------------------------------------------------------------------
+info "Release workflow contract regressions"
+if "$REPO_ROOT/eng/tests/test-release-contract.sh"; then
+  :
+else
+  fail "release workflow contract regressions failed"
+  FAILURES=$((FAILURES + 1))
+fi
+
+# ---------------------------------------------------------------------------
+# 5f. Snapshot verification regressions.
 #
 # eng/scripts/lib/Snapshot.ps1's Test-SnapshotIntegrity is what stands between "we downloaded
 # the right dotnet/maui commit" and "we scanned whatever happened to be on disk". These
@@ -554,7 +570,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 5f. BlazorWebView host-side verification.
+# 5g. BlazorWebView host-side verification.
 #
 # Unlike the invariant tests, these exercise real backend behaviour: registration order,
 # the asset file provider, request mapping and the static content cache. They can run

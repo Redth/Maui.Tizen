@@ -127,6 +127,7 @@ if ($LASTEXITCODE -ne 0) { throw "dotnet build failed for PackageVerify" }
 
 $assemblies = @()
 $packageManifest = @()
+$msbuildCandidates = @()
 
 foreach ($entry in $ExpectedAssemblies.GetEnumerator()) {
     $id = $entry.Key
@@ -189,6 +190,17 @@ foreach ($entry in $ExpectedAssemblies.GetEnumerator()) {
         assemblySha256          = $assemblyHash
     }
 
+    foreach ($file in Get-ChildItem -Path $pkgExtractDir -Recurse -File) {
+        $packagePath = [System.IO.Path]::GetRelativePath($pkgExtractDir, $file.FullName).Replace('\', '/')
+        if ($packagePath -match '^(?i:build|buildMultiTargeting|buildTransitive)/.*\.(?i:props|targets)$') {
+            $msbuildCandidates += [ordered]@{
+                packageId  = $id
+                packagePath = $packagePath
+                sourcePath = $file.FullName
+            }
+        }
+    }
+
     $assemblies += $actualAssemblyPath
 }
 
@@ -200,6 +212,20 @@ if ($LASTEXITCODE -ne 0) { throw "dotnet build failed for ApiDump" }
 $outDir = Join-Path $RepoRoot 'eng/api-baselines/net9.0-tizen7.0'
 if (Test-Path $outDir) { Remove-Item $outDir -Recurse -Force }
 New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+
+$msbuildManifest = @()
+foreach ($candidate in $msbuildCandidates) {
+    $baselineFile = "msbuild/$($candidate.packageId)/$($candidate.packagePath)"
+    $destination = Join-Path $outDir $baselineFile
+    New-Item -ItemType Directory -Path (Split-Path $destination -Parent) -Force | Out-Null
+    Copy-Item -LiteralPath $candidate.sourcePath -Destination $destination
+    $msbuildManifest += [ordered]@{
+        packageId    = $candidate.packageId
+        packagePath  = $candidate.packagePath
+        baselineFile = $baselineFile
+        sha256        = Get-Sha256Hex $destination
+    }
+}
 
 Write-Host "Running ApiDump against $($assemblies.Count) assemblies"
 & dotnet run --no-build -c Release --project $toolDir -- @assemblies --out $outDir
@@ -216,10 +242,13 @@ foreach ($pkg in $packageManifest) {
 
 $manifest = [ordered]@{
     schemaVersion   = 1
+    baselineKind    = 'upstream-reference'
+    dumpSchemaVersion = 2
     packageVersion  = $PackageVersion
     targetFramework = $tfm
     trustAnchor     = 'eng/api-baselines/net9.0-tizen7.0-package-trust.json'
     packages        = $packageManifest
+    msbuildFiles    = $msbuildManifest
 }
 $manifestPath = Join-Path $outDir 'manifest.json'
 $manifest | ConvertTo-Json -Depth 10 | Set-Content -Path $manifestPath -Encoding utf8

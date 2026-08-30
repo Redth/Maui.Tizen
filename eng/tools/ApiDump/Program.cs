@@ -83,6 +83,7 @@ public static class Program
 /// <summary>Deterministic public API surface for a single assembly.</summary>
 public sealed class AssemblyApiDump
 {
+    public required int SchemaVersion { get; init; }
     public required string AssemblyName { get; init; }
     public required string AssemblyVersion { get; init; }
     public required string TargetFramework { get; init; }
@@ -105,6 +106,8 @@ public sealed class ApiType
     public List<string> Interfaces { get; init; } = [];
     public string? UnderlyingType { get; init; } // enum only: its backing primitive type.
     public string? DelegateSignature { get; init; } // delegate only: its Invoke method's signature.
+    public List<string>? DelegateParameters { get; init; }
+    public List<string>? GenericConstraints { get; init; }
     public List<ApiMember> Members { get; init; } = [];
 }
 
@@ -116,6 +119,15 @@ public sealed class ApiMember
     public bool IsStatic { get; init; }
     public bool IsAbstract { get; init; }
     public bool IsVirtual { get; init; }
+    public bool IsFinal { get; init; }
+    public bool IsExtensionMethod { get; init; }
+    public bool IsLiteral { get; init; }
+    public bool IsInitOnly { get; init; }
+    public string? ConstantValue { get; init; }
+    public List<string>? GenericConstraints { get; init; }
+    public List<string>? Parameters { get; init; }
+    public string? GetterAccessibility { get; init; }
+    public string? SetterAccessibility { get; init; }
 }
 
 internal static class AssemblyApiDumper
@@ -161,6 +173,7 @@ internal static class AssemblyApiDumper
 
         return new AssemblyApiDump
         {
+            SchemaVersion = 2,
             AssemblyName = assemblyName,
             AssemblyVersion = assemblyVersion,
             TargetFramework = targetFramework,
@@ -326,6 +339,14 @@ internal static class AssemblyApiDumper
                     IsStatic = (method.Attributes & MethodAttributes.Static) != 0,
                     IsAbstract = (method.Attributes & MethodAttributes.Abstract) != 0,
                     IsVirtual = (method.Attributes & MethodAttributes.Virtual) != 0,
+                    IsFinal = (method.Attributes & MethodAttributes.Final) != 0,
+                    IsExtensionMethod = HasAttribute(
+                        reader,
+                        method.GetCustomAttributes(),
+                        "System.Runtime.CompilerServices",
+                        "ExtensionAttribute"),
+                    GenericConstraints = provider.GetGenericConstraints(method.GetGenericParameters()),
+                    Parameters = GetParameterMetadata(reader, method),
                 });
             }
 
@@ -333,29 +354,42 @@ internal static class AssemblyApiDumper
             {
                 var prop = reader.GetPropertyDefinition(propHandle);
                 var accessors = prop.GetAccessors();
-                MethodDefinition? accessorForVisibility = null;
+                MethodDefinition? getter = null;
+                MethodDefinition? setter = null;
                 if (!accessors.Getter.IsNil)
                 {
-                    accessorForVisibility = reader.GetMethodDefinition(accessors.Getter);
+                    getter = reader.GetMethodDefinition(accessors.Getter);
                 }
-                else if (!accessors.Setter.IsNil)
+                if (!accessors.Setter.IsNil)
                 {
-                    accessorForVisibility = reader.GetMethodDefinition(accessors.Setter);
+                    setter = reader.GetMethodDefinition(accessors.Setter);
                 }
 
-                if (accessorForVisibility is null || !IsPubliclyVisibleMember(accessorForVisibility.Value.Attributes))
+                var visibleAccessors = new List<MethodDefinition>();
+                if (getter is not null && IsPubliclyVisibleMember(getter.Value.Attributes))
+                    visibleAccessors.Add(getter.Value);
+                if (setter is not null && IsPubliclyVisibleMember(setter.Value.Attributes))
+                    visibleAccessors.Add(setter.Value);
+                if (visibleAccessors.Count == 0)
                 {
                     continue;
                 }
+                var accessorForVisibility = visibleAccessors
+                    .OrderByDescending(accessor => AccessibilityRank(accessor.Attributes))
+                    .First();
 
                 members.Add(new ApiMember
                 {
                     Kind = "property",
                     Signature = provider.GetPropertySignatureString(propHandle, prop, accessors),
-                    Accessibility = Accessibility(accessorForVisibility.Value.Attributes),
-                    IsStatic = (accessorForVisibility.Value.Attributes & MethodAttributes.Static) != 0,
-                    IsAbstract = (accessorForVisibility.Value.Attributes & MethodAttributes.Abstract) != 0,
-                    IsVirtual = (accessorForVisibility.Value.Attributes & MethodAttributes.Virtual) != 0,
+                    Accessibility = Accessibility(accessorForVisibility.Attributes),
+                    IsStatic = (accessorForVisibility.Attributes & MethodAttributes.Static) != 0,
+                    IsAbstract = (accessorForVisibility.Attributes & MethodAttributes.Abstract) != 0,
+                    IsVirtual = (accessorForVisibility.Attributes & MethodAttributes.Virtual) != 0,
+                    IsFinal = (accessorForVisibility.Attributes & MethodAttributes.Final) != 0,
+                    GetterAccessibility = getter is null ? null : Accessibility(getter.Value.Attributes),
+                    SetterAccessibility = setter is null ? null : Accessibility(setter.Value.Attributes),
+                    Parameters = GetPropertyParameterMetadata(reader, getter, setter),
                 });
             }
 
@@ -382,6 +416,7 @@ internal static class AssemblyApiDumper
                     IsStatic = (adder.Attributes & MethodAttributes.Static) != 0,
                     IsAbstract = (adder.Attributes & MethodAttributes.Abstract) != 0,
                     IsVirtual = (adder.Attributes & MethodAttributes.Virtual) != 0,
+                    IsFinal = (adder.Attributes & MethodAttributes.Final) != 0,
                 });
             }
 
@@ -404,6 +439,9 @@ internal static class AssemblyApiDumper
                     Signature = provider.GetFieldSignatureString(fieldHandle, field),
                     Accessibility = Accessibility(field.Attributes),
                     IsStatic = (field.Attributes & FieldAttributes.Static) != 0,
+                    IsLiteral = (field.Attributes & FieldAttributes.Literal) != 0,
+                    IsInitOnly = (field.Attributes & FieldAttributes.InitOnly) != 0,
+                    ConstantValue = GetEncodedConstant(reader, field.GetDefaultValue()),
                     IsAbstract = false,
                     IsVirtual = false,
                 });
@@ -433,6 +471,9 @@ internal static class AssemblyApiDumper
                     Signature = constantValue is null ? fieldName : $"{fieldName} = {constantValue}",
                     Accessibility = Accessibility(field.Attributes),
                     IsStatic = true,
+                    IsLiteral = (field.Attributes & FieldAttributes.Literal) != 0,
+                    IsInitOnly = (field.Attributes & FieldAttributes.InitOnly) != 0,
+                    ConstantValue = GetEncodedConstant(reader, field.GetDefaultValue()),
                 });
             }
         }
@@ -468,9 +509,11 @@ internal static class AssemblyApiDumper
         }
 
         string? delegateSignature = null;
+        List<string>? delegateParameters = null;
         if (kind == "delegate")
         {
             delegateSignature = GetDelegateInvokeSignature(reader, typeDef, provider);
+            delegateParameters = GetDelegateParameterMetadata(reader, typeDef);
         }
 
         return new ApiType
@@ -487,6 +530,8 @@ internal static class AssemblyApiDumper
             Interfaces = interfaces,
             UnderlyingType = underlyingType,
             DelegateSignature = delegateSignature,
+            DelegateParameters = delegateParameters,
+            GenericConstraints = provider.GetGenericConstraints(typeDef.GetGenericParameters()),
             Members = members,
         };
     }
@@ -530,6 +575,89 @@ internal static class AssemblyApiDumper
             ConstantTypeCode.UInt64 => blobReader.ReadUInt64().ToString(),
             _ => null,
         };
+    }
+
+    private static List<string>? GetParameterMetadata(MetadataReader reader, MethodDefinition method)
+    {
+        var parameters = method
+            .GetParameters()
+            .Select(handle => reader.GetParameter(handle))
+            .Where(parameter => parameter.SequenceNumber > 0)
+            .OrderBy(parameter => parameter.SequenceNumber)
+            .Select(parameter =>
+            {
+                var defaultValue = parameter.GetDefaultValue();
+                var encodedDefault = "";
+                if (!defaultValue.IsNil)
+                {
+                    encodedDefault = GetEncodedConstant(reader, defaultValue) ?? "";
+                }
+                var attributes = parameter
+                    .GetCustomAttributes()
+                    .Select(handle => reader.GetCustomAttribute(handle))
+                    .Select(attribute =>
+                        TryGetAttributeTypeName(reader, attribute, out var ns, out var name)
+                            ? (ns.Length == 0 ? name : $"{ns}.{name}")
+                            : "?")
+                    .OrderBy(value => value, StringComparer.Ordinal);
+                return $"{parameter.SequenceNumber}:{reader.GetString(parameter.Name)}:" +
+                    $"{parameter.Attributes}:{encodedDefault}:{string.Join("&", attributes)}";
+            })
+            .ToList();
+        return parameters.Count == 0 ? null : parameters;
+    }
+
+    private static List<string>? GetPropertyParameterMetadata(
+        MetadataReader reader,
+        MethodDefinition? getter,
+        MethodDefinition? setter)
+    {
+        if (getter is not null)
+            return GetParameterMetadata(reader, getter.Value);
+        if (setter is null)
+            return null;
+        var parameters = GetParameterMetadata(reader, setter.Value);
+        return parameters is { Count: > 1 } ? parameters[..^1] : null;
+    }
+
+    private static List<string>? GetDelegateParameterMetadata(
+        MetadataReader reader,
+        TypeDefinition typeDef)
+    {
+        foreach (var methodHandle in typeDef.GetMethods())
+        {
+            var method = reader.GetMethodDefinition(methodHandle);
+            if (reader.GetString(method.Name) == "Invoke")
+                return GetParameterMetadata(reader, method);
+        }
+        return null;
+    }
+
+    private static string? GetEncodedConstant(MetadataReader reader, ConstantHandle handle)
+    {
+        if (handle.IsNil)
+            return null;
+        var constant = reader.GetConstant(handle);
+        return $"{constant.TypeCode}:{Convert.ToHexString(reader.GetBlobBytes(constant.Value))}";
+    }
+
+    private static bool HasAttribute(
+        MetadataReader reader,
+        CustomAttributeHandleCollection handles,
+        string expectedNamespace,
+        string expectedName)
+    {
+        foreach (var handle in handles)
+        {
+            var attribute = reader.GetCustomAttribute(handle);
+            if (TryGetAttributeTypeName(reader, attribute, out var ns, out var name) &&
+                ns == expectedNamespace &&
+                name == expectedName)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// <summary>
@@ -604,7 +732,20 @@ internal static class AssemblyApiDumper
         MethodAttributes.Public => "public",
         MethodAttributes.Family => "protected",
         MethodAttributes.FamORAssem => "protected internal",
-        _ => "unknown",
+        MethodAttributes.FamANDAssem => "private protected",
+        MethodAttributes.Assembly => "internal",
+        MethodAttributes.Private => "private",
+        _ => "private scope",
+    };
+
+    private static int AccessibilityRank(MethodAttributes attrs) => (attrs & MethodAttributes.MemberAccessMask) switch
+    {
+        MethodAttributes.Public => 5,
+        MethodAttributes.FamORAssem => 4,
+        MethodAttributes.Family => 3,
+        MethodAttributes.FamANDAssem => 2,
+        MethodAttributes.Assembly => 1,
+        _ => 0,
     };
 
     private static string Accessibility(FieldAttributes attrs) => (attrs & FieldAttributes.FieldAccessMask) switch
@@ -718,6 +859,29 @@ internal sealed class SignatureStringProvider : ISignatureTypeProvider<string, o
         return tick < 0 ? 0 : int.Parse(name[(tick + 1)..]);
     }
 
+    public List<string>? GetGenericConstraints(GenericParameterHandleCollection handles)
+    {
+        if (handles.Count == 0)
+            return null;
+
+        var constraints = new List<string>();
+        foreach (var handle in handles)
+        {
+            var parameter = _reader.GetGenericParameter(handle);
+            var typeConstraints = parameter
+                .GetConstraints()
+                .Select(constraintHandle =>
+                {
+                    var constraint = _reader.GetGenericParameterConstraint(constraintHandle);
+                    return GetHandleTypeName(constraint.Type) ?? "?";
+                })
+                .OrderBy(value => value, StringComparer.Ordinal);
+            constraints.Add(
+                $"T{parameter.Index}:{parameter.Attributes}:{string.Join("&", typeConstraints)}");
+        }
+        return constraints;
+    }
+
     public string? GetHandleTypeName(EntityHandle handle) => handle.Kind switch
     {
         HandleKind.TypeReference => FormatTypeReference((TypeReferenceHandle)handle),
@@ -729,16 +893,18 @@ internal sealed class SignatureStringProvider : ISignatureTypeProvider<string, o
     private string FormatTypeReference(TypeReferenceHandle handle)
     {
         var tr = _reader.GetTypeReference(handle);
-        var ns = _reader.GetString(tr.Namespace);
         var name = CleanGenericName(_reader.GetString(tr.Name));
+        if (tr.ResolutionScope.Kind == HandleKind.TypeReference)
+            return $"{FormatTypeReference((TypeReferenceHandle)tr.ResolutionScope)}+{name}";
+        var ns = _reader.GetString(tr.Namespace);
         return ns.Length == 0 ? name : $"{ns}.{name}";
     }
 
     private string FormatTypeDefinition(TypeDefinitionHandle handle)
     {
         var td = _reader.GetTypeDefinition(handle);
-        var ns = _reader.GetString(td.Namespace);
-        var name = CleanGenericName(_reader.GetString(td.Name));
+        var ns = GetEffectiveNamespace(td);
+        var name = GetQualifiedTypeName(td);
         return ns.Length == 0 ? name : $"{ns}.{name}";
     }
 
@@ -829,7 +995,8 @@ internal sealed class SignatureStringProvider : ISignatureTypeProvider<string, o
 
     public string GetGenericTypeParameter(object? genericContext, int index) => "T" + index;
 
-    public string GetModifiedType(string modifier, string unmodifiedType, bool isRequired) => unmodifiedType;
+    public string GetModifiedType(string modifier, string unmodifiedType, bool isRequired)
+        => $"{unmodifiedType} {(isRequired ? "modreq" : "modopt")}({modifier})";
 
     public string GetFunctionPointerType(MethodSignature<string> signature) => "delegate*<" + string.Join(", ", signature.ParameterTypes.Append(signature.ReturnType)) + ">";
 

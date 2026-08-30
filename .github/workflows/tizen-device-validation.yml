@@ -34,16 +34,50 @@ name: Tizen device validation
 
 on:
   workflow_dispatch:
-    inputs:
-      release_validation:
-        description: Fail the run if the device lane is unavailable
-        type: boolean
-        default: false
   workflow_call:
     inputs:
       release_validation:
         type: boolean
-        default: false
+        required: true
+      package_version:
+        type: string
+        required: true
+      unsigned_artifact_id:
+        type: string
+        required: true
+      unsigned_artifact_name:
+        type: string
+        required: true
+      unsigned_artifact_digest:
+        type: string
+        required: true
+      unsigned_manifest_sha256:
+        type: string
+        required: true
+      source_sha:
+        type: string
+        required: true
+      source_ref:
+        type: string
+        required: true
+      source_run_id:
+        type: string
+        required: true
+      source_run_attempt:
+        type: string
+        required: true
+      workload_id:
+        type: string
+        required: true
+      workload_version:
+        type: string
+        required: true
+      workload_package_sha256:
+        type: string
+        required: true
+      workload_signer_fingerprint:
+        type: string
+        required: true
     outputs:
       gate_passed:
         description: >-
@@ -53,9 +87,6 @@ on:
         value: ${{ jobs.release-gate.outputs.gate_passed }}
   schedule:
     - cron: '0 3 * * *'
-  push:
-    tags:
-      - 'v*'
 
 permissions:
   contents: read
@@ -65,31 +96,168 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
+  source-guard:
+    name: Verify device workflow source
+    runs-on: ubuntu-latest
+    outputs:
+      source_sha: ${{ steps.source.outputs.source_sha }}
+      source_ref: ${{ steps.source.outputs.source_ref }}
+      release_validation: ${{ steps.source.outputs.release_validation }}
+    steps:
+      - name: Read the exact source policy
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: eng/release/release-policy.json
+          sparse-checkout-cone-mode: false
+
+      - name: Reject arbitrary refs and incomplete release inputs
+        id: source
+        env:
+          ACTUAL_REPOSITORY: ${{ github.repository }}
+          CALLER_WORKFLOW_REF: ${{ github.workflow_ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REF_PROTECTED: ${{ github.ref_protected }}
+          RELEASE_VALIDATION: ${{ inputs.release_validation }}
+          REQUESTED_SHA: ${{ inputs.source_sha }}
+          REQUESTED_REF: ${{ inputs.source_ref }}
+          REQUESTED_RUN_ID: ${{ inputs.source_run_id }}
+          REQUESTED_RUN_ATTEMPT: ${{ inputs.source_run_attempt }}
+          PACKAGE_VERSION: ${{ inputs.package_version }}
+          ARTIFACT_ID: ${{ inputs.unsigned_artifact_id }}
+          ARTIFACT_NAME: ${{ inputs.unsigned_artifact_name }}
+          ARTIFACT_DIGEST: ${{ inputs.unsigned_artifact_digest }}
+          MANIFEST_SHA256: ${{ inputs.unsigned_manifest_sha256 }}
+          WORKLOAD_ID: ${{ inputs.workload_id }}
+          WORKLOAD_VERSION: ${{ inputs.workload_version }}
+          WORKLOAD_PACKAGE_SHA256: ${{ inputs.workload_package_sha256 }}
+          WORKLOAD_SIGNER_FINGERPRINT: ${{ inputs.workload_signer_fingerprint }}
+        run: |
+          set -euo pipefail
+          expected_repository="Redth/Maui.Tizen"
+          if [[ "$ACTUAL_REPOSITORY" != "$expected_repository" ]]; then
+            echo "::error::This reusable workflow only trusts Redth/Maui.Tizen callers."
+            exit 1
+          fi
+          default_ref="refs/heads/$DEFAULT_BRANCH"
+
+          source_sha="$GITHUB_SHA"
+          source_ref="$GITHUB_REF"
+          release_validation=false
+          if [[ "$RELEASE_VALIDATION" == "true" ]]; then
+            release_validation=true
+            required=(
+              "$REQUESTED_SHA" "$REQUESTED_REF" "$REQUESTED_RUN_ID"
+              "$REQUESTED_RUN_ATTEMPT" "$PACKAGE_VERSION" "$ARTIFACT_ID"
+              "$ARTIFACT_NAME" "$ARTIFACT_DIGEST" "$MANIFEST_SHA256"
+              "$WORKLOAD_ID" "$WORKLOAD_VERSION" "$WORKLOAD_PACKAGE_SHA256"
+              "$WORKLOAD_SIGNER_FINGERPRINT"
+            )
+            for value in "${required[@]}"; do
+              [[ -n "$value" ]] || {
+                echo "::error::Release validation is missing an immutable artifact/source input."
+                exit 1
+              }
+            done
+            [[ "$REF_PROTECTED" == "true" ]] || {
+              echo "::error::Release device validation requires a protected source branch."
+              exit 1
+            }
+            python3 - eng/release/release-policy.json "$REQUESTED_REF" "$DEFAULT_BRANCH" <<'PY'
+          import json
+          import re
+          import sys
+
+          policy = json.load(open(sys.argv[1]))
+          default_branch = sys.argv[3]
+          if policy.get("defaultBranch") != default_branch:
+              raise SystemExit("release policy default branch does not match the repository")
+          servicing = policy.get("servicingBranches")
+          if not isinstance(servicing, list) or any(
+              not isinstance(branch, str)
+              or re.fullmatch(r"release/[1-9][0-9]*\.x", branch) is None
+              for branch in servicing
+          ):
+              raise SystemExit("release policy servicing branches are invalid")
+          allowed = {
+              f"refs/heads/{default_branch}",
+              *[f"refs/heads/{branch}" for branch in servicing],
+          }
+          if sys.argv[2] not in allowed:
+              raise SystemExit("release device validation source ref is not policy-approved")
+          PY
+            [[ "$REQUESTED_SHA" == "$GITHUB_SHA" ]]
+            [[ "$REQUESTED_REF" == "$GITHUB_REF" ]]
+            [[ "$REQUESTED_RUN_ID" == "$GITHUB_RUN_ID" ]]
+            [[ "$REQUESTED_RUN_ATTEMPT" == "$GITHUB_RUN_ATTEMPT" ]]
+            [[ "$CALLER_WORKFLOW_REF" == "$expected_repository/.github/workflows/release.yml@$GITHUB_REF" ]]
+            source_sha="$REQUESTED_SHA"
+            source_ref="$REQUESTED_REF"
+          else
+            if [[ "$GITHUB_REF" != "$default_ref" ]]; then
+              echo "::error::Direct device validation may run only from the current default branch."
+              exit 1
+            fi
+            if [[ "$CALLER_WORKFLOW_REF" != "$expected_repository/.github/workflows/tizen-device-validation.yml@$GITHUB_REF" ]]; then
+              echo "::error::Direct device validation must execute this reviewed workflow."
+              exit 1
+            fi
+          fi
+
+          {
+            echo "source_sha=$source_sha"
+            echo "source_ref=$source_ref"
+            echo "release_validation=$release_validation"
+          } >> "$GITHUB_OUTPUT"
+
   # ---------------------------------------------------------------------------
   # Runs on a hosted runner so an offline self-hosted agent produces "unavailable"
   # rather than leaving the whole workflow queued indefinitely.
   # ---------------------------------------------------------------------------
   availability:
     name: Device lane availability
+    needs: source-guard
     runs-on: ubuntu-latest
     outputs:
       enabled: ${{ steps.check.outputs.enabled }}
       required: ${{ steps.check.outputs.required }}
       required_profiles: ${{ steps.check.outputs.required_profiles }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: Redth/Maui.Tizen
+          ref: ${{ needs.source-guard.outputs.source_sha }}
+          persist-credentials: false
 
       - name: Determine availability, requirement and required profiles
         id: check
+        env:
+          LAB_ENABLED: ${{ vars.TIZEN_DEVICE_LAB_ENABLED }}
+          PACKAGE_VERSION: ${{ inputs.package_version }}
+          RELEASE_VALIDATION: ${{ inputs.release_validation }}
+          WORKLOAD_ID: ${{ inputs.workload_id }}
+          WORKLOAD_PACKAGE_SHA256: ${{ inputs.workload_package_sha256 }}
+          WORKLOAD_SIGNER_FINGERPRINT: ${{ inputs.workload_signer_fingerprint }}
+          WORKLOAD_VERSION: ${{ inputs.workload_version }}
         run: |
           set -euo pipefail
 
-          enabled="${{ vars.TIZEN_DEVICE_LAB_ENABLED }}"
+          enabled="$LAB_ENABLED"
           [ "$enabled" = "true" ] || enabled=false
 
           required=false
-          case "${{ github.ref }}" in refs/tags/v*) required=true ;; esac
-          [ "${{ inputs.release_validation }}" = "true" ] && required=true
+          [ "$RELEASE_VALIDATION" = "true" ] && required=true
+
+          if [ "$required" = "true" ]; then
+            ./eng/release/release-contract.py validate-version \
+              --version "$PACKAGE_VERSION"
+            ./eng/release/release-contract.py verify-workload-contract \
+              --workload-id "$WORKLOAD_ID" \
+              --workload-version "$WORKLOAD_VERSION" \
+              --package-sha256 "$WORKLOAD_PACKAGE_SHA256" \
+              --signer-fingerprint "$WORKLOAD_SIGNER_FINGERPRINT"
+          fi
 
           # Derived from the profile matrix rather than hard-coded, so adding a release-gating
           # profile automatically starts gating releases.
@@ -122,10 +290,15 @@ jobs:
   # ---------------------------------------------------------------------------
   device-matrix:
     name: ${{ matrix.profile }} / ${{ matrix.density }} / ${{ matrix.tfm }}
-    needs: availability
+    needs: [source-guard, availability]
     if: needs.availability.outputs.enabled == 'true'
-    runs-on: [self-hosted, tizen]
+    runs-on:
+      group: maui-tizen-release
+      labels: tizen
     environment: tizen-device-lab
+    permissions:
+      actions: read
+      contents: read
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -154,7 +327,6 @@ jobs:
             serial_var: TIZEN_MOBILE_XHDPI_SERIAL
             home_app_var: TIZEN_MOBILE_HOME_APP_ID
             host_port: 9225
-            packages: true
           - profile: tv
             density: fhd
             tfm: net11.0-tizen11.0
@@ -168,6 +340,19 @@ jobs:
             home_app_var: TIZEN_TV_HOME_APP_ID
             host_port: 9227
     env:
+      RELEASE_PACKAGE_VERSION: ${{ inputs.package_version }}
+      RELEASE_ARTIFACT_DIGEST: ${{ inputs.unsigned_artifact_digest }}
+      RELEASE_ARTIFACT_ID: ${{ inputs.unsigned_artifact_id }}
+      RELEASE_ARTIFACT_NAME: ${{ inputs.unsigned_artifact_name }}
+      RELEASE_MANIFEST_SHA256: ${{ inputs.unsigned_manifest_sha256 }}
+      RELEASE_RUN_ATTEMPT: ${{ inputs.source_run_attempt }}
+      RELEASE_RUN_ID: ${{ inputs.source_run_id }}
+      RELEASE_SOURCE_REF: ${{ inputs.source_ref }}
+      RELEASE_SOURCE_SHA: ${{ inputs.source_sha }}
+      RELEASE_WORKLOAD_ID: ${{ inputs.workload_id }}
+      RELEASE_WORKLOAD_PACKAGE_SHA256: ${{ inputs.workload_package_sha256 }}
+      RELEASE_WORKLOAD_SIGNER_FINGERPRINT: ${{ inputs.workload_signer_fingerprint }}
+      RELEASE_WORKLOAD_VERSION: ${{ inputs.workload_version }}
       TIZEN_PROFILE: ${{ matrix.profile }}
       TIZEN_DENSITY: ${{ matrix.density }}
       TIZEN_TFM: ${{ matrix.tfm }}
@@ -177,10 +362,14 @@ jobs:
       # Distinct host ports so a leaked forward from one profile cannot capture the other's traffic.
       DEVFLOW_HOST_PORT: ${{ matrix.host_port }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: Redth/Maui.Tizen
+          ref: ${{ needs.source-guard.outputs.source_sha }}
+          persist-credentials: false
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           global-json-file: global.json
 
@@ -190,27 +379,90 @@ jobs:
           mkdir -p artifacts/device-results
           # Written up front and overwritten on success, so a job that dies mid-way still leaves
           # a record that says it did not pass.
-          printf 'profile=%s\ndensity=%s\nlane_available=false\nstatus=incomplete\n' \
-            "${{ matrix.profile }}" "${{ matrix.density }}" > "$RESULT_FILE"
+          printf 'profile=%s\ndensity=%s\npackage_version=%s\nartifact_digest=%s\nworkload_manifest=%s/%s\nlane_available=false\nstatus=incomplete\n' \
+            "$TIZEN_PROFILE" \
+            "$TIZEN_DENSITY" \
+            "$RELEASE_PACKAGE_VERSION" \
+            "$RELEASE_ARTIFACT_DIGEST" \
+            "$RELEASE_WORKLOAD_ID" \
+            "$RELEASE_WORKLOAD_VERSION" > "$RESULT_FILE"
+
+      - name: Verify unsigned artifact API identity
+        if: inputs.release_validation == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$RELEASE_ARTIFACT_ID" \
+            > artifact.json
+          ./eng/release/release-contract.py verify-artifact-metadata \
+            --metadata artifact.json \
+            --artifact-id "$RELEASE_ARTIFACT_ID" \
+            --name "$RELEASE_ARTIFACT_NAME" \
+            --digest "$RELEASE_ARTIFACT_DIGEST" \
+            --run-id "$RELEASE_RUN_ID" \
+            --run-attempt "$RELEASE_RUN_ATTEMPT" \
+            --source-commit "$RELEASE_SOURCE_SHA" \
+            --source-ref "$RELEASE_SOURCE_REF"
+
+      - name: Download the exact unsigned release artifact
+        if: inputs.release_validation == true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ inputs.unsigned_artifact_id }}
+          merge-multiple: true
+          path: artifacts/packages
+
+      - name: Verify exact package bytes and reviewed Samsung workload
+        if: inputs.release_validation == true
+        run: |
+          set -euo pipefail
+          test "$(shasum -a 256 artifacts/packages/release-manifest.json | cut -d' ' -f1)" \
+            = "$RELEASE_MANIFEST_SHA256"
+          ./eng/release/release-contract.py verify-unsigned-manifest \
+            --packages-dir artifacts/packages \
+            --manifest artifacts/packages/release-manifest.json \
+            --repository "$GITHUB_REPOSITORY" \
+            --version "$RELEASE_PACKAGE_VERSION" \
+            --source-commit "$RELEASE_SOURCE_SHA" \
+            --source-ref "$RELEASE_SOURCE_REF" \
+            --run-id "$RELEASE_RUN_ID" \
+            --run-attempt "$RELEASE_RUN_ATTEMPT" \
+            --artifact-name "$RELEASE_ARTIFACT_NAME"
+          ./eng/release/release-contract.py verify-installed-workload \
+            --workload-id "$RELEASE_WORKLOAD_ID" \
+            --workload-version "$RELEASE_WORKLOAD_VERSION" \
+            --package-sha256 "$RELEASE_WORKLOAD_PACKAGE_SHA256" \
+            --signer-fingerprint "$RELEASE_WORKLOAD_SIGNER_FINGERPRINT"
+          ./eng/release/release-contract.py write-nuget-config \
+            --base nuget.config \
+            --packages-dir artifacts/packages \
+            --output artifacts/release-nuget.config
 
       - name: Preflight
         id: preflight
         run: ./eng/validation/scripts/tizen-device-lane.sh preflight
 
       - name: Record lane availability
+        env:
+          LANE_AVAILABLE: ${{ steps.preflight.outputs.lane_available }}
         run: |
           set -euo pipefail
-          printf 'profile=%s\ndensity=%s\nlane_available=%s\nstatus=%s\n' \
-            "${{ matrix.profile }}" \
-            "${{ matrix.density }}" \
-            "${{ steps.preflight.outputs.lane_available }}" \
-            "$([ "${{ steps.preflight.outputs.lane_available }}" = "true" ] && echo running || echo skipped)" \
+          printf 'profile=%s\ndensity=%s\npackage_version=%s\nartifact_digest=%s\nworkload_manifest=%s/%s\nlane_available=%s\nstatus=%s\n' \
+            "$TIZEN_PROFILE" \
+            "$TIZEN_DENSITY" \
+            "$RELEASE_PACKAGE_VERSION" \
+            "$RELEASE_ARTIFACT_DIGEST" \
+            "$RELEASE_WORKLOAD_ID" \
+            "$RELEASE_WORKLOAD_VERSION" \
+            "$LANE_AVAILABLE" \
+            "$([ "$LANE_AVAILABLE" = "true" ] && echo running || echo skipped)" \
             > "$RESULT_FILE"
 
       - name: Fail fast when a release needs hardware that is not present
         if: needs.availability.outputs.required == 'true' && steps.preflight.outputs.lane_available != 'true'
         run: |
-          echo "::error::A release requires profile '${{ matrix.profile }}' to run on hardware, but"
+          echo "::error::A release requires profile '$TIZEN_PROFILE' to run on hardware, but"
           echo "::error::the lane is unavailable. See the preflight output above."
           exit 1
 
@@ -225,14 +477,21 @@ jobs:
       - name: Resolve the application under test
         id: app
         if: steps.preflight.outputs.lane_available == 'true'
+        env:
+          CATALOG_PROJECT: ${{ vars.TIZEN_CATALOG_PROJECT }}
         run: |
           set -euo pipefail
-          project="${{ vars.TIZEN_CATALOG_PROJECT }}"
+          project="$CATALOG_PROJECT"
 
           if [ -z "$project" ] || [ ! -f "$project" ]; then
             echo "available=false" >> "$GITHUB_OUTPUT"
-            printf 'profile=%s\ndensity=%s\nlane_available=false\nstatus=skipped\nreason=no_app\n' \
-              "${{ matrix.profile }}" "${{ matrix.density }}" > "$RESULT_FILE"
+            printf 'profile=%s\ndensity=%s\npackage_version=%s\nartifact_digest=%s\nworkload_manifest=%s/%s\nlane_available=false\nstatus=skipped\nreason=no_app\n' \
+              "$TIZEN_PROFILE" \
+              "$TIZEN_DENSITY" \
+              "$RELEASE_PACKAGE_VERSION" \
+              "$RELEASE_ARTIFACT_DIGEST" \
+              "$RELEASE_WORKLOAD_ID" \
+              "$RELEASE_WORKLOAD_VERSION" > "$RESULT_FILE"
             echo "::warning::No application under test. Set the TIZEN_CATALOG_PROJECT repository"
             echo "::warning::variable to a real project path once the catalog application exists."
             exit 0
@@ -250,13 +509,11 @@ jobs:
 
       - name: Build and package the application
         if: steps.app.outputs.available == 'true'
-        run: ./eng/validation/scripts/tizen-device-lane.sh build "${{ steps.app.outputs.project }}"
-
-      # Shipping packages can only be produced where the workload exists, and the release gates
-      # in ReleaseReadinessTests require them to exist.
-      - name: Pack the shipping packages
-        if: needs.availability.outputs.required == 'true' && steps.preflight.outputs.lane_available == 'true' && matrix.packages == true
-        run: ./eng/validation/scripts/tizen-device-lane.sh pack
+        env:
+          CATALOG_PROJECT: ${{ steps.app.outputs.project }}
+          MAUI_TIZEN_RELEASE_NUGET_CONFIG: ${{ inputs.release_validation == true && 'artifacts/release-nuget.config' || '' }}
+          NUGET_PACKAGES: ${{ runner.temp }}/maui-tizen-nuget-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.profile }}-${{ matrix.density }}
+        run: ./eng/validation/scripts/tizen-device-lane.sh build "$CATALOG_PROJECT"
 
       # Installing does not start anything. The previous version installed, forwarded and then
       # queried the agent, which could only have worked if something else had already launched
@@ -309,11 +566,19 @@ jobs:
 
       - name: Record the result
         if: always() && steps.preflight.outputs.lane_available == 'true' && steps.app.outputs.available == 'true'
+        env:
+          JOB_STATUS: ${{ job.status }}
         run: |
           set -euo pipefail
-          status="$([ "${{ job.status }}" = "success" ] && echo pass || echo fail)"
-          printf 'profile=%s\ndensity=%s\nlane_available=true\nstatus=%s\n' \
-            "${{ matrix.profile }}" "${{ matrix.density }}" "$status" > "$RESULT_FILE"
+          status="$([ "$JOB_STATUS" = "success" ] && echo pass || echo fail)"
+          printf 'profile=%s\ndensity=%s\npackage_version=%s\nartifact_digest=%s\nworkload_manifest=%s/%s\nlane_available=true\nstatus=%s\n' \
+            "$TIZEN_PROFILE" \
+            "$TIZEN_DENSITY" \
+            "$RELEASE_PACKAGE_VERSION" \
+            "$RELEASE_ARTIFACT_DIGEST" \
+            "$RELEASE_WORKLOAD_ID" \
+            "$RELEASE_WORKLOAD_VERSION" \
+            "$status" > "$RESULT_FILE"
 
       - name: Always tear the tunnel down
         if: always()
@@ -321,9 +586,9 @@ jobs:
 
       - name: Upload the profile result
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: device-result-${{ matrix.profile }}-${{ matrix.density }}
+          name: device-result-${{ matrix.profile }}-${{ matrix.density }}-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
           path: artifacts/device-results/
           if-no-files-found: error
 
@@ -331,56 +596,103 @@ jobs:
       # and on success they are what a reviewer needs to approve an intentional visual change.
       - name: Upload diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: device-diagnostics-${{ matrix.profile }}-${{ matrix.density }}-${{ matrix.tfm }}
+          name: device-diagnostics-${{ matrix.profile }}-${{ matrix.density }}-${{ matrix.tfm }}-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
           path: |
             artifacts/test-results/
             artifacts/visual-diffs/
             artifacts/screenshots/
           if-no-files-found: ignore
 
-      # Packages are uploaded separately so release-gate can download only what it needs.
-      - name: Upload shipping packages
-        if: always() && needs.availability.outputs.required == 'true' && matrix.packages == true
-        uses: actions/upload-artifact@v4
-        with:
-          name: shipping-packages
-          path: artifacts/packages/
-          if-no-files-found: ignore
-
   package-consumer:
-    name: Restore real packages on Tizen workload
-    needs: [availability, device-matrix]
-    if: always() && needs.availability.outputs.required == 'true' && needs.availability.outputs.enabled == 'true'
-    runs-on: [self-hosted, tizen]
+    name: Restore exact release packages on Tizen workload
+    needs: [source-guard, availability, device-matrix]
+    if: needs.availability.outputs.required == 'true' && needs.availability.outputs.enabled == 'true' && needs.device-matrix.result == 'success'
+    runs-on:
+      group: maui-tizen-release
+      labels: tizen
+    environment: tizen-device-lab
     timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+    env:
+      RELEASE_ARTIFACT_DIGEST: ${{ inputs.unsigned_artifact_digest }}
+      RELEASE_ARTIFACT_ID: ${{ inputs.unsigned_artifact_id }}
+      RELEASE_ARTIFACT_NAME: ${{ inputs.unsigned_artifact_name }}
+      RELEASE_MANIFEST_SHA256: ${{ inputs.unsigned_manifest_sha256 }}
+      RELEASE_PACKAGE_VERSION: ${{ inputs.package_version }}
+      RELEASE_RUN_ATTEMPT: ${{ inputs.source_run_attempt }}
+      RELEASE_RUN_ID: ${{ inputs.source_run_id }}
+      RELEASE_SOURCE_REF: ${{ inputs.source_ref }}
+      RELEASE_SOURCE_SHA: ${{ inputs.source_sha }}
+      RELEASE_WORKLOAD_ID: ${{ inputs.workload_id }}
+      RELEASE_WORKLOAD_PACKAGE_SHA256: ${{ inputs.workload_package_sha256 }}
+      RELEASE_WORKLOAD_SIGNER_FINGERPRINT: ${{ inputs.workload_signer_fingerprint }}
+      RELEASE_WORKLOAD_VERSION: ${{ inputs.workload_version }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: Redth/Maui.Tizen
+          ref: ${{ needs.source-guard.outputs.source_sha }}
+          persist-credentials: false
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           global-json-file: global.json
 
-      - name: Require the Samsung workload
+      - name: Verify unsigned artifact API identity
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if ! dotnet workload list | grep -qiE '^\s*tizen\b'; then
-            echo "::error::The real-package consumer restore requires the Samsung Tizen workload."
-            exit 1
-          fi
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$RELEASE_ARTIFACT_ID" \
+            > artifact.json
+          ./eng/release/release-contract.py verify-artifact-metadata \
+            --metadata artifact.json \
+            --artifact-id "$RELEASE_ARTIFACT_ID" \
+            --name "$RELEASE_ARTIFACT_NAME" \
+            --digest "$RELEASE_ARTIFACT_DIGEST" \
+            --run-id "$RELEASE_RUN_ID" \
+            --run-attempt "$RELEASE_RUN_ATTEMPT" \
+            --source-commit "$RELEASE_SOURCE_SHA" \
+            --source-ref "$RELEASE_SOURCE_REF"
 
-      - name: Download shipping packages
-        uses: actions/download-artifact@v4
+      - name: Download exact unsigned release artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: shipping-packages
+          artifact-ids: ${{ inputs.unsigned_artifact_id }}
+          merge-multiple: true
           path: artifacts/packages
+
+      - name: Verify exact package bytes and reviewed Samsung workload
+        run: |
+          set -euo pipefail
+          test "$(shasum -a 256 artifacts/packages/release-manifest.json | cut -d' ' -f1)" \
+            = "$RELEASE_MANIFEST_SHA256"
+          ./eng/release/release-contract.py verify-unsigned-manifest \
+            --packages-dir artifacts/packages \
+            --manifest artifacts/packages/release-manifest.json \
+            --repository "$GITHUB_REPOSITORY" \
+            --version "$RELEASE_PACKAGE_VERSION" \
+            --source-commit "$RELEASE_SOURCE_SHA" \
+            --source-ref "$RELEASE_SOURCE_REF" \
+            --run-id "$RELEASE_RUN_ID" \
+            --run-attempt "$RELEASE_RUN_ATTEMPT" \
+            --artifact-name "$RELEASE_ARTIFACT_NAME"
+          ./eng/release/release-contract.py verify-installed-workload \
+            --workload-id "$RELEASE_WORKLOAD_ID" \
+            --workload-version "$RELEASE_WORKLOAD_VERSION" \
+            --package-sha256 "$RELEASE_WORKLOAD_PACKAGE_SHA256" \
+            --signer-fingerprint "$RELEASE_WORKLOAD_SIGNER_FINGERPRINT"
 
       - name: Restore the real package consumer
         env:
           MAUI_TIZEN_RELEASE_VALIDATION: '1'
           MAUI_TIZEN_SUITES: Maui.Tizen.Consumer.Tests
+          NUGET_PACKAGES: ${{ runner.temp }}/maui-tizen-nuget-${{ github.run_id }}-${{ github.run_attempt }}-consumer
         run: ./eng/validation/run-hosted-validation.sh
 
   # ---------------------------------------------------------------------------
@@ -388,39 +700,96 @@ jobs:
   # ---------------------------------------------------------------------------
   release-gate:
     name: Device lane release gate
-    needs: [availability, device-matrix, package-consumer]
+    needs: [source-guard, availability, device-matrix, package-consumer]
     if: always()
     runs-on: ubuntu-latest
-    # The approval belongs on the job that actually decides, not on the job that runs the tests.
-    # Attaching it to device-matrix would gate the work while leaving the verdict ungated.
-    environment: ${{ needs.availability.outputs.required == 'true' && 'tizen-release' || '' }}
+    permissions:
+      actions: read
+      contents: read
+    env:
+      CONSUMER_RESULT: ${{ needs.package-consumer.result }}
+      LAB_ENABLED: ${{ needs.availability.outputs.enabled }}
+      MATRIX_RESULT: ${{ needs.device-matrix.result }}
+      RELEASE_ARTIFACT_DIGEST: ${{ inputs.unsigned_artifact_digest }}
+      RELEASE_ARTIFACT_ID: ${{ inputs.unsigned_artifact_id }}
+      RELEASE_ARTIFACT_NAME: ${{ inputs.unsigned_artifact_name }}
+      RELEASE_MANIFEST_SHA256: ${{ inputs.unsigned_manifest_sha256 }}
+      RELEASE_PACKAGE_VERSION: ${{ inputs.package_version }}
+      RELEASE_RUN_ATTEMPT: ${{ inputs.source_run_attempt }}
+      RELEASE_RUN_ID: ${{ inputs.source_run_id }}
+      RELEASE_SOURCE_REF: ${{ inputs.source_ref }}
+      RELEASE_SOURCE_SHA: ${{ inputs.source_sha }}
+      RELEASE_VALIDATION: ${{ inputs.release_validation }}
+      RELEASE_WORKLOAD_ID: ${{ inputs.workload_id }}
+      RELEASE_WORKLOAD_VERSION: ${{ inputs.workload_version }}
+      REQUIRED: ${{ needs.availability.outputs.required }}
+      REQUIRED_PROFILES: ${{ needs.availability.outputs.required_profiles }}
     outputs:
       gate_passed: ${{ steps.evaluate.outputs.gate_passed }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: Redth/Maui.Tizen
+          ref: ${{ needs.source-guard.outputs.source_sha }}
+          persist-credentials: false
 
       - name: Download per-profile results
         if: needs.availability.outputs.enabled == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          pattern: device-result-*
+          pattern: device-result-*-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
           merge-multiple: true
           path: artifacts/device-results
         continue-on-error: true
 
-      - name: Download shipping packages
+      - name: Verify unsigned artifact API identity
         if: needs.availability.outputs.required == 'true'
-        uses: actions/download-artifact@v4
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$RELEASE_ARTIFACT_ID" \
+            > artifact.json
+          ./eng/release/release-contract.py verify-artifact-metadata \
+            --metadata artifact.json \
+            --artifact-id "$RELEASE_ARTIFACT_ID" \
+            --name "$RELEASE_ARTIFACT_NAME" \
+            --digest "$RELEASE_ARTIFACT_DIGEST" \
+            --run-id "$RELEASE_RUN_ID" \
+            --run-attempt "$RELEASE_RUN_ATTEMPT" \
+            --source-commit "$RELEASE_SOURCE_SHA" \
+            --source-ref "$RELEASE_SOURCE_REF"
+
+      - name: Download exact unsigned release artifact
+        if: needs.availability.outputs.required == 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: shipping-packages
+          artifact-ids: ${{ inputs.unsigned_artifact_id }}
+          merge-multiple: true
           path: artifacts/packages
-        continue-on-error: true
 
       - name: Set up .NET
         if: needs.availability.outputs.required == 'true'
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           global-json-file: global.json
+
+      - name: Verify exact unsigned manifest
+        if: needs.availability.outputs.required == 'true'
+        run: |
+          set -euo pipefail
+          test "$(shasum -a 256 artifacts/packages/release-manifest.json | cut -d' ' -f1)" \
+            = "$RELEASE_MANIFEST_SHA256"
+          ./eng/release/release-contract.py verify-unsigned-manifest \
+            --packages-dir artifacts/packages \
+            --manifest artifacts/packages/release-manifest.json \
+            --repository "$GITHUB_REPOSITORY" \
+            --version "$RELEASE_PACKAGE_VERSION" \
+            --source-commit "$RELEASE_SOURCE_SHA" \
+            --source-ref "$RELEASE_SOURCE_REF" \
+            --run-id "$RELEASE_RUN_ID" \
+            --run-attempt "$RELEASE_RUN_ATTEMPT" \
+            --artifact-name "$RELEASE_ARTIFACT_NAME"
 
       # Cross-profile readiness belongs HERE, not inside the matrix.
       #
@@ -443,12 +812,15 @@ jobs:
           mkdir -p artifacts/device-results
 
           ./eng/validation/scripts/evaluate-release-gate.sh \
-            --required "${{ needs.availability.outputs.required }}" \
-            --release-validation "${{ inputs.release_validation }}" \
-            --lab-enabled "${{ needs.availability.outputs.enabled }}" \
-            --matrix-result "${{ needs.device-matrix.result }}" \
-            --consumer-result "${{ needs.package-consumer.result }}" \
-            --required-profiles "${{ needs.availability.outputs.required_profiles }}" \
+            --required "$REQUIRED" \
+            --release-validation "$RELEASE_VALIDATION" \
+            --lab-enabled "$LAB_ENABLED" \
+            --matrix-result "$MATRIX_RESULT" \
+            --consumer-result "$CONSUMER_RESULT" \
+            --required-profiles "$REQUIRED_PROFILES" \
+            --package-version "$RELEASE_PACKAGE_VERSION" \
+            --artifact-digest "$RELEASE_ARTIFACT_DIGEST" \
+            --workload-manifest "$RELEASE_WORKLOAD_ID/$RELEASE_WORKLOAD_VERSION" \
             --results-dir artifacts/device-results | tee gate.log
 
       - name: Summarise

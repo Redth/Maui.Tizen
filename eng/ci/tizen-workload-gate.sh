@@ -133,19 +133,102 @@ if [[ -z "$PUBLISHED_ID" ]]; then
   exit 0
 fi
 
+IFS='|' read -r BASELINE_ID BASELINE_VERSION BASELINE_SHA256 BASELINE_SIGNER_FINGERPRINT < <("$PYTHON" - <<'PY'
+import json
+
+with open("eng/baselines.json", encoding="utf-8") as stream:
+    activation = json.load(stream)["target"]["workloadManifest"].get("activation", {})
+
+values = []
+for key in ("packageId", "version", "packageSha256", "signerFingerprint"):
+    value = activation.get(key)
+    values.append(value if isinstance(value, str) else "")
+print("|".join(values))
+PY
+)
+
+EXPECTED_ID="${TIZEN_EXPECTED_MANIFEST_ID:-$BASELINE_ID}"
+EXPECTED_VERSION="${TIZEN_EXPECTED_MANIFEST_VERSION:-$BASELINE_VERSION}"
+EXPECTED_SHA256="${TIZEN_EXPECTED_MANIFEST_SHA256:-$BASELINE_SHA256}"
+EXPECTED_SIGNER_FINGERPRINT="${TIZEN_EXPECTED_MANIFEST_SIGNER_FINGERPRINT:-$BASELINE_SIGNER_FINGERPRINT}"
+
+[[ -n "$EXPECTED_ID" && -n "$EXPECTED_VERSION" && -n "$EXPECTED_SHA256" && -n "$EXPECTED_SIGNER_FINGERPRINT" ]] \
+  || fail "Samsung published a manifest, but eng/baselines.json does not yet pin its exact package ID, version, SHA-256, and signing certificate fingerprint."
+
+[[ "$PUBLISHED_ID" == "$EXPECTED_ID" ]] \
+  || fail "The published manifest ID ${PUBLISHED_ID} does not match the reviewed activation pin ${EXPECTED_ID}."
+
+[[ "$PUBLISHED_VERSION" == "$EXPECTED_VERSION" ]] \
+  || fail "The published manifest version ${PUBLISHED_VERSION} does not match the reviewed activation pin ${EXPECTED_VERSION}."
+
 append_summary \
   ":white_check_mark: **Samsung published \`${PUBLISHED_ID}\` version \`${PUBLISHED_VERSION}\`.**" \
   "" \
-  "Installing it through Samsung's supported workload installer, then running the real" \
+  "Verifying the reviewed package hash and signer, installing it through Samsung's supported" \
+  "workload installer, then running the real" \
   "\`net11.0-tizen11.0\` restore/build/pack lane. Any failure below fails this job."
 
 TEMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
+MANIFEST_PACKAGE="$TEMP_DIR/${PUBLISHED_ID}.${PUBLISHED_VERSION}.nupkg"
+MANIFEST_URL="${NUGET_FLAT_CONTAINER_BASE}/${PUBLISHED_ID}/${PUBLISHED_VERSION}/${PUBLISHED_ID}.${PUBLISHED_VERSION}.nupkg"
+if ! "$CURL" --fail --silent --show-error --location \
+    "$MANIFEST_URL" --output "$MANIFEST_PACKAGE"; then
+  fail "Failed to download the exact Samsung workload manifest package selected for activation."
+fi
+
+ACTUAL_SHA256="$("$PYTHON" - "$MANIFEST_PACKAGE" <<'PY'
+import hashlib
+import sys
+
+digest = hashlib.sha256()
+with open(sys.argv[1], "rb") as stream:
+    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+        digest.update(chunk)
+print(digest.hexdigest())
+PY
+)"
+
+[[ "$ACTUAL_SHA256" == "$EXPECTED_SHA256" ]] \
+  || fail "The Samsung workload manifest package SHA-256 does not match eng/baselines.json."
+
+if ! "$DOTNET" nuget verify --all \
+    --certificate-fingerprint "$EXPECTED_SIGNER_FINGERPRINT" \
+    "$MANIFEST_PACKAGE"; then
+  fail "The Samsung workload manifest package is not signed by the reviewed certificate."
+fi
+
 INSTALLER="$TEMP_DIR/workload-install.sh"
 if ! "$CURL" --fail --silent --show-error --location \
     "$TIZEN_WORKLOAD_INSTALLER_URL" --output "$INSTALLER"; then
   fail "Failed to download Samsung's supported Tizen workload installer."
+fi
+
+# Samsung's pinned installer normally downloads the manifest again from the NuGet v2
+# endpoint. Replace only that exact download line so the supported installer flow consumes
+# the package whose hash and signer were verified above; fail if the pinned script changes.
+if ! "$PYTHON" - "$INSTALLER" <<'PY'
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as stream:
+    script = stream.read()
+
+download = (
+    "curl -s -o $TMPDIR/manifest.zip -L "
+    "https://www.nuget.org/api/v2/package/$MANIFEST_NAME/$MANIFEST_VERSION"
+)
+replacement = 'cp "$TIZEN_VERIFIED_MANIFEST_PACKAGE" "$TMPDIR/manifest.zip"'
+
+if script.count(download) != 1:
+    raise SystemExit("pinned installer manifest download did not match the reviewed shape")
+
+with open(path, "w", encoding="utf-8") as stream:
+    stream.write(script.replace(download, replacement))
+PY
+then
+  fail "Samsung's pinned installer changed; refusing to execute an unreviewed download path."
 fi
 bash -n "$INSTALLER"
 
@@ -194,7 +277,9 @@ fi
 # misleading zero status.
 if ! (
   cd "$INSTALL_WORK_DIR" || exit 1
-  DOTNET_ROOT="$DOTNET_INSTALL_DIR" bash "$INSTALLER" "${INSTALLER_ARGS[@]}"
+  DOTNET_ROOT="$DOTNET_INSTALL_DIR" \
+    TIZEN_VERIFIED_MANIFEST_PACKAGE="$MANIFEST_PACKAGE" \
+    bash "$INSTALLER" "${INSTALLER_ARGS[@]}"
 ); then
   fail "Samsung's supported Tizen workload installer exited unsuccessfully."
 fi

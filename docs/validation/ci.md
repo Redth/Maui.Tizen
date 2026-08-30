@@ -17,7 +17,7 @@
 | Job | Purpose |
 |---|---|
 | `availability` | Decides whether the lane can and must run. Hosted runner. |
-| `device-matrix` | The real work, on `[self-hosted, tizen]`, in the `tizen-device-lab` environment |
+| `device-matrix` | The real work, on one-job JIT runners from the workflow-restricted `maui-tizen-release` group with the `tizen` label, in the `tizen-device-lab` environment |
 | `release-gate` | Converts "did not run" into pass-for-PR / fail-for-release |
 
 ## Tolerating missing infrastructure without hiding it
@@ -69,8 +69,8 @@ lane's absence is visible on every run rather than only when someone goes lookin
 
 | Environment | Purpose | Status |
 |---|---|---|
-| `tizen-device-lab` | Scopes access to lab resources. No secrets are referenced by this repository. | not yet created |
-| `tizen-release` | Reviewer approval before the gate returns a verdict. Attached to `release-gate` — the job that decides — rather than to `device-matrix`, which would gate the work while leaving the verdict ungated. | not yet created |
+| `tizen-device-lab` | Scopes both self-hosted jobs (`device-matrix` and `package-consumer`) to approved lab access. No secrets are referenced by this repository. | not yet created |
+| `tizen-release` | Reviewer approval after the reusable workflow returns `gate_passed=true`, attached to `.github/workflows/release.yml`'s outer `release-gate`. | not yet created |
 
 Neither environment exists yet, so **no approval is currently enforced**. The workflow references
 them so that creating the environments is the only remaining step; until then the references are
@@ -78,7 +78,8 @@ inert.
 
 ## Reuse by the release pipeline
 
-`tizen-device-validation.yml` is callable via `workflow_call` and publishes a `gate_passed` output.
+`tizen-device-validation.yml` is callable via `workflow_call` only from the reviewed
+`Redth/Maui.Tizen` release workflow and publishes a `gate_passed` output.
 It is **fail-closed**: `gate_passed` is written `false` first and only set `true` after the gate
 script exits 0, so any failure or early exit leaves it false or unset. A caller must treat anything
 other than `'true'` as a failure.

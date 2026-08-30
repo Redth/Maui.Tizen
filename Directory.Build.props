@@ -122,7 +122,7 @@
     <PackageProjectUrl>https://github.com/Redth/Maui.Tizen</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Redth/Maui.Tizen</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageTags>maui;tizen;samsung</PackageTags>
+    <PackageTags>maui;tizen;dotnet;samsung</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>

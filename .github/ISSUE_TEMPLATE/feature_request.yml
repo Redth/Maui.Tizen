@@ -1,0 +1,48 @@
+name: Feature request
+description: Propose a new capability or enhancement for Maui.Tizen.
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check `docs/governance/tizen-support-matrix.md` and open
+        issues first — this helps avoid duplicate proposals and keeps scope
+        aligned with supported Tizen profiles/API levels.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What problem does this solve? Who is affected?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: API shape, behavior, or design sketch if you have one.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: api-impact
+    attributes:
+      label: Does this change public API surface?
+      description: See docs/governance/api-compatibility-policy.md
+      options:
+        - "No"
+        - "Yes - additive only"
+        - "Yes - breaking"
+        - "Not sure"
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues/PRs for duplicates.
+          required: true

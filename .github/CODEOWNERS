@@ -1,0 +1,38 @@
+# CODEOWNERS for Maui.Tizen
+#
+# STATUS: PLACEHOLDER — this file defines the *shape* of ownership for review
+# routing. Team handles below do not exist yet and must be created (or mapped
+# to existing teams) before this file has any enforcement effect. GitHub
+# silently ignores CODEOWNERS entries that reference teams/users without
+# repository access, so treat every line here as "to be activated" until the
+# "Samsung Transfer Checklist" (docs/governance/samsung-transfer-checklist.md)
+# item for GitHub teams is complete.
+#
+# Ownership model (interim, pre-transfer):
+#   @Redth                 - current maintainer / transfer custodian
+#
+# Ownership model (target, post-Samsung-transfer):
+#   @dotnet/maui-tizen-triage   - first-line triage for issues/PRs
+#   @dotnet/maui-tizen-maint    - merge rights, release sign-off
+#   @samsung/tizen-dotnet-core  - Tizen platform/runtime interop experts
+#   @samsung/tizen-dotnet-leads - release approval, servicing decisions
+#
+# Replace the handles above with real GitHub teams during transfer (see
+# docs/governance/samsung-transfer-checklist.md). Until then, entries below
+# resolve to the interim maintainer so reviews are never silently unassigned.
+
+# Default owners for everything in the repo.
+* @Redth
+
+# Governance, policy, and release process changes require sign-off from
+# whoever is accountable for the servicing policy at the time. Update the
+# handle below once a dedicated governance team exists.
+/docs/governance/            @Redth
+/.github/                    @Redth
+/CODEOWNERS                  @Redth
+/SECURITY.md                 @Redth
+
+# Release automation is the highest-risk surface in this repo (publishes
+# packages under the Maui.Tizen.* prefix). Changes here should always get a
+# second set of eyes, even for the interim maintainer.
+/.github/workflows/release.yml   @Redth

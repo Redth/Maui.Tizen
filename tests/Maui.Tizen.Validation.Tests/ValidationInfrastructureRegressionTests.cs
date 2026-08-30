@@ -91,7 +91,7 @@ public class ValidationInfrastructureRegressionTests
             Path.Combine(RepoLayout.Root, ".github", "workflows", "tizen-device-validation.yml"));
 
         Assert.Contains(
-            "--release-validation \"${{ inputs.release_validation }}\"",
+            "--release-validation \"$RELEASE_VALIDATION\"",
             workflow,
             StringComparison.Ordinal);
         Assert.DoesNotContain("echo \"gate_passed=true\"", workflow, StringComparison.Ordinal);
@@ -356,9 +356,10 @@ public class ValidationInfrastructureRegressionTests
         Assert.Contains("verify-device-profile", workflow, StringComparison.Ordinal);
         Assert.Contains("verify-visual-target", workflow, StringComparison.Ordinal);
         Assert.Equal(5, Regex.Matches(workflow, @"^\s+serial_var:", RegexOptions.Multiline).Count);
-        Assert.Contains("runs-on: [self-hosted, tizen]", JobBlock(workflow, "package-consumer"), StringComparison.Ordinal);
+        Assert.Contains("group: maui-tizen-release", JobBlock(workflow, "package-consumer"), StringComparison.Ordinal);
+        Assert.Contains("labels: tizen", JobBlock(workflow, "package-consumer"), StringComparison.Ordinal);
         Assert.Contains("MAUI_TIZEN_SUITES: Maui.Tizen.Consumer.Tests", JobBlock(workflow, "package-consumer"), StringComparison.Ordinal);
-        Assert.Contains("--consumer-result \"${{ needs.package-consumer.result }}\"", workflow, StringComparison.Ordinal);
+        Assert.Contains("--consumer-result \"$CONSUMER_RESULT\"", workflow, StringComparison.Ordinal);
         Assert.Contains(
             "steps.app.outputs.available == 'true'",
             workflow[workflow.IndexOf("- name: Record the result", StringComparison.Ordinal)..],

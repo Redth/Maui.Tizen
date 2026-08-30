@@ -1,5 +1,6 @@
 {
   "schemaVersion": 1,
+  "baselineKind": "upstream-reference",
   "packageVersion": "9.0.120",
   "targetFramework": "net9.0-tizen7.0",
   "trustAnchor": "eng/api-baselines/net9.0-tizen7.0-package-trust.json",
